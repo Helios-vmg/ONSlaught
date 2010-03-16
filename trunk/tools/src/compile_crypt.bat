@@ -1,0 +1,1 @@
+g++ crypt.cpp Unicode.cpp -o crypt -O3 -s

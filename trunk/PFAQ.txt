@@ -1,0 +1,154 @@
+(Updated: 2009-11-30)
+
+                     Possibly Frequently Asked Questions
+
+Q: What is ONSlaught?
+A: ONSlaught is a visual novel engine based, from a high-level perspective, on
+NScripter and ONScripter. It therefore tries to be as compatible with them as
+possible.
+It is not, however, a version of either of these engines. Its entire code base
+was written from scratch to support Unicode. It is not just ONScripter with
+Unicode tacked on.
+Some features were removed, changed, or deprecated ("deprecated" means that a
+new, better version exists, but the old one is left for backwards
+compatibility), usually for the sake of portability, simplicity, or to better
+fit the new internal design.
+
+Q: What parts are (in)compatible with O/NScripter?
+A: These are the most prominent changes:
+   * Syntax. Some syntax has been changed. The changes are detailed in
+     doc/Changes.txt
+   * Commands. Some commands have been changed or removed. The changes are
+     detailed in doc/Changes.txt
+     At the time of writing, 85% of the commands are unimplemented (this only
+     accounts for commands that are intended to be implemented some time in the
+     future).
+   * The script reading code is almost 100% compatible. A certain encryption
+     method that relied on the binary image of the executable was left
+     unimplemented for practical reasons.
+   * "nscrflog.dat", "nscrllog.dat", and "gloval.sav" are read correctly, but
+     written back in a format O/NScripter can't read. "nscrflog.dat",
+     "nscrllog.dat", and "gloval.sav" are written back as "nonsflog.dat",
+     "nonsllog.dat", and "global.sav" correspondingly.
+   * O/NScripter save game files are unsupported. Save game files are written in
+     a format O/NScripter can't read.
+   * A few other files used by O/NScripter aren't acknowledged by the engine.
+
+Q: What new features does ONSlaught have that O/NScripter didn't?
+A: ONSlaught's main purpose was to add Unicode support to O/NScripter, so it's
+not particularly feature-rich, but it does have more features than O/NScripter.
+These are the most prominent new features:
+   * Unicode support. ONSlaught supports all characters in the range U+0000 to
+     U+FFFF.
+     The following encodings/code pages are supported:
+     ISO 8859-1 (code page)
+     UCS-2 with or without BOM (Unicode encoding)
+     UTF-8 with or withoue BOM (Unicode encoding)
+     Shift JIS (code page)
+     Future releases may add more encodings or code pages, and/or the
+     possibility to add more through some interpreted language (possibly
+     Python).
+   * Non-monospace font support.
+   * A few new commands.
+   * Debug mode allows script writers to view the values of variables and to run
+     a few commands from the console. The verbosity of the engine can be changed
+     through the command line, or through a file that simulates the command
+     line.
+   * When drawing to the screen, all processors are used to speed things up.
+   * Through a clever programming trick, it's possible to run a script at a
+     different physical resolution than its logical resolution. For example, a
+     script that was designed to be ran at 640x480 can be scaled up to 1280x1024
+     without changing the script or the data.
+   * Macros.
+   * Filter and asynchronous effects plugin.
+   * Portable video playback supporting the most popular formats.
+
+Q: Why should I use ONSlaught instead of O/NScripter?
+A: Unlike O/NScripter, ONSlaught was designed from the start to support European
+languages, and any other language written in left-to-right, top-to-bottom
+direction, which luckily covers most of the world's languages. For example, it
+can't be used to display Japanese in its classical top-to-bottom, right-to-left
+style, or Arabic, which is bidirectional. This is important if one intends to
+write a script in a language other than English or Japanese, as it's often
+necessary to use characters that can't be represented in Shift JIS. Spanish, for
+example, uses accentuated vowels, umlaut, and an N with a tilde, None of which
+can be represented in Shift JIS.
+If you intend to write a script in a language that uses any of these glyphs --
+for example, for the purpose of translation -- then you should definitely use
+ONSlaught.
+ONSlaught also correctly displays (or should display) any font, regardless of
+the width of the individual glyphs, which is a plus for aesthetics.
+These reasons are, of course, only relevant for script writers. End users have
+no reason to stop using their current engine.
+
+Q: What does "beta" mean?
+A: It means the engine, while not completed, it's advanced to the point where it
+can be used to run some scripts. In fact, it has already been used to translate
+a major game.
+It's beta status is not a measure of its stability. Its a measure of its
+completeness. At the time of writing (2009-11-30) the script interpreter is at
+version 0.85. The number is the percentage of implemented commands. The engine
+will get out of beta when the interpreter reaches 1.00. That is, when all or
+almost all commands supported by O/NScripter are supported by ONSlaught.
+
+Q: Has ONSlaught been used to translate any games?
+A: Why, yes it has! To my knowledge, ONSlaught has already been used to
+translate Tsukihime to Spanish.
+
+http://www.mcanime.net/foro/viewtopic.php?t=113083 - Tsukihime in Spanish
+
+Q: Under what terms is ONSlaught licensed?
+A: ONSlaught is licensed under the terms of a classic 3-clause BSD-style
+licence. It allows the following:
+* All or parts of the code may be used in both closed and open source -- be it
+  as redistributions or derivative works -- or for any other purpose. Source and
+  binary distributions of the original are required to display the copyright
+  notice, the list of conditions, and the disclaimer. This requirement doesn't
+  apply to derivative works.
+Additionally:
+* The author's name may only be used to promote derivative works with his prior
+  written permission.
+* Derivative works may only include the word "ONSlaught" in their names with the
+  author's prior written permission.
+I chose the BSD-style licence because I've always considered the GPL to provide
+only a false sense of freedom, and because I don't feel free software to be a
+silver bullet.
+Allow me to expand: If I write code and make it available, it's because I want
+other people to use it, and to use it to produce more great software. If I
+arbitrarily deny a group of people their right to use it, then I'm defeating my
+own purpose. In the end, whether a certain software is free or not is relatively
+irrelevant when compared to its quality. In most cases, anyway. If my code can
+help create great software, what right do I have to deny society its benefit
+based on the licence choice of the third party? And what right do I have to
+force other people to feel the same way I do?
+
+Some files were written by other people. See Licence.txt for their respective
+licences and acknowledgements.
+
+Q: Where are the save files stored?
+A: It depends on the system. On Windows, they are stored in a directory in
+"My Documents\.ONSlaught\". On UNIX, they are stored in a directory in
+"~/.ONSlaught". On other systems, they are stored in "./". The exact location
+depends on the script.
+The engine reports the location at startup. Depending on the options you passed
+to it, you may read it on the console, or in "stdout.txt".
+It's possible to tell the engine exactly where to store save data. See
+doc/Arguments.txt for details.
+
+Q: When I set the available save game slots to the maximum and enter the save
+screen, it takes a bit longer to load and then it displays fewer slots than it
+should. Why is that?
+A: If the number of slots is such that the options don't fit on the screen, the
+engine will automatically choose the largest number possible. To do this, it
+must test every possibility, which takes a short while. To avoid this, you can
+set the correct number of slots yourself.
+
+Q: How stable is ONSlaught?
+A: Stable, and getting more stable every day. If you find any bugs, don't
+hesitate to inform me through e-mail. KnownIssues.txt enumerates the bugs I'm
+already aware of. Some of them are external to the engine (e.g. a bug in one of
+the libraries), and therefore, I cannot fix them.
+
+Q: My target system doesn't allow passing command line arguments. What do I do?
+A: If there's a file named "arguments.txt" in the working directory, the engine
+can use its contents as though they were command line arguments.

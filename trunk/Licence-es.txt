@@ -1,0 +1,52 @@
+La siguiente licencia se aplica a todos los archivos bajo src/, a menos que se
+indique lo contrario:
+
+* Copyright (c) 2008, 2009, Helios (helios.vmg@gmail.com)
+* Todos los derechos reservados.
+*
+* La redistribución y el uso en formato de código fuente y binario, con y sin
+* modificaciones, están permitidos siempre y cuando se complan las siguientes
+* condiciones:
+*     * Las redistribuciones de código fuente deben mantener el aviso de
+*       copyright anterior, esta lista de condiciones, y la renuncia posterior.
+*     * Las redistribuciones en formato binario deben reproducir el aviso de
+*       copyright anterior, esta lista de condiciones, y la renuncia posterior
+*       en la documentación y/u otros materiales provistos en la distribución.
+*     * El nombre del autor no podrá usarse para apoyar o promover productos
+*       derivados de este software sin previo permiso escrito específico.
+*     * Productos derivados de este software no podrán llamarse "ONSlaught" ni
+*       podrá "ONSlaught" aparecer en sus nombres sin previo permiso escrito
+*       específico del autor.
+*
+* ESTE SOFTWARE ES PROVISTO POR HELIOS "TAL CUAL", Y CUALQUIER GARANTÍA EXPRESA
+* O IMPLÍCITA, INCLUYENDO, PERO NO LIMITADO A, LAS GARANTÍAS IMLÍCITAS DE
+* MERCANTIBILIDAD Y UTILIDAD PARA UN PROPÓSITO EN PARTICULAR, QUEDAN
+* RENUNCIADAS. EN NINGÚN CASO SERÁ HELIOS RESPONSABLE POR NINGUN DAÑO DIRECTO,
+* INDIRECTO, INCIDENTAL, ESPECIAL, EJEMPLARIA, O CONSECUENTE (INCLUYENDO, PERO
+* NO LIMITADO A, PROCURACIÓN DE BIENES O SERVICIOS SUBSITUTOS; PÉRDIDA DE USO,
+* DATOS, O GANANCIAS; O INTERRUPCIÓN DE ACTIVIDADES) SIN IMPORTAR COMO HAYA SIDO
+* CAUSADO Y EN CUALQUIER TEORÍA DE RESPONSABILIDAD, YA SEA EN CONTRATO,
+* RESPONSABILIDAD ESTRICTA, O AGRAVIO INDEMNIZABLE (INCLUYENDO NEGLIGENCIA O
+* CUALQUIER OTRO) QUE HAYA SURGIDO DE CUALQUIER FORMA DEL USO DE ESTE SOFTWARE,
+* AUNQUE HAYA SIDO AVISADO DE LA POSIBILIDAD DE TAL DAÑO.
+* ESTA ES UNA TRADUCCIÓN SIN VALIDEZ LEGAL, PROVISTA SOLO PARA QUIENES NO PUEDEN
+* LEER EL ORIGINAL EN INGLÉS.
+
+--------------------------------------------------------------------------------
+
+A continuación, las excepciones a la licencia anterior:
+
+--------------------------------------------------------------------------------
+
+Los siguientes archivos fueron escritos por Paul E. Jones (paulej@arid.us):
+src/IO_System/Script/sha1.cpp
+src/IO_System/Script/sha1.h
+
+--------------------------------------------------------------------------------
+
+Los siguientes archivos fueron escritos originalmente por Sam Lantinga
+(slouken@libsdl.org) y mínimamente modificados por Helios:
+src/IO_System/Graphics/SDL_ttf.c
+src/IO_System/Graphics/SDL_ttf.h
+Están bajo los términos de la Licencia Pública General. Por brevedad, su texto
+no se incluye aquí.

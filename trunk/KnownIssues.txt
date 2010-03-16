@@ -1,0 +1,18 @@
+* MP3
+    smpeg.dll (used for mp3 playback) tends to crash unexpectedly. It's
+    encouraged to use OGG, instead. Use MP3 at your own risk.
+    This is officially not a bug. It's a feature.
+* Debug mode
+    When running in language debug mode and the debug thread is waiting for
+    input, the program will not end until *any* input (including an empty
+    string) is given. The interpreter and the image loader will be destroyed
+    cleanly (thereby commiting user data to disk), so it's otherwise completely
+    safe.
+    The thread can be killed early with "exit" or "quit".
+* Linux
+    XMMS has been known to to clash with the sound library to the point that
+    only one of the two can be playing sound at a time.
+* Miscellanea
+    Vertical centering produces incorrect results when the size of a page of
+    text is greater than the size of the screen. This will probably be fixed in
+    future releases.

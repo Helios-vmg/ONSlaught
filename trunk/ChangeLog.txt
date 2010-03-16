@@ -1,0 +1,110 @@
+????????
+    * Implemented: transmode.
+    * Added SVG support.
+    * Implemented enforcement of command execution to the *define and *start
+        blocks.
+    * Fixed bug in division operator (!).
+    * Fixed bug in fullscreen switch.
+    * Updated expression parsing mechanism.
+    * Minor bug in label checking fixed.
+    * Minor bug in string interpretation fixed.
+    * Minor bug in animation fixed.
+    * Bug in date command fixed.
+
+20091212
+    * Implemented: avi, mpegplay.
+    * The engine is confirmed to compile with MinGW versions 4.x and above.
+    * In-game console replacing old debugging console added.
+    * Font path moved to the configuration file under "default font".
+    * Added plug-in system.
+    * Added ZIP support.
+    * Added full video support.
+    * Minor bug fixes.
+    * Fixed compliance error in effects 11, 12, 13, and 14.
+    * Fixed compliance error in nega.
+    * Fixed major bug in file reading function.
+    * Fixed bug in UTF-8 decoding function.
+    * Fixed crashing bug in input events.
+    * Fixed bug in the macro parser.
+    * Fixed bug in bg.
+    * Fixed memory leak in menu GUI element.
+    * Fixed memory leak in save game loading routine.
+    * Fixed bug when playing very short audio samples while skipping.
+    * Fixed minor bug in lookback GUI element.
+
+20090904
+    * Implemented: versionstr, cell, bgcopy, bgcpy, draw, drawbg, drawbg2,
+        drawclear, drawfill, drawsp, drawsp2, drawsp3, drawtext, allsphide,
+        allspresume, mov3, mov4, ..., mov10, selnum, humanorder, loadgosub,
+        defsub, user commands, getparam, getcursor, useescspc, getpage,
+        getenter, gettab, getfunction, getinsert, getzxc, usewheel,
+        shadedistance, tablegoto, indent, getscreenshot, deletescreenshot,
+        gettext, maxkaisoupage, checkpage, getlog.
+    * Added screenshot function.
+    * Improved error reporting system.
+    * Added macro capabilities for code generation.
+        TODO: Improve the syntax error reporting system.
+    * Fixed savescreenshot and savescreenshot2.
+    * Memory leak the size of the script fixed.
+    * Bug in jumpb and jumpf fixed.
+    * Fixed incorrect behavior of bg for images of size other than the screen.
+    * Fixed possible incorrect behavior in select, selectgosub, and selectnum.
+    * Fixed bug in text color tags (#RRGGBB).
+
+20090715
+    * Major internal redesign.
+    * Implemented: split, isdown, isfull, getcursorpos, textgosub, ispage,
+        puttext, labellog, underline.
+    * Unimplemented: kidokumode, kidokuskip, skipoff, isskip.
+    * Implemented mouse wheel.
+    * Variable indices can now be negative.
+    * Added automatic encoding detection.
+    * Added "auto" to the possible encodings list. This is now the default.
+    * doc/Changes.txt reformatted.
+    * Save file version upgraded.
+    * Added INSTALL.txt with installation instructions.
+    * Changed implementation of expression evaluator to a Bison-generated
+      parser-evaluator. Because of MinGW's poor implementation, the code can no
+      longer be compiled with it.
+    * Discontinued support for O/NScripter savegames (save*.dat).
+    * The array identification method has changed from C-style identifiers to
+      integers. As a result, all savegames for scripts that use arrays will be
+      incorrectly loaded.
+    * Labels are now C-style identifiers (sort of).
+    * Added string concatenation support in expressions.
+    * Added asynchronous animation support for all layers.
+    * Added full sprite string support (see doc/NScrAPI/NScrAPI.xml#lsp) for the
+        syntax "[:(trans-mode)[/(animation)];](filename)".
+    * Removed -transparency-method-layer and -transparency-method-anim as
+        command line arguments.
+    * Fixed serious bug in the string reduction mechanism.
+    * Fixed bug related to text speed.
+    * Fixed bug in the bilinear interpolation function.
+    * Fixed bug related to !sd and !s# escape sequences.
+    * Fixed a bug that caused loading a sound on channel X to crash if a
+      wavestop had been issued on channel X while no sound was loaded at that
+      channel.
+    * Fixed crash involving screen interpolation and fullscreen switching.
+    * And so on...
+
+20090307
+    * Several bug fixes.
+    * Implemented the following commands: blt, fileexist, menu_full, mp3stop,
+        savefileexist, savescreenshot, savescreenshot2, savetime.
+    * New commands: savetime2.
+    * New command line arguments: -!reset-out-files -!redirect
+    * Improved redirection files behavior.
+    * Unimplemented commands: killmenu
+    * global.sav and nonsflog.dat moved to the save directory.
+
+20090126
+    * Major bugs in the Linux version fixed. Now ONSlaught works correctly in
+        both Windows and Linux.
+    * New commands: centerh, centerv
+    * New convenience command line argument: -save-directory
+
+20081231
+    Minor problems in the initial release corrected.
+
+20081230
+    Initial release.

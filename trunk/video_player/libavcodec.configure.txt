@@ -1,0 +1,8 @@
+full:
+./configure --enable-static --disable-shared --enable-gpl --enable-nonfree --disable-ffmpeg --disable-ffplay --disable-ffserver --disable-network --disable-ipv6 --enable-memalign-hack
+
+GPL:
+./configure --enable-static --disable-shared --enable-gpl --disable-ffmpeg --disable-ffplay --disable-ffserver --disable-network --disable-ipv6 --enable-memalign-hack
+
+minimal:
+./configure --enable-static --disable-shared --disable-ffmpeg --disable-ffplay --disable-ffserver --disable-network --disable-ipv6 --enable-memalign-hack

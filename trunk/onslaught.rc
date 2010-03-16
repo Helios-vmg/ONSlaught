@@ -1,0 +1,67 @@
+1 VERSIONINFO
+#ifdef _DEBUG
+#include <winver.h>
+FILEFLAGS VS_FF_DEBUG
+FILEVERSION 9999, 99, 99, 0
+PRODUCTVERSION 9999, 99, 99, 0
+#else
+FILEFLAGS 32
+FILEVERSION 2010, 03, 16, 0
+PRODUCTVERSION 2010, 03, 16, 0
+#endif
+
+FILEOS 4
+FILETYPE 1
+
+#if defined(_DEBUG)
+{
+	BLOCK "StringFileInfo" {
+		BLOCK "040904B0" {
+			VALUE "FileDescription", "ONSlaught"
+			VALUE "OriginalFilename", "ONSlaught.exe"
+			VALUE "CompanyName", "Helios"
+			VALUE "FileVersion", "Debug"
+			VALUE "LegalCopyright", "Copyright (c) 2008, 2009, Helios"
+			VALUE "ProductName", "ONSlaught: An ONScripter clone with Unicode support."
+			VALUE "ProductVersion", "Debug"
+		}
+	}
+	BLOCK "VarFileInfo" {
+		VALUE "Translation", 0x0409, 0x04B0
+	}
+}
+#elif defined(NONS_SVN)
+{
+	BLOCK "StringFileInfo" {
+		BLOCK "040904B0" {
+			VALUE "FileDescription", "ONSlaught"
+			VALUE "OriginalFilename", "ONSlaught.exe"
+			VALUE "CompanyName", "Helios"
+			VALUE "FileVersion", "2010-03-16 11:20:03"
+			VALUE "LegalCopyright", "Copyright (c) 2008, 2009, Helios"
+			VALUE "ProductName", "ONSlaught: An ONScripter clone with Unicode support."
+			VALUE "ProductVersion", "2010-03-16 11:20:03"
+		}
+	}
+	BLOCK "VarFileInfo" {
+		VALUE "Translation", 0x0409, 0x04B0
+	}
+}
+#else
+{
+	BLOCK "StringFileInfo" {
+		BLOCK "040904B0" {
+			VALUE "FileDescription", "ONSlaught"
+			VALUE "OriginalFilename", "ONSlaught.exe"
+			VALUE "CompanyName", "Helios"
+			VALUE "FileVersion", "2010-03-16 11:20:03"
+			VALUE "LegalCopyright", "Copyright (c) 2008, 2009, Helios"
+			VALUE "ProductName", "ONSlaught: An ONScripter clone with Unicode support."
+			VALUE "ProductVersion", "2010-03-16 11:20:03"
+		}
+	}
+	BLOCK "VarFileInfo" {
+		VALUE "Translation", 0x0409, 0x04B0
+	}
+}
+#endif

@@ -1,0 +1,16 @@
+????????
+    * Added zip tool.
+
+20090407
+    * Added -l option to crypt for backwards compatibility with NSDEC.exe.
+
+20090208
+    * Nearly no changes. Last release until I can crack this SPB compression
+      thing.
+
+20080126
+    * First release separate from the main archive.
+    * Added nsaio to replace the old ONScripter programs. Don't expect this to
+      ever be ported to anything other than Windows and Linux. Boost is not easy
+      to link against.
+    * Added distribution-independent Linux binaries.

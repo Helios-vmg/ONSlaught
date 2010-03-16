@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nsaio", "nsaio\nsaio.vcproj", "{AC998F5E-806A-4499-9E0D-AEE719626301}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zip", "zip\zip.vcproj", "{80E6AA00-6E45-4824-97C2-9B87429E48A5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AC998F5E-806A-4499-9E0D-AEE719626301}.Debug|Win32.ActiveCfg = Debug|Win32
+		{AC998F5E-806A-4499-9E0D-AEE719626301}.Debug|Win32.Build.0 = Debug|Win32
+		{AC998F5E-806A-4499-9E0D-AEE719626301}.Release|Win32.ActiveCfg = Release|Win32
+		{AC998F5E-806A-4499-9E0D-AEE719626301}.Release|Win32.Build.0 = Release|Win32
+		{80E6AA00-6E45-4824-97C2-9B87429E48A5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{80E6AA00-6E45-4824-97C2-9B87429E48A5}.Debug|Win32.Build.0 = Debug|Win32
+		{80E6AA00-6E45-4824-97C2-9B87429E48A5}.Release|Win32.ActiveCfg = Release|Win32
+		{80E6AA00-6E45-4824-97C2-9B87429E48A5}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

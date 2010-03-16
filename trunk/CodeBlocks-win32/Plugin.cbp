@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="Plugin" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="..\bin-win32\plugin_d" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\Debug\" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-Wall" />
+					<Add option="-DBUILD_DLL" />
+					<Add option="-g" />
+				</Compiler>
+				<Linker>
+					<Add library="user32" />
+					<Add library="ONSlaught_d" />
+				</Linker>
+			</Target>
+			<Target title="SVN">
+				<Option output="..\bin-win32\plugin" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\SVN\" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-O3" />
+					<Add option="-DBUILD_DLL" />
+					<Add option="-DNONS_SVN" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+					<Add library="user32" />
+					<Add library="ONSlaught" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wmain" />
+			<Add option="-pedantic" />
+			<Add option="-DUNICODE" />
+			<Add option="-D_UNICODE" />
+			<Add directory="..\include" />
+		</Compiler>
+		<Linker>
+			<Add option="-static-libgcc" />
+			<Add library="SDL" />
+			<Add library="winmm" />
+			<Add directory="..\lib-win32\MinGW" />
+			<Add directory="..\bin-win32" />
+		</Linker>
+		<Unit filename="..\src\Plugin\Plugin.cpp" />
+		<Unit filename="..\src\Plugin\Plugin.h" />
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+			<lib_finder disable_auto="1" />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

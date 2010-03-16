@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ONSlaught-win32", "ONSlaught-win32\ONSlaught-win32.vcproj", "{0C607BA4-EED5-4A5F-8D97-95825F0BB074}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Plugin", "Plugin\Plugin.vcproj", "{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0C607BA4-EED5-4A5F-8D97-95825F0BB074} = {0C607BA4-EED5-4A5F-8D97-95825F0BB074}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		SVN|Win32 = SVN|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0C607BA4-EED5-4A5F-8D97-95825F0BB074}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0C607BA4-EED5-4A5F-8D97-95825F0BB074}.Debug|Win32.Build.0 = Debug|Win32
+		{0C607BA4-EED5-4A5F-8D97-95825F0BB074}.SVN|Win32.ActiveCfg = SVN|Win32
+		{0C607BA4-EED5-4A5F-8D97-95825F0BB074}.SVN|Win32.Build.0 = SVN|Win32
+		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.Debug|Win32.Build.0 = Debug|Win32
+		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.SVN|Win32.ActiveCfg = SVN|Win32
+		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.SVN|Win32.Build.0 = SVN|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

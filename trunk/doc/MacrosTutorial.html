@@ -1,0 +1,389 @@
+﻿<html>
+<head>
+&nbsp;&nbsp;&nbsp;&nbsp;<meta http-equiv="content-type" content="text/html; charset=utf-8">
+&nbsp;&nbsp;&nbsp;&nbsp;<title>ONSlaught: How to use macros to generate code</title>
+</head>
+<body lang="en-us" dir="ltr">
+<p style="margin-bottom: 0in; background: transparent"><i>The purpose of this document is to explain what macros are, their purpose, and how to use them. It is assumed that the reader has at least a minimum understanding of computer programming in any language.</i></p>
+<font size=4 style="font-size: 15pt">
+<ol start=0>
+&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#1">Introduction</a>
+&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#2">Basics</a>
+&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#3">Macro parameters</a>
+&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#4">if</a>
+&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#5">while</a>
+&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#6">for</a>
+&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#7">Macro calls</a>
+</ol>
+</font>
+<h1><a name="1"/>1. Introduction</h1>
+In programming, macros are used as a sort of automatic copy-paste. When the same piece of code needs to be used many times, perhaps with only minor variations, and a function/subroutine isn't suitable, a macro is used instead.<br/>
+For example, in C, a common situation is having an array of a given size. The size would need to appear in a lot of places in order to, for instance, iterate over the array. Without macros, a piece of code could look like this:<p/>
+
+<font face="monospace">
+int array[10];<br/>
+for (int a = 0; a &lt; 10 ; a++)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;array[a] = 10;<p/>
+</font>
+
+This is a short example, but notice how the number 10 already appears three times. If the size of the array ever changed, replacing all those 10's could introduce bugs by not replacing all the occurrences, or by replacing an unrelated 10.<br/>
+With macros, the same snippet looks like this:<p/>
+
+<font face="monospace">
+#define SIZE 10<br/>
+<br/>
+int array[SIZE];<br/>
+for (int a = 0; a &lt; SIZE; a++)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;array[a] = SIZE;<p/>
+</font>
+
+The advantage of this is evident. The size is in a single place, so by changing one instance, all the rest are updated. C macros can also take parameters, but I won't explain that in this section.<p/>
+
+ONSlaught's macro system is a bit more powerful than C's, but it's also harder to master. If you already know how to use C macros, this should be easy, though.<p/>
+
+<h1><a name="2"/>2. Basics</h1>
+I'll start by explaining how to enable macro processing.<p/>
+
+By default, macro processing is turned off. This is because the script could have made a "macro call" when it was not intended.<br/>
+To turn on macro processing, simply put a file named &quot;<font face="monospace">macros.txt</font>&quot; in the same directory as the script. Here is where you'll write all macros used by the script. The file should be in UTF-8. If the file has syntax errors or duplicate symbols, it will be ignored and macro processing will remain off.<p/>
+
+First, the simplest macro. It doesn't do anything:<p/>
+
+<font face="monospace">
+define MACRO{} //Doesn't generate any code.<br/>
+//Note: define MACRO; is equivalent<p/>
+</font>
+
+// marks a line comment. Everything until the end of line is ignored. It's the equivalent of ONS's ;.<br/>
+{} and ; are an empty code blocks.<br/>
+Macro names are identifiers. That is: they must be at least one character long; the first character can only be an underscore (_), or a Latin alphabet character in upper or lower case, characters other than the first may also be numbers. <a href="./Changes.html#1.2">Changes.html</a> has examples of valid and invalid identifiers. Macro names are case-sensitive.<br/>
+A common convention for macro names is to write them fully capitalized.<br/>
+To call this macro, simply add a line to the script:<p/>
+
+<font face="monospace">
+;#call MACRO()<p/>
+</font>
+
+In order for the preprocessor to understand this as a macro call, the string &quot;<font face="monospace">;#call</font>&quot; must appear exactly, followed by a whitespace character (<i>any</i> whitespace character). So, for example, &quot;<font face="monospace">;#calling</font>&quot; wouldn't trigger a macro call. Any call can be easily disabled in a number of ways. The simplest is by placing a space between the ; and the #. If you do disable calls, it's recomendable to choose a single method and use it consistently.<br/>
+Like I said before, macro names are case-sensitive. If you replace the macro name with "&quot;<font face="monospace">macro</font>&quot;", the call will fail and it will be ignored.<br/>
+<br/>
+Moving on, the following macro will generate the text "`Hello, World!@" when called:<p/>
+
+<font face="monospace">
+define MACRO(){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;block{`Hello, World!@<br/>
+}block;<br/>
+}<p/>
+</font>
+
+block{}block is probably the most important syntax. Whatever is between the braces (from now on, called a data block) is interpreted literally, including newlines and whitespace (notice that I didn't indent the closing }block). The block{}block syntax isn't free form. There can be no whitespace between block and {, or between } and block. Whitespace between }block and the semicolon is ignored, however.<br/>
+Data blocks are used to actually generate the text, and the contents inside will be replaced (or not) with variables. I will explain the mechanism in detail later.<br/>
+For the following script:<p/>
+
+<font face="monospace">
+;beginning of file<br/>
+;#call MACRO();The generated text ends here.<br/>
+;end of file<p/>
+</font>
+
+the preprocessed script would be:<p/>
+
+<font face="monospace">
+;beginning of file<br/>
+`Hello, World!@<br/>
+;The generated text ends here.<br/>
+;end of file<p/>
+</font>
+
+Notice how everything in the data block was used? If I had indented the closing }block, the result would have been:<p/>
+
+<font face="monospace">
+;beginning of file<br/>
+`Hello, World!@<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;;The generated text ends here.<br/>
+;end of file<p/>
+</font>
+
+Useful tip: You can generate the string &quot;}block&quot; by simply using two data blocks: block{}}block;block{block}block;<br/>
+It may be useful to put this in a macro of its own to avoid typing it every time. I'll go over how to do this later.<p/>
+
+<h1><a name="3"/>3. Macro parameters</h1>
+If you could only use a macro to generate the same text all the time, that wouldn't be very useful. There will be times where you'll have to give the macro information about how or what code to generate.<br/>
+NScripter -- and by extension, ONSlaught -- doesn't have an if-else structure, but it's possible to generate a pseudo-structure with macros.<br/>
+Let's take a look at it:<p/>
+
+<font face="monospace">
+define IF(IF_structure_name,IF_condition,IF_true_block){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;block{<br/>
+if (IF_condition)==0 goto *IF_structure_name_endif<br/>
+IF_true_block<br/>
+*IF_structure_name_endif<br/>
+}block;<br/>
+}<p/>
+</font>
+
+A call to this macro could look like this:<p/>
+
+<font face="monospace">
+;start;#call IF(if131,%somevariable&lt;someconstant,block{command parameter1,parameter2<br/>
+another_command parameter1,parameter2}block);end of generated code<p/>
+</font>
+
+And this would be the generated code:<p/>
+
+<font face="monospace">
+;start<br/>
+if (%somevariable&lt;someconstant)==0 goto *if131_endif<br/>
+command parameter1,parameter2<br/>
+another_command parameter1,parameter2<br/>
+*if131_endif<br/>
+;end of generated code<p/>
+</font>
+
+Let's start with the macro.<br/>
+The parameters are string variables, their names are identifiers. You'll notice the names are prefixed by &quot;IF_&quot;. There is no restriction placed on variable names (other than those applied to identifiers and that there can't be two variables with the same name or a variable with the same name as a macro). The prefix is chosen to avoid accidental string replaces. For example, if the variable was named &quot;e&quot;, its value &quot;hello&quot; and the data block was block{example}block, the resulting text would be &quot;helloxamplhello&quot;. Prefixing variables with the macro name reduces the possibility that the name will be found in a data block.<br/>
+Parameters are separated by commas, as you can see.<p/>
+As I mentioned a few sentences back, the preprocessor performs a string replace on the data blocks. If you know how C macros work, you may notice that these behave differently. Unlike C macros, which replace text token-by-token, these macros replace text character by character. This is why you need to be careful with the names you give your parameters.<p/>
+I think the data block is pretty self-explanatory, so I'll move on to the call. The &quot;start&quot; and &quot;end of generated code&quot; comments are there only to show more clearly how the preprocessor treated line breaks. If I hadn't put a line break after the opening block{ in the macro, the if would have been commented. You should keep that in mind when writing (or calling) macros.<p/>
+The interesting part about the call are the parameters.<br/>
+Nothing inside the parentheses is ignored, not even whitespace. For example, if the call had started with &quot;<font face="monospace">IF(if131 ,</font>&quot;, the label at the bottom would have been called &quot;<font face="monospace">*if131 _endif,</font>&quot;, thus producing incorrect results (this will become more obvious later on when I show the IF_ELSE example macro).<br/>
+There's something else, here. You'll notice that I'm using the block{}block syntax again. If you look carefully, you'll see that the difference between the third and the first and second arguments is that the third uses commas inside. Since commas are used by the preprocessor syntax to delimit arguments, block{}block works as a sort of string delimiter. You can string together several block{}blocks and the whitespace between them and between the last block and the next comma or the closing parenthesis will be ignored, but any whitespace between the previous comma and the first block{ will not be ignored. In case you're confused, here's a table:<p/>
+<font face="monospace">
+<table border>
+<tr><td>What the argument looks like</td><td>What the interpreted parameter looks like</td></tr>
+<tr><td>,text,</td><td>&quot;text&quot;</td></tr>
+<tr><td>,text)</td><td>&quot;text&quot;</td></tr>
+<tr><td>, text,</td><td>&quot; text&quot;</td></tr>
+<tr><td>,Hello\, World!,</td><td>&quot;Hello, World!&quot;</td></tr>
+<tr><td>,Hello\\\, World!,</td><td>&quot;Hello\, World!&quot;</td></tr>
+<tr><td>,Hello \(World\)!,</td><td>&quot;Hello (World)!&quot;</td></tr>
+<tr><td>,block{Hello, World!}block,</td><td>&quot;Hello, World!&quot;</td></tr>
+<tr><td>,block{Hello, World!}block ,</td><td>&quot;Hello, World!&quot;</td></tr>
+<tr><td>, block{Hello, World!}block,</td><td>&quot; block{Hello&quot; &quot; World!}block&quot; (that's two parameters)</td></tr>
+<tr><td>,block{Hello,}block block{World!}block,</td><td>&quot;Hello, World!&quot;</td></tr>
+<tr><td>,block{}}block&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;block{block}block&nbsp;&nbsp;&nbsp;,</td><td>&quot;}block&quot;</td></tr>
+</table>
+</font>
+<br/>
+Plain syntax:<br/>
+<ul>
+<li/><i>Everything</i> between the ,, or ,) is used, including spaces, tabs, and line breaks. Nothing is ignored.<br/>
+<li/>, and ) are reserved characters, so you should use \, and \) instead. Use \\ to make a backslash.<br/>
+</ul>
+Block syntax:<br/>
+<ul>
+<li/>If there's anything other than the exact string "<font face="monospace">block{</font>" immediately after the comma, the syntax used is assumed to be the plain syntax.<br/>
+<li/><i>Everything</i> between the block{}blocks is used, including spaces, tabs, and line breaks. Nothing is ignored.<br/>
+<li/>, ) and \ are not reserved characters. They must be used directly without escaping.<br/>
+<li/>There may be more than one data block in the same argument.<br/>
+<li/>If there are, all whitespace until the next block is ignored.<br/>
+<li/>All whitespace from the last block in the argument until the comma or parenthesis is ignored.<br/>
+</ul>
+
+IF_ELSE example:<p/>
+
+<font face="monospace">
+define IF_ELSE(IF_structure_name,IF_condition,IF_true_block,IF_false_block){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;block{<br/>
+if (IF_condition)==0 goto *IF_structure_name_false<br/>
+IF_true_block<br/>
+goto *IF_structure_name_endif<br/>
+*IF_structure_name_false<br/>
+IF_false_block<br/>
+*IF_structure_name_endif<br/>
+}block;<br/>
+}<p/>
+</font>
+
+Remember what I said earlier about a misplaced space generating wrong results, and how now it would be more obvious? Let's take a look again at that erroneous first argument: <font face="monospace">;#call IF_ELSE(if131 ,</font><br/>
+Here's what tha would generate (I've underlined colored the text that actually belongs to the argument):<p/>
+
+<font face="monospace">
+if (...)==0 goto *if131 _false<br/>
+...<br/>
+goto *if131 _endif<br/>
+*if131 _false<br/>
+...<br/>
+*if131 _endif<p/>
+</font>
+
+See? That extra space before the comma made the macro generate two labels with the same name.<p/>
+
+This is a pretty inconvenient method, anyway. You need to make sure that the structure name is unique, otherwise you'll end up creating duplicate labels. It's too error-prone. That's why the ^calls variable exists. It keeps track of how many times the macro has been used. Here's how IF_ELSE would look like using ^calls:<p/>
+
+<font face="monospace">
+define IF_ELSE(IF_condition,IF_true_block,IF_false_block){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;block{<br/>
+if (IF_condition)==0 goto *if^calls_false<br/>
+IF_true_block<br/>
+goto *if^calls_endif<br/>
+*if^calls_false<br/>
+IF_false_block<br/>
+*if^calls_endif<br/>
+}block;<br/>
+}<p/>
+</font>
+
+Now that looks a lot more like an if-else structure, doesn't it? It's a lot harder to generate incorrect code, now.<p/>
+
+Here ends the easy part. The next sections describe features and capablities the C preprocessor doesn't have.<p/>
+
+<h1><a name="4"/>4. if</h1>
+Until now, macros were nothing more than dumb text processors, no more sophisticated than the search and replace function found in most text editors. Here, however, is where macros begin to resemble a common programming language. Macros do more than just replace text; they are actually <i>executed</i>.<br/>
+The if structure allows the macro to branch execution based on a condition. Let's take a look at a simple example:<p/>
+
+<font face="monospace">
+define IF_EXAMPLE(IF_EXAMPLE_parameter){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (IF_EXAMPLE_parameter<10){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;block{`The macro parameter is lower than 10.@}block;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}else{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;block{`The macro parameter is at least 10.@}block;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
+}<p/>
+</font>
+
+I think the example speaks for itself, but there are two things worth noting when dealing with macros:<br/>
+1. When first introduced to macros, a lot of people make this mistake:<p/>
+
+<font face="monospace">
+;#call IF_EXAMPLE(%variable)<p/>
+</font>
+
+Macro processing is done <i>on text</i>. At the time it is done, the preprocessor has no idea what &quot;%variable&quot; means. It merely sees a string of text.<p/>
+
+2. When the macro reaches the if condition, it will try to convert the parameter to a number value. In the example call above, &quot;%variable&quot; isn't a number, so it will be interpreted as a zero.<p/>
+
+Two calls that produced the desired result for this macro would be:<p/>
+
+<font face="monospace">
+;#call IF_EXAMPLE(4)<br/>
+;#call IF_EXAMPLE(10)<p/>
+</font>
+
+And they would produce<p/>
+
+<font face="monospace">
+`The macro parameter is lower than 10.@<br/>
+`The macro parameter is at least 10.@<p/>
+</font>
+
+A few notes on general syntax: like in C, all whitespace (spaces, newlines, tabs) is ignored*, as I have mentioned before. There are no rules on where to put the braces in relation to the if statement. Where to put them and what style is better is one of the longest holy wars in the history of programming. See <a href="http://en.wikipedia.org/wiki/Indent_style">this Wikipedia article</a> for the most commonly used styles.<p/>
+
+<sub><sub>* There are places where whitespace isn't ignored. Identifiers must be written exactly as they were declared, so foobar and foo bar are not the same. Whitespace inside strings and data blocks is also not ignored. Finally, some operators, such as boolean OR (||) use two characters, and parsing will fail if they're not written as they should.</sub></sub><p/>
+
+The following operators can be used to construct if conditionals:<p/>
+
+<table border>
+<tr><td>Token</td><td>Meaning</td><td>Example</td></tr>
+<tr><td>+</td><td>Addition</td><td>a + b</td></tr>
+<tr><td></td><td>No operation</td><td>+a</td></tr>
+<tr><td>-</td><td>Subtraction</td><td>a - b</td></tr>
+<tr><td></td><td>Sign inversion</td><td>-a</td></tr>
+<tr><td>*</td><td>Multiplication</td><td>a * b</td></tr>
+<tr><td>/</td><td>Integer division</td><td>a / b</td></tr>
+<tr><td>%</td><td>Modulo operation</td><td>a % b</td></tr>
+<tr><td>==</td><td>Equals (comparison) (*)</td><td>a == b</td></tr>
+<tr><td>!=</td><td>Not equals</td><td>a != b</td></tr>
+<tr><td>&lt;</td><td>Lower than</td><td>a &lt; b</td></tr>
+<tr><td>&gt;</td><td>Greater than</td><td>a &gt; b</td></tr>
+<tr><td>&lt;=</td><td>Lower than or equal to</td><td>a &lt;= b</td></tr>
+<tr><td>&gt;=</td><td>Greater than or equal to</td><td>a &gt;= b</td></tr>
+<tr><td>!</td><td>Boolean negation</td><td>!a</td></tr>
+<tr><td>&&</td><td>Boolean AND (**)</td><td>a && b</td></tr>
+<tr><td>||</td><td>Boolean OR</td><td>a || b</td></tr>
+<tr><td>?:</td><td>Trinary operator</td><td>a ? b : c</td></tr>
+</table>
+* Using = (assignment) inside conditionals is illegal.<br/>
+** & is a different operator, used for string concatenation.<p/>
+
+Behavior, precedence, and associativity or the operators are the same as in C.<p/>
+
+<h1><a name="5"/>5. while</h1>
+Before showing the while example, I'll explain the block construct.<br/>
+A block is any structure enclosed by {} (this doesn't include data blocks, which are enclosed by block{}block. Blocks contain several statements, but data blocks are considered a single statement). Variables can be declared local to individual blocks and of a given type.<p/>
+
+<font face="monospace">
+define BLOCK_EXAMPLE[var0 = "AB"]{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;while (i < 10)[i, accumulator = ""]{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;accumulator = accumulator & var0;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;block{`accumulator<br/>
+}block;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;i = i + 1;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
+}<p/>
+</font>
+
+The result of calling this macro is this:<p/>
+
+<font face="monospace">
+`AB<br/>
+`ABAB<br/>
+`ABABAB<br/>
+`ABABABAB<br/>
+`ABABABABAB<br/>
+`ABABABABABAB<br/>
+`ABABABABABABAB<br/>
+`ABABABABABABABAB<br/>
+`ABABABABABABABABAB<br/>
+`ABABABABABABABABABAB<p/>
+</font>
+
+These are the properties of block initialization lists:
+<ul>
+<li/>If a variable is not explicitly initialized, its type is integer and it's implicitly initialized to zero.<br/>
+Valid explicit initializations include: var = 0, var = 1 + 1, var = var2, var = var2 * 2, var = var2 > 0 (var2 should have been declared previously)
+<li/>If a variable is explicitly initialized to a string, the type is string.<br/>
+Valid explicit initializations include: var = "", var = "string" & " another string", var = var2, var = var2 & "string"
+<li/>If the initialization list is attached to a block following a loop statement, the variables are initialized only once and retain their values between iterations.
+<li/>The loop condition can use the variables declared in the initialization list of the same loop.
+</ul>
+
+There is one more thing to note about this example. In C, a = b is an expression. This is not the case here. That's why it's illegal to use it inside a conditional. By extension, it is also illegal to do this: a = b = c.<p/>
+
+<h1><a name="6"/>6. for</h1>
+The for syntax is reminiscent of C's:<p/>
+
+<font face="monospace">
+define FOR_EXAMPLE<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;for (i;1;10;1)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;block{`i<br/>
+}block;<p/>
+</font>
+
+Result:<p/>
+
+<font face="monospace">
+`1<br/>
+`2<br/>
+`3<br/>
+`4<br/>
+`5<br/>
+`6<br/>
+`7<br/>
+`8<br/>
+`9<br/>
+`10<p/>
+</font>
+
+First is the variable that will be used as the for index; then is an expression to which the variable will be initialized; then an expression to which the variable is compared at each iteration, if the variable is greater, the for ends; finally, the increment for the index.
+
+<h1><a name="7"/>7. Macro calls</h1>
+<font face="monospace">
+define MACRO1(a)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;block{a}block;<br/>
+<br/>
+define NEWLINE<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;block{<br/>
+}block;<br/>
+<br/>
+define MACRO2(parameter){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;for (i;1;10;1){<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MACRO1(parameter);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;NEWLINE;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
+}<p/>
+</font>
+
+A macro can make recursive calls.<p/>
+
+EOF
