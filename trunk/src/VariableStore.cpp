@@ -184,7 +184,7 @@ namespace NONS_Expression{
 	NONS_Expression_DECLARE_OPERATOR(neg){
 		CHECK_OPERANDS(1);
 		EXPECT_INTEGER(0);
-		OPERAND(0)->integer=!OPERAND(0)->integer;
+		OPERAND(0)->integer=-OPERAND(0)->integer;
 		return 0;
 	}
 	NONS_Expression_DECLARE_OPERATOR(integer_dereference){

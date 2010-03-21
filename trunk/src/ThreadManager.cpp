@@ -237,7 +237,11 @@ NONS_Thread::runningThread(void *p){
 	return 0;
 }
 
+#ifndef DEBUG_SCREEN_MUTEX
 NONS_Mutex::NONS_Mutex(){
+#else
+NONS_Mutex::NONS_Mutex(bool track_self){
+#endif
 #if NONS_SYS_WINDOWS
 	this->mutex=new CRITICAL_SECTION;
 	InitializeCriticalSection((CRITICAL_SECTION *)this->mutex);
@@ -248,6 +252,10 @@ NONS_Mutex::NONS_Mutex(){
 	pthread_mutex_init(&this->mutex,&attr);
 	pthread_mutexattr_destroy(&attr);
 #endif
+#ifdef DEBUG_SCREEN_MUTEX
+	this->mutex_for_self=(track_self)?new NONS_Mutex:0;
+	this->last_locker=0;
+#endif
 }
 
 NONS_Mutex::~NONS_Mutex(){
@@ -257,20 +265,54 @@ NONS_Mutex::~NONS_Mutex(){
 #elif NONS_SYS_UNIX
 	pthread_mutex_destroy(&this->mutex);
 #endif
+#ifdef DEBUG_SCREEN_MUTEX
+	delete this->mutex_for_self;
+#endif
 }
 
 void NONS_Mutex::lock(){
+#ifdef DEBUG_SCREEN_MUTEX
+	if (this->mutex_for_self)
+		this->mutex_for_self->lock();
+#endif
 #if NONS_SYS_WINDOWS
 	EnterCriticalSection((CRITICAL_SECTION *)this->mutex);
 #elif NONS_SYS_UNIX
 	pthread_mutex_lock(&this->mutex);
 #endif
+#ifdef DEBUG_SCREEN_MUTEX
+	if (this->mutex_for_self){
+		this->last_locker=GetCurrentThread();
+		this->mutex_for_self->unlock();
+	}
+#endif
 }
 
 void NONS_Mutex::unlock(){
+#ifdef DEBUG_SCREEN_MUTEX
+	if (this->mutex_for_self)
+		this->mutex_for_self->lock();
+#endif
 #if NONS_SYS_WINDOWS
 	LeaveCriticalSection((CRITICAL_SECTION *)this->mutex);
 #elif NONS_SYS_UNIX
 	pthread_mutex_unlock(&this->mutex);
 #endif
+#ifdef DEBUG_SCREEN_MUTEX
+	if (this->mutex_for_self){
+		this->last_locker=0;
+		this->mutex_for_self->unlock();
+	}
+#endif
 }
+
+#ifdef DEBUG_SCREEN_MUTEX
+bool NONS_Mutex::is_locked(){
+	if (!this->mutex_for_self)
+		return 0;
+	NONS_MutexLocker ml(*this->mutex_for_self);
+	HANDLE owner=this->last_locker/*((_RTL_CRITICAL_SECTION *)this->mutex)->OwningThread*/,
+		this_thread=GetCurrentThread();
+	return owner==this_thread;
+}
+#endif

@@ -60,11 +60,11 @@ char getDataType(const std::wstring &string){
 	return 1;
 }
 
-ConfigFile::ConfigFile(const std::wstring &filename,ENCODINGS encoding){
+ConfigFile::ConfigFile(const std::wstring &filename,ENCODING::ENCODING encoding){
 	this->init(filename,encoding);
 }
 
-void ConfigFile::init(const std::wstring &filename,ENCODINGS encoding){
+void ConfigFile::init(const std::wstring &filename,ENCODING::ENCODING encoding){
 	this->entries.clear();
 	ulong l;
 	char *buffer=(char *)NONS_File::read(filename,l);
@@ -72,16 +72,16 @@ void ConfigFile::init(const std::wstring &filename,ENCODINGS encoding){
 		return;
 	std::wstring decoded;
 	switch (encoding){
-		case ISO_8859_1_ENCODING:
+		case ENCODING::ISO_8859_1:
 			decoded=UniFromISO88591(std::string(buffer,l));
 			break;
-		case UCS2_ENCODING:
+		case ENCODING::UCS2:
 			decoded=UniFromUCS2(std::string(buffer,l),UNDEFINED_ENDIANNESS);
 			break;
-		case UTF8_ENCODING:
+		case ENCODING::UTF8:
 			decoded=UniFromUTF8(std::string(buffer,l));
 			break;
-		case SJIS_ENCODING:
+		case ENCODING::SJIS:
 			decoded=UniFromSJIS(std::string(buffer,l));
 	}
 	delete[] buffer;
@@ -174,12 +174,12 @@ void ConfigFile::assignInt(const std::wstring &var,long val,ulong subindex){
 	}
 }
 
-void ConfigFile::writeOut(const std::wstring &filename,ENCODINGS encoding){
+void ConfigFile::writeOut(const std::wstring &filename,ENCODING::ENCODING encoding){
 	std::string temp=this->writeOut(encoding);
 	NONS_File::write(filename,&temp[0],temp.size());
 }
 
-std::string ConfigFile::writeOut(ENCODINGS encoding){
+std::string ConfigFile::writeOut(ENCODING::ENCODING encoding){
 	std::wstring buffer;
 	for(config_map_t::iterator i=this->entries.begin(),end=this->entries.end();i!=end;i++){
 		buffer.append(i->first);
@@ -196,16 +196,16 @@ std::string ConfigFile::writeOut(ENCODINGS encoding){
 		}
 	}
 	switch (encoding){
-		case ISO_8859_1_ENCODING:
+		case ENCODING::ISO_8859_1:
 			return UniToISO88591(buffer);
 			break;
-		case UCS2_ENCODING:
+		case ENCODING::UCS2:
 			return UniToUCS2(buffer);
 			break;
-		case UTF8_ENCODING:
+		case ENCODING::UTF8:
 			return UniToUTF8(buffer);
 			break;
-		case SJIS_ENCODING:
+		case ENCODING::SJIS:
 			return UniToSJIS(buffer);
 	}
 	return "";

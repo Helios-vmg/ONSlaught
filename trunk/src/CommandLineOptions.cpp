@@ -51,8 +51,8 @@ extern std::ofstream textDumpFile;
 #endif
 
 NONS_CommandLineOptions::NONS_CommandLineOptions(){
-	this->scriptencoding=DETECT_ENCODING;
-	this->scriptEncryption=NO_ENCRYPTION;
+	this->scriptencoding=ENCODING::AUTO;
+	this->scriptEncryption=ENCRYPTION::NONE;
 	this->override_stdout=1;
 	this->reset_redirection_files=1;
 	this->debugMode=0;
@@ -206,7 +206,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					break;
 				}
 				if (arguments[++a]==L"auto"){
-					this->scriptencoding=DETECT_ENCODING;
+					this->scriptencoding=ENCODING::AUTO;
 					break;
 				}
 				if (a+1>=size){
@@ -214,20 +214,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					break;
 				}
 				this->scriptPath=arguments[a];
-				switch (atoi(arguments[++a])){
-					case 0:
-						this->scriptEncryption=NO_ENCRYPTION;
-						break;
-					case 1:
-						this->scriptEncryption=XOR84_ENCRYPTION;
-						break;
-					case 2:
-						this->scriptEncryption=VARIABLE_XOR_ENCRYPTION;
-						break;
-					case 3:
-						this->scriptEncryption=TRANSFORM_THEN_XOR84_ENCRYPTION;
-						break;
-				}
+				this->scriptEncryption=(ENCRYPTION::ENCRYPTION)atoi(arguments[++a]);
 				break;
 			case 2: //-encoding
 				if (a+1>=size){
@@ -235,23 +222,23 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					break;
 				}
 				if (arguments[++a]==L"sjis"){
-					this->scriptencoding=DETECT_ENCODING;
+					this->scriptencoding=ENCODING::AUTO;
 					break;
 				}
 				if (arguments[a]==L"sjis"){
-					this->scriptencoding=SJIS_ENCODING;
+					this->scriptencoding=ENCODING::SJIS;
 					break;
 				}
 				if (arguments[a]==L"iso-8859-1"){
-					this->scriptencoding=ISO_8859_1_ENCODING;
+					this->scriptencoding=ENCODING::ISO_8859_1;
 					break;
 				}
 				if (arguments[a]==L"utf8"){
-					this->scriptencoding=UTF8_ENCODING;
+					this->scriptencoding=ENCODING::UTF8;
 					break;
 				}
 				if (arguments[a]==L"ucs2"){
-					this->scriptencoding=UCS2_ENCODING;
+					this->scriptencoding=ENCODING::UCS2;
 					break;
 				}
 				std::cerr <<"Unrecognized encoding: \""<<arguments[a]<<"\""<<std::endl;
@@ -301,7 +288,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				this->listImplementation=1;
 			case 10: //--version
 				{
-					delete new NONS_ScriptInterpreter(0);
+					NONS_ScriptInterpreter(0);
 				}
 				exit(0);
 			case 12: //-no-console

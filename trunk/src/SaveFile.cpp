@@ -102,7 +102,7 @@ std::vector<tm *> existing_files(const std::wstring &location){
 #include <windows.h>
 #endif
 
-enum WINDOWS_VERSION{
+DECLARE_ENUM(WINDOWS_VERSION)
 	ERR=0,
 	//9x kernel
 	V95=1,
@@ -113,57 +113,55 @@ enum WINDOWS_VERSION{
 	VXP=5,
 	VVI=6,
 	VW7=7
-};
+DECLARE_ENUM_CLOSE;
 
-WINDOWS_VERSION getWindowsVersion(){
+WINDOWS_VERSION::WINDOWS_VERSION getWindowsVersion(){
 	//First try with the 9x kernel
 	HKEY k;
 	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,TEXT("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\0"),0,KEY_READ,&k)!=ERROR_SUCCESS)
-		return ERR;
+		return WINDOWS_VERSION::ERR;
 	DWORD type,size;
-	WINDOWS_VERSION ret;
+	WINDOWS_VERSION::WINDOWS_VERSION ret;
 	if (RegQueryValueEx(k,TEXT("Version"),0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ){
 		//Not the 9x kernel
 		RegCloseKey(k);
 		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,TEXT("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"),0,KEY_READ,&k)!=ERROR_SUCCESS)
-			return ERR;
+			return WINDOWS_VERSION::ERR;
 		if (RegQueryValueEx(k,TEXT("CurrentVersion"),0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ)
-			return ERR;
-		char *str=new char[size];
-		RegQueryValueEx(k,TEXT("CurrentVersion"),0,&type,(LPBYTE)str,&size);
+			return WINDOWS_VERSION::ERR;
+		std::string str(size,0);
+		RegQueryValueEx(k,TEXT("CurrentVersion"),0,&type,(LPBYTE)&str[0],&size);
 		RegCloseKey(k);
-		switch (*str){
+		switch (str[0]){
 			case '5':
-				ret=VXP;
+				ret=WINDOWS_VERSION::VXP;
 				break;
 			case '6':
-				ret=VVI;
+				ret=WINDOWS_VERSION::VVI;
 				break;
 			case '7':
-				ret=VW7;
+				ret=WINDOWS_VERSION::VW7;
 				break;
 			default:
-				ret=ERR;
+				ret=WINDOWS_VERSION::ERR;
 		}
-		delete[] str;
 	}else{
-		char *str=new char[size];
-		RegQueryValueEx(k,(LPCTSTR)"VersionNumber",0,&type,(LPBYTE)str,&size);
+		std::string str(size,0);
+		RegQueryValueEx(k,(LPCTSTR)"VersionNumber",0,&type,(LPBYTE)&str[0],&size);
 		RegCloseKey(k);
 		switch (str[2]){
 			case '0':
-				ret=V95;
+				ret=WINDOWS_VERSION::V95;
 				break;
 			case '1':
-				ret=V98;
+				ret=WINDOWS_VERSION::V98;
 				break;
 			case '9':
-				ret=VME;
+				ret=WINDOWS_VERSION::VME;
 				break;
 			default:
-				ret=ERR;
+				ret=WINDOWS_VERSION::ERR;
 		}
-		delete[] str;
 	}
 	return ret;
 }
@@ -178,7 +176,7 @@ WINDOWS_VERSION getWindowsVersion(){
 
 std::wstring getConfigLocation(){
 #if NONS_SYS_WINDOWS
-	if (getWindowsVersion()<V2K)
+	if (getWindowsVersion()<WINDOWS_VERSION::V2K)
 		return L"./";
 	HKEY k;
 	if (RegOpenKeyEx(HKEY_CURRENT_USER,TEXT("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders"),0,KEY_READ,&k)!=ERROR_SUCCESS)
@@ -227,7 +225,7 @@ std::wstring getConfigLocation(){
 
 std::wstring getSaveLocation(unsigned hash[5]){
 #if NONS_SYS_WINDOWS
-	if (getWindowsVersion()<V2K)
+	if (getWindowsVersion()<WINDOWS_VERSION::V2K)
 		return L"./";
 #endif
 	std::wstring root=config_directory;
@@ -243,11 +241,9 @@ std::wstring getSaveLocation(unsigned hash[5]){
 	return root;
 #endif
 	if (!CLOptions.savedir.size()){
-		std::wstringstream stream;
-		stream.fill('0');
-		stream.width(8);
-		stream <<std::hex<<hash[0]<<" "<<hash[1];
-		path.append(stream.str());
+		path.append(itohexw(hash[0],8));
+		path.push_back(' ');
+		path.append(itohexw(hash[1],8));
 	}else
 		path.append(CLOptions.savedir);
 #if NONS_SYS_WINDOWS
@@ -306,7 +302,7 @@ void NONS_SaveFile::load(std::wstring filename){
 			ulong n=readDWord(buffer,offset);
 			for (ulong a=0;a<n;a++){
 				stackEl *el=new stackEl();
-				el->type=(StackFrameType)readByte(buffer,offset);
+				el->type=(StackFrameType::StackFrameType)readByte(buffer,offset);
 				el->label=UniFromUTF8(readString(buffer,offset));
 				if (this->version<2)
 					el->offset_deprecated=readDWord(buffer,offset);
@@ -316,17 +312,17 @@ void NONS_SaveFile::load(std::wstring filename){
 					el->textgosubLevel=readDWord(buffer,offset);
 				}
 				switch (el->type){
-					case SUBROUTINE_CALL:
+					case StackFrameType::SUBROUTINE_CALL:
 						el->leftovers=UniFromUTF8(readString(buffer,offset));
 						break;
-					case FOR_NEST:
+					case StackFrameType::FOR_NEST:
 						el->variable=readDWord(buffer,offset);
 						el->to=readSignedDWord(buffer,offset);
 						el->step=readSignedDWord(buffer,offset);
 						break;
-					case TEXTGOSUB_CALL:
+					case StackFrameType::TEXTGOSUB_CALL:
 						break;
-					case USERCMD_CALL:
+					case StackFrameType::USERCMD_CALL:
 						el->leftovers=UniFromUTF8(readString(buffer,offset));
 						el->parameters.resize(readDWord(buffer,offset));
 						for (ulong a=0;a<el->parameters.size();a++)
@@ -649,17 +645,17 @@ bool NONS_SaveFile::save(std::wstring filename){
 			writeDWord(el->statementNo,buffer);
 			writeDWord(el->textgosubLevel,buffer);
 			switch (el->type){
-				case SUBROUTINE_CALL:
+				case StackFrameType::SUBROUTINE_CALL:
 					writeString(el->leftovers,buffer);
 					break;
-				case FOR_NEST:
+				case StackFrameType::FOR_NEST:
 					writeDWord(el->variable,buffer);
 					writeDWord(el->to,buffer);
 					writeDWord(el->step,buffer);
 					break;
-				case TEXTGOSUB_CALL:
+				case StackFrameType::TEXTGOSUB_CALL:
 					break;
-				case USERCMD_CALL:
+				case StackFrameType::USERCMD_CALL:
 					writeString(el->leftovers,buffer);
 					writeDWord(el->parameters.size(),buffer);
 					for (ulong a=0;a<el->parameters.size();a++)

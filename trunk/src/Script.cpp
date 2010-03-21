@@ -78,27 +78,27 @@ NONS_Statement::NONS_Statement(const std::wstring &string,NONS_ScriptLine *line,
 	this->fileOffset=offset;
 	this->statementNo=number;
 	this->parsed=0;
-	this->type=STATEMENT_EMPTY;
+	this->type=StatementType::EMPTY;
 	this->error=NONS_NO_ERROR;
 	if (string.size()){
 		if (multicomparison(string[0],";*`\\@!#~%$?") || string[0]>0x7F){
 			switch (string[0]){
 				case ';':
-					this->type=STATEMENT_COMMENT;
+					this->type=StatementType::COMMENT;
 					return;
 				case '*':
-					this->type=STATEMENT_BLOCK;
+					this->type=StatementType::BLOCK;
 					this->commandName=string.substr(1);
 					trim_string(this->commandName);
 					break;
 				case '~':
-					this->type=STATEMENT_JUMP;
+					this->type=StatementType::JUMP;
 					return;
 				default:
-					this->type=STATEMENT_PRINTER;
+					this->type=StatementType::PRINTER;
 			}
 		}else
-			this->type=STATEMENT_COMMAND;
+			this->type=StatementType::COMMAND;
 	}
 }
 
@@ -122,7 +122,7 @@ NONS_Statement &NONS_Statement::operator=(const NONS_Statement &copy){
 }
 
 void NONS_Statement::parse(NONS_Script *script){
-	if (!this->parsed && this->type==STATEMENT_COMMAND){
+	if (!this->parsed && this->type==StatementType::COMMAND){
 		this->parsed=1;
 		std::wstring &string=this->stmt;
 		ulong size=string.size(),
@@ -238,9 +238,9 @@ NONS_ScriptLine::NONS_ScriptLine(ulong line,const std::wstring &string,ulong off
 		}
 		NONS_Statement *stmt=new NONS_Statement(temp2,this,this->statements.size(),off+original_a,terminal);
 		if (ignoreEmptyStatements && (
-				stmt->type==NONS_Statement::STATEMENT_EMPTY ||
-				stmt->type==NONS_Statement::STATEMENT_COMMENT ||
-				stmt->type==NONS_Statement::STATEMENT_JUMP))
+				stmt->type==StatementType::EMPTY ||
+				stmt->type==StatementType::COMMENT ||
+				stmt->type==StatementType::JUMP))
 			delete stmt;
 		else
 			this->statements.push_back(stmt);
@@ -305,7 +305,7 @@ bool preprocess(std::wstring &dst,const std::wstring &script);
 
 extern std::wstring save_directory;
 
-ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ulong encoding,ulong encryption){
+ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	ulong l;
 	char *temp=(char *)archive->getFileBuffer(scriptname,l);
 	if (!temp)
@@ -319,7 +319,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 	}
 	std::wstring wtemp;
 	switch (encoding){
-		case DETECT_ENCODING:
+		case ENCODING::AUTO:
 			if (isValidUTF8(temp,l)){
 				o_stderr <<"The script seems to be a valid UTF-8 stream. Using it as such.\n";
 				wtemp=UniFromUTF8(std::string(temp,l));
@@ -331,20 +331,20 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 				wtemp=UniFromISO88591(std::string(temp,l));
 			}
 			break;
-		case ISO_8859_1_ENCODING:
+		case ENCODING::ISO_8859_1:
 			wtemp=UniFromISO88591(std::string(temp,l));
 			break;
-		case UCS2_ENCODING:
+		case ENCODING::UCS2:
 			if (l%2){
 				o_stderr <<"WARNING: input text has odd length. It may not be valid UCS-2 text.\n";
 				l--;
 			}
 			wtemp=UniFromUCS2(std::string(temp,l),UNDEFINED_ENDIANNESS);
 			break;
-		case UTF8_ENCODING:
+		case ENCODING::UTF8:
 			wtemp=UniFromUTF8(std::string(temp,l));
 			break;
-		case SJIS_ENCODING:
+		case ENCODING::SJIS:
 			wtemp=UniFromSJIS(std::string(temp,l));
 			break;
 		default:
@@ -722,7 +722,7 @@ readBlock_000:
 			}
 			NONS_ScriptLine *line=new NONS_ScriptLine(lineNo0,lineCopy,block.first_offset+a,1);
 			if (line->statements.size()){
-				if (line->statements.back()->type==NONS_Statement::STATEMENT_COMMAND &&
+				if (line->statements.back()->type==StatementType::COMMAND &&
 						lineCopy[lineCopy.find_last_not_of(WCS_WHITESPACE)]==','){
 					delete line;
 

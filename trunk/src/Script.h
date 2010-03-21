@@ -41,20 +41,22 @@
 struct NONS_ScriptLine;
 struct NONS_Script;
 
+DECLARE_ENUM(StatementType)
+	EMPTY,
+	COMMENT,
+	BLOCK,
+	JUMP,
+	PRINTER,
+	COMMAND,
+	INVALID
+DECLARE_ENUM_CLOSE;
+
 struct NONS_Statement{
 	std::wstring stmt,
 		commandName,
 		stringParameters;
 	std::vector<std::wstring> parameters;
-	enum StatementType{
-		STATEMENT_EMPTY,
-		STATEMENT_COMMENT,
-		STATEMENT_BLOCK,
-		STATEMENT_JUMP,
-		STATEMENT_PRINTER,
-		STATEMENT_COMMAND,
-		STATEMENT_INVALID
-	} type;
+	StatementType::StatementType type;
 	ErrorCode error;
 	NONS_ScriptLine *lineOfOrigin;
 	ulong fileOffset,
@@ -132,7 +134,7 @@ struct NONS_Script{
 	unsigned hash[5];
 	NONS_Script();
 	~NONS_Script();
-	ErrorCode init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ulong encoding,ulong encryption);
+	ErrorCode init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption);
 	NONS_ScriptBlock *blockFromLabel(std::wstring name);
 	NONS_ScriptBlock *blockFromOffset(ulong offset);
 	NONS_ScriptBlock *blockFromLine(ulong line);

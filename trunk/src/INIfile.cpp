@@ -81,7 +81,7 @@ INIvalue *INIsection::getValue(const std::wstring &a){
 
 INIfile::INIfile(){}
 
-INIfile::INIfile(const std::wstring &filename,ENCODINGS encoding){
+INIfile::INIfile(const std::wstring &filename,ENCODING::ENCODING encoding){
 	ulong l;
 	char *buffer=(char *)NONS_File::read(filename,l);
 	if (!!buffer){
@@ -90,23 +90,23 @@ INIfile::INIfile(const std::wstring &filename,ENCODINGS encoding){
 	}
 }
 
-INIfile::INIfile(const char *buffer,ulong size,ENCODINGS encoding){
+INIfile::INIfile(const char *buffer,ulong size,ENCODING::ENCODING encoding){
 	this->readFile(buffer,size,encoding);
 }
 
-void INIfile::readFile(const char *buffer,ulong size,ENCODINGS encoding){
+void INIfile::readFile(const char *buffer,ulong size,ENCODING::ENCODING encoding){
 	std::wstring buffer2;
 	switch (encoding){
-		case ISO_8859_1_ENCODING:
+		case ENCODING::ISO_8859_1:
 			buffer2=UniFromISO88591(std::string(buffer,size));
 			break;
-		case SJIS_ENCODING:
+		case ENCODING::SJIS:
 			buffer2=UniFromSJIS(std::string(buffer,size));
 			break;
-		case UCS2_ENCODING:
+		case ENCODING::UCS2:
 			buffer2=UniFromUCS2(std::string(buffer,size),UNDEFINED_ENDIANNESS);
 			break;
-		case UTF8_ENCODING:
+		case ENCODING::UTF8:
 			buffer2=UniFromUTF8(std::string(buffer,size));
 	}
 	std::wstringstream stream;

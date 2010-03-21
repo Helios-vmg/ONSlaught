@@ -1369,14 +1369,14 @@ std::wstring readline(std::wstring::const_iterator start,std::wstring::const_ite
 
 ErrorCode inPlaceDecryption(char *buffer,ulong length,ulong mode){
 	switch (mode){
-		case NO_ENCRYPTION:
+		case ENCRYPTION::NONE:
 		default:
 			return NONS_NO_ERROR;
-		case XOR84_ENCRYPTION:
+		case ENCRYPTION::XOR84:
 			for (ulong a=0;a<length;a++)
 				buffer[a]^=0x84;
 			return NONS_NO_ERROR;
-		case VARIABLE_XOR_ENCRYPTION:
+		case ENCRYPTION::VARIABLE_XOR:
 			{
 				uchar magic_numbers[5]={0x79,0x57,0x0d,0x80,0x04};
 				ulong index=0;
@@ -1386,7 +1386,7 @@ ErrorCode inPlaceDecryption(char *buffer,ulong length,ulong mode){
 				}
 				return NONS_NO_ERROR;
 			}
-		case TRANSFORM_THEN_XOR84_ENCRYPTION:
+		case ENCRYPTION::TRANSFORM_THEN_XOR84:
 			{
 				o_stderr <<"TRANSFORM_THEN_XOR84 (aka mode 4) encryption not implemented for a very good\n"
 					"reason. Which I, of course, don\'t need to explain to you. Good day.";
@@ -1507,7 +1507,7 @@ ulong SJIS_WC(wchar_t *dst,const uchar *src,ulong srcl){
 		}else
 			c1=c0;
 		if (SJIS2Unicode[c1]=='?' && c1!='?'){
-			(o_stderr <<"ENCODING ERROR: Character SJIS+").outputHex(c1,4)
+			o_stderr <<"ENCODING ERROR: Character SJIS+"<<itohexc(c1,4)
 				<<" is unsupported by this Shift JIS->Unicode implementation. Replacing with '?'.\n";
 		}
 		*dst++=SJIS2Unicode[c1];
@@ -1599,7 +1599,7 @@ ulong WC_SJIS(uchar *dst,const wchar_t *src,ulong srcl){
 		wchar_t srcc=*src++,
 			character=Unicode2SJIS[srcc];
 		if (character=='?' && srcc!='?'){
-			(o_stderr <<"ENCODING ERROR: Character U+").outputHex(srcc,4)
+			o_stderr <<"ENCODING ERROR: Character U+"<<itohexc(srcc,4)
 				<<" is unsupported by this Unicode->Shift JIS implementation. Replacing with '?'.\n";
 		}
 		if (character<0x100)

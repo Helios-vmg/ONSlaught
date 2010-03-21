@@ -35,7 +35,11 @@
 #include "ImageLoader.h"
 #include <iostream>
 
+#ifndef DEBUG_SCREEN_MUTEX
 DLLexport NONS_Mutex screenMutex;
+#else
+DLLexport NONS_Mutex screenMutex(1);
+#endif
 
 //#define ONLY_NEAREST_NEIGHBOR
 //#define BENCHMARK_INTERPOLATION
@@ -43,7 +47,10 @@ DLLexport NONS_Mutex screenMutex;
 
 pipelineElement::pipelineElement(ulong effectNo,const SDL_Color &color,const std::wstring &rule,bool loadRule)
 		:effectNo(effectNo),color(color),ruleStr(rule){
-	this->rule=(rule.size() && loadRule)?ImageLoader->fetchSprite(rule):0;
+	if (rule.size() && loadRule)
+		ImageLoader->fetchSprite(this->rule,rule);
+	else
+		this->rule=0;
 }
 
 pipelineElement::pipelineElement(const pipelineElement &o){
@@ -101,7 +108,7 @@ void _asyncEffectThread(void *param){
 }
 
 NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
-	memset(this->screens,0,(REAL+1)*sizeof(*this->screens));
+	std::fill(this->screens,this->screens+REAL+1,(SDL_Surface *)0);
 	this->screens[REAL]=SDL_SetVideoMode(w,h,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((CLOptions.startFullscreen)?SDL_FULLSCREEN:0));
 	if (!this->screens[REAL]){
 		std::cerr <<"FATAL ERROR: Could not allocate screen!"<<std::endl
@@ -121,10 +128,13 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
 	this->initEffectList();
 	memset(this->usingFeature,0,this->usingFeature_s*sizeof(bool));
 	this->printCurrentState();
+#ifdef DEBUG_SCREEN_MUTEX
+	this->screens[VIRTUAL].force_mutex_check();
+#endif
 }
 
 NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
-	memset(this->screens,0,(REAL+1)*sizeof(*this->screens));
+	std::fill(this->screens,this->screens+REAL+1,(SDL_Surface *)0);
 	this->screens[REAL]=SDL_SetVideoMode(ow,oh,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((CLOptions.startFullscreen)?SDL_FULLSCREEN:0));
 	if (!this->screens[REAL]){
 		std::cerr <<"FATAL ERROR: Could not allocate screen!"<<std::endl
@@ -188,6 +198,9 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
 	this->killAsyncEffect=0;
 	this->initEffectList();
 	this->printCurrentState();
+#ifdef DEBUG_SCREEN_MUTEX
+	this->screens[VIRTUAL].force_mutex_check();
+#endif
 }
 
 NONS_VirtualScreen::~NONS_VirtualScreen(){
@@ -199,6 +212,7 @@ NONS_VirtualScreen::~NONS_VirtualScreen(){
 }
 
 DECLSPEC void NONS_VirtualScreen::blitToScreen(SDL_Surface *src,SDL_Rect *srcrect,SDL_Rect *dstrect){
+	NONS_MutexLocker ml(screenMutex);
 	if (!!src && src->format->BitsPerPixel<24)
 		SDL_BlitSurface(src,srcrect,this->screens[VIRTUAL],dstrect);
 	else

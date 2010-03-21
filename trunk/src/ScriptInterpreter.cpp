@@ -95,7 +95,7 @@ printingPage &printingPage::operator=(const printingPage &b){
 
 
 NONS_StackElement::NONS_StackElement(ulong level){
-	this->type=UNDEFINED;
+	this->type=StackFrameType::UNDEFINED;
 	this->var=0;
 	this->from=0;
 	this->to=0;
@@ -108,7 +108,7 @@ NONS_StackElement::NONS_StackElement(const std::pair<ulong,ulong> &returnTo,cons
 		:interpretAtReturn(interpretAtReturn,beginAtStatement){
 	this->returnTo.line=returnTo.first;
 	this->returnTo.statement=returnTo.second;
-	this->type=SUBROUTINE_CALL;
+	this->type=StackFrameType::SUBROUTINE_CALL;
 	this->textgosubLevel=level;
 	this->textgosubTriggeredBy=0;
 }
@@ -116,7 +116,7 @@ NONS_StackElement::NONS_StackElement(const std::pair<ulong,ulong> &returnTo,cons
 NONS_StackElement::NONS_StackElement(NONS_VariableMember *variable,const std::pair<ulong,ulong> &startStatement,long from,long to,long step,ulong level){
 	this->returnTo.line=startStatement.first;
 	this->returnTo.statement=startStatement.second;
-	this->type=FOR_NEST;
+	this->type=StackFrameType::FOR_NEST;
 	this->var=variable;
 	this->from=from;
 	this->to=to;
@@ -127,7 +127,7 @@ NONS_StackElement::NONS_StackElement(NONS_VariableMember *variable,const std::pa
 }
 
 NONS_StackElement::NONS_StackElement(const std::vector<printingPage> &pages,wchar_t trigger,ulong level){
-	this->type=TEXTGOSUB_CALL;
+	this->type=StackFrameType::TEXTGOSUB_CALL;
 	this->textgosubLevel=level;
 	this->pages=pages;
 	this->textgosubTriggeredBy=trigger;
@@ -139,7 +139,7 @@ NONS_StackElement::NONS_StackElement(NONS_StackElement *copy,const std::vector<s
 	this->returnTo.statement=copy->returnTo.statement;
 	this->textgosubLevel=copy->textgosubLevel;
 	this->textgosubTriggeredBy=copy->textgosubTriggeredBy;
-	this->type=USERCMD_CALL;
+	this->type=StackFrameType::USERCMD_CALL;
 	this->parameters=vector;
 }
 
@@ -230,7 +230,7 @@ void NONS_ScriptInterpreter::uninit(){
 		SDL_FreeSurface(this->screenshot);
 }
 
-ErrorCode init_script(NONS_Script *&script,NONS_GeneralArchive *archive,const std::wstring &filename,ulong encoding,ulong encryption){
+ErrorCode init_script(NONS_Script *&script,NONS_GeneralArchive *archive,const std::wstring &filename,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	script=new NONS_Script();
 	ErrorCode error_code=script->init(filename,archive,encoding,encryption);
 	if (error_code!=NONS_NO_ERROR){
@@ -241,17 +241,17 @@ ErrorCode init_script(NONS_Script *&script,NONS_GeneralArchive *archive,const st
 	return NONS_NO_ERROR;
 }
 
-ErrorCode init_script(NONS_Script *&script,NONS_GeneralArchive *archive,ulong encoding){
-	if (init_script(script,archive,L"0.txt",encoding,NO_ENCRYPTION)==NONS_NO_ERROR)
+ErrorCode init_script(NONS_Script *&script,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding){
+	if (init_script(script,archive,L"0.txt",encoding,ENCRYPTION::NONE)==NONS_NO_ERROR)
 		return NONS_NO_ERROR;
-	if (init_script(script,archive,L"00.txt",encoding,NO_ENCRYPTION)==NONS_NO_ERROR)
+	if (init_script(script,archive,L"00.txt",encoding,ENCRYPTION::NONE)==NONS_NO_ERROR)
 		return NONS_NO_ERROR;
-	if (init_script(script,archive,L"nscr_sec.dat",encoding,VARIABLE_XOR_ENCRYPTION)==NONS_NO_ERROR)
+	if (init_script(script,archive,L"nscr_sec.dat",encoding,ENCRYPTION::VARIABLE_XOR)==NONS_NO_ERROR)
 		return NONS_NO_ERROR;
-	ErrorCode error_code=init_script(script,archive,L"nscript.___",encoding,TRANSFORM_THEN_XOR84_ENCRYPTION);
+	ErrorCode error_code=init_script(script,archive,L"nscript.___",encoding,ENCRYPTION::TRANSFORM_THEN_XOR84);
 	if (error_code==NONS_NO_ERROR)
 		return NONS_NO_ERROR;
-	if (init_script(script,archive,L"nscript.dat",encoding,XOR84_ENCRYPTION)==NONS_NO_ERROR)
+	if (init_script(script,archive,L"nscript.dat",encoding,ENCRYPTION::XOR84)==NONS_NO_ERROR)
 		return NONS_NO_ERROR;
 	if (error_code==NONS_NOT_IMPLEMENTED)
 		return NONS_NOT_IMPLEMENTED;
@@ -287,6 +287,9 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->menu=0;
 	this->imageButtons=0;
 	this->saveGame=0;
+	this->screen=0;
+	this->audio=0;
+	this->archive=0;
 	this->script=0;
 	this->store=0;
 	this->gfx_store=0;
@@ -316,22 +319,17 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 				this->audio->musicFormat=CLOptions.musicFormat;
 			this->screen=init_screen(this->archive);
 		}
-		/*if (!this->script){
-			this=0;
-			this->script=0;
-			this->store=0;
-			return;
-		}*/
 		this->init();
 	}
+	this->was_initialized=initialize;
 
 	this->commandList[L"abssetcursor"]=            &NONS_ScriptInterpreter::command_setcursor                            |ALLOW_IN_RUN;
-	this->commandList[L"add"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
+	this->commandList[L"add"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"allsphide"]=               &NONS_ScriptInterpreter::command_allsphide                            |ALLOW_IN_RUN;
 	this->commandList[L"allspresume"]=             &NONS_ScriptInterpreter::command_allsphide                            |ALLOW_IN_RUN;
 	this->commandList[L"amsp"]=                    &NONS_ScriptInterpreter::command_msp                                  |ALLOW_IN_RUN;
 	this->commandList[L"arc"]=                     &NONS_ScriptInterpreter::command_nsa                  |ALLOW_IN_DEFINE             ;
-	this->commandList[L"atoi"]=                    &NONS_ScriptInterpreter::command_atoi                                 |ALLOW_IN_RUN;
+	this->commandList[L"atoi"]=                    &NONS_ScriptInterpreter::command_atoi                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"autoclick"]=               &NONS_ScriptInterpreter::command_autoclick                            |ALLOW_IN_RUN;
 	this->commandList[L"automode_time"]=           0                                                     |ALLOW_IN_DEFINE             ;
 	this->commandList[L"automode"]=                0                                                     |ALLOW_IN_DEFINE             ;
@@ -347,7 +345,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"bgmvol"]=                  &NONS_ScriptInterpreter::command_mp3vol                               |ALLOW_IN_RUN;
 	this->commandList[L"blt"]=                     &NONS_ScriptInterpreter::command_blt                                  |ALLOW_IN_RUN;
 	this->commandList[L"br"]=                      &NONS_ScriptInterpreter::command_br                                   |ALLOW_IN_RUN;
-	this->commandList[L"break"]=                   &NONS_ScriptInterpreter::command_break                                |ALLOW_IN_RUN;
+	this->commandList[L"break"]=                   &NONS_ScriptInterpreter::command_break                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"btn"]=                     &NONS_ScriptInterpreter::command_btn                                  |ALLOW_IN_RUN;
 	this->commandList[L"btndef"]=                  &NONS_ScriptInterpreter::command_btndef                               |ALLOW_IN_RUN;
 	this->commandList[L"btndown"]=                 0                                                                     |ALLOW_IN_RUN;
@@ -355,7 +353,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"btntime2"]=                &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"btnwait"]=                 &NONS_ScriptInterpreter::command_btnwait                              |ALLOW_IN_RUN;
 	this->commandList[L"btnwait2"]=                &NONS_ScriptInterpreter::command_btnwait                              |ALLOW_IN_RUN;
-	this->commandList[L"caption"]=                 &NONS_ScriptInterpreter::command_caption                              |ALLOW_IN_RUN;
+	this->commandList[L"caption"]=                 &NONS_ScriptInterpreter::command_caption              |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"cell"]=                    &NONS_ScriptInterpreter::command_cell                                 |ALLOW_IN_RUN;
 	this->commandList[L"cellcheckexbtn"]=          0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"cellcheckspbtn"]=          0                                                                     |ALLOW_IN_RUN;
@@ -365,14 +363,14 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"click"]=                   &NONS_ScriptInterpreter::command_click                                |ALLOW_IN_RUN;
 	this->commandList[L"clickstr"]=                &NONS_ScriptInterpreter::command_clickstr             |ALLOW_IN_DEFINE             ;
 	this->commandList[L"clickvoice"]=              0                                                     |ALLOW_IN_DEFINE             ;
-	this->commandList[L"cmp"]=                     &NONS_ScriptInterpreter::command_cmp                                  |ALLOW_IN_RUN;
-	this->commandList[L"cos"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
+	this->commandList[L"cmp"]=                     &NONS_ScriptInterpreter::command_cmp                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"cos"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"csel"]=                    0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"cselbtn"]=                 0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"cselgoto"]=                0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"cselgoto"]=                0                                                     |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"csp"]=                     &NONS_ScriptInterpreter::command_csp                                  |ALLOW_IN_RUN;
 	this->commandList[L"date"]=                    &NONS_ScriptInterpreter::command_date                                 |ALLOW_IN_RUN;
-	this->commandList[L"dec"]=                     &NONS_ScriptInterpreter::command_inc                                  |ALLOW_IN_RUN;
+	this->commandList[L"dec"]=                     &NONS_ScriptInterpreter::command_inc                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"defaultfont"]=             &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"defaultspeed"]=            &NONS_ScriptInterpreter::command_defaultspeed         |ALLOW_IN_DEFINE             ;
 	this->commandList[L"definereset"]=             &NONS_ScriptInterpreter::command_reset                                |ALLOW_IN_RUN;
@@ -383,7 +381,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"delay"]=                   &NONS_ScriptInterpreter::command_delay                                |ALLOW_IN_RUN;
 	this->commandList[L"deletescreenshot"]=        &NONS_ScriptInterpreter::command_deletescreenshot                     |ALLOW_IN_RUN;
 	this->commandList[L"dim"]=                     &NONS_ScriptInterpreter::command_dim                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
-	this->commandList[L"div"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
+	this->commandList[L"div"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"draw"]=                    &NONS_ScriptInterpreter::command_draw                                 |ALLOW_IN_RUN;
 	this->commandList[L"drawbg"]=                  &NONS_ScriptInterpreter::command_drawbg                               |ALLOW_IN_RUN;
 	this->commandList[L"drawbg2"]=                 &NONS_ScriptInterpreter::command_drawbg                               |ALLOW_IN_RUN;
@@ -402,15 +400,15 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"effect"]=                  &NONS_ScriptInterpreter::command_effect               |ALLOW_IN_DEFINE             ;
 	this->commandList[L"effectblank"]=             &NONS_ScriptInterpreter::command_effectblank          |ALLOW_IN_DEFINE             ;
 	this->commandList[L"effectcut"]=               &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
-	this->commandList[L"end"]=                     &NONS_ScriptInterpreter::command_end                                  |ALLOW_IN_RUN;
+	this->commandList[L"end"]=                     &NONS_ScriptInterpreter::command_end                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"erasetextwindow"]=         &NONS_ScriptInterpreter::command_erasetextwindow                      |ALLOW_IN_RUN;
 	this->commandList[L"exbtn_d"]=                 0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"exbtn"]=                   0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"exec_dll"]=                &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
+	this->commandList[L"exec_dll"]=                &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"existspbtn"]=              &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
 	this->commandList[L"fileexist"]=               &NONS_ScriptInterpreter::command_fileexist                            |ALLOW_IN_RUN;
 	this->commandList[L"filelog"]=                 &NONS_ScriptInterpreter::command_filelog              |ALLOW_IN_DEFINE             ;
-	this->commandList[L"for"]=                     &NONS_ScriptInterpreter::command_for                                  |ALLOW_IN_RUN;
+	this->commandList[L"for"]=                     &NONS_ScriptInterpreter::command_for                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"game"]=                    &NONS_ScriptInterpreter::command_game                 |ALLOW_IN_DEFINE             ;
 	this->commandList[L"getbgmvol"]=               &NONS_ScriptInterpreter::command_getmp3vol                            |ALLOW_IN_RUN;
 	this->commandList[L"getbtntimer"]=             &NONS_ScriptInterpreter::command_getbtntimer                          |ALLOW_IN_RUN;
@@ -426,27 +424,27 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"getmp3vol"]=               &NONS_ScriptInterpreter::command_getmp3vol                            |ALLOW_IN_RUN;
 	this->commandList[L"getpage"]=                 &NONS_ScriptInterpreter::command_getpage                              |ALLOW_IN_RUN;
 	this->commandList[L"getpageup"]=               &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
-	this->commandList[L"getparam"]=                &NONS_ScriptInterpreter::command_getparam                             |ALLOW_IN_RUN;
-	this->commandList[L"getreg"]=                  &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
-	this->commandList[L"getret"]=                  &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
+	this->commandList[L"getparam"]=                &NONS_ScriptInterpreter::command_getparam             |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"getreg"]=                  &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"getret"]=                  &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"getscreenshot"]=           &NONS_ScriptInterpreter::command_getscreenshot                        |ALLOW_IN_RUN;
 	this->commandList[L"getsevol"]=                &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
 	this->commandList[L"getspmode"]=               0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"getspsize"]=               0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"gettab"]=                  &NONS_ScriptInterpreter::command_gettab                               |ALLOW_IN_RUN;
-	this->commandList[L"gettag"]=                  0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"gettag"]=                  0                                                     |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"gettext"]=                 &NONS_ScriptInterpreter::command_gettext                              |ALLOW_IN_RUN;
 	this->commandList[L"gettimer"]=                &NONS_ScriptInterpreter::command_gettimer                             |ALLOW_IN_RUN;
 	this->commandList[L"getversion"]=              &NONS_ScriptInterpreter::command_getversion                           |ALLOW_IN_RUN;
 	this->commandList[L"getvoicevol"]=             &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
 	this->commandList[L"getzxc"]=                  &NONS_ScriptInterpreter::command_getzxc                               |ALLOW_IN_RUN;
 	this->commandList[L"globalon"]=                &NONS_ScriptInterpreter::command_globalon             |ALLOW_IN_DEFINE             ;
-	this->commandList[L"gosub"]=                   &NONS_ScriptInterpreter::command_gosub                                |ALLOW_IN_RUN;
+	this->commandList[L"gosub"]=                   &NONS_ScriptInterpreter::command_gosub                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"goto"]=                    &NONS_ScriptInterpreter::command_goto                                 |ALLOW_IN_RUN;
 	this->commandList[L"humanorder"]=              &NONS_ScriptInterpreter::command_humanorder                           |ALLOW_IN_RUN;
 	this->commandList[L"humanz"]=                  &NONS_ScriptInterpreter::command_humanz               |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
-	this->commandList[L"if"]=                      &NONS_ScriptInterpreter::command_if                                   |ALLOW_IN_RUN;
-	this->commandList[L"inc"]=                     &NONS_ScriptInterpreter::command_inc                                  |ALLOW_IN_RUN;
+	this->commandList[L"if"]=                      &NONS_ScriptInterpreter::command_if                   |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"inc"]=                     &NONS_ScriptInterpreter::command_inc                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"indent"]=                  &NONS_ScriptInterpreter::command_indent                               |ALLOW_IN_RUN;
 	this->commandList[L"input"]=                   &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"insertmenu"]=              &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
@@ -455,8 +453,8 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"isfull"]=                  &NONS_ScriptInterpreter::command_isfull                               |ALLOW_IN_RUN;
 	this->commandList[L"ispage"]=                  &NONS_ScriptInterpreter::command_ispage                               |ALLOW_IN_RUN;
 	this->commandList[L"isskip"]=                  &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
-	this->commandList[L"itoa"]=                    &NONS_ScriptInterpreter::command_itoa                                 |ALLOW_IN_RUN;
-	this->commandList[L"itoa2"]=                   &NONS_ScriptInterpreter::command_itoa                                 |ALLOW_IN_RUN;
+	this->commandList[L"itoa"]=                    &NONS_ScriptInterpreter::command_itoa                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"itoa2"]=                   &NONS_ScriptInterpreter::command_itoa                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"jumpb"]=                   &NONS_ScriptInterpreter::command_jumpf                                |ALLOW_IN_RUN;
 	this->commandList[L"jumpf"]=                   &NONS_ScriptInterpreter::command_jumpf                                |ALLOW_IN_RUN;
 	this->commandList[L"kidokumode"]=              &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
@@ -464,7 +462,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"labellog"]=                &NONS_ScriptInterpreter::command_labellog             |ALLOW_IN_DEFINE             ;
 	this->commandList[L"layermessage"]=            &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"ld"]=                      &NONS_ScriptInterpreter::command_ld                                   |ALLOW_IN_RUN;
-	this->commandList[L"len"]=                     &NONS_ScriptInterpreter::command_len                                  |ALLOW_IN_RUN;
+	this->commandList[L"len"]=                     &NONS_ScriptInterpreter::command_len                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"linepage"]=                &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"linepage2"]=               &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"loadgame"]=                &NONS_ScriptInterpreter::command_loadgame                             |ALLOW_IN_RUN;
@@ -490,34 +488,34 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"menuselectcolor"]=         &NONS_ScriptInterpreter::command_menuselectcolor      |ALLOW_IN_DEFINE             ;
 	this->commandList[L"menuselectvoice"]=         &NONS_ScriptInterpreter::command_menuselectvoice      |ALLOW_IN_DEFINE             ;
 	this->commandList[L"menusetwindow"]=           &NONS_ScriptInterpreter::command_menusetwindow        |ALLOW_IN_DEFINE             ;
-	this->commandList[L"mid"]=                     &NONS_ScriptInterpreter::command_mid                                  |ALLOW_IN_RUN;
-	this->commandList[L"mod"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
+	this->commandList[L"mid"]=                     &NONS_ScriptInterpreter::command_mid                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mod"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"mode_ext"]=                0                                                     |ALLOW_IN_DEFINE             ;
 	this->commandList[L"mode_saya"]=               0                                                     |ALLOW_IN_DEFINE             ;
 	this->commandList[L"monocro"]=                 &NONS_ScriptInterpreter::command_monocro                              |ALLOW_IN_RUN;
-	this->commandList[L"mov"]=                     &NONS_ScriptInterpreter::command_mov                                  |ALLOW_IN_RUN;
-	this->commandList[L"mov3"]=                    &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
-	this->commandList[L"mov4"]=                    &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
-	this->commandList[L"mov5"]=                    &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
-	this->commandList[L"mov6"]=                    &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
-	this->commandList[L"mov7"]=                    &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
-	this->commandList[L"mov8"]=                    &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
-	this->commandList[L"mov9"]=                    &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
-	this->commandList[L"mov10"]=                   &NONS_ScriptInterpreter::command_movN                                 |ALLOW_IN_RUN;
+	this->commandList[L"mov"]=                     &NONS_ScriptInterpreter::command_mov                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov3"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov4"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov5"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov6"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov7"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov8"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov9"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"mov10"]=                   &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"movemousecursor"]=         0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"movl"]=                    &NONS_ScriptInterpreter::command_movl                                 |ALLOW_IN_RUN;
+	this->commandList[L"movl"]=                    &NONS_ScriptInterpreter::command_movl                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"mp3"]=                     &NONS_ScriptInterpreter::command_play                                 |ALLOW_IN_RUN;
-	this->commandList[L"mp3fadeout"]=              &NONS_ScriptInterpreter::command_mp3fadeout                           |ALLOW_IN_RUN;
+	this->commandList[L"mp3fadeout"]=              &NONS_ScriptInterpreter::command_mp3fadeout           |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"mp3loop"]=                 &NONS_ScriptInterpreter::command_play                                 |ALLOW_IN_RUN;
 	this->commandList[L"mp3save"]=                 &NONS_ScriptInterpreter::command_play                                 |ALLOW_IN_RUN;
 	this->commandList[L"mp3stop"]=                 &NONS_ScriptInterpreter::command_playstop                             |ALLOW_IN_RUN;
 	this->commandList[L"mp3vol"]=                  &NONS_ScriptInterpreter::command_mp3vol                               |ALLOW_IN_RUN;
 	this->commandList[L"mpegplay"]=                &NONS_ScriptInterpreter::command_avi                                  |ALLOW_IN_RUN;
 	this->commandList[L"msp"]=                     &NONS_ScriptInterpreter::command_msp                                  |ALLOW_IN_RUN;
-	this->commandList[L"mul"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
+	this->commandList[L"mul"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"nega"]=                    &NONS_ScriptInterpreter::command_nega                                 |ALLOW_IN_RUN;
-	this->commandList[L"next"]=                    &NONS_ScriptInterpreter::command_next                                 |ALLOW_IN_RUN;
-	this->commandList[L"notif"]=                   &NONS_ScriptInterpreter::command_if                                   |ALLOW_IN_RUN;
+	this->commandList[L"next"]=                    &NONS_ScriptInterpreter::command_next                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"notif"]=                   &NONS_ScriptInterpreter::command_if                   |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"nsa"]=                     &NONS_ScriptInterpreter::command_nsa                  |ALLOW_IN_DEFINE             ;
 	this->commandList[L"ns2"]=                     &NONS_ScriptInterpreter::command_nsa                  |ALLOW_IN_DEFINE             ;
 	this->commandList[L"ns3"]=                     &NONS_ScriptInterpreter::command_nsa                  |ALLOW_IN_DEFINE             ;
@@ -540,14 +538,14 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"reset"]=                   &NONS_ScriptInterpreter::command_reset                                |ALLOW_IN_RUN;
 	this->commandList[L"resetmenu"]=               &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"resettimer"]=              &NONS_ScriptInterpreter::command_resettimer                           |ALLOW_IN_RUN;
-	this->commandList[L"return"]=                  &NONS_ScriptInterpreter::command_return                               |ALLOW_IN_RUN;
+	this->commandList[L"return"]=                  &NONS_ScriptInterpreter::command_return               |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"rmenu"]=                   &NONS_ScriptInterpreter::command_rmenu                |ALLOW_IN_DEFINE             ;
 	this->commandList[L"rmode"]=                   &NONS_ScriptInterpreter::command_rmode                                |ALLOW_IN_RUN;
-	this->commandList[L"rnd"]=                     &NONS_ScriptInterpreter::command_rnd                                  |ALLOW_IN_RUN;
-	this->commandList[L"rnd2"]=                    &NONS_ScriptInterpreter::command_rnd                                  |ALLOW_IN_RUN;
+	this->commandList[L"rnd"]=                     &NONS_ScriptInterpreter::command_rnd                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"rnd2"]=                    &NONS_ScriptInterpreter::command_rnd                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"roff"]=                    &NONS_ScriptInterpreter::command_rmode                |ALLOW_IN_DEFINE             ;
-	this->commandList[L"rubyoff"]=                 &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
-	this->commandList[L"rubyon"]=                  &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
+	this->commandList[L"rubyoff"]=                 &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"rubyon"]=                  &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"sar"]=                     &NONS_ScriptInterpreter::command_nsa                                  |ALLOW_IN_RUN;
 	this->commandList[L"savefileexist"]=           &NONS_ScriptInterpreter::command_savefileexist                        |ALLOW_IN_RUN;
 	this->commandList[L"savegame"]=                &NONS_ScriptInterpreter::command_savegame                             |ALLOW_IN_RUN;
@@ -571,27 +569,27 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"setwindow2"]=              0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"setwindow3"]=              0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"sevol"]=                   0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"shadedistance"]=           &NONS_ScriptInterpreter::command_shadedistance                        |ALLOW_IN_RUN;
-	this->commandList[L"sin"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
-	this->commandList[L"skip"]=                    &NONS_ScriptInterpreter::command_skip                                 |ALLOW_IN_RUN;
+	this->commandList[L"shadedistance"]=           &NONS_ScriptInterpreter::command_shadedistance        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"sin"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"skip"]=                    &NONS_ScriptInterpreter::command_skip                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"skipoff"]=                 &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"soundpressplgin"]=         &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"sp_rgb_gradation"]=        &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
 	this->commandList[L"spbtn"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"spclclk"]=                 0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"spi"]=                     &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
-	this->commandList[L"split"]=                   &NONS_ScriptInterpreter::command_split                                |ALLOW_IN_RUN;
+	this->commandList[L"split"]=                   &NONS_ScriptInterpreter::command_split                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"splitstring"]=             0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"spreload"]=                0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"spstr"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"stop"]=                    &NONS_ScriptInterpreter::command_stop                                 |ALLOW_IN_RUN;
 	this->commandList[L"stralias"]=                &NONS_ScriptInterpreter::command_alias                |ALLOW_IN_DEFINE             ;
 	this->commandList[L"strsp"]=                   0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"sub"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
+	this->commandList[L"sub"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"systemcall"]=              &NONS_ScriptInterpreter::command_systemcall                           |ALLOW_IN_RUN;
-	this->commandList[L"tablegoto"]=               &NONS_ScriptInterpreter::command_tablegoto                            |ALLOW_IN_RUN;
+	this->commandList[L"tablegoto"]=               &NONS_ScriptInterpreter::command_tablegoto            |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"tal"]=                     &NONS_ScriptInterpreter::command_tal                                  |ALLOW_IN_RUN;
-	this->commandList[L"tan"]=                     &NONS_ScriptInterpreter::command_add                                  |ALLOW_IN_RUN;
+	this->commandList[L"tan"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"tateyoko"]=                &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"texec"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"textbtnwait"]=             0                                                                     |ALLOW_IN_RUN;
@@ -618,10 +616,10 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"waveloop"]=                &NONS_ScriptInterpreter::command_wave                                 |ALLOW_IN_RUN;
 	this->commandList[L"wavestop"]=                &NONS_ScriptInterpreter::command_wavestop                             |ALLOW_IN_RUN;
 	this->commandList[L"windowback"]=              &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
-	this->commandList[L"windoweffect"]=            &NONS_ScriptInterpreter::command_windoweffect                         |ALLOW_IN_RUN;
+	this->commandList[L"windoweffect"]=            &NONS_ScriptInterpreter::command_windoweffect         |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"zenkakko"]=                &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"date2"]=                   &NONS_ScriptInterpreter::command_date                                 |ALLOW_IN_RUN;
-	this->commandList[L"getini"]=                  &NONS_ScriptInterpreter::command_getini                               |ALLOW_IN_RUN;
+	this->commandList[L"getini"]=                  &NONS_ScriptInterpreter::command_getini               |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"new_set_window"]=          &NONS_ScriptInterpreter::command_new_set_window                       |ALLOW_IN_RUN;
 	this->commandList[L"set_default_font_size"]=   &NONS_ScriptInterpreter::command_set_default_font_size                |ALLOW_IN_RUN;
 	this->commandList[L"unalias"]=                 &NONS_ScriptInterpreter::command_unalias                              |ALLOW_IN_RUN;
@@ -637,7 +635,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"async_effect"]=            &NONS_ScriptInterpreter::command_async_effect                         |ALLOW_IN_RUN;
 	this->commandList[L"add_overall_filter"]=      &NONS_ScriptInterpreter::command_add_filter                           |ALLOW_IN_RUN;
 	this->commandList[L"add_filter"]=              &NONS_ScriptInterpreter::command_add_filter                           |ALLOW_IN_RUN;
-	this->commandList[L"base_resolution"]=         &NONS_ScriptInterpreter::command_base_resolution                      |ALLOW_IN_RUN;
+	this->commandList[L"base_resolution"]=         &NONS_ScriptInterpreter::command_base_resolution      |ALLOW_IN_DEFINE             ;
 	this->commandList[L"use_nice_svg"]=            &NONS_ScriptInterpreter::command_use_nice_svg                         |ALLOW_IN_RUN;
 	/*
 	this->commandList[L""]=&NONS_ScriptInterpreter::command_;
@@ -690,7 +688,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->allowedCommandList.insert(L"getini");
 	ulong total=this->totalCommands(),
 		implemented=this->implementedCommands();
-	std::cout <<"ONSlaught script interpreter v"<<float(implemented*100/total)/100<<std::endl;
+	std::cout <<"ONSlaught script interpreter v"<<float(implemented*100/total)/100.0f<<std::endl;
 	if (CLOptions.listImplementation)
 		this->listImplementation();
 }
@@ -740,15 +738,12 @@ void NONS_ScriptInterpreter::listImplementation(){
 }
 
 NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
-	this->uninit();
-	if (this->screen)
-		delete this->screen;
-	if (this->audio)
-		delete this->audio;
-	if (this->archive)
-		delete this->archive;
-	if (this->script)
-		delete this->script;
+	if (this->was_initialized)
+		this->uninit();
+	delete this->screen;
+	delete this->audio;
+	delete this->archive;
+	delete this->script;
 	while (this->commandQueue.size()){
 		delete this->commandQueue.front();
 		this->commandQueue.pop();
@@ -793,7 +788,7 @@ std::wstring NONS_ScriptInterpreter::interpretFromConsole(const std::wstring &st
 	for (ulong a=0;a<l->statements.size();a++){
 		l->statements[a]->parse(this->script);
 		if (!enqueue){
-			if (l->statements[a]->type!=NONS_Statement::STATEMENT_COMMAND){
+			if (l->statements[a]->type!=StatementType::COMMAND){
 				enqueue=1;
 				ret=L"Non-commands are not allowed to be ran from console. "
 					L"The entire line will be queued to run after the current command ends.";
@@ -1103,18 +1098,18 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 	ulong current_line=stmt->lineOfOrigin->lineNumber;
 	if (CLOptions.verbosity>=1 && CLOptions.verbosity<255)
 		o_stderr <<"Interpreting line "<<current_line<<"\n";
-	if (CLOptions.verbosity>=3 && CLOptions.verbosity<255 && stmt->type==NONS_Statement::STATEMENT_COMMAND)
+	if (CLOptions.verbosity>=3 && CLOptions.verbosity<255 && stmt->type==StatementType::COMMAND)
 		print_command(o_stderr,0,stmt->commandName,stmt->parameters,0);
 	this->saveGame->textX=this->screen->output->x;
 	this->saveGame->textY=this->screen->output->y;
 #ifdef _DEBUG
 	//Reserved for debugging:
 	bool break_at_this_line=0;
-	if (stmt->lineOfOrigin->lineNumber==572)
+	if (stmt->lineOfOrigin->lineNumber==521)
 		break_at_this_line=1;
 #endif
 	switch (stmt->type){
-		case NONS_Statement::STATEMENT_BLOCK:
+		case StatementType::BLOCK:
 			this->saveGame->currentLabel=stmt->commandName;
 			labellog.addString(stmt->commandName);
 			if (!stdStrCmpCI(stmt->commandName,L"define"))
@@ -1122,10 +1117,10 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 			else if (!stdStrCmpCI(stmt->commandName,L"start"))
 				this->interpreter_mode=RUN_MODE;
 			break;
-		case NONS_Statement::STATEMENT_JUMP:
-		case NONS_Statement::STATEMENT_COMMENT:
+		case StatementType::JUMP:
+		case StatementType::COMMENT:
 			break;
-		case NONS_Statement::STATEMENT_PRINTER:
+		case StatementType::PRINTER:
 			if (this->interpreter_mode!=RUN_MODE){
 				handleErrors(NONS_NOT_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
 			}else{
@@ -1136,7 +1131,7 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 				this->Printer(stmt->stmt);
 			}
 			break;
-		case NONS_Statement::STATEMENT_COMMAND:
+		case StatementType::COMMAND:
 			{
 				commandMapType::iterator i=this->commandList.find(stmt->commandName);
 				//bool is_user_command=0;
@@ -1145,10 +1140,10 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 						i=this->commandList.find(L"");
 				}
 				if (i!=this->commandList.end()){
-					if (i->second.allow_define && this->interpreter_mode!=DEFINE_MODE){
+					if (!i->second.allow_define && this->interpreter_mode==DEFINE_MODE){
 						handleErrors(NONS_NOT_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
 						break;
-					}else if (i->second.allow_run && this->interpreter_mode!=RUN_MODE){
+					}else if (!i->second.allow_run && this->interpreter_mode==RUN_MODE){
 						handleErrors(NONS_NOT_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
 						break;
 					}
@@ -1235,14 +1230,14 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 	stmt.parse(this->script);
 	stmt.lineOfOrigin=line;
 	stmt.fileOffset=offset;
-	if (CLOptions.verbosity>=3 && CLOptions.verbosity<255 && stmt.type==NONS_Statement::STATEMENT_COMMAND){
+	if (CLOptions.verbosity>=3 && CLOptions.verbosity<255 && stmt.type==StatementType::COMMAND){
 		o_stderr <<"String: ";
 		print_command(o_stderr,0,stmt.commandName,stmt.parameters,0);
 	}
 	switch (stmt.type){
-		case NONS_Statement::STATEMENT_COMMENT:
+		case StatementType::COMMENT:
 			break;
-		case NONS_Statement::STATEMENT_PRINTER:
+		case StatementType::PRINTER:
 			if (this->interpreter_mode!=RUN_MODE){
 				handleErrors(NONS_NOT_IN_RUN_MODE,0,"NONS_ScriptInterpreter::interpretString",0);
 			}else{
@@ -1254,14 +1249,14 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 				this->Printer(stmt.stmt);
 			}
 			break;
-		case NONS_Statement::STATEMENT_COMMAND:
+		case StatementType::COMMAND:
 			{
 				ulong current_line=(!!stmt.lineOfOrigin)?stmt.lineOfOrigin->lineNumber:0;
 				commandMapType::iterator i=this->commandList.find(stmt.commandName);
 				if (i!=this->commandList.end()){
-					if (i->second.allow_define && this->interpreter_mode!=DEFINE_MODE)
+					if (!i->second.allow_define && this->interpreter_mode==DEFINE_MODE)
 						return handleErrors(NONS_NOT_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",1);
-					if (i->second.allow_run && this->interpreter_mode!=RUN_MODE)
+					if (!i->second.allow_run && this->interpreter_mode==RUN_MODE)
 						return handleErrors(NONS_NOT_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",1);
 					commandFunctionPointer function=i->second.function;
 					if (!function){
@@ -1720,14 +1715,14 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 		NONS_StackElement *push;
 		std::pair<ulong,ulong> pair(this->script->blockFromLabel(el->label)->first_line+el->linesBelow,el->statementNo);
 		switch (el->type){
-			case SUBROUTINE_CALL:
+			case StackFrameType::SUBROUTINE_CALL:
 				push=new NONS_StackElement(
 					pair,
 					NONS_ScriptLine(0,el->leftovers,0,1),
 					0,
 					el->textgosubLevel);
 				break;
-			case FOR_NEST:
+			case StackFrameType::FOR_NEST:
 				push=new NONS_StackElement(
 					this->store->retrieve(el->variable,0)->intValue,
 					pair,
@@ -1739,7 +1734,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 			//To be implemented in the future:
 			/*case TEXTGOSUB_CALL:
 				push=new NONS_StackElement(el->pages,el->trigger,el->textgosubLevel);*/
-			case USERCMD_CALL:
+			case StackFrameType::USERCMD_CALL:
 				push=new NONS_StackElement(
 					pair,
 					NONS_ScriptLine(0,el->leftovers,0,1),
@@ -1976,10 +1971,10 @@ bool NONS_ScriptInterpreter::save(int file){
 			el->statementNo=el0->returnTo.statement;
 			el->textgosubLevel=el0->textgosubLevel;
 			switch (el->type){
-				case SUBROUTINE_CALL:
+				case StackFrameType::SUBROUTINE_CALL:
 					el->leftovers=el0->interpretAtReturn.toString();
 					break;
-				case FOR_NEST:
+				case StackFrameType::FOR_NEST:
 					el->variable=0;
 					for (variables_map_T::iterator i=this->store->variables.begin();i!=this->store->variables.end() && !el->variable;i++)
 						if (i->second->intValue==el0->var)
@@ -1987,9 +1982,9 @@ bool NONS_ScriptInterpreter::save(int file){
 					el->to=el0->to;
 					el->step=el0->step;
 					break;
-				/*case TEXTGOSUB_CALL:
+				/*case StackFrameType::TEXTGOSUB_CALL:
 					break;*/
-				case USERCMD_CALL:
+				case StackFrameType::USERCMD_CALL:
 					el->leftovers=el0->interpretAtReturn.toString();
 					el->parameters=el0->parameters;
 					break;
@@ -2364,6 +2359,7 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 		std::wstring filename;
 		GET_STR_VALUE(filename,0);
 		scr->Background->load(&filename);
+		NONS_MutexLocker ml(screenMutex);
 		scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
 		scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
 	}
@@ -2443,7 +2439,7 @@ ErrorCode NONS_ScriptInterpreter::command_break(NONS_Statement &stmt){
 	if (this->callStack.empty())
 		return NONS_EMPTY_CALL_STACK;
 	NONS_StackElement *element=this->callStack.back();
-	if (element->type!=FOR_NEST)
+	if (element->type!=StackFrameType::FOR_NEST)
 		return NONS_UNEXPECTED_NEXT;
 	if (element->end!=element->returnTo){
 		this->thread->gotoPair(element->returnTo.toPair());
@@ -2505,8 +2501,9 @@ ErrorCode NONS_ScriptInterpreter::command_btndef(NONS_Statement &stmt){
 		this->imageButtons->inputOptions.EscapeSpace=this->useEscapeSpace;
 		return NONS_NO_ERROR;
 	}
-	SDL_Surface *img=ImageLoader->fetchSprite(filename);
-	if (!img){
+	SDL_Surface *img;
+	if (!ImageLoader->fetchSprite(img,filename)){
+		ImageLoader->unfetchImage(img);
 		return NONS_FILE_NOT_FOUND;
 	}
 	this->imageButtons=new NONS_ButtonLayer(img,this->screen);
@@ -2765,8 +2762,8 @@ ErrorCode NONS_ScriptInterpreter::command_dim(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_draw(NONS_Statement &stmt){
-	NONS_MutexLocker ml(screenMutex);
 	this->screen->screen->blitToScreen(this->screen->screenBuffer,0,0);
+	NONS_MutexLocker ml(screenMutex);
 	this->screen->screen->updateWithoutLock();
 	return NONS_NO_ERROR;
 }
@@ -3300,7 +3297,7 @@ ErrorCode NONS_ScriptInterpreter::command_getpage(NONS_Statement &stmt){
 ErrorCode NONS_ScriptInterpreter::command_getparam(NONS_Statement &stmt){
 	std::vector<std::wstring> *parameters=0;
 	for (ulong a=this->callStack.size()-1;a<this->callStack.size() && !parameters;a--)
-		if (this->callStack[a]->type==USERCMD_CALL)
+		if (this->callStack[a]->type==StackFrameType::USERCMD_CALL)
 			parameters=&this->callStack[a]->parameters;
 	if (!parameters)
 		return NONS_NOT_IN_A_USER_COMMAND_CALL;
@@ -3603,7 +3600,7 @@ ErrorCode NONS_ScriptInterpreter::command_ispage(NONS_Statement &stmt){
 		dst->set(0);
 	else{
 		std::vector<NONS_StackElement *>::reverse_iterator i=this->callStack.rbegin();
-		for (;i!=this->callStack.rend() && (*i)->type!=TEXTGOSUB_CALL;i++);
+		for (;i!=this->callStack.rend() && (*i)->type!=StackFrameType::TEXTGOSUB_CALL;i++);
 		dst->set((*i)->textgosubTriggeredBy=='\\');
 	}
 	return NONS_NO_ERROR;
@@ -3650,18 +3647,23 @@ ErrorCode NONS_ScriptInterpreter::command_ld(NONS_Statement &stmt){
 	GET_STR_VALUE(name,1);
 	NONS_Layer **l=0;
 	long off;
+	int width;
+	{
+		NONS_MutexLocker ml(screenMutex);
+		width=this->screen->screen->screens[VIRTUAL]->w;
+	}
 	switch (stmt.parameters[0][0]){
 		case 'l':
 			l=&this->screen->leftChar;
-			off=this->screen->screen->screens[VIRTUAL]->w/4;
+			off=width/4;
 			break;
 		case 'c':
 			l=&this->screen->centerChar;
-			off=this->screen->screen->screens[VIRTUAL]->w/2;
+			off=width/2;
 			break;
 		case 'r':
 			l=&this->screen->rightChar;
-			off=this->screen->screen->screens[VIRTUAL]->w/4*3;
+			off=width/4*3;
 			break;
 		default:
 			return NONS_INVALID_PARAMETER;
@@ -4127,7 +4129,7 @@ ErrorCode NONS_ScriptInterpreter::command_next(NONS_Statement &stmt){
 	if (this->callStack.empty())
 		return NONS_EMPTY_CALL_STACK;
 	NONS_StackElement *element=this->callStack.back();
-	if (element->type!=FOR_NEST)
+	if (element->type!=StackFrameType::FOR_NEST)
 		return NONS_UNEXPECTED_NEXT;
 	element->var->add(element->step);
 	if (element->step>0 && element->var->getInt()>element->to || element->step<0 && element->var->getInt()<element->to){
@@ -4289,9 +4291,12 @@ ErrorCode NONS_ScriptInterpreter::command_return(NONS_Statement &stmt){
 	do{
 		popped=this->callStack.back();
 		this->callStack.pop_back();
-	}while (popped->type!=SUBROUTINE_CALL && popped->type!=TEXTGOSUB_CALL && popped->type!=USERCMD_CALL);
+	}while (
+		popped->type!=StackFrameType::SUBROUTINE_CALL &&
+		popped->type!=StackFrameType::TEXTGOSUB_CALL &&
+		popped->type!=StackFrameType::USERCMD_CALL);
 	this->thread->gotoPair(popped->returnTo.toPair());
-	if (popped->type==TEXTGOSUB_CALL){
+	if (popped->type==StackFrameType::TEXTGOSUB_CALL){
 		this->Printer_support(popped->pages,0,0,0);
 		delete popped;
 		return NONS_NO_ERROR;
@@ -4746,6 +4751,7 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 		frameYend-frameYstart
 	};
 	{
+		NONS_MutexLocker ml(screenMutex);
 		SDL_Surface *scr=this->screen->screen->screens[VIRTUAL];
 		if (frameRect.x+frameRect.w>scr->w || frameRect.y+frameRect.h>scr->h)
 			o_stderr <<"Warning: The text frame is larger than the screen\n";
@@ -4768,7 +4774,7 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			this->screen->output->shadeLayer->setShade(uchar((color&0xFF0000)>>16),(color&0xFF00)>>8,color&0xFF);
 			this->screen->output->shadeLayer->Clear();
 		}else{
-			pic=ImageLoader->fetchSprite(filename);
+			ImageLoader->fetchSprite(pic,filename);
 			windowRect.w=(float)pic->w;
 			windowRect.h=(float)pic->h;
 			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),this->main_font,shadow!=0);

@@ -36,12 +36,12 @@
 #include <vector>
 
 struct NONS_CommandLineOptions{
-	ENCODINGS scriptencoding;
+	ENCODING::ENCODING scriptencoding;
 	std::wstring musicFormat;
 	std::wstring musicDirectory;
 	std::wstring archiveDirectory;
 	std::wstring scriptPath;
-	ENCRYPTION scriptEncryption;
+	ENCRYPTION::ENCRYPTION scriptEncryption;
 	bool override_stdout;
 	bool reset_redirection_files;
 	bool debugMode;

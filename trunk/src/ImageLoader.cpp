@@ -214,6 +214,12 @@ NONS_Image::NONS_Image(){
 
 #include "SDL_bilinear.h"
 
+NONS_Image::NONS_Image(SDL_Surface *image){
+	this->image=image;
+	this->refCount=0;
+	this->svg_source=0;
+}
+
 NONS_Image::NONS_Image(const NONS_AnimationInfo *anim,const NONS_Image *primary,const NONS_Image *secondary,double base_scale[2],optim_t *rects){
 	this->image=0;
 	this->refCount=0;
@@ -646,82 +652,89 @@ NONS_ImageLoader::~NONS_ImageLoader(){
 			delete this->imageCache[a];
 }
 
-SDL_Surface *NONS_ImageLoader::fetchSprite(const std::wstring &string,optim_t *rects){
+bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,optim_t *rects){
 	NONS_AnimationInfo anim(string);
-	if (!anim.valid)
-		return 0;
-	long bestFit=-1,maskMatch=-1,fileMatch=-1;
-	for (ulong a=0;a<this->imageCache.size() && bestFit<0;a++){
-		NONS_Image *el=this->imageCache[a];
-		if (el){
-			if (el->animation.method==NONS_AnimationInfo::COPY_TRANS){
-				if (el->animation.getFilename()==anim.getFilename())
-					fileMatch=a;
-				if (anim.method==NONS_AnimationInfo::SEPARATE_MASK && el->animation.getFilename()==anim.getMaskFilename())
-					maskMatch=a;
-			}
-			if (el->animation.method==anim.method){
-				if (anim.method==NONS_AnimationInfo::SEPARATE_MASK){
-					if ((ulong)fileMatch==a && (ulong)maskMatch==a)
+	if (anim.valid){
+		long bestFit=-1,maskMatch=-1,fileMatch=-1;
+		for (ulong a=0;a<this->imageCache.size() && bestFit<0;a++){
+			NONS_Image *el=this->imageCache[a];
+			if (el){
+				if (el->animation.method==NONS_AnimationInfo::COPY_TRANS){
+					if (el->animation.getFilename()==anim.getFilename())
+						fileMatch=a;
+					if (anim.method==NONS_AnimationInfo::SEPARATE_MASK && el->animation.getFilename()==anim.getMaskFilename())
+						maskMatch=a;
+				}
+				if (el->animation.method==anim.method){
+					if (anim.method==NONS_AnimationInfo::SEPARATE_MASK){
+						if ((ulong)fileMatch==a && (ulong)maskMatch==a)
+							bestFit=a;
+					}else if ((ulong)fileMatch==a)
 						bestFit=a;
-				}else if ((ulong)fileMatch==a)
-					bestFit=a;
+				}
 			}
 		}
-	}
-	if (bestFit>=0){
-		NONS_Image *el=this->imageCache[bestFit];
-		el->refCount++;
-		if (!!rects)
-			*rects=el->optimized_updates;
-		return el->image;
-	}
-	NONS_Image *primary=0;
-	bool freePrimary=0;
-	if (fileMatch>=0)
-		primary=this->imageCache[fileMatch];
-	else{
-		ulong l;
-		uchar *buffer=this->archive->getFileBuffer(anim.getFilename(),l);
-		if (!buffer)
-			return 0;
-		primary=new NONS_Image;
-		if (!primary->LoadImage(anim.getFilename(),buffer,l,(this->fast_svg)?&this->disk_cache:0,this->base_scale)){
-			delete[] buffer;
-			return 0;
+		if (bestFit>=0){
+			NONS_Image *el=this->imageCache[bestFit];
+			el->refCount++;
+			if (!!rects)
+				*rects=el->optimized_updates;
+			dst=el->image;
+			return 1;
 		}
-		this->filelog.addString(anim.getFilename());
-		delete[] buffer;
-		freePrimary=1;
+		NONS_Image *primary=0;
+		bool freePrimary=0;
+		if (fileMatch>=0)
+			primary=this->imageCache[fileMatch];
+		else{
+			ulong l;
+			uchar *buffer=this->archive->getFileBuffer(anim.getFilename(),l);
+			if (!buffer)
+				goto fetchSprite_fail;
+			primary=new NONS_Image;
+			if (!primary->LoadImage(anim.getFilename(),buffer,l,(this->fast_svg)?&this->disk_cache:0,this->base_scale)){
+				delete[] buffer;
+				delete primary;
+				goto fetchSprite_fail;
+			}
+			this->filelog.addString(anim.getFilename());
+			delete[] buffer;
+			freePrimary=1;
+		}
+		NONS_Image *secondary=0;
+		bool freeSecondary=0;
+		if (maskMatch>=0)
+			secondary=this->imageCache[maskMatch];
+		else if (anim.method==NONS_AnimationInfo::SEPARATE_MASK){
+			ulong l;
+			uchar *buffer=this->archive->getFileBuffer(anim.getMaskFilename(),l);
+			if (!buffer)
+				goto fetchSprite_fail;
+			secondary=new NONS_Image;
+			secondary->LoadImage(anim.getMaskFilename(),buffer,l,(this->fast_svg)?&this->disk_cache:0,this->base_scale);
+			this->filelog.addString(anim.getMaskFilename());
+			delete[] buffer;
+			freeSecondary=1;
+		}
+		NONS_Image *image=new NONS_Image(&anim,primary,secondary,this->base_scale,rects);
+		image->refCount++;
+		this->addElementToCache(image);
+		if (image->svg_source && this->fast_svg){
+			this->disk_cache.add(image->animation.getFilename(),image->image);
+			this->svg_functions.SVG_unload(image->svg_source);
+			image->svg_source=0;
+		}
+		if (freePrimary)
+			delete primary;
+		if (freeSecondary)
+			delete secondary;
+		dst=image->image;
+		return 1;
 	}
-	NONS_Image *secondary=0;
-	bool freeSecondary=0;
-	if (maskMatch>=0)
-		secondary=this->imageCache[maskMatch];
-	else if (anim.method==NONS_AnimationInfo::SEPARATE_MASK){
-		ulong l;
-		uchar *buffer=this->archive->getFileBuffer(anim.getMaskFilename(),l);
-		if (!buffer)
-			return 0;
-		secondary=new NONS_Image;
-		secondary->LoadImage(anim.getMaskFilename(),buffer,l,(this->fast_svg)?&this->disk_cache:0,this->base_scale);
-		this->filelog.addString(anim.getMaskFilename());
-		delete[] buffer;
-		freeSecondary=1;
-	}
-	NONS_Image *image=new NONS_Image(&anim,primary,secondary,this->base_scale,rects);
-	image->refCount++;
-	this->addElementToCache(image);
-	if (image->svg_source && this->fast_svg){
-		this->disk_cache.add(image->animation.getFilename(),image->image);
-		this->svg_functions.SVG_unload(image->svg_source);
-		image->svg_source=0;
-	}
-	if (freePrimary)
-		delete primary;
-	if (freeSecondary)
-		delete secondary;
-	return image->image;
+fetchSprite_fail:
+	dst=makeSurface(1,1,24);
+	this->addElementToCache(new NONS_Image(dst));
+	return 0;
 }
 
 bool NONS_ImageLoader::addElementToCache(NONS_Image *img){

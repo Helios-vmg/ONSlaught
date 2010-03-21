@@ -101,7 +101,7 @@ struct NONS_SaveFile{
 	arrays_map_T arrays;
 	ushort fontSize;
 	struct stackEl{
-		StackFrameType type;
+		StackFrameType::StackFrameType type;
 		std::wstring label;
 		ulong linesBelow,
 			statementNo,

@@ -268,7 +268,7 @@ NONS_Audio::NONS_Audio(const std::wstring &musicDir){
 		this->svol=0;
 		return;
 	}
-	Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,512);
+	Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,1024);
 	if (!musicDir.size())
 		this->musicDir=L"./CD";
 	else

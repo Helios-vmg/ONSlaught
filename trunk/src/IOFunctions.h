@@ -135,14 +135,12 @@ struct NONS_RedirectedOutput{
 	NONS_RedirectedOutput(std::ostream &a);
 	~NONS_RedirectedOutput();
 	NONS_RedirectedOutput &operator<<(ulong);
-	NONS_RedirectedOutput &outputHex(ulong,ulong=0);
 	NONS_RedirectedOutput &operator<<(long);
 	NONS_RedirectedOutput &operator<<(wchar_t);
 	NONS_RedirectedOutput &operator<<(const char *);
 	NONS_RedirectedOutput &operator<<(const std::string &);
 	NONS_RedirectedOutput &operator<<(const std::wstring &);
 	void redirect();
-	//std::ostream &getstream();
 	void indent(long);
 private:
 	void write_to_stream(const std::stringstream &str);

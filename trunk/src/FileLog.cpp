@@ -70,7 +70,7 @@ void NONS_LogStrings::init(const std::wstring &oldName,const std::wstring &newNa
 	if (offset+4<l && firstcharsCI(std::string(buffer+offset,4),0,"NONS")){
 		newFormat=1;
 		for (offset+=4;buffer[offset]==10 || buffer[offset]==13;offset++);
-		inPlaceDecryption(buffer+offset,l-offset,XOR84_ENCRYPTION);
+		inPlaceDecryption(buffer+offset,l-offset,ENCRYPTION::XOR84);
 		for (ulong a=0;offset<l && a<entries;a++){
 			std::wstring newElement=UniFromUTF8(std::string(buffer+offset));
 			offset+=strlen(buffer+offset)+1;
@@ -83,7 +83,7 @@ void NONS_LogStrings::init(const std::wstring &oldName,const std::wstring &newNa
 			for (filel=0;filel+offset<l && buffer[filel+offset]!='\"';filel++);
 			if (buffer[filel+offset]!='\"')
 				break;
-			inPlaceDecryption(buffer+offset,filel,XOR84_ENCRYPTION);
+			inPlaceDecryption(buffer+offset,filel,ENCRYPTION::XOR84);
 			std::wstring newElement=UniFromSJIS(std::string(buffer+offset,filel));
 			this->addString(newElement);
 			offset+=filel+1;
@@ -107,7 +107,7 @@ void NONS_LogStrings::writeOut(){
 		buf.append(UniToUTF8(*i));
 		buf.push_back(0);
 	}
-	inPlaceDecryption(&buf[startEncryption],buf.size()-startEncryption,XOR84_ENCRYPTION);
+	inPlaceDecryption(&buf[startEncryption],buf.size()-startEncryption,ENCRYPTION::XOR84);
 	ulong l;
 	char *writebuffer=compressBuffer_BZ2(&buf[0],buf.size(),&l);
 	NONS_File::write(this->saveAs,writebuffer,l);

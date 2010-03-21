@@ -155,6 +155,19 @@ std::basic_string<T> itoa(T2 n,unsigned w=0){
 template <typename T> inline std::string  itoac(T n,unsigned w=0){ return itoa<char>   (n,w); }
 template <typename T> inline std::wstring itoaw(T n,unsigned w=0){ return itoa<wchar_t>(n,w); }
 
+template <typename T,typename T2>
+std::basic_string<T> itohex(T2 n,unsigned w=0){
+	std::basic_stringstream<T> stream;
+	if (w){
+		stream.fill('0');
+		stream.width(w);
+	}
+	stream <<std::hex<<n;
+	return stream.str();
+}
+template <typename T> inline std::string  itohexc(T n,unsigned w=0){ return itohex<char>   (n,w); }
+template <typename T> inline std::wstring itohexw(T n,unsigned w=0){ return itohex<wchar_t>(n,w); }
+
 //1 if the s1 begins with s2 at off
 template <typename T>
 bool firstchars(const std::basic_string<T> &s1,size_t off,const std::basic_string<T> &s2){

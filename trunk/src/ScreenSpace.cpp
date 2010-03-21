@@ -144,9 +144,7 @@ bool NONS_Layer::load(const std::wstring *string){
 		return 1;
 	}
 	this->unload();
-	this->data=ImageLoader->fetchSprite(*string,&this->optimized_updates);
-	if (!this->data){
-		this->data=makeSurface(1,1,24);
+	if (!ImageLoader->fetchSprite(this->data,*string,&this->optimized_updates)){
 		SDL_FillRect(this->data,0,this->defaultShade);
 		this->clip_rect=this->data->clip_rect;
 		return 0;
@@ -536,16 +534,20 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 			if (writeToLayers){
 				if (glyph2){
 					glyph2->putGlyph(this->shadowLayer->data,x+1,y+1,&this->shadowLayer->fontCache->foreground,1);
-					if (!!dst)
+					if (!!dst){
+						NONS_MutexLocker ml(screenMutex);
 						glyph2->putGlyph(dst->screens[VIRTUAL],x+1,y+1,0);
+					}
 				}
 				glyph->putGlyph(this->foregroundLayer->data,x,y,!col?&this->foregroundLayer->fontCache->foreground:col,1);
 				if (!!dst){
+					NONS_MutexLocker ml(screenMutex);
 					if (glyph2)
 						glyph2->putGlyph(dst->screens[VIRTUAL],x+1,y+1,0);
 					glyph->putGlyph(dst->screens[VIRTUAL],x,y,0);
 				}
 			}else if (!!dst){
+				NONS_MutexLocker ml(screenMutex);
 				if (glyph2)
 					glyph2->putGlyph(dst->screens[VIRTUAL],x+1,y+1,&this->shadowLayer->fontCache->foreground);
 				glyph->putGlyph(dst->screens[VIRTUAL],x,y,!col?&this->foregroundLayer->fontCache->foreground:col);
@@ -707,7 +709,10 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_Font *font){
 	this->leftChar=0;
 	this->centerChar=0;
 	this->rightChar=0;
-	this->screenBuffer=makeSurface(this->screen->screens[VIRTUAL]->w,this->screen->screens[VIRTUAL]->h,SCREENBUFFER_BITS);
+	{
+		NONS_MutexLocker ml(screenMutex);
+		this->screenBuffer=makeSurface(this->screen->screens[VIRTUAL]->w,this->screen->screens[VIRTUAL]->h,SCREENBUFFER_BITS);
+	}
 	this->gfx_store=new NONS_GFXstore();
 	this->sprite_priority=25;
 	SDL_Color *temp=&this->output->foregroundLayer->fontCache->foreground;

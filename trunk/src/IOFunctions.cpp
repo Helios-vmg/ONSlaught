@@ -344,15 +344,6 @@ NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(ulong a){
 	return *this <<itoac(a);
 }
 
-NONS_RedirectedOutput &NONS_RedirectedOutput::outputHex(ulong a,ulong w){
-	std::stringstream s;
-	s.width(w);
-	s <<s.hex<<a;
-	std::ostream &stream=(CLOptions.override_stdout && this->file)?*this->file:this->cout;
-	stream <<s.str();
-	return *this;
-}
-
 NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(long a){
 	return *this <<itoac(a);
 }
