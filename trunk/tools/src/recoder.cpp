@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2008, 2009, Helios (helios.vmg@gmail.com)
+* Copyright (c) 2008-2010, Helios (helios.vmg@gmail.com)
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -80,7 +80,7 @@ void usage();
 
 void version(){
 	std::cout <<"recoder v0.95 - A simple encoding and code page converter.\n\n"
-		"Copyright (c) 2008, 2009, Helios (helios.vmg@gmail.com)\n"
+		"Copyright (c) 2008-2010, Helios (helios.vmg@gmail.com)\n"
 		"All rights reserved."<<std::endl;
 	exit(0);
 }

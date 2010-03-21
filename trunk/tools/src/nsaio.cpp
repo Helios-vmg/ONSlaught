@@ -857,7 +857,7 @@ void sarArchive::extract(const std::wstring &outputFilename){
 
 void version(){
 	std::cout <<"nsaio v0.99\n\n"
-		"Copyright (c) 2008, 2009, Helios (helios.vmg@gmail.com)\n"
+		"Copyright (c) 2008-2010, Helios (helios.vmg@gmail.com)\n"
 		"All rights reserved.\n\n";
 }
 
