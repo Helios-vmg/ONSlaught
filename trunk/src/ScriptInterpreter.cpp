@@ -185,7 +185,7 @@ void NONS_ScriptInterpreter::init(){
 	this->autoclick=0;
 	this->timer=SDL_GetTicks();
 	//this->setDefaultWindow();
-	this->main_font=this->screen->output->foregroundLayer->fontCache->font;
+	//this->main_font=this->screen->output->foregroundLayer->fontCache->font;
 	this->menu=new NONS_Menu(this);
 	this->imageButtons=0;
 	this->new_if=0;
@@ -264,16 +264,9 @@ std::string getDefaultFontFilename(){
 	return UniToUTF8(settings.getWString(L"default font"));
 }
 
-NONS_ScreenSpace *init_screen(NONS_GeneralArchive *archive){
-	TTF_Init();
+NONS_ScreenSpace *init_screen(NONS_GeneralArchive *archive,NONS_FontCache &fc){
 	std::string fontfile=getDefaultFontFilename();
-	NONS_Font *font=init_font(18,archive,fontfile.c_str());
-	if (!font){
-		o_stderr <<"FATAL ERROR: Could not find \""<<fontfile<<"\". If your system is case-sensitive, "
-			"make sure the file name is capitalized correctly.\n";
-		exit(0);
-	}
-	NONS_ScreenSpace *screen=new NONS_ScreenSpace(20,font);
+	NONS_ScreenSpace *screen=new NONS_ScreenSpace(20,fc);
 	screen->output->shadeLayer->Clear();
 	screen->Background->Clear();
 	screen->BlendNoCursor(1);
@@ -294,11 +287,27 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->store=0;
 	this->gfx_store=0;
 	this->main_font=0;
+	this->font_cache=0;
 	this->thread=0;
 	this->screenshot=0;
 	if (initialize){
 		{
 			this->archive=new NONS_GeneralArchive();
+			{
+				std::string fontfile=getDefaultFontFilename();
+				this->main_font=init_font(this->archive,getDefaultFontFilename());
+				if (!this->main_font || !this->main_font->good()){
+					delete this->main_font;
+					if (!this->main_font)
+						o_stderr <<"FATAL ERROR: Could not find \""<<fontfile<<"\". If your system is case-sensitive, "
+							"make sure the file name is capitalized correctly.\n";
+					else
+						o_stderr <<"FATAL ERROR: \""<<fontfile<<"\" is not a valid font file.\n";
+					exit(0);
+				}
+				SDL_Color c={255,255,255,255};
+				this->font_cache=new NONS_FontCache(*this->main_font,20,c,0,0);
+			}
 			{
 				ErrorCode error=NONS_NO_ERROR;
 				if (CLOptions.scriptPath.size())
@@ -317,7 +326,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 			this->audio=new NONS_Audio(CLOptions.musicDirectory);
 			if (CLOptions.musicFormat.size())
 				this->audio->musicFormat=CLOptions.musicFormat;
-			this->screen=init_screen(this->archive);
+			this->screen=init_screen(this->archive,*this->font_cache);
 		}
 		this->init();
 	}
@@ -741,6 +750,8 @@ NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
 	if (this->was_initialized)
 		this->uninit();
 	delete this->screen;
+	delete this->font_cache;
+	delete this->main_font;
 	delete this->audio;
 	delete this->archive;
 	delete this->script;
@@ -1591,11 +1602,11 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 								parsed|=HEX2DEC(hex);
 							}
 							if (a==6){
-								SDL_Color color=this->screen->output->foregroundLayer->fontCache->foreground;
+								SDL_Color color=this->screen->output->foregroundLayer->fontCache->get_color();
 								color.r=parsed>>16;
 								color.g=(parsed&0xFF00)>>8;
 								color.b=(parsed&0xFF);
-								this->screen->output->foregroundLayer->fontCache->foreground=color;
+								this->screen->output->foregroundLayer->fontCache->setColor(color);
 								reduced+=6;
 								break;
 							}
@@ -1772,10 +1783,10 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	//screen
 	//window
 	NONS_ScreenSpace *scr=this->screen;
-	if (this->main_font)
-		delete this->main_font;
-	this->main_font=init_font(save.fontSize,this->archive,getDefaultFontFilename().c_str());
-	scr->resetParameters(&save.textWindow,&save.windowFrame,this->main_font,save.fontShadow);
+	this->font_cache->resetStyle(save.fontSize,this->font_cache->get_italic(),this->font_cache->get_bold());
+	this->font_cache->spacing=save.spacing;
+	this->font_cache->line_skip=save.lineSkip;
+	scr->resetParameters(&save.textWindow,&save.windowFrame,*this->font_cache,save.fontShadow);
 	NONS_StandardOutput *out=scr->output;
 	/*out->shadeLayer->clip_rect=save.textWindow;
 	out->x0=save.windowFrame.x;
@@ -1788,7 +1799,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	out->transition->duration=save.windowTransitionDuration;
 	out->transition->rule=save.windowTransitionRule;
 	this->hideTextDuringEffect=save.hideWindow;
-	out->foregroundLayer->fontCache->foreground=save.windowTextColor;
+	out->foregroundLayer->fontCache->setColor(save.windowTextColor);
 	out->display_speed=save.textSpeed;
 	if (save.version>2){
 		out->shadowPosX=save.shadowPosX;
@@ -1797,8 +1808,6 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 		out->shadowPosX=1;
 		out->shadowPosY=1;
 	}
-	this->main_font->spacing=save.spacing;
-	this->main_font->lineSkip=save.lineSkip;
 	out->log.clear();
 	for (ulong a=0;a<save.logPages.size();a++)
 		out->log.push_back(save.logPages[a]);
@@ -2029,14 +2038,14 @@ bool NONS_ScriptInterpreter::save(int file){
 		this->saveGame->windowTransitionDuration=out->transition->duration;
 		this->saveGame->windowTransitionRule=out->transition->rule;
 		this->saveGame->hideWindow=this->hideTextDuringEffect;
-		this->saveGame->fontSize=this->main_font->getsize();
-		this->saveGame->windowTextColor=out->foregroundLayer->fontCache->foreground;
+		this->saveGame->fontSize=(ushort)out->foregroundLayer->fontCache->get_size();
+		this->saveGame->windowTextColor=out->foregroundLayer->fontCache->get_color();
 		this->saveGame->textSpeed=out->display_speed;
 		this->saveGame->fontShadow=!!out->shadowLayer;
 		this->saveGame->shadowPosX=out->shadowPosX;
 		this->saveGame->shadowPosY=out->shadowPosY;
-		this->saveGame->spacing=this->main_font->spacing;
-		this->saveGame->lineSkip=this->main_font->lineSkip;
+		this->saveGame->spacing=out->foregroundLayer->fontCache->spacing;
+		this->saveGame->lineSkip=(ushort)out->foregroundLayer->fontCache->line_skip;
 		for (ulong a=0;a<out->log.size();a++)
 			this->saveGame->logPages.push_back(out->log[a]);
 		this->saveGame->currentBuffer=out->currentBuffer;
@@ -4526,11 +4535,11 @@ ErrorCode NONS_ScriptInterpreter::command_select(NONS_Statement &stmt){
 			jumps.push_back(temp);
 		}
 	}
-	NONS_ButtonLayer layer(this->main_font,this->screen,0,this->menu);
+	NONS_ButtonLayer layer(*this->font_cache,this->screen,0,this->menu);
 	layer.makeTextButtons(
 		strings,
-		&this->selectOn,
-		&this->selectOff,
+		this->selectOn,
+		this->selectOff,
 		!!this->screen->output->shadowLayer,
 		&this->selectVoiceEntry,
 		&this->selectVoiceMouseOver,
@@ -4759,32 +4768,34 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			ImageLoader->unfetchImage(this->screen->output->shadeLayer->data);
 			this->screen->output->shadeLayer->data=0;
 		}
-		if (fontsize!=this->main_font->getsize()){
-			delete this->main_font;
-			this->main_font=init_font((ulong)fontsize,this->archive,getDefaultFontFilename().c_str());
-			this->main_font->spacing=(int)spacingX;
-			this->screen->output->foregroundLayer->fontCache->font=this->main_font;
-			this->screen->output->foregroundLayer->fontCache->refreshCache();
-			this->screen->output->shadowLayer->fontCache->font=this->main_font;
-			this->screen->output->shadowLayer->fontCache->refreshCache();
+		{
+			NONS_FontCache *fc[]={
+				this->font_cache,
+				this->screen->output->foregroundLayer->fontCache,
+				this->screen->output->shadowLayer->fontCache
+			};
+			for (int a=0;a<3;a++){
+				fc[a]->resetStyle((ulong)fontsize,fc[a]->get_italic(),fc[a]->get_bold());
+				fc[a]->spacing=(long)spacingX;
+				if (forceLineSkip)
+					fc[a]->line_skip=forceLineSkip;
+			}
 		}
 		SDL_Surface *pic;
 		if (!syntax){
-			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),this->main_font,shadow!=0);
+			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),*this->font_cache,shadow!=0);
 			this->screen->output->shadeLayer->setShade(uchar((color&0xFF0000)>>16),(color&0xFF00)>>8,color&0xFF);
 			this->screen->output->shadeLayer->Clear();
 		}else{
 			ImageLoader->fetchSprite(pic,filename);
 			windowRect.w=(float)pic->w;
 			windowRect.h=(float)pic->h;
-			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),this->main_font,shadow!=0);
+			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),*this->font_cache,shadow!=0);
 			this->screen->output->shadeLayer->usePicAsDefaultShade(pic);
 		}
 	}
 	this->screen->output->extraAdvance=(int)spacingX;
 	//this->screen->output->extraLineSkip=0;
-	if (forceLineSkip)
-		this->main_font->lineSkip=forceLineSkip;
 	this->default_speed_slow=speed*2;
 	this->default_speed_med=speed;
 	this->default_speed_fast=speed/2;

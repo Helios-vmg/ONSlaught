@@ -465,6 +465,7 @@ public:
 	~NONS_ScriptInterpreter();
 	bool interpretNextLine();
 	NONS_Font *main_font;
+	NONS_FontCache *font_cache;
 	ErrorCode interpretString(NONS_Statement &stmt,NONS_ScriptLine *lineNo,ulong offset);
 	ErrorCode interpretString(const std::wstring &str,NONS_ScriptLine *lineNo,ulong offset);
 	ulong totalCommands();

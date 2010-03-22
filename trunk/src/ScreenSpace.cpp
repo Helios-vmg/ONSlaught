@@ -104,8 +104,9 @@ NONS_Layer::~NONS_Layer(){
 		delete this->fontCache;
 }
 
-void NONS_Layer::MakeTextLayer(NONS_Font *font,SDL_Color *foreground,bool shadow){
-	this->fontCache=new NONS_FontCache(font,foreground,shadow);
+void NONS_Layer::MakeTextLayer(NONS_FontCache &fc,const SDL_Color &foreground){
+	this->fontCache=new NONS_FontCache(fc);
+	this->fontCache->setColor(foreground);
 }
 
 void NONS_Layer::Clear(){
@@ -226,14 +227,14 @@ NONS_StandardOutput::NONS_StandardOutput(NONS_Layer *fgLayer,NONS_Layer *shadowL
 	this->maxLogPages=-1;
 }
 
-NONS_StandardOutput::NONS_StandardOutput(NONS_Font *font,SDL_Rect *size,SDL_Rect *frame,bool shadow){
+NONS_StandardOutput::NONS_StandardOutput(NONS_FontCache &fc,SDL_Rect *size,SDL_Rect *frame,bool shadow){
 	SDL_Color rgb={255,255,255,0};
 	SDL_Color rgb2={0,0,0,0};
 	this->foregroundLayer=new NONS_Layer(size,0x00000000);
-	this->foregroundLayer->MakeTextLayer(font,&rgb,0);
+	this->foregroundLayer->MakeTextLayer(fc,rgb);
 	if (shadow){
 		this->shadowLayer=new NONS_Layer(size,0x00000000);
-		this->shadowLayer->MakeTextLayer(font,&rgb2,1);
+		this->shadowLayer->MakeTextLayer(fc,rgb2);
 	}else
 		this->shadowLayer=0;
 	this->shadeLayer=new NONS_Layer(size,(0x99<<rshift)|(0x99<<gshift)|(0x99<<bshift));
@@ -271,14 +272,16 @@ NONS_StandardOutput::~NONS_StandardOutput(){
 
 ulong NONS_StandardOutput::getIndentationSize(){
 	NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(INDENTATION_CHARACTER);
-	return this->indentationLevel*(glyph->getadvance()+this->extraAdvance);
+	long advance=glyph->get_advance();
+	glyph->done();
+	return this->indentationLevel*(advance+this->extraAdvance);
 }
 
 bool NONS_StandardOutput::prepareForPrinting(const std::wstring str){
 	long lastSpace=-1;
 	int x0=this->x,y0=this->y;
 	int wordL=0;
-	int lineSkip=this->foregroundLayer->fontCache->font->lineSkip;
+	int lineSkip=this->foregroundLayer->fontCache->line_skip;
 	this->resumePrinting=0;
 	bool check_at_end=1;
 	ulong indentationMargin=this->x0+this->getIndentationSize();
@@ -304,17 +307,19 @@ bool NONS_StandardOutput::prepareForPrinting(const std::wstring str){
 			}
 			x0+=wordL;
 			lastSpace=this->cachedText.size();
-			wordL=glyph->getadvance()+this->extraAdvance;
+			wordL=glyph->get_advance()+this->extraAdvance;
 			this->cachedText.push_back(character);
 		}else if (character){
-			wordL+=glyph->getadvance()+this->extraAdvance;
+			wordL+=glyph->get_advance()+this->extraAdvance;
 			this->cachedText.push_back(character);
 		}else{
 			if (x0+wordL>=this->w+this->x0 && lastSpace>=0)
 				this->cachedText[lastSpace]='\r';
 			check_at_end=0;
+			glyph->done();
 			break;
 		}
+		glyph->done();
 	}
 	if (check_at_end && x0+wordL>=this->w+this->x0 && lastSpace>=0)
 		this->cachedText[lastSpace]='\r';
@@ -355,8 +360,8 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 	}else
 		x0=this->x;
 	y0=this->y;
-	int lineSkip=this->foregroundLayer->fontCache->font->lineSkip;
-	int fontLineSkip=this->foregroundLayer->fontCache->font->fontLineSkip;
+	int lineSkip=this->foregroundLayer->fontCache->line_skip;
+	int fontLineSkip=this->foregroundLayer->fontCache->get_font().line_skip;
 	ulong t0,t1;
 	if (this->resumePrinting)
 		start=this->resumePrintingWhere;
@@ -364,9 +369,7 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 		t0=SDL_GetTicks();
 		wchar_t character=this->cachedText[a];
 		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(character);
-		NONS_Glyph *glyph2=0;
-		if (this->shadowLayer)
-			glyph2=this->shadowLayer->fontCache->getGlyph(character);
+		NONS_Glyph *glyph2=(this->shadowLayer)?this->shadowLayer->fontCache->getGlyph(character):0;
 		if (!glyph){
 			if (y0+lineSkip>=this->h+this->y0){
 				this->resumePrinting=1;
@@ -395,17 +398,20 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 			this->prebufferedText.push_back('\n');
 			continue;
 		}
-		int advance=glyph->getadvance()+this->extraAdvance;
+		int advance=glyph->get_advance()+this->extraAdvance;
 		if (x0+advance>this->w+this->x0){
 			if (y0+lineSkip>=this->h+this->y0){
 				this->resumePrinting=1;
 				this->x=x0;
 				this->y=y0;
 				this->resumePrinting=1;
-				this->resumePrintingWhere=isbreakspace(glyph->codePoint)?a+1:a;
+				this->resumePrintingWhere=isbreakspace(glyph->get_codepoint())?a+1:a;
 				this->currentBuffer.append(this->prebufferedText);
 				this->prebufferedText.clear();
 				this->indent_next=1;
+				glyph->done();
+				if (glyph2)
+					glyph2->done();
 				return 1;
 			}else{
 				x0=this->setLineStart(&this->cachedText,a,&frame,this->horizontalCenterPolicy);
@@ -421,7 +427,7 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 				this->prebufferedText.push_back('\n');
 			}
 		}
-		switch (glyph->codePoint){
+		switch (glyph->get_codepoint()){
 			case '\\':
 				this->prebufferedText.append(L"\\\\");
 				break;
@@ -432,33 +438,30 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 				this->prebufferedText.append(L"\\>");
 				break;
 			default:
-				this->prebufferedText.push_back(glyph->codePoint);
+				this->prebufferedText.push_back(glyph->get_codepoint());
 		}
 		{
 			NONS_MutexLocker ml(screenMutex);
 			if (glyph2){
-				glyph2->putGlyph(
+				glyph2->put(
 					this->shadowLayer->data,
 					x0+this->shadowPosX-(int)this->shadowLayer->clip_rect.x,
-					y0+this->shadowPosY-(int)this->shadowLayer->clip_rect.y,
-					&this->shadowLayer->fontCache->foreground,
-					1
+					y0+this->shadowPosY-(int)this->shadowLayer->clip_rect.y
 				);
-				glyph2->putGlyph(
+				glyph2->put(
 					dst->screens[VIRTUAL],
 					x0+this->shadowPosX,
-					y0+this->shadowPosY,
-					0
+					y0+this->shadowPosY
 				);
+				glyph2->done();
 			}
-			glyph->putGlyph(
+			glyph->put(
 				this->foregroundLayer->data,
 				x0-(int)this->foregroundLayer->clip_rect.x,
-				y0-(int)this->foregroundLayer->clip_rect.y,
-				&this->foregroundLayer->fontCache->foreground,
-				1
+				y0-(int)this->foregroundLayer->clip_rect.y
 			);
-			glyph->putGlyph(dst->screens[VIRTUAL],x0,y0,0);
+			glyph->put(dst->screens[VIRTUAL],x0,y0);
+			glyph->done();
 		}
 		if (glyph2){
 			long tempX=(this->shadowPosX<=0)?0:this->shadowPosX,
@@ -496,13 +499,15 @@ void NONS_StandardOutput::endPrinting(){
 void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,SDL_Color *col){
 	int x=this->x0,
 		y=this->y0;
-	int lineSkip=this->foregroundLayer->fontCache->font->lineSkip;
+	int lineSkip=this->foregroundLayer->fontCache->line_skip;
 	if (writeToLayers){
 		this->foregroundLayer->Clear();
 		if (this->shadowLayer)
 			this->shadowLayer->Clear();
 	}
 	long lastStart=this->x0;
+	if (col)
+		this->foregroundLayer->fontCache->setColor(*col);
 	for (ulong a=0;a<str->size();a++){
 		wchar_t character=(*str)[a];
 		if (character=='<'){
@@ -524,35 +529,36 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 		if (character=='\\')
 			character=(*str)[++a];
 		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(character);
-		NONS_Glyph *glyph2=0;
-		if (this->shadowLayer)
-			glyph2=this->shadowLayer->fontCache->getGlyph(character);
+		NONS_Glyph *glyph2=(this->shadowLayer)?this->shadowLayer->fontCache->getGlyph(character):0;
 		if (character=='\n'){
 			x=lastStart;
 			y+=lineSkip;
 		}else{
 			if (writeToLayers){
 				if (glyph2){
-					glyph2->putGlyph(this->shadowLayer->data,x+1,y+1,&this->shadowLayer->fontCache->foreground,1);
+					glyph2->put(this->shadowLayer->data,x+1,y+1);
 					if (!!dst){
 						NONS_MutexLocker ml(screenMutex);
-						glyph2->putGlyph(dst->screens[VIRTUAL],x+1,y+1,0);
+						glyph2->put(dst->screens[VIRTUAL],x+1,y+1);
 					}
 				}
-				glyph->putGlyph(this->foregroundLayer->data,x,y,!col?&this->foregroundLayer->fontCache->foreground:col,1);
+				glyph->put(this->foregroundLayer->data,x,y);
 				if (!!dst){
 					NONS_MutexLocker ml(screenMutex);
 					if (glyph2)
-						glyph2->putGlyph(dst->screens[VIRTUAL],x+1,y+1,0);
-					glyph->putGlyph(dst->screens[VIRTUAL],x,y,0);
+						glyph2->put(dst->screens[VIRTUAL],x+1,y+1,0);
+					glyph->put(dst->screens[VIRTUAL],x,y,0);
 				}
-			}else if (!!dst){
+			}else if (dst){
 				NONS_MutexLocker ml(screenMutex);
 				if (glyph2)
-					glyph2->putGlyph(dst->screens[VIRTUAL],x+1,y+1,&this->shadowLayer->fontCache->foreground);
-				glyph->putGlyph(dst->screens[VIRTUAL],x,y,!col?&this->foregroundLayer->fontCache->foreground:col);
+					glyph2->put(dst->screens[VIRTUAL],x+1,y+1);
+				glyph->put(dst->screens[VIRTUAL],x,y);
 			}
-			x+=glyph->getadvance();
+			x+=glyph->get_advance();
+			glyph->done();
+			if (glyph2)
+				glyph2->done();
 		}
 	}
 	if (update && !!dst)
@@ -574,9 +580,12 @@ int NONS_StandardOutput::predictLineLength(std::wstring *arr,long start,int widt
 	int res=0;
 	for (ulong a=start;a<arr->size() && (*arr)[a];a++){
 		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph((*arr)[a]);
-		if (!glyph || res+glyph->getadvance()+this->extraAdvance>=width)
+		if (!glyph || res+glyph->get_advance()+this->extraAdvance>=width){
+			glyph->done();
 			break;
-		res+=glyph->getadvance()+this->extraAdvance;
+		}
+		res+=glyph->get_advance()+this->extraAdvance;
+		glyph->done();
 	}
 	return res;
 }
@@ -590,7 +599,7 @@ int NONS_StandardOutput::predictTextHeight(std::wstring *arr){
 	}
 	if ((*arr)[arr->size()-1]==13 || (*arr)[arr->size()-1]==10)
 		lines--;
-	return this->foregroundLayer->fontCache->font->lineSkip*lines;
+	return this->foregroundLayer->fontCache->line_skip*lines;
 }
 
 int NONS_StandardOutput::setTextStart(std::wstring *arr,SDL_Rect *frame,float center){
@@ -667,7 +676,7 @@ void NONS_StandardOutput::setCenterPolicy(char which,long val){
 }
 
 bool NONS_StandardOutput::NewLine(){
-	int skip=this->foregroundLayer->fontCache->font->lineSkip;
+	int skip=this->foregroundLayer->fontCache->line_skip;
 	if (this->y+skip>=this->y0+this->h)
 		return 1;
 	this->y+=skip;
@@ -698,11 +707,11 @@ std::wstring removeTags(const std::wstring &str){
 	return res;
 }
 
-NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_Font *font){
+NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,CLOptions.realWidth,CLOptions.realHeight);
 	SDL_Rect size={0,0,CLOptions.virtualWidth,CLOptions.virtualHeight};
 	SDL_Rect frame={framesize,framesize,CLOptions.virtualWidth-framesize*2,CLOptions.virtualHeight-framesize*2};
-	this->output=new NONS_StandardOutput(font,&size,&frame);
+	this->output=new NONS_StandardOutput(fc,&size,&frame);
 	this->output->visible=0;
 	this->layerStack.resize(1000,0);
 	this->Background=new NONS_Layer(&size,0xFF000000);
@@ -715,7 +724,7 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_Font *font){
 	}
 	this->gfx_store=new NONS_GFXstore();
 	this->sprite_priority=25;
-	SDL_Color *temp=&this->output->foregroundLayer->fontCache->foreground;
+	const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
 	this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
 	this->cursor=0;
 	this->char_baseline=this->screenBuffer->h-1;
@@ -730,9 +739,9 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_Font *font){
 	this->apply_monochrome_first=0;
 }
 
-NONS_ScreenSpace::NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_Font *font,bool shadow){
+NONS_ScreenSpace::NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow){
 	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,CLOptions.realWidth,CLOptions.realHeight);
-	this->output=new NONS_StandardOutput(font,window,frame);
+	this->output=new NONS_StandardOutput(fc,window,frame);
 	this->output->visible=0;
 	this->layerStack.resize(1000,0);
 	SDL_Rect size={0,0,CLOptions.virtualWidth,CLOptions.virtualHeight};
@@ -743,7 +752,7 @@ NONS_ScreenSpace::NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_Font *f
 	this->screenBuffer=makeSurface(this->screen->screens[VIRTUAL]->w,this->screen->screens[VIRTUAL]->h,SCREENBUFFER_BITS);
 	this->gfx_store=new NONS_GFXstore();
 	this->sprite_priority=25;
-	SDL_Color *temp=&this->output->foregroundLayer->fontCache->foreground;
+	const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
 	this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
 	this->cursor=0;
 	this->char_baseline=this->screenBuffer->h-1;
@@ -1028,7 +1037,7 @@ void NONS_ScreenSpace::showText(){
 	this->output->transition->call(this->screenBuffer,0,this->screen);
 }
 
-void NONS_ScreenSpace::resetParameters(SDL_Rect *window,SDL_Rect *frame,NONS_Font *font,bool shadow){
+void NONS_ScreenSpace::resetParameters(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow){
 	NONS_GFX *temp;
 	bool a=this->output->transition->stored;
 	if (a)
@@ -1036,7 +1045,7 @@ void NONS_ScreenSpace::resetParameters(SDL_Rect *window,SDL_Rect *frame,NONS_Fon
 	else
 		temp=new NONS_GFX(*(this->output->transition));
 	delete this->output;
-	this->output=new NONS_StandardOutput(font,window,frame,shadow);
+	this->output=new NONS_StandardOutput(fc,window,frame,shadow);
 	delete this->output->transition;
 	this->output->transition=temp;
 	this->lookback->reset(this->output);

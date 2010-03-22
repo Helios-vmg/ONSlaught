@@ -59,7 +59,7 @@ struct NONS_Layer{
 	NONS_Layer(SDL_Surface *img,unsigned rgba);
 	NONS_Layer(const std::wstring *string);
 	~NONS_Layer();
-	void MakeTextLayer(NONS_Font *font,SDL_Color *foreground,bool shadow);
+	void MakeTextLayer(NONS_FontCache &fc,const SDL_Color &foreground);
 	bool load(const std::wstring *string);
 	bool load(SDL_Surface *src);
 	//if the parameter is true and the image isn't shared, the call has no effect
@@ -107,7 +107,7 @@ struct NONS_StandardOutput{
 	long maxLogPages;
 
 	NONS_StandardOutput(NONS_Layer *fgLayer,NONS_Layer *shadowLayer,NONS_Layer *shadeLayer);
-	NONS_StandardOutput(NONS_Font *font,SDL_Rect *size,SDL_Rect *frame,bool shadow=1);
+	NONS_StandardOutput(NONS_FontCache &fc,SDL_Rect *size,SDL_Rect *frame,bool shadow=1);
 	void Clear(bool eraseBuffer=1);
 	~NONS_StandardOutput();
 	void setPosition(int x,int y);
@@ -159,8 +159,8 @@ struct NONS_ScreenSpace{
 	bool blendSprites;
 	std::vector<ulong> charactersBlendOrder;
 
-	NONS_ScreenSpace(int framesize,NONS_Font *font);
-	NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_Font *font,bool shadow);
+	NONS_ScreenSpace(int framesize,NONS_FontCache &fc);
+	NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow);
 	~NONS_ScreenSpace();
 
 	ErrorCode BlendAll(ulong effect);
@@ -175,7 +175,7 @@ struct NONS_ScreenSpace{
 	void clearText();
 	void hideText();
 	void showText();
-	void resetParameters(SDL_Rect *window,SDL_Rect *frame,NONS_Font *font,bool shadow);
+	void resetParameters(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow);
 	void clear();
 	ErrorCode loadSprite(ulong n,const std::wstring &string,long x,long y,uchar alpha,bool visibility);
 	bool advanceAnimations(ulong msecs,std::vector<SDL_Rect> &rects);
