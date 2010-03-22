@@ -394,14 +394,15 @@ SDL_Surface *NONS_VirtualScreen::toggleFullscreenFromVideo(){
 }
 
 std::string NONS_VirtualScreen::takeScreenshot(const std::string &name){
-	std::string filename=(!name.size())?getTimeString<char>((bool)0)+'_'+itoac(SDL_GetTicks(),10)+".bmp":name;
+	std::string filename=(!name.size())?getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp":name;
 	NONS_MutexLocker ml(screenMutex);
 	SDL_SaveBMP(this->screens[REAL],filename.c_str());
 	return filename;
 }
 
 void NONS_VirtualScreen::takeScreenshotFromVideo(void){
-	SDL_SaveBMP(this->screens[REAL],(getTimeString<char>((bool)0)+'_'+itoac(SDL_GetTicks(),10)+".bmp").c_str());
+	NONS_MutexLocker ml(screenMutex);
+	SDL_SaveBMP(this->screens[REAL],(getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp").c_str());
 }
 
 void NONS_VirtualScreen::initEffectList(){

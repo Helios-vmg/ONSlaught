@@ -1102,10 +1102,10 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 		print_command(o_stderr,0,stmt->commandName,stmt->parameters,0);
 	this->saveGame->textX=this->screen->output->x;
 	this->saveGame->textY=this->screen->output->y;
-#ifdef _DEBUG
+#if defined _DEBUG && defined STOP_AT_LINE && STOP_AT_LINE>0
 	//Reserved for debugging:
 	bool break_at_this_line=0;
-	if (stmt->lineOfOrigin->lineNumber==521)
+	if (stmt->lineOfOrigin->lineNumber==STOP_AT_LINE)
 		break_at_this_line=1;
 #endif
 	switch (stmt->type){
@@ -1171,7 +1171,7 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 					std::vector<std::wstring> parameters=stmt->parameters;
 
 					if (CHECK_FLAG(stmt->error,NONS_NO_ERROR_FLAG)){
-#ifdef _DEBUG
+#if defined _DEBUG && defined STOP_AT_LINE && STOP_AT_LINE>0
 						if (break_at_this_line)
 							std::cout <<"TRIGGERED!"<<std::endl;
 #endif
