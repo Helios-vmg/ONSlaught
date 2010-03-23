@@ -37,7 +37,6 @@ add_executable(ONSlaught
 	src/MacroParser.tab.cpp
 	src/ONSlaught.cpp
 	src/SDL_bilinear.c
-	src/SDL_ttf.c
 	src/SJIS.table.cpp
 	src/SaveFile.cpp
 	src/ScreenSpace.cpp

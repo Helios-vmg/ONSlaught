@@ -3,6 +3,8 @@
     * Added SVG support.
     * Implemented enforcement of command execution to the *define and *start
         blocks.
+    * Added partial font style support.
+        TODO: Document changes.
     * Fixed bug in division operator (!).
     * Fixed bug in fullscreen switch.
     * Updated expression parsing mechanism.
@@ -64,12 +66,12 @@
     * Save file version upgraded.
     * Added INSTALL.txt with installation instructions.
     * Changed implementation of expression evaluator to a Bison-generated
-      parser-evaluator. Because of MinGW's poor implementation, the code can no
-      longer be compiled with it.
+        parser-evaluator. Because of MinGW's poor implementation, the code can
+        no longer be compiled with it.
     * Discontinued support for O/NScripter savegames (save*.dat).
     * The array identification method has changed from C-style identifiers to
-      integers. As a result, all savegames for scripts that use arrays will be
-      incorrectly loaded.
+        integers. As a result, all savegames for scripts that use arrays will be
+        incorrectly loaded.
     * Labels are now C-style identifiers (sort of).
     * Added string concatenation support in expressions.
     * Added asynchronous animation support for all layers.
@@ -82,8 +84,8 @@
     * Fixed bug in the bilinear interpolation function.
     * Fixed bug related to !sd and !s# escape sequences.
     * Fixed a bug that caused loading a sound on channel X to crash if a
-      wavestop had been issued on channel X while no sound was loaded at that
-      channel.
+        wavestop had been issued on channel X while no sound was loaded at that
+        channel.
     * Fixed crash involving screen interpolation and fullscreen switching.
     * And so on...
 

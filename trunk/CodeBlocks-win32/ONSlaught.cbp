@@ -151,10 +151,6 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="..\src\SDL_bilinear.h" />
-		<Unit filename="..\src\SDL_ttf.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="..\src\SDL_ttf.h" />
 		<Unit filename="..\src\sha1.cpp" />
 		<Unit filename="..\src\sha1.h" />
 		<Unit filename="..\src\SJIS.table.cpp" />
