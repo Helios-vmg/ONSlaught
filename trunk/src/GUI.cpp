@@ -1706,6 +1706,8 @@ NONS_Glyph::NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL
 	this->size=size;
 	this->color=color;
 	this->refCount=0;
+	this->italic=italic;
+	this->bold=bold;
 	NONS_Font &font=fc.get_font();
 	font.set_size(size);
 	FT_GlyphSlot glyph=font.render_glyph(codepoint,italic,bold);
