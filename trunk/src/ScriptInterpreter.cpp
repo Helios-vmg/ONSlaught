@@ -184,8 +184,6 @@ void NONS_ScriptInterpreter::init(){
 	this->selectOff.b=0xA9;
 	this->autoclick=0;
 	this->timer=SDL_GetTicks();
-	//this->setDefaultWindow();
-	//this->main_font=this->screen->output->foregroundLayer->fontCache->font;
 	this->menu=new NONS_Menu(this);
 	this->imageButtons=0;
 	this->new_if=0;
@@ -306,7 +304,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 					exit(0);
 				}
 				SDL_Color c={255,255,255,255};
-				this->font_cache=new NONS_FontCache(*this->main_font,20,c,0,0);
+				this->font_cache=new NONS_FontCache(*this->main_font,20,c,0,0 FONTCACHE_DEBUG_PARAMETERS);
 			}
 			{
 				ErrorCode error=NONS_NO_ERROR;
@@ -1113,6 +1111,8 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 		print_command(o_stderr,0,stmt->commandName,stmt->parameters,0);
 	this->saveGame->textX=this->screen->output->x;
 	this->saveGame->textY=this->screen->output->y;
+	this->saveGame->italic=this->screen->output->get_italic();
+	this->saveGame->bold=this->screen->output->get_bold();
 #if defined _DEBUG && defined STOP_AT_LINE && STOP_AT_LINE>0
 	//Reserved for debugging:
 	bool break_at_this_line=0;
@@ -1597,13 +1597,10 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 								caches[0]=out->foregroundLayer->fontCache;
 								if (out->shadowLayer)
 									caches[1]=out->shadowLayer->fontCache;
-								if (noti){
-									caches[0]->resetStyle(caches[0]->get_size(),!caches[0]->get_italic(),caches[0]->get_bold());
-									caches[1]->resetStyle(caches[1]->get_size(),!caches[1]->get_italic(),caches[1]->get_bold());
-								}else{
-									caches[0]->resetStyle(caches[0]->get_size(),caches[0]->get_italic(),!caches[0]->get_bold());
-									caches[1]->resetStyle(caches[1]->get_size(),caches[1]->get_italic(),!caches[1]->get_bold());
-								}
+								if (noti)
+									out->set_italic(!out->get_italic());
+								else
+									out->set_bold(!out->get_bold());
 								break;
 							}
 						}
@@ -1644,8 +1641,6 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 }
 
 ErrorCode NONS_ScriptInterpreter::Printer(const std::wstring &line){
-	/*if (!this->screen)
-		this->setDefaultWindow();*/
 	this->currentBuffer=this->screen->output->currentBuffer;
 	NONS_StandardOutput *out=this->screen->output;
 	if (!line.size()){
@@ -1804,7 +1799,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	//screen
 	//window
 	NONS_ScreenSpace *scr=this->screen;
-	this->font_cache->resetStyle(save.fontSize,this->font_cache->get_italic(),this->font_cache->get_bold());
+	this->font_cache->set_size(save.fontSize);
 	this->font_cache->spacing=save.spacing;
 	this->font_cache->line_skip=save.lineSkip;
 	scr->resetParameters(&save.textWindow,&save.windowFrame,*this->font_cache,save.fontShadow);
@@ -1821,6 +1816,8 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	out->transition->rule=save.windowTransitionRule;
 	this->hideTextDuringEffect=save.hideWindow;
 	out->foregroundLayer->fontCache->setColor(save.windowTextColor);
+	out->set_italic(save.italic);
+	out->set_bold(save.bold);
 	out->display_speed=save.textSpeed;
 	if (save.version>2){
 		out->shadowPosX=save.shadowPosX;

@@ -695,3 +695,28 @@ void freePointerVector(std::vector<T *> &v){
 	v.clear();
 }
 #endif
+
+/*
+Performs alpha blend between two pixels. None, either, or both pixels may
+actually have an alpha channel; the function will perform correctly. A
+general alpha may be applied to the source pixel (this is used when blending
+a surface with a second alpha value applied to the whole surface).
+
+Parameters:
+	r1, g1, b1, a1:
+		Pointers to the destination pixel's red, green, blue, and alpha
+		channels. If !alpha1, a1 is ignored.
+	r0, g0, b0, a0:
+		Values of the source pixel's red, green, blue, and alpha channels. If
+		!alpha0, a0 is ignored.
+		These are longs just to help internal computations. You shouldn't pass
+		abnormal values to these parameters.
+	alpha1:
+		Whether the destination pixel has an alpha channel.
+	alpha0:
+		Whether the source pixel has an alpha channel.
+	alpha:
+		General alpha value to apply to the source pixel. Leave as 255 if not
+		used.
+*/
+void do_alpha_blend(uchar *r1,uchar *g1,uchar *b1,uchar *a1,long r0,long g0,long b0,long a0,bool alpha1,bool alpha0,uchar alpha);

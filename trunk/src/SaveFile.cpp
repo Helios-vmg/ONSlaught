@@ -433,6 +433,11 @@ void NONS_SaveFile::load(std::wstring filename){
 			this->windowTextColor.r=readByte(buffer,offset);
 			this->windowTextColor.g=readByte(buffer,offset);
 			this->windowTextColor.b=readByte(buffer,offset);
+			{
+				uchar style=readByte(buffer,offset);
+				this->italic=bool(style&1);
+				this->bold=bool(style&2);
+			}
 			this->textSpeed=readDWord(buffer,offset);
 			this->fontShadow=!!readByte(buffer,offset);
 			if (this->version>2){
@@ -746,6 +751,7 @@ bool NONS_SaveFile::save(std::wstring filename){
 		writeByte(this->windowTextColor.r,buffer);
 		writeByte(this->windowTextColor.g,buffer);
 		writeByte(this->windowTextColor.b,buffer);
+		writeByte((uchar(this->bold)<<1)|uchar(this->italic),buffer);
 		writeDWord(this->textSpeed,buffer);
 		writeByte(this->fontShadow,buffer);
 		writeDWord(this->shadowPosX,buffer);

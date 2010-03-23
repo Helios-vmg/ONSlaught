@@ -135,6 +135,13 @@ Screen section{
 		Byte. Font color R.
 		Byte. Font color G.
 		Byte. Font color B.
+		if (save_version>4){
+			//0: Normal.
+			//1: Italic.
+			//2: Bold.
+			//3: Bold italic.
+			Byte. Font style.
+		}
 		DWord. Text speed.
 		Byte. Shadow?
 		if (save_version>2){

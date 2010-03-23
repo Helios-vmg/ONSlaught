@@ -262,6 +262,98 @@ void manualBlit_threaded(void *parameters){
 	manualBlit_threaded(p->src,p->srcRect,p->dst,p->dstRect,p->alpha);
 }
 
+void do_alpha_blend(uchar *r1,uchar *g1,uchar *b1,uchar *a1,long r0,long g0,long b0,long a0,bool alpha1,bool alpha0,uchar alpha){
+#if 0
+//BACKUP NOTE: This code had an accuracy problem when blending RGBA -> RGBA, but
+//             I'm keeping it here just in case, since it otherwise works fine.
+
+	if (alpha0){
+		a0=uchar((short(pos0[Aoffset0])*short(alpha))/255);
+		*r1=((255-a0)*(*r1))/255+(a0*r0)/255;
+		*g1=((255-a0)*(*g1))/255+(a0*g0)/255;
+		*b1=((255-a0)*(*b1))/255+(a0*b0)/255;
+		if (alpha1){
+			uchar *a1=pos1+Aoffset1;
+			short temp=*a1+a0;
+			*a1=temp>255?255:temp;
+		}
+	}else if (alpha<255){
+		a0=255-alpha;
+		*r1=(a0*(*r1))/255+(alpha*r0)/255;
+		*g1=(a0*(*g1))/255+(alpha*g0)/255;
+		*b1=(a0*(*b1))/255+(alpha*b0)/255;
+		if (alpha1){
+			uchar *a1=pos1+Aoffset1;
+			short temp=*a1+a0;
+			*a1=temp>255?255:temp;
+		}
+	}else{
+		*r1=r0;
+		*g1=g0;
+		*b1=b0;
+		if (alpha1)
+			pos1[Aoffset1]=0xFF;
+	}
+#else
+#define APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
+
+	if (alpha==255){
+		if (!alpha0){
+			*r1=(uchar)r0;
+			*g1=(uchar)g0;
+			*b1=(uchar)b0;
+			if (alpha1)
+				*a1=0xFF;
+		}else{
+			if (!alpha1){
+				*r1=(uchar)APPLY_ALPHA(r0,*r1,a0);
+				*g1=(uchar)APPLY_ALPHA(g0,*g1,a0);
+				*b1=(uchar)APPLY_ALPHA(b0,*b1,a0);
+			}else{
+				ulong el;
+				ulong previous=*a1;
+				*a1=(uchar)INTEGER_MULTIPLICATION(a0^0xFF,*a1^0xFF)^0xFF;
+				el=(!a0 && !previous)?0:(a0*255)/(*a1);
+				*r1=(uchar)APPLY_ALPHA(r0,*r1,el);
+				*g1=(uchar)APPLY_ALPHA(g0,*g1,el);
+				*b1=(uchar)APPLY_ALPHA(b0,*b1,el);
+			}
+		}
+	}else{
+		if (!alpha0){
+			if (!alpha1){
+				*r1=(uchar)APPLY_ALPHA(r0,*r1,alpha);
+				*g1=(uchar)APPLY_ALPHA(g0,*g1,alpha);
+				*b1=(uchar)APPLY_ALPHA(b0,*b1,alpha);
+			}else{
+				ulong el;
+				ulong previous=*a1;
+				*a1=(uchar)INTEGER_MULTIPLICATION(alpha^0xFF,*a1^0xFF)^0xFF;
+				el=(!alpha && !previous)?0:(alpha*255)/(*a1);
+				*r1=(uchar)APPLY_ALPHA(r0,*r1,el);
+				*g1=(uchar)APPLY_ALPHA(g0,*g1,el);
+				*b1=(uchar)APPLY_ALPHA(b0,*b1,el);
+			}
+		}else{
+			a0=INTEGER_MULTIPLICATION(a0,alpha);
+			if (!alpha1){
+				*r1=(uchar)APPLY_ALPHA(r0,*r1,a0);
+				*g1=(uchar)APPLY_ALPHA(g0,*g1,a0);
+				*b1=(uchar)APPLY_ALPHA(b0,*b1,a0);
+			}else{
+				ulong el;
+				ulong previous=*a1;
+				*a1=(uchar)INTEGER_MULTIPLICATION(a0^0xFF,*a1^0xFF)^0xFF;
+				el=(!a0 && !previous)?0:(a0*255)/(*a1);
+				*r1=(uchar)APPLY_ALPHA(r0,*r1,el);
+				*g1=(uchar)APPLY_ALPHA(g0,*g1,el);
+				*b1=(uchar)APPLY_ALPHA(b0,*b1,el);
+			}
+		}
+	}
+#endif
+}
+
 void manualBlit_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,manualBlitAlpha_t alpha){
 	SDL_Rect &srcRect0=*srcRect,
 		&dstRect0=*dstRect;
@@ -302,103 +394,14 @@ void manualBlit_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL
 			long r0=pos0[Roffset0],
 				g0=pos0[Goffset0],
 				b0=pos0[Boffset0],
-				a0=255;
+				a0=pos0[Aoffset0];
 
 			uchar *r1=pos1+Roffset1;
 			uchar *g1=pos1+Goffset1;
 			uchar *b1=pos1+Boffset1;
 			uchar *a1=pos1+Aoffset1;
-  
-#if 0
-//BACKUP NOTE: This code had an accuracy problem when blending RGBA -> RGBA, but
-//             I'm keeping it here just in case, since it otherwise works fine.
 
-			if (alpha0){
-				a0=uchar((short(pos0[Aoffset0])*short(alpha))/255);
-				*r1=((255-a0)*(*r1))/255+(a0*r0)/255;
-				*g1=((255-a0)*(*g1))/255+(a0*g0)/255;
-				*b1=((255-a0)*(*b1))/255+(a0*b0)/255;
-				if (alpha1){
-					uchar *a1=pos1+Aoffset1;
-					short temp=*a1+a0;
-					*a1=temp>255?255:temp;
-				}
-			}else if (alpha<255){
-				a0=255-alpha;
-				*r1=(a0*(*r1))/255+(alpha*r0)/255;
-				*g1=(a0*(*g1))/255+(alpha*g0)/255;
-				*b1=(a0*(*b1))/255+(alpha*b0)/255;
-				if (alpha1){
-					uchar *a1=pos1+Aoffset1;
-					short temp=*a1+a0;
-					*a1=temp>255?255:temp;
-				}
-			}else{
-				*r1=r0;
-				*g1=g0;
-				*b1=b0;
-				if (alpha1)
-					pos1[Aoffset1]=0xFF;
-			}
-#else
-#define APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
-
-			if (alpha==255){
-				if (!alpha0){
-					*r1=(uchar)r0;
-					*g1=(uchar)g0;
-					*b1=(uchar)b0;
-					if (alpha1)
-						*a1=0xFF;
-				}else{
-					a0=pos0[Aoffset0];
-					if (!alpha1){
-						*r1=(uchar)APPLY_ALPHA(r0,*r1,a0);
-						*g1=(uchar)APPLY_ALPHA(g0,*g1,a0);
-						*b1=(uchar)APPLY_ALPHA(b0,*b1,a0);
-					}else{
-						ulong el;
-						ulong previous=*a1;
-						*a1=(uchar)INTEGER_MULTIPLICATION(a0^0xFF,*a1^0xFF)^0xFF;
-						el=(!a0 && !previous)?0:(a0*255)/(*a1);
-						*r1=(uchar)APPLY_ALPHA(r0,*r1,el);
-						*g1=(uchar)APPLY_ALPHA(g0,*g1,el);
-						*b1=(uchar)APPLY_ALPHA(b0,*b1,el);
-					}
-				}
-			}else{
-				if (!alpha0){
-					if (!alpha1){
-						*r1=(uchar)APPLY_ALPHA(r0,*r1,alpha);
-						*g1=(uchar)APPLY_ALPHA(g0,*g1,alpha);
-						*b1=(uchar)APPLY_ALPHA(b0,*b1,alpha);
-					}else{
-						ulong el;
-						ulong previous=*a1;
-						*a1=(uchar)INTEGER_MULTIPLICATION(alpha^0xFF,*a1^0xFF)^0xFF;
-						el=(!alpha && !previous)?0:(alpha*255)/(*a1);
-						*r1=(uchar)APPLY_ALPHA(r0,*r1,el);
-						*g1=(uchar)APPLY_ALPHA(g0,*g1,el);
-						*b1=(uchar)APPLY_ALPHA(b0,*b1,el);
-					}
-				}else{
-					a0=INTEGER_MULTIPLICATION(pos0[Aoffset0],alpha);
-					if (!alpha1){
-						*r1=(uchar)APPLY_ALPHA(r0,*r1,a0);
-						*g1=(uchar)APPLY_ALPHA(g0,*g1,a0);
-						*b1=(uchar)APPLY_ALPHA(b0,*b1,a0);
-					}else{
-						ulong el;
-						ulong previous=*a1;
-						*a1=(uchar)INTEGER_MULTIPLICATION(a0^0xFF,*a1^0xFF)^0xFF;
-						el=(!a0 && !previous)?0:(a0*255)/(*a1);
-						*r1=(uchar)APPLY_ALPHA(r0,*r1,el);
-						*g1=(uchar)APPLY_ALPHA(g0,*g1,el);
-						*b1=(uchar)APPLY_ALPHA(b0,*b1,el);
-					}
-				}
-			}
-#endif
+			do_alpha_blend(r1,g1,b1,a1,r0,g0,b0,a0,alpha1,alpha0,(uchar)alpha);
 
 			if (negate && a0){
 				*r1=~*r1;

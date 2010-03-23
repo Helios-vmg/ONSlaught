@@ -39,7 +39,7 @@
 #include <ctime>
 #include <SDL/SDL.h>
 
-#define NONS_SAVEFILE_VERSION 4
+#define NONS_SAVEFILE_VERSION 5
 
 std::vector<tm *> existing_files(const std::wstring &location=L"./");
 std::wstring getConfigLocation();
@@ -54,7 +54,8 @@ struct NONS_SaveFile{
 	char format;
 	ushort version;
 	ErrorCode error;
-	bool boldFont;
+	bool italic,
+		bold;
 	bool fontShadow;
 	long shadowPosX,
 		shadowPosY;

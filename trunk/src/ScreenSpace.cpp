@@ -105,7 +105,7 @@ NONS_Layer::~NONS_Layer(){
 }
 
 void NONS_Layer::MakeTextLayer(NONS_FontCache &fc,const SDL_Color &foreground){
-	this->fontCache=new NONS_FontCache(fc);
+	this->fontCache=new NONS_FontCache(fc FONTCACHE_DEBUG_PARAMETERS);
 	this->fontCache->setColor(foreground);
 }
 
@@ -335,7 +335,29 @@ bool NONS_StandardOutput::prepareForPrinting(const std::wstring str){
 	this->prebufferedText.append(L"<y=");
 	this->prebufferedText.append(itoaw(this->y));
 	this->prebufferedText.push_back('>');
+	this->set_italic(this->get_italic());
+	this->set_bold(this->get_bold());
 	return 0;
+}
+
+void NONS_StandardOutput::set_italic(bool i){
+	this->foregroundLayer->fontCache->set_italic(i);
+	if (this->shadowLayer)
+		this->shadowLayer->fontCache->set_italic(i);
+	if (i)
+		this->prebufferedText.append(L"<italic>");
+	else
+		this->prebufferedText.append(L"</italic>");
+}
+
+void NONS_StandardOutput::set_bold(bool b){
+	this->foregroundLayer->fontCache->set_bold(b);
+	if (this->shadowLayer)
+		this->shadowLayer->fontCache->set_bold(b);
+	if (b)
+		this->prebufferedText.append(L"<bold>");
+	else
+		this->prebufferedText.append(L"</bold>");
 }
 
 bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ulong *printedChars){
@@ -410,8 +432,7 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 				this->prebufferedText.clear();
 				this->indent_next=1;
 				glyph->done();
-				if (glyph2)
-					glyph2->done();
+				glyph2->done();
 				return 1;
 			}else{
 				x0=this->setLineStart(&this->cachedText,a,&frame,this->horizontalCenterPolicy);
@@ -506,9 +527,11 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 			this->shadowLayer->Clear();
 	}
 	long lastStart=this->x0;
-	NONS_FontCache &cache=*this->foregroundLayer->fontCache,
-		*shadow=(this->shadowLayer)?this->shadowLayer->fontCache:0;
-	SDL_Color original_color=cache.get_color();
+	NONS_FontCache cache(*this->foregroundLayer->fontCache FONTCACHE_DEBUG_PARAMETERS),
+		*shadow=(this->shadowLayer)?new NONS_FontCache(*this->shadowLayer->fontCache FONTCACHE_DEBUG_PARAMETERS):0;
+	cache.set_to_normal();
+	if (shadow)
+		shadow->set_to_normal();
 	if (col)
 		cache.setColor(*col);
 	for (ulong a=0;a<str->size();a++){
@@ -524,6 +547,22 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 					std::wstring tagvalue=tagValue(*str,a);
 					if (tagvalue.size())
 						y=atoi(tagvalue);
+				}else if (tagname==L"italic"){
+					cache.set_italic(1);
+					if (shadow)
+						shadow->set_italic(1);
+				}else if (tagname==L"/italic"){
+					cache.set_italic(0);
+					if (shadow)
+						shadow->set_italic(0);
+				}else if (tagname==L"bold"){
+					cache.set_bold(1);
+					if (shadow)
+						shadow->set_bold(1);
+				}else if (tagname==L"/bold"){
+					cache.set_bold(0);
+					if (shadow)
+						shadow->set_bold(0);
 				}
 				a=str->find('>',a);
 			}
@@ -560,14 +599,13 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 			}
 			x+=glyph->get_advance();
 			glyph->done();
-			if (glyph2)
-				glyph2->done();
+			glyph2->done();
 		}
 	}
-	cache.setColor(original_color);
+	if (shadow)
+		delete shadow;
 	if (update && !!dst)
 		dst->updateWholeScreen();
-	return;
 }
 
 int NONS_StandardOutput::setLineStart(std::wstring *arr,ulong start,SDL_Rect *frame,float center){
@@ -584,9 +622,7 @@ int NONS_StandardOutput::predictLineLength(std::wstring *arr,long start,int widt
 	int res=0;
 	for (ulong a=start;a<arr->size() && (*arr)[a];a++){
 		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph((*arr)[a]);
-		if (!glyph)
-			break;
-		if (res+glyph->get_advance()+this->extraAdvance>=width){
+		if (!glyph || res+glyph->get_advance()+this->extraAdvance>=width){
 			glyph->done();
 			break;
 		}

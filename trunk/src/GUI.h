@@ -86,7 +86,6 @@ class NONS_Glyph{
 		bold;
 	//~style properties
 	uchar *base_bitmap;
-	SDL_Surface *colored_bitmap;
 	SDL_Rect bounding_box;
 	ulong advance;
 public:
@@ -94,23 +93,29 @@ public:
 	NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold);
 	~NONS_Glyph();
 	bool operator<(const NONS_Glyph &b) const{ return this->codepoint<b.codepoint; }
-	void colorize(const SDL_Color &color);
+	void setColor(const SDL_Color &color){ this->color=color; }
 	ulong get_advance_fixed() const{ return this->advance; }
 	const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
 	wchar_t get_codepoint() const{ return this->codepoint; }
 	/*
 	0: perfect match
 	1: differs in color
-	2: needs glyph re-rendering
+	2: needs glyph redraw
 	*/
 	int compare_properties(ulong size,const SDL_Color &color,bool italic,bool bold) const;
-	SDL_Surface *get_surface(){ return this->colored_bitmap; }
+	//SDL_Surface *get_surface(){ return this->colored_bitmap; }
 	long get_advance();
 	void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
 	const NONS_FontCache &get_cache() const{ return this->fc; }
 	NONS_FontCache &get_cache(){ return this->fc; }
 	void done();
 };
+
+#ifdef _DEBUG
+#define FONTCACHE_DEBUG_PARAMETERS , __FILE__ , __LINE__
+#else
+#define FONTCACHE_DEBUG_PARAMETERS
+#endif
 
 class NONS_FontCache{
 	std::map<wchar_t,NONS_Glyph *> glyphs;
@@ -123,10 +128,27 @@ class NONS_FontCache{
 public:
 	long spacing;
 	ulong line_skip;
+#ifdef _DEBUG
+	std::string declared_in;
+	ulong line;
+	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,const char *file,ulong line);
+	NONS_FontCache(const NONS_FontCache &fc,const char *file,ulong line);
+private:
+	NONS_FontCache(const NONS_FontCache &fc);
+public:
+#else
 	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold);
 	NONS_FontCache(const NONS_FontCache &fc);
+#endif
 	~NONS_FontCache();
 	void resetStyle(ulong size,bool italic,bool bold);
+	void set_size(ulong size);
+	void set_to_normal(){
+		this->italic=0;
+		this->bold=0;
+	}
+	void set_italic(bool i){ this->italic=i; }
+	void set_bold(bool b){ this->bold=b; }
 	void setColor(const SDL_Color &color){ this->color=color; }
 	NONS_Glyph *getGlyph(wchar_t c);
 	void done(NONS_Glyph *g);
@@ -168,7 +190,7 @@ struct NONS_Button{
 	NONS_Button();
 	NONS_Button(const NONS_FontCache &fc);
 	~NONS_Button();
-	void makeTextButton(const std::wstring &text,NONS_FontCache fc,float center,const SDL_Color &on,const SDL_Color &off,bool shadow,int limitX,int limitY);
+	void makeTextButton(const std::wstring &text,const NONS_FontCache &fc,float center,const SDL_Color &on,const SDL_Color &off,bool shadow,int limitX,int limitY);
 	void makeGraphicButton(SDL_Surface *src,int posx,int posy,int width,int height,int originX,int originY);
 	void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
 	void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);

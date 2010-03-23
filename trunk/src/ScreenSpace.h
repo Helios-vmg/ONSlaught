@@ -121,6 +121,10 @@ struct NONS_StandardOutput{
 	void setCenterPolicy(char which,float val);
 	void setCenterPolicy(char which,long val);
 	bool NewLine();
+	void set_italic(bool);
+	bool get_italic(){ return this->foregroundLayer->fontCache->get_italic(); }
+	void set_bold(bool);
+	bool get_bold(){ return this->foregroundLayer->fontCache->get_bold(); }
 private:
 	int predictLineLength(std::wstring *arr,long start,int width);
 	int predictTextHeight(std::wstring *arr);
