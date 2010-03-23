@@ -1405,16 +1405,18 @@ void findStops(const std::wstring &src,std::vector<std::pair<ulong,ulong> > &sto
 				}
 			case '!':
 				if (firstcharsCI(src,a,L"!sd")){
-					std::pair<ulong,ulong> push(dst.size(),a);
-					stopping_points.push_back(push);
+					stopping_points.push_back(std::make_pair(dst.size(),a));
 					a+=2;
 					continue;
 				}else if (firstcharsCI(src,a,L"!s") || firstcharsCI(src,a,L"!d") || firstcharsCI(src,a,L"!w")){
-					std::pair<ulong,ulong> push(dst.size(),a);
-					stopping_points.push_back(push);
+					stopping_points.push_back(std::make_pair(dst.size(),a));
 					ulong l=2;
 					for (;isdigit(src[a+l]);l++);
 					a+=l-1;
+					continue;
+				}else if (firstcharsCI(src,a,L"!i") || firstcharsCI(src,a,L"!b")){
+					stopping_points.push_back(std::make_pair(dst.size(),a));
+					a++;
 					continue;
 				}
 			case '#':
@@ -1585,6 +1587,25 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 								break;
 							}else
 								reduced-=2;
+						}else{
+							bool noti=firstcharsCI(*str,reduced,L"!i"),
+								notbee=firstcharsCI(*str,reduced,L"!b");
+							if (noti || notbee){
+								reduced+=2;
+								NONS_StandardOutput *out=this->screen->output;
+								NONS_FontCache *caches[2];
+								caches[0]=out->foregroundLayer->fontCache;
+								if (out->shadowLayer)
+									caches[1]=out->shadowLayer->fontCache;
+								if (noti){
+									caches[0]->resetStyle(caches[0]->get_size(),!caches[0]->get_italic(),caches[0]->get_bold());
+									caches[1]->resetStyle(caches[1]->get_size(),!caches[1]->get_italic(),caches[1]->get_bold());
+								}else{
+									caches[0]->resetStyle(caches[0]->get_size(),caches[0]->get_italic(),!caches[0]->get_bold());
+									caches[1]->resetStyle(caches[1]->get_size(),caches[1]->get_italic(),!caches[1]->get_bold());
+								}
+								break;
+							}
 						}
 					}
 				case '#':

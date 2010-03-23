@@ -1788,7 +1788,7 @@ void NONS_Glyph::done(){
 }
 NONS_FontCache::NONS_FontCache(NONS_Font &f,ulong size,const SDL_Color &color,bool italic,bool bold):font(f){
 	this->setColor(color);
-	this->resetStyle(size,italic,bold=1);
+	this->resetStyle(size,italic,bold);
 	this->spacing=0;
 	this->line_skip=font.line_skip;
 }
