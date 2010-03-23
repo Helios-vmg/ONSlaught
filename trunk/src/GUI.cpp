@@ -1649,51 +1649,6 @@ NONS_FreeType_Lib::~NONS_FreeType_Lib(){
 	FT_Done_FreeType(this->library);
 }
 
-/*
-NONS_Font::NONS_Font(const char *fontname,int size,int style){
-	if (size<=0)
-		size=20;
-	this->font=TTF_OpenFont(fontname,size);
-	if(!font){
-		this->font=0;
-		o_stderr <<"TTF_OpenFont: "<<TTF_GetError()<<"\n";
-		return;
-	}
-	TTF_SetFontStyle(this->font,style);
-	this->ascent=TTF_FontAscent(this->font);
-	this->lineSkip=TTF_FontLineSkip(this->font);
-	this->fontLineSkip=this->lineSkip;
-	this->spacing=0;
-	this->size=size;
-}
-
-NONS_Font::NONS_Font(SDL_RWops *rwop,int size,int style){
-	if (size<=0)
-		size=20;
-	this->font=TTF_OpenFontRW(rwop,1,size);
-	if(!font){
-		this->font=0;
-		o_stderr <<"TTF_OpenFont: "<<TTF_GetError()<<"\n";
-		return;
-	}
-	TTF_SetFontStyle(this->font,style);
-	this->ascent=TTF_FontAscent(this->font);
-	this->lineSkip=TTF_FontLineSkip(this->font);
-	this->fontLineSkip=this->lineSkip;
-	this->spacing=0;
-	this->size=size;
-}
-
-NONS_Font::NONS_Font(){
-	this->font=0;
-}
-
-NONS_Font::~NONS_Font(){
-	if (this->font)
-		TTF_CloseFont(this->font);
-}
-*/
-
 NONS_Font::NONS_Font(const std::string &filename){
 	this->buffer=0;
 	this->error=FT_New_Face(NONS_FreeType_Lib::instance.get_lib(),filename.c_str(),0,&this->ft_font);
@@ -1745,68 +1700,6 @@ FT_GlyphSlot NONS_Font::render_glyph(wchar_t codepoint,bool italic,bool bold) co
 	FT_Render_Glyph(this->ft_font->glyph,FT_RENDER_MODE_LIGHT);
 	return this->ft_font->glyph;
 }
-
-/*
-bool NONS_Glyph::equalColors(SDL_Color *a,SDL_Color *b){
-	unsigned a0=((a->r)<<16)+((a->g)<<8)+(a->b);
-	unsigned b0=((b->r)<<16)+((b->g)<<8)+b->b;
-	return (a0==b0);
-}
-
-NONS_Glyph::NONS_Glyph(NONS_Font *font,wchar_t character,int ascent,SDL_Color *foreground,bool shadow){
-	this->ttf_font=font->getfont();
-	this->glyph=TTF_RenderGlyph_Blended(this->ttf_font,character,*foreground);
-#ifdef BLEND_WITH_SDLBLIT
-	SDL_SetAlpha(glyph,SDL_SRCALPHA,0);
-#endif
-	int x0,y1;
-	TTF_GlyphMetrics(this->ttf_font,character,&x0,0,0,&y1,&this->advance);
-	this->box=this->glyph->clip_rect;
-	this->box.x+=x0;
-	this->box.y+=-y1+ascent;
-	this->codePoint=character;
-	this->foreground=*foreground;
-	this->font=font;
-	this->style=TTF_GetFontStyle(this->ttf_font);
-}
-
-NONS_Glyph::~NONS_Glyph(){
-	SDL_FreeSurface(this->glyph);
-}
-
-wchar_t NONS_Glyph::getcodePoint(){
-	return this->codePoint;
-}
-
-SDL_Rect NONS_Glyph::getbox(){
-	return this->box;
-}
-
-int NONS_Glyph::get_advance(){
-	return this->advance+this->font->spacing;
-}
-
-void NONS_Glyph::put(SDL_Surface *dst,int x,int y,SDL_Color *foreground,bool method){
-	if (foreground && !this->equalColors(foreground,&this->foreground) || this->style!=TTF_GetFontStyle(this->ttf_font)){
-		SDL_FreeSurface(this->glyph);
-		this->glyph=TTF_RenderGlyph_Blended(this->ttf_font,this->codePoint,*foreground);
-		this->foreground=*foreground;
-	}
-	SDL_Rect rect=this->box;
-	rect.x+=x;
-	rect.y+=y;
-#ifdef BLEND_WITH_SDLBLIT
-	SDL_SetAlpha(glyph,(!method)?SDL_SRCALPHA:0,0);
-	SDL_BlitSurface(this->glyph,0,dst,&rect);
-#else
-	manualBlit(this->glyph,0,dst,&rect);
-#endif
-}
-
-SDL_Color NONS_Glyph::getforeground(){
-	return this->foreground;
-}
-*/
 
 NONS_Glyph::NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold):fc(fc){
 	this->codepoint=codepoint;
@@ -1893,75 +1786,17 @@ void NONS_Glyph::put(SDL_Surface *dst,int x,int y,uchar alpha){
 void NONS_Glyph::done(){
 	this->fc.done(this);
 }
-
-/*
-NONS_FontCache::NONS_FontCache(NONS_Font *font,SDL_Color *foreground,bool shadow){
-	this->foreground=*foreground;
-	this->glyphCache.reserve(128);
-	this->shadow=shadow;
-	this->font=font;
-	this->refreshCache();
-}
-
-NONS_FontCache::~NONS_FontCache(){
-	for (ulong a=0;a<this->glyphCache.size();a++)
-		delete this->glyphCache[a];
-}
-
-void NONS_FontCache::refreshCache(){
-	for (ulong a=0;a<this->glyphCache.size();a++)
-		if (this->glyphCache[a])
-			delete this->glyphCache[a];
-	this->glyphCache.clear();
-	this->glyphCache.reserve(128);
-	for (wchar_t a=0;a<128;a++){
-		NONS_Glyph *glyph=new NONS_Glyph(this->font,a,this->font->getascent(),&this->foreground,shadow);
-		this->glyphCache.push_back(glyph);
-	}
-}
-
-std::vector<NONS_Glyph *> *NONS_FontCache::getglyphCache(){
-	return &(this->glyphCache);
-}
-
-NONS_Glyph *NONS_FontCache::getGlyph(wchar_t codePoint){
-	switch (codePoint){
-		case 0:
-		case '\t':
-		case '\n':
-		case '\r':
-			return 0;
-		default:
-			break;
-	}
-	for (ulong a=0;a<this->glyphCache.size();a++)
-		if (this->glyphCache[a]->getcodePoint()==codePoint)
-			return this->glyphCache[a];
-	NONS_Glyph *glyph=new NONS_Glyph(this->font,codePoint,this->font->getascent(),&(this->foreground),this->shadow);
-	this->glyphCache.push_back(glyph);
-	return this->glyphCache.back();
-}
-*/
-
 NONS_FontCache::NONS_FontCache(NONS_Font &f,ulong size,const SDL_Color &color,bool italic,bool bold):font(f){
 	this->setColor(color);
-	this->resetStyle(size,italic,bold);
+	this->resetStyle(size,italic,bold=1);
 	this->spacing=0;
 	this->line_skip=font.line_skip;
-	//this->init_cache();
 }
 
 NONS_FontCache::NONS_FontCache(const NONS_FontCache &fc):font(fc.font){
 	this->setColor(fc.color);
 	this->resetStyle(fc.size,fc.italic,fc.bold);
 	this->spacing=fc.spacing;
-	//this->init_cache();
-}
-
-void NONS_FontCache::init_cache(){
-	//cache all printable ASCII characters
-	for (wchar_t a=32;a<128;a++)
-		this->glyphs[a]=new NONS_Glyph(*this,a,size,color,italic,bold);
 }
 
 NONS_FontCache::~NONS_FontCache(){
@@ -1982,9 +1817,13 @@ void NONS_FontCache::resetStyle(ulong size,bool italic,bool bold){
 	this->size=size;
 	this->italic=italic;
 	this->bold=bold;
+	this->font.set_size(size);
+	this->line_skip=this->font.line_skip;
 }
 
 NONS_Glyph *NONS_FontCache::getGlyph(wchar_t c){
+	if (c<32)
+		return 0;
 	bool must_render=(this->glyphs.find(c)==this->glyphs.end());
 	NONS_Glyph *&g=this->glyphs[c];
 	if (!must_render && g->compare_properties(this->size,this->color,this->italic,this->bold)==2){

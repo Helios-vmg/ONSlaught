@@ -506,8 +506,11 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 			this->shadowLayer->Clear();
 	}
 	long lastStart=this->x0;
+	NONS_FontCache &cache=*this->foregroundLayer->fontCache,
+		*shadow=(this->shadowLayer)?this->shadowLayer->fontCache:0;
+	SDL_Color original_color=cache.get_color();
 	if (col)
-		this->foregroundLayer->fontCache->setColor(*col);
+		cache.setColor(*col);
 	for (ulong a=0;a<str->size();a++){
 		wchar_t character=(*str)[a];
 		if (character=='<'){
@@ -528,8 +531,8 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 		}
 		if (character=='\\')
 			character=(*str)[++a];
-		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(character);
-		NONS_Glyph *glyph2=(this->shadowLayer)?this->shadowLayer->fontCache->getGlyph(character):0;
+		NONS_Glyph *glyph=cache.getGlyph(character);
+		NONS_Glyph *glyph2=(this->shadowLayer)?shadow->getGlyph(character):0;
 		if (character=='\n'){
 			x=lastStart;
 			y+=lineSkip;
@@ -561,6 +564,7 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 				glyph2->done();
 		}
 	}
+	cache.setColor(original_color);
 	if (update && !!dst)
 		dst->updateWholeScreen();
 	return;
@@ -580,7 +584,9 @@ int NONS_StandardOutput::predictLineLength(std::wstring *arr,long start,int widt
 	int res=0;
 	for (ulong a=start;a<arr->size() && (*arr)[a];a++){
 		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph((*arr)[a]);
-		if (!glyph || res+glyph->get_advance()+this->extraAdvance>=width){
+		if (!glyph)
+			break;
+		if (res+glyph->get_advance()+this->extraAdvance>=width){
 			glyph->done();
 			break;
 		}
