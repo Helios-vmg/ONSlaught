@@ -360,6 +360,12 @@ void NONS_StandardOutput::set_bold(bool b){
 		this->prebufferedText.append(L"</bold>");
 }
 
+void NONS_StandardOutput::set_size(ulong size){
+	this->foregroundLayer->fontCache->set_size(size);
+	if (this->shadowLayer)
+		this->shadowLayer->fontCache->set_size(size);
+}
+
 bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ulong *printedChars){
 	if (start>=this->cachedText.size())
 		return 0;

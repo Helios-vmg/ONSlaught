@@ -125,6 +125,7 @@ struct NONS_StandardOutput{
 	bool get_italic(){ return this->foregroundLayer->fontCache->get_italic(); }
 	void set_bold(bool);
 	bool get_bold(){ return this->foregroundLayer->fontCache->get_bold(); }
+	void set_size(ulong);
 private:
 	int predictLineLength(std::wstring *arr,long start,int width);
 	int predictTextHeight(std::wstring *arr);

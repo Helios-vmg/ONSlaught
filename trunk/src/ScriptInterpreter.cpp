@@ -145,89 +145,6 @@ NONS_StackElement::NONS_StackElement(NONS_StackElement *copy,const std::vector<s
 
 ConfigFile settings;
 
-void NONS_ScriptInterpreter::init(){
-	//this->interpreter_position=0;
-	this->thread=new NONS_ScriptThread(this->script);
-	this->store=new NONS_VariableStore();
-	this->interpreter_mode=UNDEFINED_MODE;
-	this->nsadir="./";
-	this->default_speed=0;
-	this->default_speed_slow=0;
-	this->default_speed_med=0;
-	this->default_speed_fast=0;
-
-	if (settings.exists(L"textSpeedMode"))
-		this->current_speed_setting=(char)settings.getInt(L"textSpeedMode");
-	else
-		this->current_speed_setting=1;
-
-	srand((unsigned int)time(0));
-	this->defaultfs=18;
-	this->legacy_set_window=1;
-	this->arrowCursor=new NONS_Cursor(L":l/3,160,2;cursor0.bmp",0,0,0,this->screen);
-	if (!this->arrowCursor->data){
-		delete this->arrowCursor;
-		this->arrowCursor=new NONS_Cursor(this->screen);
-	}
-	this->pageCursor=new NONS_Cursor(L":l/3,160,2;cursor1.bmp",0,0,0,this->screen);
-	if (!this->pageCursor->data){
-		delete this->pageCursor;
-		this->pageCursor=new NONS_Cursor(this->screen);
-	}
-	this->gfx_store=this->screen->gfx_store;
-	this->hideTextDuringEffect=1;
-	this->selectOn.r=0xFF;
-	this->selectOn.g=0xFF;
-	this->selectOn.b=0xFF;
-	this->selectOff.r=0xA9;
-	this->selectOff.g=0xA9;
-	this->selectOff.b=0xA9;
-	this->autoclick=0;
-	this->timer=SDL_GetTicks();
-	this->menu=new NONS_Menu(this);
-	this->imageButtons=0;
-	this->new_if=0;
-	this->btnTimer=0;
-	this->imageButtonExpiration=0;
-	this->saveGame=new NONS_SaveFile();
-	this->saveGame->format='N';
-	memcpy(this->saveGame->hash,this->script->hash,sizeof(unsigned)*5);
-	this->printed_lines.clear();
-	this->screen->char_baseline=this->screen->screen->inRect.h-1;
-	this->useWheel=0;
-	this->useEscapeSpace=0;
-	this->screenshot=0;
-	this->base_size[0]=this->virtual_size[0]=CLOptions.virtualWidth;
-	this->base_size[1]=this->virtual_size[1]=CLOptions.virtualHeight;
-}
-
-void NONS_ScriptInterpreter::uninit(){
-	if (this->store)
-		delete this->store;
-	for (INIcacheType::iterator i=this->INIcache.begin();i!=this->INIcache.end();i++)
-		delete i->second;
-	delete this->thread;
-	this->INIcache.clear();
-	delete this->arrowCursor;
-	delete this->pageCursor;
-	if (this->menu)
-		delete this->menu;
-	this->selectVoiceClick.clear();
-	this->selectVoiceEntry.clear();
-	this->selectVoiceMouseOver.clear();
-	this->clickStr.clear();
-	if (this->imageButtons)
-		delete this->imageButtons;
-	delete this->saveGame;
-
-	settings.assignInt(L"textSpeedMode",this->current_speed_setting);
-	settings.writeOut(config_directory+settings_filename);
-
-	this->textgosub.clear();
-	if (!!this->screenshot)
-		SDL_FreeSurface(this->screenshot);
-}
-
 ErrorCode init_script(NONS_Script *&script,NONS_GeneralArchive *archive,const std::wstring &filename,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	script=new NONS_Script();
 	ErrorCode error_code=script->init(filename,archive,encoding,encryption);
@@ -289,43 +206,6 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->thread=0;
 	this->screenshot=0;
 	if (initialize){
-		{
-			this->archive=new NONS_GeneralArchive();
-			{
-				std::string fontfile=getDefaultFontFilename();
-				this->main_font=init_font(this->archive,getDefaultFontFilename());
-				if (!this->main_font || !this->main_font->good()){
-					delete this->main_font;
-					if (!this->main_font)
-						o_stderr <<"FATAL ERROR: Could not find \""<<fontfile<<"\". If your system is case-sensitive, "
-							"make sure the file name is capitalized correctly.\n";
-					else
-						o_stderr <<"FATAL ERROR: \""<<fontfile<<"\" is not a valid font file.\n";
-					exit(0);
-				}
-				SDL_Color c={255,255,255,255};
-				this->font_cache=new NONS_FontCache(*this->main_font,20,c,0,0 FONTCACHE_DEBUG_PARAMETERS);
-			}
-			{
-				ErrorCode error=NONS_NO_ERROR;
-				if (CLOptions.scriptPath.size())
-					error=init_script(this->script,this->archive,CLOptions.scriptPath,CLOptions.scriptencoding,CLOptions.scriptEncryption);
-				else
-					error=init_script(this->script,this->archive,CLOptions.scriptencoding);
-				if (error!=NONS_NO_ERROR){
-					handleErrors(error,-1,"NONS_ScriptInterpreter::NONS_ScriptInterpreter",0);
-					exit(error);
-				}
-			}
-			labellog.init(L"NScrllog.dat",L"nonsllog.dat");
-			ImageLoader=new NONS_ImageLoader(this->archive);
-			o_stdout <<"Global files go in \""<<config_directory<<"\".\n";
-			o_stdout <<"Local files go in \""<<save_directory<<"\".\n";
-			this->audio=new NONS_Audio(CLOptions.musicDirectory);
-			if (CLOptions.musicFormat.size())
-				this->audio->musicFormat=CLOptions.musicFormat;
-			this->screen=init_screen(this->archive,*this->font_cache);
-		}
 		this->init();
 	}
 	this->was_initialized=initialize;
@@ -700,6 +580,140 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 		this->listImplementation();
 }
 
+NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
+	if (this->was_initialized)
+		this->uninit();
+	delete this->screen;
+	delete this->font_cache;
+	delete this->main_font;
+	delete this->audio;
+	delete this->archive;
+	delete this->script;
+	while (this->commandQueue.size()){
+		delete this->commandQueue.front();
+		this->commandQueue.pop();
+	}
+}
+
+void NONS_ScriptInterpreter::init(){
+	this->defaultfs=18;
+	this->base_size[0]=this->virtual_size[0]=CLOptions.virtualWidth;
+	this->base_size[1]=this->virtual_size[1]=CLOptions.virtualHeight;
+	this->archive=new NONS_GeneralArchive();
+	{
+		std::string fontfile=getDefaultFontFilename();
+		this->main_font=init_font(this->archive,getDefaultFontFilename());
+		if (!this->main_font || !this->main_font->good()){
+			delete this->main_font;
+			if (!this->main_font)
+				o_stderr <<"FATAL ERROR: Could not find \""<<fontfile<<"\". If your system is case-sensitive, "
+					"make sure the file name is capitalized correctly.\n";
+			else
+				o_stderr <<"FATAL ERROR: \""<<fontfile<<"\" is not a valid font file.\n";
+			exit(0);
+		}
+		SDL_Color c={255,255,255,255};
+		this->font_cache=new NONS_FontCache(*this->main_font,this->defaultfs*this->virtual_size[1]/this->base_size[1],c,0,0 FONTCACHE_DEBUG_PARAMETERS);
+	}
+	{
+		ErrorCode error=NONS_NO_ERROR;
+		if (CLOptions.scriptPath.size())
+			error=init_script(this->script,this->archive,CLOptions.scriptPath,CLOptions.scriptencoding,CLOptions.scriptEncryption);
+		else
+			error=init_script(this->script,this->archive,CLOptions.scriptencoding);
+		if (error!=NONS_NO_ERROR){
+			handleErrors(error,-1,"NONS_ScriptInterpreter::NONS_ScriptInterpreter",0);
+			exit(error);
+		}
+	}
+	{
+		labellog.init(L"NScrllog.dat",L"nonsllog.dat");
+		ImageLoader=new NONS_ImageLoader(this->archive);
+		o_stdout <<"Global files go in \""<<config_directory<<"\".\n";
+		o_stdout <<"Local files go in \""<<save_directory<<"\".\n";
+		this->audio=new NONS_Audio(CLOptions.musicDirectory);
+		if (CLOptions.musicFormat.size())
+			this->audio->musicFormat=CLOptions.musicFormat;
+		this->screen=init_screen(this->archive,*this->font_cache);
+	}
+	this->thread=new NONS_ScriptThread(this->script);
+	this->store=new NONS_VariableStore();
+	this->interpreter_mode=UNDEFINED_MODE;
+	this->nsadir="./";
+	this->default_speed=0;
+	this->default_speed_slow=0;
+	this->default_speed_med=0;
+	this->default_speed_fast=0;
+
+	if (settings.exists(L"textSpeedMode"))
+		this->current_speed_setting=(char)settings.getInt(L"textSpeedMode");
+	else
+		this->current_speed_setting=1;
+
+	srand((unsigned int)time(0));
+	this->legacy_set_window=1;
+	this->arrowCursor=new NONS_Cursor(L":l/3,160,2;cursor0.bmp",0,0,0,this->screen);
+	if (!this->arrowCursor->data){
+		delete this->arrowCursor;
+		this->arrowCursor=new NONS_Cursor(this->screen);
+	}
+	this->pageCursor=new NONS_Cursor(L":l/3,160,2;cursor1.bmp",0,0,0,this->screen);
+	if (!this->pageCursor->data){
+		delete this->pageCursor;
+		this->pageCursor=new NONS_Cursor(this->screen);
+	}
+	this->gfx_store=this->screen->gfx_store;
+	this->hideTextDuringEffect=1;
+	this->selectOn.r=0xFF;
+	this->selectOn.g=0xFF;
+	this->selectOn.b=0xFF;
+	this->selectOff.r=0xA9;
+	this->selectOff.g=0xA9;
+	this->selectOff.b=0xA9;
+	this->autoclick=0;
+	this->timer=SDL_GetTicks();
+	this->menu=new NONS_Menu(this);
+	this->imageButtons=0;
+	this->new_if=0;
+	this->btnTimer=0;
+	this->imageButtonExpiration=0;
+	this->saveGame=new NONS_SaveFile();
+	this->saveGame->format='N';
+	memcpy(this->saveGame->hash,this->script->hash,sizeof(unsigned)*5);
+	this->printed_lines.clear();
+	this->screen->char_baseline=this->screen->screen->inRect.h-1;
+	this->useWheel=0;
+	this->useEscapeSpace=0;
+	this->screenshot=0;
+}
+
+void NONS_ScriptInterpreter::uninit(){
+	if (this->store)
+		delete this->store;
+	for (INIcacheType::iterator i=this->INIcache.begin();i!=this->INIcache.end();i++)
+		delete i->second;
+	delete this->thread;
+	this->INIcache.clear();
+	delete this->arrowCursor;
+	delete this->pageCursor;
+	if (this->menu)
+		delete this->menu;
+	this->selectVoiceClick.clear();
+	this->selectVoiceEntry.clear();
+	this->selectVoiceMouseOver.clear();
+	this->clickStr.clear();
+	if (this->imageButtons)
+		delete this->imageButtons;
+	delete this->saveGame;
+
+	settings.assignInt(L"textSpeedMode",this->current_speed_setting);
+	settings.writeOut(config_directory+settings_filename);
+
+	this->textgosub.clear();
+	if (!!this->screenshot)
+		SDL_FreeSurface(this->screenshot);
+}
+
 void NONS_ScriptInterpreter::listImplementation(){
 	std::vector<std::wstring> implemented,
 		notyetimplemented,
@@ -742,21 +756,6 @@ void NONS_ScriptInterpreter::listImplementation(){
 		o_stdout <<unimplemented[a]<<"\n";
 	o_stdout.indent(-1);
 	o_stdout <<"Count: "<<(ulong)unimplemented.size()<<"\n";
-}
-
-NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
-	if (this->was_initialized)
-		this->uninit();
-	delete this->screen;
-	delete this->font_cache;
-	delete this->main_font;
-	delete this->audio;
-	delete this->archive;
-	delete this->script;
-	while (this->commandQueue.size()){
-		delete this->commandQueue.front();
-		this->commandQueue.pop();
-	}
 }
 
 void NONS_ScriptInterpreter::stop(){
@@ -2362,6 +2361,9 @@ ErrorCode NONS_ScriptInterpreter::command_base_resolution(NONS_Statement &stmt){
 	this->base_size[1]=h;
 	for (int a=0;a<2;a++)
 		ImageLoader->base_scale[a]=double(this->virtual_size[a])/double(this->base_size[a]);
+	ulong size=this->defaultfs*this->virtual_size[1]/this->base_size[1];
+	this->font_cache->set_size(size);
+	this->screen->output->set_size(size);
 	return NONS_NO_ERROR;
 }
 
@@ -4793,7 +4795,7 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 				this->screen->output->shadowLayer->fontCache
 			};
 			for (int a=0;a<3;a++){
-				fc[a]->resetStyle((ulong)fontsize,fc[a]->get_italic(),fc[a]->get_bold());
+				fc[a]->set_size((ulong)fontsize);
 				fc[a]->spacing=(long)spacingX;
 				if (forceLineSkip)
 					fc[a]->line_skip=forceLineSkip;

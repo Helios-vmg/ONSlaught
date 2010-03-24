@@ -1701,13 +1701,13 @@ FT_GlyphSlot NONS_Font::render_glyph(wchar_t codepoint,bool italic,bool bold) co
 	if (italic){
 		FT_Matrix shear;
 		shear.xx=0x10000;
-		shear.xy=int(0.207f*0x10000);
+		shear.xy=0x34FE; //~0.207
 		shear.yx=0;
 		shear.yy=0x10000;
 		FT_Outline_Transform(&this->ft_font->glyph->outline,&shear);
 	}
 	if (bold)
-		FT_Outline_Embolden(&this->ft_font->glyph->outline,FT_Pos(1.6*double(this->size)));
+		FT_Outline_Embolden(&this->ft_font->glyph->outline,FT_Pos(this->size*16/10));
 	FT_Render_Glyph(this->ft_font->glyph,FT_RENDER_MODE_LIGHT);
 	return this->ft_font->glyph;
 }
