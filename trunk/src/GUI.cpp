@@ -33,6 +33,7 @@
 #include "IOFunctions.h"
 #include <iostream>
 #include <freetype/ftoutln.h>
+#include FT_STROKER_H
 
 NONS_DebuggingConsole console;
 
@@ -1696,7 +1697,7 @@ bool NONS_Font::is_monospace() const{
 	return this->check_flag(FT_FACE_FLAG_FIXED_WIDTH);
 }
 
-FT_GlyphSlot NONS_Font::render_glyph(wchar_t codepoint,bool italic,bool bold) const{
+FT_GlyphSlot NONS_Font::get_glyph(wchar_t codepoint,bool italic,bool bold) const{
 	FT_Load_Glyph(this->ft_font,FT_Get_Char_Index(this->ft_font,codepoint),FT_LOAD_FORCE_AUTOHINT);
 	if (italic){
 		FT_Matrix shear;
@@ -1708,7 +1709,11 @@ FT_GlyphSlot NONS_Font::render_glyph(wchar_t codepoint,bool italic,bool bold) co
 	}
 	if (bold)
 		FT_Outline_Embolden(&this->ft_font->glyph->outline,FT_Pos(this->size*16/10));
-	FT_Render_Glyph(this->ft_font->glyph,FT_RENDER_MODE_LIGHT);
+	return this->ft_font->glyph;
+}
+
+FT_GlyphSlot NONS_Font::render_glyph(wchar_t codepoint,bool italic,bool bold) const{
+	FT_Render_Glyph(this->get_glyph(codepoint,italic,bold),FT_RENDER_MODE_LIGHT);
 	return this->ft_font->glyph;
 }
 
@@ -1761,7 +1766,46 @@ long NONS_Glyph::get_advance(){
 	return long(this->advance)+this->fc.spacing;
 }
 
+void put_glyph(SDL_Surface *dst,int x,int y,uchar alpha,uchar *src,const SDL_Rect &box,const SDL_Color &color){
+	x+=box.x;
+	y+=box.y;
+	int x0=0,
+		y0=0;
+	if (x<0){
+		x0=-x;
+		x=0;
+	}
+	if (y<0){
+		y0=-y;
+		y=0;
+	}
+
+	SDL_LockSurface(dst);
+	surfaceData sd(dst);
+	uchar r0=color.r,
+		g0=color.g,
+		b0=color.b;
+	for (ulong src_y=y0,dst_y=y;src_y<box.h && dst_y<sd.h;src_y++,dst_y++){
+		uchar *dst=sd.pixels+dst_y*sd.pitch+x*sd.advance;
+		src+=x0;
+		for (ulong src_x=x0,dst_x=x;src_x<box.w && dst_x<sd.w;src_x++,dst_x++){
+			uchar a0=*src,
+				*r1=dst+sd.Roffset,
+				*g1=dst+sd.Goffset,
+				*b1=dst+sd.Boffset,
+				*a1=dst+sd.Aoffset;
+
+			do_alpha_blend(r1,g1,b1,a1,r0,g0,b0,a0,sd.alpha,1,alpha);
+
+			src++;
+			dst+=sd.advance;
+		}
+	}
+	SDL_UnlockSurface(dst);
+}
+
 void NONS_Glyph::put(SDL_Surface *dst,int x,int y,uchar alpha){
+	/*
 	x+=this->bounding_box.x;
 	y+=this->bounding_box.y;
 	int x0=0,
@@ -1798,12 +1842,101 @@ void NONS_Glyph::put(SDL_Surface *dst,int x,int y,uchar alpha){
 		}
 	}
 	SDL_UnlockSurface(dst);
+	*/
+	put_glyph(dst,x,y,alpha,this->base_bitmap,this->bounding_box,this->color);
 }
 
 void NONS_Glyph::done(){
 	if (this)
 		this->fc.done(this);
 }
+
+struct Span{
+	int x,
+		y,
+		w,
+		alpha;
+	Span(){}
+	Span(int x,int y,int width,int coverage):x(x),y(y),w(w),alpha(coverage){}
+};
+
+typedef std::vector<Span> Spans;
+
+void RasterCallback(int y,int count,const FT_Span *spans,void *user) {
+	for (int i=0;i<count;i++) 
+		((Spans *)user)->push_back(Span(spans[i].x,y,spans[i].len,spans[i].coverage));
+}
+
+void RenderSpans(FT_Library library,FT_Outline *outline,Spans *spans){
+	FT_Raster_Params params;
+	memset(&params,0,sizeof(params));
+	params.flags=FT_RASTER_FLAG_AA|FT_RASTER_FLAG_DIRECT;
+	params.gray_spans=RasterCallback;
+	params.user=spans;
+	FT_Outline_Render(library,outline,&params);
+}
+
+NONS_OutlinedGlyph::NONS_OutlinedGlyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outlineColor):NONS_Glyph(fc,codepoint,size,color,italic,bold){
+	this->outline_color=outlineColor;
+	this->outline_size=outline_size;
+
+	NONS_Font &font=fc.get_font();
+	FT_GlyphSlot glyph_slot=font.get_glyph(codepoint,italic,bold);
+	FT_Bitmap &bitmap=glyph_slot->bitmap;
+
+	FT_Stroker stroker;
+	FT_Stroker_New(NONS_FreeType_Lib::instance.get_lib(),&stroker);
+	FT_Stroker_Set(stroker,outline_size,FT_STROKER_LINECAP_ROUND,FT_STROKER_LINEJOIN_ROUND,0);
+
+	FT_Glyph glyph;
+	FT_Get_Glyph(glyph_slot,&glyph);
+
+	FT_Glyph_StrokeBorder(&glyph,stroker,0,1);
+
+	Spans outlineSpans;
+	RenderSpans(NONS_FreeType_Lib::instance.get_lib(),&FT_OutlineGlyph(glyph)->outline,&outlineSpans);
+	FT_Stroker_Done(stroker);
+	FT_Done_Glyph(glyph);
+
+	if (outlineSpans.size()){
+		int minx=outlineSpans.front().x,
+			miny=outlineSpans.front().y,
+			maxx=outlineSpans.front().x+outlineSpans.front().w,
+			maxy=outlineSpans.front().y;
+		for (size_t a=1;a<outlineSpans.size();a++){
+			minx=std::min(minx,outlineSpans[a].x);
+			miny=std::min(miny,outlineSpans[a].y);
+			maxx=std::max(maxx,outlineSpans[a].x+outlineSpans[a].w);
+			maxy=std::max(maxy,outlineSpans[a].y);
+		}
+		this->outline_bounding_box.x=minx;
+		this->outline_bounding_box.y=miny;
+		this->outline_bounding_box.w=maxx-minx+1;
+		this->outline_bounding_box.h=maxy-miny+1;
+		this->outline_base_bitmap=new uchar[this->outline_bounding_box.w*this->outline_bounding_box.h+1];
+		for (size_t a=0;a<outlineSpans.size();a++){
+			Span &span=outlineSpans[a];
+			uchar *dst=this->outline_base_bitmap+span.x-minx+span.y*this->outline_bounding_box.w;
+			for (int b=0;b<span.w;b++)
+				*dst++=(uchar)span.alpha;
+		}
+	}else
+		this->outline_base_bitmap=0;
+}
+
+NONS_OutlinedGlyph::~NONS_OutlinedGlyph(){
+	delete[] this->outline_base_bitmap;
+}
+
+long NONS_OutlinedGlyph::get_advance(){
+	return NONS_Glyph::get_advance();
+}
+
+void NONS_OutlinedGlyph::put(SDL_Surface *dst,int x,int y,uchar alpha){
+	put_glyph(dst,x,y,alpha,this->outline_base_bitmap,this->outline_bounding_box,this->outline_color);
+	NONS_Glyph::put(dst,x,y,alpha);
+}
+
 #ifndef _DEBUG
 NONS_FontCache::NONS_FontCache(NONS_Font &f,ulong size,const SDL_Color &color,bool italic,bool bold):font(f){
 #else
@@ -1871,8 +2004,10 @@ NONS_Glyph *NONS_FontCache::getGlyph(wchar_t c){
 			this->garbage.insert(g);
 		must_render=1;
 	}
-	if (must_render)
-		g=new NONS_Glyph(*this,c,this->size,this->color,this->italic,this->bold);
+	if (must_render){
+		SDL_Color color={255,0,0,255};
+		g=new NONS_OutlinedGlyph(*this,c,this->size,this->color,this->italic,this->bold,2,color);
+	}
 	g->setColor(this->color);
 	g->refCount++;
 	return g;

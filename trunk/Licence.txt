@@ -58,10 +58,6 @@ src/sha1.h
 
                          Lesser General Public Licence
 
-Sam Lantinga (slouken@libsdl.org), minor modifications by Helios:
-src/SDL_ttf.c
-src/SDL_ttf.h
-
 maimairel:
 src/SDL_bilinear.c
 src/SDL_bilinear.h

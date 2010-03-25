@@ -46,7 +46,5 @@ src/IO_System/Script/sha1.h
 
 Los siguientes archivos fueron escritos originalmente por Sam Lantinga
 (slouken@libsdl.org) y mínimamente modificados por Helios:
-src/IO_System/Graphics/SDL_ttf.c
-src/IO_System/Graphics/SDL_ttf.h
 Están bajo los términos de la Licencia Pública General. Por brevedad, su texto
 no se incluye aquí.

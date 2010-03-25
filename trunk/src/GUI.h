@@ -71,7 +71,9 @@ public:
 	bool check_flag(unsigned flag) const{ return (this->ft_font->face_flags&flag)==flag; }
 	bool NONS_Font::is_monospace() const;
 	void set_size(ulong size);
+	FT_GlyphSlot get_glyph(wchar_t codepoint,bool italic,bool bold) const;
 	FT_GlyphSlot render_glyph(wchar_t codepoint,bool italic,bool bold) const;
+	FT_Face get_font() const{ return this->ft_font; }
 };
 
 class NONS_FontCache;
@@ -91,11 +93,11 @@ class NONS_Glyph{
 public:
 	ulong refCount;
 	NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold);
-	~NONS_Glyph();
+	virtual ~NONS_Glyph();
 	bool operator<(const NONS_Glyph &b) const{ return this->codepoint<b.codepoint; }
 	void setColor(const SDL_Color &color){ this->color=color; }
 	ulong get_advance_fixed() const{ return this->advance; }
-	const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
+	virtual const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
 	wchar_t get_codepoint() const{ return this->codepoint; }
 	/*
 	0: perfect match
@@ -103,12 +105,27 @@ public:
 	2: needs glyph redraw
 	*/
 	int compare_properties(ulong size,const SDL_Color &color,bool italic,bool bold) const;
-	//SDL_Surface *get_surface(){ return this->colored_bitmap; }
-	long get_advance();
-	void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
+	virtual long get_advance();
+	virtual void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
 	const NONS_FontCache &get_cache() const{ return this->fc; }
 	NONS_FontCache &get_cache(){ return this->fc; }
 	void done();
+	virtual ulong type(){ return 0; }
+};
+
+class NONS_OutlinedGlyph:public NONS_Glyph{
+	SDL_Color outline_color;
+	ulong outline_size;
+	uchar *outline_base_bitmap;
+	SDL_Rect outline_bounding_box;
+public:
+	NONS_OutlinedGlyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outlineColor);
+	~NONS_OutlinedGlyph();
+	const SDL_Rect &get_bounding_box() const{ return this->outline_bounding_box; }
+	long get_advance();
+	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
+	void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
+	ulong type(){ return 1; }
 };
 
 #ifdef _DEBUG
