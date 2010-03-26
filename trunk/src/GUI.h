@@ -73,6 +73,7 @@ public:
 	void set_size(ulong size);
 	FT_GlyphSlot get_glyph(wchar_t codepoint,bool italic,bool bold) const;
 	FT_GlyphSlot render_glyph(wchar_t codepoint,bool italic,bool bold) const;
+	FT_GlyphSlot render_glyph(FT_GlyphSlot) const;
 	FT_Face get_font() const{ return this->ft_font; }
 };
 
@@ -82,50 +83,35 @@ class NONS_Glyph{
 	NONS_FontCache &fc;
 	wchar_t codepoint;
 	//style properties:
-	ulong size;
-	SDL_Color color;
+	ulong size,
+		outline_size;
+	SDL_Color color,
+		outline_color;
 	bool italic,
 		bold;
 	//~style properties
-	uchar *base_bitmap;
-	SDL_Rect bounding_box;
+	uchar *base_bitmap,
+		*outline_base_bitmap;
+	SDL_Rect bounding_box,
+		outline_bounding_box;
 	ulong advance;
 public:
 	ulong refCount;
-	NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold);
-	virtual ~NONS_Glyph();
+	NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color);
+	~NONS_Glyph();
 	bool operator<(const NONS_Glyph &b) const{ return this->codepoint<b.codepoint; }
 	void setColor(const SDL_Color &color){ this->color=color; }
+	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
 	ulong get_advance_fixed() const{ return this->advance; }
-	virtual const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
+	const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
 	wchar_t get_codepoint() const{ return this->codepoint; }
-	/*
-	0: perfect match
-	1: differs in color
-	2: needs glyph redraw
-	*/
-	int compare_properties(ulong size,const SDL_Color &color,bool italic,bool bold) const;
-	virtual long get_advance();
-	virtual void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
+	bool needs_redraw(ulong size,bool italic,bool bold,ulong outline_size) const;
+	long get_advance();
+	void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
 	const NONS_FontCache &get_cache() const{ return this->fc; }
 	NONS_FontCache &get_cache(){ return this->fc; }
 	void done();
-	virtual ulong type(){ return 0; }
-};
-
-class NONS_OutlinedGlyph:public NONS_Glyph{
-	SDL_Color outline_color;
-	ulong outline_size;
-	uchar *outline_base_bitmap;
-	SDL_Rect outline_bounding_box;
-public:
-	NONS_OutlinedGlyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outlineColor);
-	~NONS_OutlinedGlyph();
-	const SDL_Rect &get_bounding_box() const{ return this->outline_bounding_box; }
-	long get_advance();
-	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
-	void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
-	ulong type(){ return 1; }
+	ulong type(){ return 0; }
 };
 
 #ifdef _DEBUG
@@ -137,28 +123,33 @@ public:
 class NONS_FontCache{
 	std::map<wchar_t,NONS_Glyph *> glyphs;
 	NONS_Font &font;
-	ulong size;
-	SDL_Color color;
+	ulong size,
+		outline_size;
+	SDL_Color color,
+		outline_color;
 	bool italic,
 		bold;
 	std::set<NONS_Glyph *> garbage;
 public:
 	long spacing;
-	ulong line_skip;
+	ulong line_skip,
+		font_line_skip,
+		ascent;
 #ifdef _DEBUG
 	std::string declared_in;
 	ulong line;
-	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,const char *file,ulong line);
+	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color,const char *file,ulong line);
 	NONS_FontCache(const NONS_FontCache &fc,const char *file,ulong line);
 private:
 	NONS_FontCache(const NONS_FontCache &fc);
 public:
 #else
-	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold);
+	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color);
 	NONS_FontCache(const NONS_FontCache &fc);
 #endif
 	~NONS_FontCache();
-	void resetStyle(ulong size,bool italic,bool bold);
+	void resetStyle(ulong size,bool italic,bool bold,ulong outline_size);
+	void set_outline_size(ulong size){ this->outline_size=size; }
 	void set_size(ulong size);
 	void set_to_normal(){
 		this->italic=0;
@@ -167,6 +158,7 @@ public:
 	void set_italic(bool i){ this->italic=i; }
 	void set_bold(bool b){ this->bold=b; }
 	void setColor(const SDL_Color &color){ this->color=color; }
+	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
 	NONS_Glyph *getGlyph(wchar_t c);
 	void done(NONS_Glyph *g);
 	const NONS_Font &get_font() const{ return this->font; }

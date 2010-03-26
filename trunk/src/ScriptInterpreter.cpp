@@ -596,7 +596,7 @@ NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
 }
 
 void NONS_ScriptInterpreter::init(){
-	this->defaultfs=18;
+	this->defaultfs=20;
 	this->base_size[0]=this->virtual_size[0]=CLOptions.virtualWidth;
 	this->base_size[1]=this->virtual_size[1]=CLOptions.virtualHeight;
 	this->archive=new NONS_GeneralArchive();
@@ -612,8 +612,10 @@ void NONS_ScriptInterpreter::init(){
 				o_stderr <<"FATAL ERROR: \""<<fontfile<<"\" is not a valid font file.\n";
 			exit(0);
 		}
-		SDL_Color c={255,255,255,255};
-		this->font_cache=new NONS_FontCache(*this->main_font,this->defaultfs*this->virtual_size[1]/this->base_size[1],c,0,0 FONTCACHE_DEBUG_PARAMETERS);
+		SDL_Color white={255,255,255,255},
+			black={0,0,0,255};
+		ulong fs=this->defaultfs*this->virtual_size[1]/this->base_size[1];
+		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,1,black FONTCACHE_DEBUG_PARAMETERS);
 	}
 	{
 		ErrorCode error=NONS_NO_ERROR;

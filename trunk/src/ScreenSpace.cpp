@@ -389,7 +389,7 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 		x0=this->x;
 	y0=this->y;
 	int lineSkip=this->foregroundLayer->fontCache->line_skip;
-	int fontLineSkip=this->foregroundLayer->fontCache->get_font().line_skip;
+	int fontLineSkip=this->foregroundLayer->fontCache->font_line_skip;
 	ulong t0,t1;
 	if (this->resumePrinting)
 		start=this->resumePrintingWhere;
