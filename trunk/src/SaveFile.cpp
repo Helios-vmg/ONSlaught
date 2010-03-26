@@ -435,8 +435,8 @@ void NONS_SaveFile::load(std::wstring filename){
 			this->windowTextColor.b=readByte(buffer,offset);
 			{
 				uchar style=readByte(buffer,offset);
-				this->italic=bool(style&1);
-				this->bold=bool(style&2);
+				this->italic=(style&1)==1;
+				this->bold=(style&2)==2;
 			}
 			this->textSpeed=readDWord(buffer,offset);
 			this->fontShadow=!!readByte(buffer,offset);

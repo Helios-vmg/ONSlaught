@@ -490,12 +490,14 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 			glyph->put(dst->screens[VIRTUAL],x0,y0);
 			glyph->done();
 		}
+		SDL_Rect r=glyph->get_put_bounding_box((Sint16)x0,(Sint16)y0);
 		if (glyph2){
 			long tempX=(this->shadowPosX<=0)?0:this->shadowPosX,
 				tempY=(this->shadowPosY<=0)?0:this->shadowPosY;
-			dst->updateScreen(x0,y0,advance+tempX,fontLineSkip+tempY);
-		}else
-			dst->updateScreen(x0,y0,advance,fontLineSkip);
+			r.w+=(Uint16)tempX;
+			r.h+=(Uint16)tempY;
+		}
+		dst->updateScreen(r.x,r.y,r.w,r.h);
 		if (printedChars)
 			(*printedChars)++;
 		x0+=advance;

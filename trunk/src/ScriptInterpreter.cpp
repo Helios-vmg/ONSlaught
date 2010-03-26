@@ -1918,7 +1918,13 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	au->stopAllSound();
 	out->ephemeralOut(&out->currentBuffer,0,0,1,0);
 	{
-		SDL_Surface *srf=makeSurface(scr->screen->screens[VIRTUAL]->w,scr->screen->screens[VIRTUAL]->h,32);
+		ulong w,h;
+		{
+			NONS_MutexLocker ml(screenMutex);
+			w=scr->screen->screens[VIRTUAL]->w;
+			h=scr->screen->screens[VIRTUAL]->h;
+		}
+		SDL_Surface *srf=makeSurface(w,h,32);
 		SDL_FillRect(srf,0,amask);
 		NONS_GFX::callEffect(10,1000,0,srf,0,scr->screen);
 		SDL_FreeSurface(srf);

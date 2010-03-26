@@ -511,7 +511,9 @@ void NONS_Button::makeTextButton(const std::wstring &text,const NONS_FontCache &
 	SDL_Color black={0,0,0,0};
 	this->limitX=limitX;
 	this->limitY=limitY;
-	this->box=this->GetBoundingBox(text,&fc,limitX,limitY);
+	int offsetX,
+		offsetY;
+	this->box=this->GetBoundingBox(text,&fc,limitX,limitY,offsetX,offsetY);
 	this->offLayer=new NONS_Layer(&this->box,0);
 	this->offLayer->MakeTextLayer(*this->font_cache,off);
 	this->onLayer=new NONS_Layer(&this->box,0);
@@ -520,23 +522,27 @@ void NONS_Button::makeTextButton(const std::wstring &text,const NONS_FontCache &
 		this->shadowLayer=new NONS_Layer(&this->box,0);
 		this->shadowLayer->MakeTextLayer(*this->font_cache,black);
 	}
-	this->write(text,center);
+	this->write(text,offsetX,offsetY,center);
 }
 
-SDL_Rect NONS_Button::GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY){
+SDL_Rect NONS_Button::GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY){
 	std::vector<NONS_Glyph *> outputBuffer;
 	long lastSpace=-1;
 	int x0=0,
 		y0=0,
 		wordL=0,
-		width=0,
-		minheight=INT_MAX,
-		height=0,
-		lineSkip=this->font_cache->line_skip,
-		fontLineSkip=this->font_cache->font_line_skip;
+		//width=0,
+		//minheight=INT_MAX,
+		//height=0,
+		lineSkip=this->font_cache->line_skip/*,
+		fontLineSkip=this->font_cache->font_line_skip*/;
 	if (!cache)
 		cache=this->offLayer->fontCache;
 	SDL_Rect frame={0,0,this->limitX,this->limitY};
+	int minx=INT_MAX,
+		miny=INT_MAX,
+		maxx=INT_MIN,
+		maxy=INT_MIN;
 	for (size_t a=0;a<str.size();a++){
 		wchar_t c=str[a];
 		NONS_Glyph *glyph=cache->getGlyph(c);
@@ -584,43 +590,40 @@ SDL_Rect NONS_Button::GetBoundingBox(const std::wstring &str,NONS_FontCache *cac
 	y0=0;
 	for (ulong a=0;a<outputBuffer.size();a++){
 		if (!outputBuffer[a]){
-			if (x0>width)
-				width=x0;
 			x0=0;
 			y0+=lineSkip;
 			continue;
 		}
-		SDL_Rect tempRect=outputBuffer[a]->get_bounding_box();
-		int temp=tempRect.y+tempRect.h;
-		if (height<temp)
-			height=temp;
-		if (tempRect.y<minheight)
-			minheight=tempRect.y;
+		SDL_Rect r=outputBuffer[a]->get_put_bounding_box(x0,y0);
+		minx=std::min(minx,(int)r.x);
+		miny=std::min(miny,(int)r.y);
+		maxx=std::max(maxx,(int)r.x+(int)r.w);
+		maxy=std::max(maxy,(int)r.y+(int)r.h);
+
 		int advance=outputBuffer[a]->get_advance();
 		if (x0+advance>frame.w){
-			if (x0>width)
-				width=x0;
 			x0=0;
 			y0+=lineSkip;
 		}
 		x0+=advance;
 		outputBuffer[a]->done();
 	}
-	if (x0>width)
-		width=x0;
-	SDL_Rect res={0,0,width,y0+fontLineSkip};
+	offsetX=(minx<0)?-minx:0;
+	offsetY=(miny<0)?-miny:0;
+	SDL_Rect res={0,0,maxx-minx,maxy-miny};
 	return res;
 }
 
-void NONS_Button::write(const std::wstring &str,float center){
+void NONS_Button::write(const std::wstring &str,int offsetX,int offsetY,float center){
 	std::vector<NONS_Glyph *> outputBuffer;
 	std::vector<NONS_Glyph *> outputBuffer2;
 	std::vector<NONS_Glyph *> outputBuffer3;
 	long lastSpace=-1;
-	int x0=0,y0=0;
+	int x0=offsetX,
+		y0=offsetY;
 	int wordL=0;
 	SDL_Rect frame={0,-this->box.y,this->box.w,this->box.h};
-	int lineSkip=this->offLayer->fontCache->font_line_skip;
+	int lineSkip=this->offLayer->fontCache->/*font_*/line_skip;
 	SDL_Rect screenFrame={0,0,this->limitX,this->limitY};
 	for (size_t a=0;a<str.size();a++){
 		wchar_t c=str[a];
@@ -649,7 +652,7 @@ void NONS_Button::write(const std::wstring &str,float center){
 				y0+=lineSkip;
 			}
 			lastSpace=-1;
-			x0=0;
+			x0=offsetX;
 			y0+=lineSkip;
 			wordL=0;
 		}else if (isbreakspace(c)){
@@ -667,7 +670,7 @@ void NONS_Button::write(const std::wstring &str,float center){
 					outputBuffer3.insert(outputBuffer3.begin()+lastSpace+1,0);
 				}
 				lastSpace=-1;
-				x0=0;
+				x0=offsetX;
 				y0+=lineSkip;
 			}
 			x0+=wordL;
@@ -691,17 +694,17 @@ void NONS_Button::write(const std::wstring &str,float center){
 		outputBuffer2[lastSpace]=0;
 		outputBuffer3[lastSpace]=0;
 	}
-	x0=this->setLineStart(&outputBuffer,0,&screenFrame,center);
+	x0=this->setLineStart(&outputBuffer,0,&screenFrame,center,offsetX);
 	y0=0;
 	for (ulong a=0;a<outputBuffer.size();a++){
 		if (!outputBuffer[a]){
-			x0=this->setLineStart(&outputBuffer,a,&screenFrame,center);
+			x0=this->setLineStart(&outputBuffer,a,&screenFrame,center,offsetX);
 			y0+=lineSkip;
 			continue;
 		}
 		int advance=outputBuffer[a]->get_advance();
 		if (x0+advance>screenFrame.w){
-			x0=this->setLineStart(&outputBuffer,a,&frame,center);
+			x0=this->setLineStart(&outputBuffer,a,&frame,center,offsetX);
 			y0+=lineSkip;
 		}
 		outputBuffer[a]->put(this->offLayer->data,x0,y0);
@@ -716,16 +719,16 @@ void NONS_Button::write(const std::wstring &str,float center){
 	}
 }
 
-int NONS_Button::setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center){
+int NONS_Button::setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center,int offsetX){
 	while (!(*arr)[start])
 		start++;
-	int width=this->predictLineLength(arr,start,frame->w);
+	int width=this->predictLineLength(arr,start,frame->w,offsetX);
 	float factor=(center<=0.5f)?center:1.0f-center;
 	int pixelcenter=int(float(frame->w)*factor);
-	return int((width/2.0f>pixelcenter)?(frame->w-width)*(center>0.5f):frame->w*center-width/2.0f);
+	return int((width/2.0f>pixelcenter)?(frame->w-width)*(center>0.5f):frame->w*center-width/2.0f)+offsetX;
 }
 
-int NONS_Button::predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width){
+int NONS_Button::predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width,int offsetX){
 	int res=0;
 	for (ulong a=start;a<arr->size() && (*arr)[a] && res+(*arr)[a]->get_advance()<=width;a++)
 		res+=(*arr)[a]->get_advance();
@@ -1800,12 +1803,13 @@ NONS_Glyph::NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL
 
 	FT_GlyphSlot glyph_slot;
 	glyph_slot=font.get_glyph(codepoint,italic,bold);
-	{
+	if (outline_size){
 		FT_Glyph glyph;
 		FT_Get_Glyph(glyph_slot,&glyph);
-		this->outline_base_bitmap=(!outline_size)?0:render_glyph(this->outline_bounding_box,glyph,fc.ascent,float(outline_size)/20.f*float(size));
+		this->outline_base_bitmap=render_glyph(this->outline_bounding_box,glyph,fc.ascent,float(outline_size)/20.f*float(size));
 		FT_Done_Glyph(glyph);
-	}
+	}else
+		this->outline_base_bitmap=0;
 	
 	glyph_slot=font.render_glyph(glyph_slot);
 	FT_Bitmap &bitmap=glyph_slot->bitmap;
@@ -1824,6 +1828,13 @@ NONS_Glyph::NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL
 	this->bounding_box.w=(Uint16)width;
 	this->bounding_box.h=(Uint16)height;
 	this->advance=FT_CEIL(glyph_slot->metrics.horiAdvance);
+
+	if (outline_size && !this->outline_base_bitmap){
+		this->outline_bounding_box=this->bounding_box;
+		size_t size=this->outline_bounding_box.w*this->outline_bounding_box.h+1;
+		this->outline_base_bitmap=new uchar[size];
+		memset(this->outline_base_bitmap,0,size);
+	}
 }
 
 NONS_Glyph::~NONS_Glyph(){

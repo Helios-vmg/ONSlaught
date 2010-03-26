@@ -104,6 +104,12 @@ public:
 	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
 	ulong get_advance_fixed() const{ return this->advance; }
 	const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
+	SDL_Rect get_put_bounding_box(Sint16 x,Sint16 y) const{
+		SDL_Rect ret=(!this->outline_base_bitmap)?this->bounding_box:this->outline_bounding_box;
+		ret.x+=x;
+		ret.y+=y;
+		return ret;
+	}
 	wchar_t get_codepoint() const{ return this->codepoint; }
 	bool needs_redraw(ulong size,bool italic,bool bold,ulong outline_size) const;
 	long get_advance();
@@ -206,10 +212,10 @@ struct NONS_Button{
 	bool MouseOver(SDL_Event *event);
 	bool MouseOver(int x,int y);
 private:
-	SDL_Rect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY);
-	void write(const std::wstring &str,float center=0);
-	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center);
-	int predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width);
+	SDL_Rect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY);
+	void write(const std::wstring &str,int offsetX,int offsetY,float center=0);
+	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center,int offsetX);
+	int predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width,int offsetX);
 };
 
 struct NONS_ButtonLayer{
