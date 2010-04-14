@@ -277,7 +277,7 @@ ulong NONS_StandardOutput::getIndentationSize(){
 	return this->indentationLevel*(advance+this->extraAdvance);
 }
 
-bool NONS_StandardOutput::prepareForPrinting(const std::wstring str){
+bool NONS_StandardOutput::prepareForPrinting(std::wstring str){
 	long lastSpace=-1;
 	int x0=this->x,y0=this->y;
 	int wordL=0;

@@ -691,7 +691,7 @@ bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,
 			uchar *buffer=this->archive->getFileBuffer(anim.getFilename(),l);
 			if (!buffer)
 				goto fetchSprite_fail;
-			primary=new NONS_Image;
+			primary=new (std::nothrow) NONS_Image;
 			if (!primary->LoadImage(anim.getFilename(),buffer,l,(this->fast_svg)?&this->disk_cache:0,this->base_scale)){
 				delete[] buffer;
 				delete primary;

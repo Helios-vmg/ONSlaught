@@ -126,15 +126,15 @@ long ConfigFile::getInt(const std::wstring &index,ulong subindex){
 			stream >>ret;
 			break;
 		case 2:
-			for (std::wstring::iterator i=str.begin()+2;i!=str.end();i++){
+			for (size_t a=0;a<str.size();a++){
 				ret<<=4;
-				ret|=HEX2DEC(*i);
+				ret|=HEX2DEC(str[a]);
 			}
 			break;
 		case 3:
-			for (std::wstring::iterator i=str.begin()+2;*i!='b';i++){
+			for (size_t a=2;a<str.size() && str[a]!='b';a++){
 				ret<<=1;
-				ret|=*i-'0';
+				ret|=str[a]-'0';
 			}
 			break;
 		default:

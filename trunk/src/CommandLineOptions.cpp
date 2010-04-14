@@ -150,7 +150,9 @@ void usage(){
 		"  -play [a] <filename>\n"
 		"      Play the file and quit. The file can be a graphics, audio or video file.\n"
 		"      This option can be used to test whether the engine can read the file.\n"
-		"      See the documentation for more information.\n";
+		"      See the documentation for more information.\n"
+		"  -replace <replacement string>\n"
+		"      Sets characters to be replaced in the printing mechanism.\n";
 	exit(0);
 }
 
@@ -186,6 +188,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 		L"-disable-threading",      //27
 		L"-pp-then-quit",           //28
 		L"-play",                   //29
+		L"-replace",                //30
 		0
 	};
 
@@ -387,6 +390,17 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 							this->play=arguments[++a];
 					}
 					toforwardslash(this->play);
+				}
+				break;
+			case 30: //-replace
+				if (a+1>=size)
+					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+				else{
+					std::wstring str=arguments[++a];
+					if (str.size()%2)
+						str.resize(str.size()-1);
+					for (size_t a=0;a<str.size();a+=2)
+						CLOptions.replaceArray[str[a]]=str[a+1];
 				}
 				break;
 			case 7: //-image-cache-size

@@ -93,8 +93,8 @@ const char *methods[][2]={
 	{"none","Do nothing."},
 	{"xor84","Perform an XOR 0x84 on the target."},
 	{"varxor","Perform XORs 0x79, 0x57, 0x0d, 0x80, and 0x04 on the target"},
-	{"table","Perform a table-based transform and then an XOR 0x84. Unsupported for practical\n"
-		"    reasons."},
+	{"table","Perform a table-based transform and then an XOR 0x84. Unsupported for\n"
+		"    practical reasons."},
 	{0,0},
 };
 
@@ -166,9 +166,9 @@ void usage(){
 		"    Convert all newlines to LF (UNIX style). The following are recognized as\n"
 		"    newlines: LF, CR (Mac style), CRLF (DOS style).\n"
 		"    USE ONLY WHEN ENCRYPTING. USING WHILE DECRYPTING MAY PRODUCE DATA LOSS.\n"
-		"    This option is included solely for backwards compatibility with an incorrect\n"
-		"    behavior in NSDEC.exe. See http://forums.novelnews.net/showpost.php?p=61427&postcount=55\n"
-		"    for details."<<std::endl;
+		"    This option is included solely for backwards compatibility with an\n"
+		"    incorrect behavior in NSDEC.exe. See\n"
+		"    http://forums.novelnews.net/showpost.php?p=61427&postcount=55 for details."<<std::endl;
  	exit(0);
 }
 

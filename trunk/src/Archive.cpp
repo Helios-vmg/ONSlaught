@@ -212,9 +212,9 @@ NSAarchive::NSAarchive(const std::wstring &path,bool nsa)
 	for (ulong a=0;a<n;a++){
 		TreeNode *new_node;
 		{
-			std::string path=buffer+offset;
-			offset+=path.size()+1;
-			new_node=this->root.get_branch(UniFromSJIS(path),1);
+			std::string temp=buffer+offset;
+			offset+=temp.size()+1;
+			new_node=this->root.get_branch(UniFromSJIS(temp),1);
 		}
 		NSAdata extraData;
 		if (nsa)
@@ -382,7 +382,7 @@ uchar *NSAarchive::get_file_buffer(const std::wstring &path,TreeNode *node,ulong
 		delete[] buffer;
 		return 0;
 	}
-	uchar *res;
+	uchar *res=0;
 	size=derefED(node->extraData).uncompressed;
 	if ((derefED(node->extraData).compression)==NSAdata::COMPRESSION_NONE)
 		res=buffer;

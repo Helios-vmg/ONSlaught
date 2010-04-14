@@ -766,7 +766,7 @@ std::wstring WhileStructure::perform(SymbolTable st,ulong *error){
 
 bool WhileStructure::checkSymbols(const SymbolTable &st){
 	SymbolTable st2=st;
-	bool r;
+	bool r=1;
 	if (this->block->symbol_table){
 		r=st.checkIntersection(*this->block->symbol_table);
 		st2.addFrame(*this->block->symbol_table);

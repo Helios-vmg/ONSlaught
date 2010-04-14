@@ -596,7 +596,7 @@ NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
 }
 
 void NONS_ScriptInterpreter::init(){
-	this->defaultfs=20;
+	this->defaultfs=18;
 	this->base_size[0]=this->virtual_size[0]=CLOptions.virtualWidth;
 	this->base_size[1]=this->virtual_size[1]=CLOptions.virtualHeight;
 	this->archive=new NONS_GeneralArchive();
@@ -615,7 +615,7 @@ void NONS_ScriptInterpreter::init(){
 		SDL_Color white={255,255,255,255},
 			black={0,0,0,255};
 		ulong fs=this->defaultfs*this->virtual_size[1]/this->base_size[1];
-		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,1,black FONTCACHE_DEBUG_PARAMETERS);
+		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,0,black FONTCACHE_DEBUG_PARAMETERS);
 	}
 	{
 		ErrorCode error=NONS_NO_ERROR;
@@ -1134,7 +1134,7 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 			break;
 		case StatementType::PRINTER:
 			if (this->interpreter_mode!=RUN_MODE){
-				handleErrors(NONS_NOT_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
+				handleErrors(NONS_NOT_ALLOWED_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
 			}else{
 				if (this->printed_lines.find(current_line)==this->printed_lines.end()){
 					//softwareCtrlIsPressed=0;
@@ -1153,10 +1153,10 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 				}
 				if (i!=this->commandList.end()){
 					if (!i->second.allow_define && this->interpreter_mode==DEFINE_MODE){
-						handleErrors(NONS_NOT_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
+						handleErrors(NONS_NOT_ALLOWED_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
 						break;
 					}else if (!i->second.allow_run && this->interpreter_mode==RUN_MODE){
-						handleErrors(NONS_NOT_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
+						handleErrors(NONS_NOT_ALLOWED_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
 						break;
 					}
 					commandFunctionPointer function=i->second.function;
@@ -1251,7 +1251,7 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 			break;
 		case StatementType::PRINTER:
 			if (this->interpreter_mode!=RUN_MODE){
-				handleErrors(NONS_NOT_IN_RUN_MODE,0,"NONS_ScriptInterpreter::interpretString",0);
+				handleErrors(NONS_NOT_ALLOWED_IN_DEFINE_MODE,0,"NONS_ScriptInterpreter::interpretString",0);
 			}else{
 				if (!stmt.lineOfOrigin || this->printed_lines.find(stmt.lineOfOrigin->lineNumber)==this->printed_lines.end()){
 					//softwareCtrlIsPressed=0;
@@ -1267,9 +1267,9 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 				commandMapType::iterator i=this->commandList.find(stmt.commandName);
 				if (i!=this->commandList.end()){
 					if (!i->second.allow_define && this->interpreter_mode==DEFINE_MODE)
-						return handleErrors(NONS_NOT_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",1);
+						return handleErrors(NONS_NOT_ALLOWED_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",1);
 					if (!i->second.allow_run && this->interpreter_mode==RUN_MODE)
-						return handleErrors(NONS_NOT_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",1);
+						return handleErrors(NONS_NOT_ALLOWED_IN_RUN_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",1);
 					commandFunctionPointer function=i->second.function;
 					if (!function){
 						if (this->implementationErrors.find(i->first)!=this->implementationErrors.end()){
@@ -1493,9 +1493,9 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 						takeOut.first=temp2.stops[stop].first+1;
 						takeOut.second=temp2.stops[stop].second+1;
 						temp2.stops.erase(temp2.stops.begin(),temp2.stops.begin()+stop+1);
-						for (std::vector<std::pair<ulong,ulong> >::iterator i=temp2.stops.begin();i<temp2.stops.end();i++){
-							i->first-=takeOut.first;
-							i->second-=takeOut.second;
+						for (std::vector<std::pair<ulong,ulong> >::iterator i2=temp2.stops.begin();i2<temp2.stops.end();++i2){
+							i2->first-=takeOut.first;
+							i2->second-=takeOut.second;
 						}
 						temp.push_back(temp2);
 						for (i2++;i2!=pages.end();i2++)
@@ -1529,9 +1529,9 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 						takeOut.first=temp2.stops[stop].first;
 						takeOut.second=temp2.stops[stop].second+1;
 						temp2.stops.erase(temp2.stops.begin(),temp2.stops.begin()+stop+1);
-						for (std::vector<std::pair<ulong,ulong> >::iterator i=temp2.stops.begin();i<temp2.stops.end();i++){
-							i->first-=takeOut.first;
-							i->second-=takeOut.second;
+						for (std::vector<std::pair<ulong,ulong> >::iterator i2=temp2.stops.begin();i2<temp2.stops.end();++i2){
+							i2->first-=takeOut.first;
+							i2->second-=takeOut.second;
 						}
 						temp.push_back(temp2);
 						for (i2++;i2!=pages.end();i2++)
@@ -1593,7 +1593,6 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 								notbee=firstcharsCI(*str,reduced,L"!b");
 							if (noti || notbee){
 								reduced+=2;
-								NONS_StandardOutput *out=this->screen->output;
 								NONS_FontCache *caches[2];
 								caches[0]=out->foregroundLayer->fontCache;
 								if (out->shadowLayer)
@@ -2010,9 +2009,9 @@ bool NONS_ScriptInterpreter::save(int file){
 					break;
 				case StackFrameType::FOR_NEST:
 					el->variable=0;
-					for (variables_map_T::iterator i=this->store->variables.begin();i!=this->store->variables.end() && !el->variable;i++)
-						if (i->second->intValue==el0->var)
-							el->variable=i->first;
+					for (variables_map_T::iterator i2=this->store->variables.begin();i2!=this->store->variables.end() && !el->variable;++i2)
+						if (i2->second->intValue==el0->var)
+							el->variable=i2->first;
 					el->to=el0->to;
 					el->step=el0->step;
 					break;
@@ -2806,7 +2805,7 @@ ErrorCode NONS_ScriptInterpreter::command_draw(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
-	if (!this->screen->Background && !this->screen->Background->data)
+	if (!this->screen->Background || !this->screen->Background->data)
 		SDL_FillRect(this->screen->screenBuffer,0,this->screen->screenBuffer->format->Amask);
 	else if (!stdStrCmpCI(stmt.commandName,L"drawbg"))
 		manualBlit(
@@ -2897,17 +2896,8 @@ ErrorCode NONS_ScriptInterpreter::command_drawfill(NONS_Statement &stmt){
 	g=ulong(g)&0xFF;
 	b=ulong(b)&0xFF;
 	SDL_Surface *dst=this->screen->screenBuffer;
-	Uint32 rmask=dst->format->Rmask,
-		gmask=dst->format->Gmask,
-		bmask=dst->format->Bmask,
-		amask=dst->format->Amask,
-		R=r,
-		G=g,
-		B=b;
-	R=R|R<<8|R<<16|R<<24;
-	G=G|G<<8|G<<16|G<<24;
-	B=B|B<<8|B<<16|B<<24;
-	SDL_FillRect(dst,0,R&rmask|G&gmask|B&bmask|amask);
+	surfaceData sd(dst);
+	SDL_FillRect(dst,0,r<<sd.Roffset|g<<sd.Goffset|b<<sd.Boffset|0xFF<<sd.Aoffset);
 	return NONS_NO_ERROR;
 }
 
@@ -3001,9 +2991,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 					src=dst;
 				}else{
 					if (xscale!=100 || yscale!=100 || this->virtual_size[0]!=this->base_size[0] || this->virtual_size[1]!=this->base_size[1]){
-						int x=src->w*xscale/100,
-							y=src->h*yscale/100;
-						dst=resizeFunction(src,x,y);
+						dst=resizeFunction(src,src->w*xscale/100,src->h*yscale/100);
 						SDL_FreeSurface(src);
 						src=dst;
 					}
@@ -4642,14 +4630,14 @@ ErrorCode NONS_ScriptInterpreter::command_selectvoice(NONS_Statement &stmt){
 	}
 	if (mouseover.size()){
 		ulong l;
-		uchar *buffer=this->archive->getFileBuffer(mouseover,l);
+		buffer=this->archive->getFileBuffer(mouseover,l);
 		if (!buffer)
 			return NONS_FILE_NOT_FOUND;
 		delete[] buffer;
 	}
 	if (click.size()){
 		ulong l;
-		uchar *buffer=this->archive->getFileBuffer(click,l);
+		buffer=this->archive->getFileBuffer(click,l);
 		if (!buffer)
 			return NONS_FILE_NOT_FOUND;
 		delete[] buffer;

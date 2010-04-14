@@ -444,8 +444,8 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 	SHA1 hash;
 	for (ulong a=0;a<this->blocksByLine.size();a++){
 		std::wstring &b=this->blocksByLine[a]->name;
-		std::vector<char> temp(b.begin(),b.end());
-		hash.Input(&temp[0],temp.size());
+		std::vector<char> temp2(b.begin(),b.end());
+		hash.Input(&temp2[0],temp2.size());
 	}
 	hash.Result(this->hash);
 	save_directory=getSaveLocation(this->hash);
@@ -680,7 +680,7 @@ bool NONS_ScriptThread::gotoJumpForward(ulong offset){
 }
 
 bool NONS_ScriptThread::readBlock(const NONS_ScriptBlock &block,ulong start_at_offset,ulong start_at_line){
-	static const ulong lines_limit=100;
+	const ulong lines_limit=100;
 
 	for (ulong a=0;a<this->lines.size();a++)
 		delete this->lines[a];

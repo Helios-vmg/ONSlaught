@@ -113,7 +113,7 @@ struct NONS_StandardOutput{
 	void setPosition(int x,int y);
 	//if return==1, there should be a call to the page cursor and a screen clear before
 	//calling print().
-	bool prepareForPrinting(const std::wstring str);
+	bool prepareForPrinting(std::wstring str);
 	bool print(ulong start,ulong end,NONS_VirtualScreen *dst,ulong *printedChars=0);
 	void endPrinting();
 	void ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,SDL_Color *col);

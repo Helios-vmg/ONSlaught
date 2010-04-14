@@ -48,7 +48,7 @@ typedef Uint32 ErrorCode;
 #define NONS_INVALID_ARCHIVE						2
 #define NONS_ARCHIVE_UNINIT							3
 #define NONS_NOT_IMPLEMENTED						4
-#define NONS_NOT_IN_DEFINE_MODE						5
+#define NONS_NOT_ALLOWED_IN_DEFINE_MODE				5
 #define NONS_DUPLICATE_CONSTANT_DEFINITION			6
 #define NONS_ALREADY_INITIALIZED					7
 #define NONS_NO_SUCH_BLOCK							8
@@ -134,7 +134,7 @@ typedef Uint32 ErrorCode;
 #define NONS_NOT_A_DEREFERENCE						88
 #define NONS_EXPECTED_INTEGRAL_VALUE				89
 #define NONS_EXPECTED_STRING_VALUE					90
-#define NONS_NOT_IN_RUN_MODE						91
+#define NONS_NOT_ALLOWED_IN_RUN_MODE				91
 
 extern const char *errorMessages[];
 #endif

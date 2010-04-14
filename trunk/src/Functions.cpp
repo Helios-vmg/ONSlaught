@@ -1107,7 +1107,7 @@ SDL_Surface *horizontalShear(SDL_Surface *src,float amount){
 	}else{
 		pos0+=(h-1)*pitch0;
 		pos1+=(h-1)*pitch1;
-		for (ulong y=h-1;y<h;y--){
+		for (long y=(long)h-1;y>=0;y--){
 			if (w+x<=resWidth)
 				memcpy(pos1,pos0,advance0*w);
 			else
@@ -1186,7 +1186,7 @@ SDL_Surface *verticalShear(SDL_Surface *src,float amount){
 	}else{
 		pos0+=(w-1)*advance0;
 		pos1+=(w-1)*advance1;
-		for (ulong x=w-1;x<w;x--){
+		for (long x=(long)w-1;x>=0;x--){
 			uchar *pos00=pos0,
 				*pos10=pos1;
 			for (ulong y2=y,a=0;a<h && y2<resHeight;y2++,a++){
@@ -1585,8 +1585,8 @@ void WC_UCS2(uchar *dst,const wchar_t *src,ulong srcl,char end){
 		dst[1]=BOM16LB;
 	}
 	srcl*=sizeof(wchar_t);
-	memcpy(dst+sizeof(uchar)*useBOM,src,srcl);
-	srcl+=sizeof(uchar)*useBOM;
+	memcpy(dst+(int)useBOM,src,srcl);
+	srcl+=(int)useBOM;
 	if (nativeEndianness!=end){
 		for (ulong a=0;a<srcl;a+=2,dst+=2){
 			char temp=*dst;
@@ -1675,13 +1675,13 @@ std::string UniToISO88591(const std::wstring &str){
 
 std::string UniToUTF8(const std::wstring &str,bool addBOM){
 	std::string res;
-	res.resize(getUTF8size(&str[0],str.size())+addBOM*3);
+	res.resize(getUTF8size(&str[0],str.size())+int(addBOM)*3);
 	if (addBOM){
 		res.push_back(BOM8A);
 		res.push_back(BOM8B);
 		res.push_back(BOM8C);
 	}
-	WC_UTF8((uchar *)&res[addBOM*3],&str[0],str.size());
+	WC_UTF8((uchar *)&res[int(addBOM)*3],&str[0],str.size());
 	return res;
 }
 
@@ -1700,7 +1700,7 @@ std::string UniToSJIS(const std::wstring &str){
 }
 
 bool iswhitespace(wchar_t character){
-	static const wchar_t whitespace[]=WCS_WHITESPACE;
+	const wchar_t *whitespace=WCS_WHITESPACE;
 	for (const wchar_t *a=whitespace;*a;a++)
 		if (character==*a)
 			return 1;
@@ -1712,7 +1712,7 @@ bool iswhitespace(char character){
 }
 
 bool iswhitespaceASCIIe(char character){
-	static const char whitespace[]=STR_WHITESPACE;
+	const char *whitespace=STR_WHITESPACE;
 	for (const char *a=whitespace;*a;a++)
 		if (character==*a)
 			return 1;

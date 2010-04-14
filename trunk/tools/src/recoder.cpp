@@ -127,11 +127,21 @@ int main(int argc,char **argv){
 		inputEncoding=ENCODINGS::ISO_8859_1_ENCODING;
 	}
 	if (inputEncoding!=ENCODINGS::AUTO_ENCODING){
-		if ((uchar)buffer[0]==BOM8A && (uchar)buffer[1]==BOM8B && (uchar)buffer[2]==BOM8C && inputEncoding!=ENCODINGS::UTF8_ENCODING)
+		if (middleBuffer.size()>=3 &&
+				(uchar)middleBuffer[0]==BOM8A &&
+				(uchar)middleBuffer[1]==BOM8B &&
+				(uchar)middleBuffer[2]==BOM8C &&
+				inputEncoding!=ENCODINGS::UTF8_ENCODING)
 			std::cout <<"WARNING: The file appears to be a UTF-8."<<std::endl;
-		else if ((uchar)buffer[0]==BOM16BA && (uchar)buffer[1]==BOM16BB && inputEncoding==ENCODINGS::UCS2L_ENCODING)
+		else if (middleBuffer.size()>=2 &&
+				(uchar)middleBuffer[0]==BOM16BA &&
+				(uchar)middleBuffer[1]==BOM16BB &&
+				inputEncoding==ENCODINGS::UCS2L_ENCODING)
 			std::cout <<"WARNING: The file appears to be a big endian UCS-2."<<std::endl;
-		else if ((uchar)buffer[0]==BOM16LA && (uchar)buffer[1]==BOM16LB && inputEncoding==ENCODINGS::UCS2B_ENCODING)
+		else if (middleBuffer.size()>=2 &&
+				(uchar)middleBuffer[0]==BOM16LA &&
+				(uchar)middleBuffer[1]==BOM16LB &&
+				inputEncoding==ENCODINGS::UCS2B_ENCODING)
 			std::cout <<"WARNING: The file appears to be a little endian UCS-2."<<std::endl;
 	}
 	switch (inputEncoding){

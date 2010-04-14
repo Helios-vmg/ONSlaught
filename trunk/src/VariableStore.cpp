@@ -477,13 +477,16 @@ namespace NONS_Expression{
 		this->expr->vectorize(full_expression);
 
 		std::vector<std::wstring> stack;
+		std::vector<char> type_stack;
 		for (size_t a=0;a<full_expression.size();a++){
 			Expression *expr=full_expression[a];
 			std::wstring push;
+			char type;
 			if (!expr->op){
-				if (expr->val->type==Value::INTEGER)
+				if (expr->val->type==Value::INTEGER){
 					push=::itoaw(expr->val->integer);
-				else{
+					type='%';
+				}else{
 					push=L"e\"";
 					std::wstring &s=expr->val->string;
 					for (size_t b=0;b<s.size();b++){
@@ -502,64 +505,93 @@ namespace NONS_Expression{
 						}
 					}
 					push.push_back('\"');
+					type='$';
 				}
 			}else{
 				size_t base=stack.size()-expr->operands.size();
 				if (expr->op==eval){
 					push=L"(eval("+stack[base]+L"))";
+					type='%';
 				}else if (expr->op==atoi){
 					push=L"(_atoi("+stack[base]+L"))";
+					type='%';
 				}else if (expr->op==itoa){
 					push=L"(_itoa("+stack[base]+L"))";
+					type='$';
 				}else if (expr->op==concat){
 					push=L"("+stack[base]+L"+"+stack[base+1]+L")";
+					type='$';
 				}else if (expr->op==array_indexing){
 					push=L"(?"+stack[base];
-					for (size_t a=1;a<expr->operands.size();a++){
+					for (size_t b=1;a<expr->operands.size();a++){
 						push.push_back('[');
-						push.append(stack[base+a]);
+						push.append(stack[base+b]);
 						push.push_back(']');
 					}
 					push.push_back(')');
+					type='%';
 				}else if (expr->op==add){
 					push=L"("+stack[base]+L"+"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==sub){
 					push=L"("+stack[base]+L"-"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==mul){
 					push=L"("+stack[base]+L"*"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==div){
 					push=L"("+stack[base]+L"/"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==and_operator){
 					push=L"("+stack[base]+L"&"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==or_operator){
 					push=L"("+stack[base]+L"|"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==neg){
 					push=L"(-"+stack[base]+L")";
+					type='%';
 				}else if (expr->op==integer_dereference){
 					push=L"%"+stack[base];
+					type='%';
 				}else if (expr->op==string_dereference){
 					push=L"$"+stack[base];
+					type='$';
 				}else if (expr->op==equals){
 					push=L"("+stack[base]+L"=="+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==nequals){
 					push=L"("+stack[base]+L"!="+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==lower){
 					push=L"("+stack[base]+L"<"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==greatereq){
 					push=L"("+stack[base]+L">="+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==greater){
 					push=L"("+stack[base]+L">"+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==lowereq){
 					push=L"("+stack[base]+L"<="+stack[base+1]+L")";
+					type='%';
 				}else if (expr->op==fchk){
 					push=L"(fchk("+stack[base]+L"))";
+					type='%';
 				}else if (expr->op==lchk){
-					push=L"(fchk(*"+stack[base]+L"))";
+					if (type_stack[base]=='%')
+						push=L"(lchk(*"+stack[base]+L"))";
+					else
+						push=L"(lchk("+stack[base]+L"))";
+					type='%';
 				}
-				for (size_t a=0;a<expr->operands.size();a++)
+				for (size_t b=expr->operands.size();b;b--){
 					stack.pop_back();
+					type_stack.pop_back();
+				}
 			}
 			stack.push_back(push);
+			type_stack.push_back(type);
 		}
 		return stack.back();
 	}

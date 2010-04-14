@@ -34,6 +34,7 @@
 #include "Common.h"
 #include <string>
 #include <vector>
+#include <map>
 
 struct NONS_CommandLineOptions{
 	ENCODING::ENCODING scriptencoding;
@@ -60,6 +61,8 @@ struct NONS_CommandLineOptions{
 	bool preprocessAndQuit;
 	std::wstring play;
 	bool play_from_archive;
+	typedef std::map<wchar_t,wchar_t> replaceArray_t;
+	replaceArray_t replaceArray;
 	NONS_CommandLineOptions();
 	~NONS_CommandLineOptions(){}
 	void parse(const std::vector<std::wstring> &arguments);

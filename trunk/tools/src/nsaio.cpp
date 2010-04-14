@@ -70,21 +70,22 @@ struct Options{
 			"-o",
 			"-c",
 			"-r",
+			"e",
+			"c",
+			"l",
 			0
 		};
 		this->compressionType=COMPRESSION_DEFAULT;
 		this->good=0;
-		if (!++argv)
+		if (!*++argv){
+			this->mode='h';
+			this->good=1;
 			return;
-		std::string mode=*argv++;
-		if (mode=="e" || mode=="c" || mode=="l")
-			this->mode=mode[0];
-		else
-			return;
+		}
 		bool nextIsOutput=0,
 			nextIsCompression=0,
 			nextIsSkip=0;
-		while (*argv){
+		for (;*argv;argv++){
 			long option=-1;
 			for (ulong a=0;options[a] && option<0;a++)
 				if (!strcmp(*argv,options[a]))
@@ -115,6 +116,11 @@ struct Options{
 						nextIsSkip=1;
 						break;
 					}
+				case 7: //e
+				case 8: //c
+				case 9: //l
+					this->mode=**argv;
+					break;
 				default:
 					if (nextIsOutput){
 						this->outputFilename=UniFromUTF8(*argv);
@@ -137,7 +143,6 @@ struct Options{
 						nextIsSkip=0;
 					}
 			}
-			argv++;
 		}
 		this->good=1;
 	}

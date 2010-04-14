@@ -1,5 +1,5 @@
 
-/* A Bison parser, made by GNU Bison 2.4.  */
+/* A Bison parser, made by GNU Bison 2.4.1.  */
 
 /* Skeleton implementation for Bison's Yacc-like parsers in C
    
@@ -46,7 +46,7 @@
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "2.4"
+#define YYBISON_VERSION "2.4.1"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -1597,21 +1597,21 @@ yyreduce:
 
     {
 		res=(yyvsp[(1) - (1)].obj);
-	}
+	;}
     break;
 
   case 6:
 
     {
 		res=(yyvsp[(1) - (1)].obj);
-	}
+	;}
     break;
 
   case 7:
 
     {
 		YYABORT;
-	}
+	;}
     break;
 
   case 8:
@@ -1620,7 +1620,7 @@ yyreduce:
 		ppd->res.push_back((yyvsp[(2) - (3)].obj));
 		ppd->then_position=(yyvsp[(3) - (3)].position);
 		YYACCEPT;
-	}
+	;}
     break;
 
   case 9:
@@ -1630,7 +1630,7 @@ yyreduce:
 		ppd->res.push_back((yyvsp[(4) - (6)].obj));
 		ppd->res.push_back((yyvsp[(6) - (6)].obj));
 		YYACCEPT;
-	}
+	;}
     break;
 
   case 10:
@@ -1641,42 +1641,42 @@ yyreduce:
 		ppd->res.push_back((yyvsp[(6) - (8)].obj));
 		ppd->res.push_back((yyvsp[(8) - (8)].obj));
 		YYACCEPT;
-	}
+	;}
     break;
 
   case 11:
 
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
-	}
+	;}
     break;
 
   case 12:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::eval,(yyvsp[(3) - (4)].obj),0);
-	}
+	;}
     break;
 
   case 13:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::atoi,(yyvsp[(3) - (4)].obj),0);
-	}
+	;}
     break;
 
   case 14:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::integer_dereference,(yyvsp[(2) - (2)].obj),0);
-	}
+	;}
     break;
 
   case 15:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::array_indexing,(yyvsp[(2) - (2)].obj),0);
-	}
+	;}
     break;
 
   case 16:
@@ -1684,7 +1684,7 @@ yyreduce:
     {
 		(yyval.obj)=(yyvsp[(1) - (4)].obj);
 		(yyval.obj)->operands.push_back((yyvsp[(3) - (4)].obj));
-	}
+	;}
     break;
 
   case 17:
@@ -1692,196 +1692,196 @@ yyreduce:
     {
 		(yyval.obj)=0;
 		YYABORT;
-	}
+	;}
     break;
 
   case 18:
 
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
-	}
+	;}
     break;
 
   case 19:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::string_dereference,(yyvsp[(2) - (2)].obj),0);
-	}
+	;}
     break;
 
   case 20:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::itoa,(yyvsp[(3) - (4)].obj),0);
-	}
+	;}
     break;
 
   case 21:
 
     {
 		(yyval.obj)=(yyvsp[(2) - (3)].obj);
-	}
+	;}
     break;
 
   case 22:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::concat,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 23:
 
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
-	}
+	;}
     break;
 
   case 24:
 
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
-	}
+	;}
     break;
 
   case 25:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::add,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 26:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::sub,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 27:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::mul,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 28:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::div,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 29:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::equals,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 30:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::nequals,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 31:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lower,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 32:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::greatereq,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 33:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::greater,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 34:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lowereq,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 35:
 
     {
-		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lchk,(yyvsp[(2) - (2)].obj),0);
-	}
+		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::fchk,(yyvsp[(2) - (2)].obj),0);
+	;}
     break;
 
   case 36:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lchk,(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 37:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lchk,(yyvsp[(2) - (2)].obj),0);
-	}
+	;}
     break;
 
   case 38:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::or_operator,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 39:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::and_operator,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
-	}
+	;}
     break;
 
   case 40:
 
     {
 		(yyval.obj)=(yyvsp[(2) - (2)].obj);
-	}
+	;}
     break;
 
   case 41:
 
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::neg,(yyvsp[(2) - (2)].obj),0);
-	}
+	;}
     break;
 
   case 42:
 
     {
 		(yyval.obj)=(yyvsp[(2) - (3)].obj);
-	}
+	;}
     break;
 
   case 43:
 
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
-	}
+	;}
     break;
 
   case 44:
 
     {
 		(yyval.obj)=(yyvsp[(2) - (3)].obj);
-	}
+	;}
     break;
 
 
