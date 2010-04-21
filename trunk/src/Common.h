@@ -37,6 +37,7 @@ typedef unsigned char uchar;
 #define NONS_SYS_LINUX (defined linux || defined __linux)
 #define NONS_SYS_BSD (defined __bsdi__)
 #define NONS_SYS_UNIX (defined __unix__ || defined __unix)
+#define NONS_SYS_PSP (defined PSP)
 
 #if NONS_SYS_WINDOWS
 typedef void *HANDLE;
@@ -90,4 +91,13 @@ extern DLLexport volatile bool ctrlIsPressed;
 extern DLLexport volatile bool forceSkip;
 
 #define CURRENTLYSKIPPING (ctrlIsPressed || forceSkip)
+
+#if NONS_SYS_PSP
+#include <string>
+#include <sstream>
+namespace std{
+typedef basic_string<wchar_t> wstring;
+typedef basic_stringstream<wchar_t> wstringstream;
+}
+#endif
 #endif

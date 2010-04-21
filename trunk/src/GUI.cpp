@@ -556,7 +556,7 @@ SDL_Rect NONS_Button::GetBoundingBox(const std::wstring &str,NONS_FontCache *cac
 					outputBuffer[lastSpace]->done();
 					outputBuffer[lastSpace]=0;
 				}else
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,0);
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
 				lastSpace=-1;
 				x0=0;
 				y0+=lineSkip;
@@ -571,7 +571,7 @@ SDL_Rect NONS_Button::GetBoundingBox(const std::wstring &str,NONS_FontCache *cac
 					outputBuffer[lastSpace]->done();
 					outputBuffer[lastSpace]=0;
 				}else
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,0);
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
 				lastSpace=-1;
 				x0=0;
 				y0+=lineSkip;
@@ -654,9 +654,9 @@ void NONS_Button::write(const std::wstring &str,int offsetX,int offsetY,float ce
 					outputBuffer2[lastSpace]=0;
 					outputBuffer3[lastSpace]=0;
 				}else{
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,0);
-					outputBuffer2.insert(outputBuffer2.begin()+lastSpace+1,0);
-					outputBuffer3.insert(outputBuffer3.begin()+lastSpace+1,0);
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
+					outputBuffer2.insert(outputBuffer2.begin()+lastSpace+1,(NONS_Glyph *)0);
+					outputBuffer3.insert(outputBuffer3.begin()+lastSpace+1,(NONS_Glyph *)0);
 				}
 				lastSpace=-1;
 				y0+=lineSkip;
@@ -675,9 +675,9 @@ void NONS_Button::write(const std::wstring &str,int offsetX,int offsetY,float ce
 					outputBuffer2[lastSpace]=0;
 					outputBuffer3[lastSpace]=0;
 				}else{
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,0);
-					outputBuffer2.insert(outputBuffer2.begin()+lastSpace+1,0);
-					outputBuffer3.insert(outputBuffer3.begin()+lastSpace+1,0);
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
+					outputBuffer2.insert(outputBuffer2.begin()+lastSpace+1,(NONS_Glyph *)0);
+					outputBuffer3.insert(outputBuffer3.begin()+lastSpace+1,(NONS_Glyph *)0);
 				}
 				lastSpace=-1;
 				x0=offsetX;

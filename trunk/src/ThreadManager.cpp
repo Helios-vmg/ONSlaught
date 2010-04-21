@@ -37,6 +37,8 @@
 #include <windows.h>
 #elif NONS_SYS_UNIX
 #include <unistd.h>
+#elif NONS_SYS_PSP
+#undef NONS_PARALLELIZE
 #endif
 
 DLLexport ulong cpu_count=1;
@@ -47,6 +49,8 @@ void NONS_Event::init(){
 	this->event=CreateEvent(0,0,0,0);
 #elif NONS_SYS_UNIX
 	sem_init(&this->sem,0,0);
+#elif NONS_SYS_PSP
+	this->sem=SDL_CreateSemaphore(0);
 #endif
 	this->initialized=1;
 }
@@ -58,6 +62,8 @@ NONS_Event::~NONS_Event(){
 	CloseHandle(this->event);
 #elif NONS_SYS_UNIX
 	sem_destroy(&this->sem);
+#elif NONS_SYS_PSP
+	SDL_DestroySemaphore(this->sem);
 #endif
 }
 
@@ -66,6 +72,8 @@ void NONS_Event::set(){
 	SetEvent(this->event);
 #elif NONS_SYS_UNIX
 	sem_post(&this->sem);
+#elif NONS_SYS_PSP
+	SDL_SemPost(this->sem);
 #endif
 }
 
@@ -80,6 +88,8 @@ void NONS_Event::wait(){
 	WaitForSingleObject(this->event,INFINITE);
 #elif NONS_SYS_UNIX
 	sem_wait(&this->sem);
+#elif NONS_SYS_PSP
+	SDL_SemWait(this->sem);
 #endif
 }
 
@@ -209,6 +219,8 @@ void NONS_Thread::call(NONS_ThreadedFunctionPointer function,void *data){
 	this->thread=CreateThread(0,0,(LPTHREAD_START_ROUTINE)runningThread,ts,0,0);
 #elif NONS_SYS_UNIX
 	pthread_create(&this->thread,0,runningThread,ts);
+#elif NONS_SYS_PSP
+	this->thread=SDL_CreateThread(runningThread,ts);
 #endif
 	this->called=1;
 }
@@ -220,6 +232,8 @@ void NONS_Thread::join(){
 	WaitForSingleObject(this->thread,INFINITE);
 #elif NONS_SYS_UNIX
 	pthread_join(this->thread,0);
+#elif NONS_SYS_PSP
+	SDL_WaitThread(this->thread,0);
 #endif
 	this->called=0;
 }
@@ -228,6 +242,8 @@ void NONS_Thread::join(){
 DWORD WINAPI 
 #elif NONS_SYS_UNIX
 void *
+#elif NONS_SYS_PSP
+int
 #endif
 NONS_Thread::runningThread(void *p){
 	NONS_ThreadedFunctionPointer f=((threadStruct *)p)->f;
@@ -251,6 +267,8 @@ NONS_Mutex::NONS_Mutex(bool track_self){
 	pthread_mutexattr_settype(&attr,PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&this->mutex,&attr);
 	pthread_mutexattr_destroy(&attr);
+#elif NONS_SYS_PSP
+	this->mutex=SDL_CreateMutex();
 #endif
 #ifdef DEBUG_SCREEN_MUTEX
 	this->mutex_for_self=(track_self)?new NONS_Mutex:0;
@@ -264,6 +282,8 @@ NONS_Mutex::~NONS_Mutex(){
 	delete (CRITICAL_SECTION *)this->mutex;
 #elif NONS_SYS_UNIX
 	pthread_mutex_destroy(&this->mutex);
+#elif NONS_SYS_PSP
+	SDL_DestroyMutex(this->mutex);
 #endif
 #ifdef DEBUG_SCREEN_MUTEX
 	delete this->mutex_for_self;
@@ -279,6 +299,8 @@ void NONS_Mutex::lock(){
 	EnterCriticalSection((CRITICAL_SECTION *)this->mutex);
 #elif NONS_SYS_UNIX
 	pthread_mutex_lock(&this->mutex);
+#elif NONS_SYS_PSP
+	SDL_LockMutex(this->mutex);
 #endif
 #ifdef DEBUG_SCREEN_MUTEX
 	if (this->mutex_for_self){
@@ -297,6 +319,8 @@ void NONS_Mutex::unlock(){
 	LeaveCriticalSection((CRITICAL_SECTION *)this->mutex);
 #elif NONS_SYS_UNIX
 	pthread_mutex_unlock(&this->mutex);
+#elif NONS_SYS_PSP
+	SDL_UnlockMutex(this->mutex);
 #endif
 #ifdef DEBUG_SCREEN_MUTEX
 	if (this->mutex_for_self){

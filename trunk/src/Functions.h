@@ -135,13 +135,6 @@ inline T HEX2DEC(T x){
 	return x<='9'?x-'0':(x<='F'?x-'A'+10:x-'a'+10);
 }
 
-template <typename T>
-long atoi(const std::basic_string<T> &str){
-	std::basic_stringstream<T> stream(str);
-	long res;
-	return !(stream >>res)?0:res;
-}
-
 template <typename T,typename T2>
 std::basic_string<T> itoa(T2 n,unsigned w=0){
 	std::basic_stringstream<T> stream;
@@ -454,6 +447,28 @@ inline bool NONS_isid1char(unsigned character){
 //1 if the character matches the regex [A-Za-z_0-9] (the second and beyond character in a C-style identifier)
 inline bool NONS_isidnchar(unsigned character){
 	return NONS_isid1char(character) || NONS_isdigit(character);
+}
+
+template <typename T>
+long atoi(const std::basic_string<T> &str){
+#if !NONS_SYS_PSP
+	std::basic_stringstream<T> stream(str);
+	long res;
+	return !(stream >>res)?0:res;
+#else
+	long res=0;
+	bool sign=0;
+	ulong a=0;
+	if (str[a]=='-'){
+		sign=1;
+		a++;
+	}
+	for (;a<str.size() && NONS_isdigit(str[a]);a++)
+		res=res*10+str[a]-'0';
+	if (sign)
+		res=-res;
+	return res;
+#endif
 }
 
 template <typename T1,typename T2>

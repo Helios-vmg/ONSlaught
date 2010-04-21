@@ -332,12 +332,15 @@ NONS_RedirectedOutput::~NONS_RedirectedOutput(){
 }
 
 void NONS_RedirectedOutput::write_to_stream(const std::stringstream &str){
+#if NONS_SYS_WINDOWS
 	if (CLOptions.verbosity>=255 && this->vc)
 		this->vc->put(str.str());
-	else if (CLOptions.override_stdout && this->file)
-		(*this->file) <<str.str();
 	else
-		this->cout <<str.str();
+#endif
+		if (CLOptions.override_stdout && this->file)
+			(*this->file) <<str.str();
+		else
+			this->cout <<str.str();
 }
 
 NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(ulong a){

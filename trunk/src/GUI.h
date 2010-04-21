@@ -69,7 +69,7 @@ public:
 	bool good() const{ return !this->error; }
 	FT_Error get_error() const{ return this->error; }
 	bool check_flag(unsigned flag) const{ return (this->ft_font->face_flags&flag)==flag; }
-	bool NONS_Font::is_monospace() const;
+	bool is_monospace() const;
 	void set_size(ulong size);
 	FT_GlyphSlot get_glyph(wchar_t codepoint,bool italic,bool bold) const;
 	FT_GlyphSlot render_glyph(wchar_t codepoint,bool italic,bool bold) const;

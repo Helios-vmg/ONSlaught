@@ -240,12 +240,14 @@ std::wstring getSaveLocation(unsigned hash[5]){
 #else
 	return root;
 #endif
+#if NONS_SYS_WINDOWS || NONS_SYS_UNIX
 	if (!CLOptions.savedir.size()){
 		path.append(itohexw(hash[0],8));
 		path.push_back(' ');
 		path.append(itohexw(hash[1],8));
 	}else
 		path.append(CLOptions.savedir);
+#endif
 #if NONS_SYS_WINDOWS
 	if (!CreateDirectory((LPCTSTR)path.c_str(),0) && GetLastError()!=ERROR_ALREADY_EXISTS)
 		return root;

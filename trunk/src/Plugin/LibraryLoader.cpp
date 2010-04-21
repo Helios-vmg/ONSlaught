@@ -61,7 +61,7 @@ NONS_LibraryLoader::~NONS_LibraryLoader(){
 		return;
 #if NONS_SYS_WINDOWS
 	FreeLibrary((HMODULE)this->lib);
-#else
+#elif NONS_SYS_UNIX
 	dlclose(this->lib);
 #endif
 }
@@ -72,8 +72,10 @@ void *NONS_LibraryLoader::getFunction(const char *functionName){
 	void *ret=
 #if NONS_SYS_WINDOWS
 		(void *)GetProcAddress((HMODULE)this->lib,functionName);
-#else
+#elif NONS_SYS_UNIX
 		dlsym(this->lib,functionName);
+#elif NONS_SYS_PSP
+		0;
 #endif
 	this->error=reason((!ret)?FUNCTION_NOT_FOUND:NO_ERROR);
 	return ret;

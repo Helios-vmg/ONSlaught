@@ -37,6 +37,9 @@ typedef void (*NONS_ThreadedFunctionPointer)(void *);
 #if NONS_SYS_UNIX
 #include <pthread.h>
 #include <semaphore.h>
+#elif NONS_SYS_PSP
+#include <SDL/SDL.h>
+#include <SDL/SDL_thread.h>
 #endif
 
 #define USE_THREAD_MANAGER
@@ -47,6 +50,8 @@ class NONS_Event{
 	HANDLE event;
 #elif NONS_SYS_UNIX
 	sem_t sem;
+#elif NONS_SYS_PSP
+	SDL_sem *sem;
 #endif
 public:
 	NONS_Event():initialized(0){}
@@ -65,6 +70,9 @@ class NONS_Thread{
 #elif NONS_SYS_UNIX
 	pthread_t thread;
 	static void *runningThread(void *);
+#elif NONS_SYS_PSP
+	SDL_Thread *thread;
+	static int runningThread(void *);
 #endif
 	bool called;
 public:
@@ -113,6 +121,8 @@ class DLLexport NONS_Mutex{
 	void *mutex;
 #elif NONS_SYS_UNIX
 	pthread_mutex_t mutex;
+#elif NONS_SYS_PSP
+	SDL_mutex *mutex;
 #endif
 #ifdef DEBUG_SCREEN_MUTEX
 	NONS_Mutex *mutex_for_self;

@@ -262,6 +262,11 @@ extern wchar_t SJIS2Unicode[0x10000],
 	SJIS2Unicode_compact[];
 void initialize_conversion_tables();
 
+#if NONS_SYS_PSP
+#include <pspkernel.h>
+PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
+#endif
+
 #ifdef main
 #undef main
 #endif
