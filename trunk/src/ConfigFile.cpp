@@ -75,9 +75,6 @@ void ConfigFile::init(const std::wstring &filename,ENCODING::ENCODING encoding){
 		case ENCODING::ISO_8859_1:
 			decoded=UniFromISO88591(std::string(buffer,l));
 			break;
-		case ENCODING::UCS2:
-			decoded=UniFromUCS2(std::string(buffer,l),UNDEFINED_ENDIANNESS);
-			break;
 		case ENCODING::UTF8:
 			decoded=UniFromUTF8(std::string(buffer,l));
 			break;
@@ -198,9 +195,6 @@ std::string ConfigFile::writeOut(ENCODING::ENCODING encoding){
 	switch (encoding){
 		case ENCODING::ISO_8859_1:
 			return UniToISO88591(buffer);
-			break;
-		case ENCODING::UCS2:
-			return UniToUCS2(buffer);
 			break;
 		case ENCODING::UTF8:
 			return UniToUTF8(buffer);

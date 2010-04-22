@@ -775,6 +775,14 @@ void applyTransformationMatrix_threaded(const applyTransformationMatrix_paramete
 	}
 }
 
+char checkNativeEndianness(){
+	Uint16 a=0x1234;
+	if (*(uchar *)&a==0x12)
+		return NONS_BIG_ENDIAN;
+	else
+		return NONS_LITTLE_ENDIAN;
+}
+
 void FlipSurfaceH(SDL_Surface *src,SDL_Surface *dst){
 	if (!src || !dst || src->w!=dst->w || src->h!=dst->h)
 		return;
@@ -1422,39 +1430,103 @@ void findMainWindow(const wchar_t *caption){
 extern wchar_t SJIS2Unicode[0x10000],
 	Unicode2SJIS[0x10000];
 
-char checkEnd(wchar_t a){
-	if (a==BOM16B)
-		return NONS_BIG_ENDIAN;
-	else if (a==BOM16L)
-		return NONS_LITTLE_ENDIAN;
-	else
-		return UNDEFINED_ENDIANNESS;
-}
+#define SINGLE_CHARACTER_F(name) inline bool name(wchar_t &dst,const uchar *src,size_t size,ulong &bytes_used)
 
-char checkNativeEndianness(){
-	Uint16 a=0x1234;
-	if (*(Uint8 *)&a==0x12)
-		return NONS_BIG_ENDIAN;
-	else
-		return NONS_LITTLE_ENDIAN;
-}
-
-char nativeEndianness=checkNativeEndianness();
-
-inline wchar_t invertWC(wchar_t val){
-#if WCHAR_MAX<=0xFFFF
-	return (val>>8)|(val<<8);
-#elif WCHAR_MAX<=0xFFFFFFFF
-	return (val>>16)|0xFF&(val>>8)|0xFF00&(val<<8)|(val<<16);
+SINGLE_CHARACTER_F(ConvertSingleUTF8Character){
+	bytes_used=0;
+	uchar byte=src[bytes_used++];
+	wchar_t c=0;
+	if (!(byte&0x80))
+		c=byte;
+	else if ((byte&0xC0)==0x80){
+		bytes_used=1;
+		return 0;
+	}else if ((byte&0xE0)==0xC0){
+		if (size<2){
+			bytes_used=size;
+			return 0;
+		}
+		c=byte&0x1F;
+		c<<=6;
+		c|=src[bytes_used++]&0x3F;
+	}else if ((byte&0xF0)==0xE0){
+		if (size<3){
+			bytes_used=size;
+			return 0;
+		}
+		c=byte&0x0F;
+		c<<=6;
+		c|=src[bytes_used++]&0x3F;
+		c<<=6;
+		c|=src[bytes_used++]&0x3F;
+	}else if ((byte&0xF8)==0xF0){
+		if (size<4){
+			bytes_used=size;
+			return 0;
+		}
+#if WCHAR_MAX==0xFFFF
+		c='?';
+#else
+		c=byte&0x07;
+		c<<=6;
+		c|=src[bytes_used++]&0x3F;
+		c<<=6;
+		c|=src[bytes_used++]&0x3F;
+		c<<=6;
+		c|=src[bytes_used++]&0x3F;
 #endif
+	}
+	dst=c;
+	return 1;
 }
 
-void UCS2_WC(wchar_t *dst,const uchar *src,ulong srcl,uchar end){
-	memcpy(dst,src,srcl);
-	srcl/=sizeof(wchar_t);
-	if ((uchar)nativeEndianness!=end)
-		for (ulong a=0;a<srcl;a++)
-			dst[a]=invertWC(dst[a]);
+#define IS_SJIS_WIDE(x) ((x)>=0x81 && (x)<=0x9F || (x)>=0xE0 && (x)<=0xEF)
+
+SINGLE_CHARACTER_F(ConvertSingleSJISCharacter){
+	bytes_used=0;
+	uchar c0=src[bytes_used++];
+	wchar_t c1;
+	if (IS_SJIS_WIDE(c0)){
+		if (size<2){
+			bytes_used=size;
+			return 0;
+		}
+		c1=(c0<<8)|src[bytes_used++];
+	}else
+		c1=c0;
+	if (SJIS2Unicode[c1]=='?' && c1!='?'){
+		o_stderr <<"ENCODING ERROR: Character SJIS+"<<itohexc(c1,4)
+			<<" is unsupported by this Shift JIS->Unicode implementation. Replacing with '?'.\n";
+	}
+	dst=SJIS2Unicode[c1];
+	return 1;
+}
+
+void ConvertSingleCharacterToUTF8(char dst[4],wchar_t src,ulong &bytes_used){
+	bytes_used=0;
+	if (src<0x80)
+		dst[bytes_used++]=(char)src;
+	else if (src<0x800){
+		dst[bytes_used++]=(src>>6)|0xC0;
+		dst[bytes_used++]=src&0x3F|0x80;
+#if WCHAR_MAX==0xFFFF
+	}else{
+#else
+	}else if (src<0x10000){
+#endif
+		dst[bytes_used++]=(src>>12)|0xE0;
+		dst[bytes_used++]=((src>>6)&0x3F)|0x80;
+		dst[bytes_used++]=src&0x3F|0x80;
+#if WCHAR_MAX==0xFFFF
+	}
+#else
+	}else{
+		dst[bytes_used++]=(src>>18)|0xF0;
+		dst[bytes_used++]=((src>>12)&0x3F)|0x80;
+		dst[bytes_used++]=((src>>6)&0x3F)|0x80;
+		dst[bytes_used++]=src&0x3F|0x80;
+	}
+#endif
 }
 
 void ISO_WC(wchar_t *dst,const uchar *src,ulong srcl){
@@ -1463,58 +1535,18 @@ void ISO_WC(wchar_t *dst,const uchar *src,ulong srcl){
 }
 
 void UTF8_WC(wchar_t *dst,const uchar *src,ulong srcl){
-	for (ulong a=0;a<srcl;a++){
-		uchar byte=*src++;
-		wchar_t c=0;
-		if (!(byte&0x80))
-			c=byte;
-		else if ((byte&0xC0)==0x80)
-			continue;
-		else if ((byte&0xE0)==0xC0){
-			c=byte&0x1F;
-			c<<=6;
-			c|=*src&0x3F;
-		}else if ((byte&0xF0)==0xE0){
-			c=byte&0x0F;
-			c<<=6;
-			c|=*src&0x3F;
-			c<<=6;
-			c|=src[1]&0x3F;
-		}else if ((byte&0xF8)==0xF0){
-#if WCHAR_MAX==0xFFFF
-			c='?';
-#else
-			c=byte&0x07;
-			c<<=6;
-			c|=*src&0x3F;
-			c<<=6;
-			c|=src[1]&0x3F;
-			c<<=6;
-			c|=src[2]&0x3F;
-#endif
-		}
-		*dst++=c;
-	}
+	ulong advance;
+	for (ulong a=0;a<srcl;a+=advance)
+		if (!ConvertSingleUTF8Character(*dst++,src+a,srcl-a,advance))
+			break;
 }
-
-#define IS_SJIS_WIDE(x) ((x)>=0x81 && (x)<=0x9F || (x)>=0xE0 && (x)<=0xEF)
 
 ulong SJIS_WC(wchar_t *dst,const uchar *src,ulong srcl){
 	ulong ret=0;
-	for (ulong a=0;a<srcl;a++,ret++){
-		uchar c0=*src++;
-		wchar_t c1;
-		if (IS_SJIS_WIDE(c0)){
-			c1=(c0<<8)|*src++;
-			a++;
-		}else
-			c1=c0;
-		if (SJIS2Unicode[c1]=='?' && c1!='?'){
-			o_stderr <<"ENCODING ERROR: Character SJIS+"<<itohexc(c1,4)
-				<<" is unsupported by this Shift JIS->Unicode implementation. Replacing with '?'.\n";
-		}
-		*dst++=SJIS2Unicode[c1];
-	}
+	ulong advance;
+	for (ulong a=0;a<srcl;a+=advance,ret++)
+		if (!ConvertSingleSJISCharacter(*dst++,src+a,srcl-a,advance))
+			break;
 	return ret;
 }
 
@@ -1573,29 +1605,6 @@ void WC_UTF8(uchar *dst,const wchar_t *src,ulong srcl){
 	}
 }
 
-void WC_UCS2(uchar *dst,const wchar_t *src,ulong srcl,char end){
-	bool useBOM=(end<UNDEFINED_ENDIANNESS);
-	if (!useBOM)
-		end=NONS_BIG_ENDIAN;
-	if (nativeEndianness==NONS_BIG_ENDIAN){
-		dst[0]=BOM16BA;
-		dst[1]=BOM16BB;
-	}else{
-		dst[0]=BOM16LA;
-		dst[1]=BOM16LB;
-	}
-	srcl*=sizeof(wchar_t);
-	memcpy(dst+(int)useBOM,src,srcl);
-	srcl+=(int)useBOM;
-	if (nativeEndianness!=end){
-		for (ulong a=0;a<srcl;a+=2,dst+=2){
-			char temp=*dst;
-			*dst=dst[1];
-			dst[1]=temp;
-		}
-	}
-}
-
 ulong WC_SJIS(uchar *dst,const wchar_t *src,ulong srcl){
 	ulong ret=0;
 	for (ulong a=0;a<srcl;a++){
@@ -1638,27 +1647,6 @@ std::wstring UniFromUTF8(const std::string &str){
 	return res;
 }
 
-std::wstring UniFromUCS2(const std::string &str,char end){
-	std::wstring res;
-	ulong size=(str.size()&1)?str.size()-1:str.size();
-	if (size<2)
-		return res;
-	wchar_t firstChar=(str[0]<<8)|str[1];
-	char realEnd=checkEnd(firstChar);
-	bool usesBOM=(realEnd!=UNDEFINED_ENDIANNESS);
-	ulong start=0;
-	if (usesBOM)
-		start=2;
-	else
-		realEnd=NONS_BIG_ENDIAN;
-	if (end==UNDEFINED_ENDIANNESS)
-		end=realEnd;
-	size-=start;
-	res.resize(str.size()/sizeof(wchar_t));
-	UCS2_WC(&res[0],(const uchar *)&str[0]+start,size,end);
-	return res;
-}
-
 std::wstring UniFromSJIS(const std::string &str){
 	std::wstring res;
 	res.resize(str.size());
@@ -1685,18 +1673,57 @@ std::string UniToUTF8(const std::wstring &str,bool addBOM){
 	return res;
 }
 
-std::string UniToUCS2(const std::wstring &str,char end){
-	std::string res;
-	res.resize(str.size()*2+(end!=UNDEFINED_ENDIANNESS)*2);
-	WC_UCS2((uchar *)&res[0],&str[0],str.size(),end);
-	return res;
-}
-
 std::string UniToSJIS(const std::wstring &str){
 	std::string res;
 	res.resize(str.size()*sizeof(wchar_t));
 	res.resize(WC_SJIS((uchar *)&res[0],&str[0],str.size()));
 	return res;
+}
+
+bool ConvertSingleCharacter(wchar_t &dst,void *buffer,size_t size,ulong &bytes_used,ENCODING::ENCODING encoding){
+	switch (encoding){
+		case ENCODING::UTF8:
+			return ConvertSingleUTF8Character(dst,(uchar *)buffer,size,bytes_used);
+		case ENCODING::SJIS:
+			return ConvertSingleSJISCharacter(dst,(uchar *)buffer,size,bytes_used);
+		case ENCODING::ISO_8859_1:
+			bytes_used=1;
+			dst=*(uchar *)buffer;
+			return 1;
+		default:
+			bytes_used=1;
+			return 0;
+	}
+}
+
+ulong find_first_not_of_in_utf8(const std::string &str,const wchar_t *find,ulong start_at){
+	while (start_at<str.size()){
+		wchar_t c;
+		ulong unused;
+		if (
+				ConvertSingleUTF8Character(c,(const uchar *)&str[start_at],str.size()-start_at,unused) &&
+				!multicomparison(c,find))
+			return start_at;
+		start_at++;
+	}
+	return ULONG_MAX;
+}
+
+ulong find_last_not_of_in_utf8(const std::string &str,const wchar_t *find,ulong start_at){
+	if (start_at==ULONG_MAX)
+		start_at=str.size()-1;
+	while (1){
+		wchar_t c;
+		ulong unused;
+		if (
+				ConvertSingleUTF8Character(c,(const uchar *)&str[start_at],str.size()-start_at,unused) &&
+				!multicomparison(c,find))
+			return start_at;
+		if (!start_at)
+			break;
+		start_at--;
+	}
+	return ULONG_MAX;
 }
 
 bool iswhitespace(wchar_t character){

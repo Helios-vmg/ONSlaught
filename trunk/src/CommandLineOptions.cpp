@@ -224,7 +224,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
 					break;
 				}
-				if (arguments[++a]==L"sjis"){
+				if (arguments[++a]==L"auto"){
 					this->scriptencoding=ENCODING::AUTO;
 					break;
 				}
@@ -238,10 +238,6 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				}
 				if (arguments[a]==L"utf8"){
 					this->scriptencoding=ENCODING::UTF8;
-					break;
-				}
-				if (arguments[a]==L"ucs2"){
-					this->scriptencoding=ENCODING::UCS2;
 					break;
 				}
 				std::cerr <<"Unrecognized encoding: \""<<arguments[a]<<"\""<<std::endl;

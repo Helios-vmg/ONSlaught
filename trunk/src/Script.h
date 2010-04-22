@@ -84,14 +84,24 @@ struct NONS_ScriptLine{
 };
 
 struct NONS_ScriptBlock{
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 	std::wstring name,
 		data;
+#else
+	NONS_Script *script;
+	std::wstring name;
+#endif
 	ulong first_offset,
 		last_offset,
 		first_line,
 		last_line;
 	bool used;
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 	NONS_ScriptBlock(const std::wstring &name,const wchar_t *buffer,ulong start,ulong end,ulong line_start,ulong line_end);
+#else
+	NONS_ScriptBlock(const std::wstring &name,NONS_Script *script,ulong start,ulong end,ulong line_start,ulong line_end);
+	std::string get_data() const;
+#endif
 };
 
 inline bool sortBlocksByName(const NONS_ScriptBlock *a,const NONS_ScriptBlock *b){
@@ -123,8 +133,13 @@ inline int findBlocksByLine(const ulong &a,NONS_ScriptBlock * const &b){
 }
 
 #define NONS_FIRST_BLOCK L"0BOF0"
-
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+#define CACHE_FILENAME "script.cache"
+#endif
 struct NONS_Script{
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+	std::string cache_filename;
+#endif
 	ulong scriptSize;
 	std::vector<NONS_ScriptBlock *> blocksByLine,
 		blocksByName;
@@ -143,6 +158,9 @@ struct NONS_Script{
 	size_t jumpIndexForBackwards(ulong offset);
 	size_t jumpIndexForForward(ulong offset);
 	ulong offsetFromLine(ulong line);
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+	std::string get_string(ulong offset,ulong size);
+#endif
 };
 
 struct NONS_ScriptThread{

@@ -99,5 +99,6 @@ namespace std{
 typedef basic_string<wchar_t> wstring;
 typedef basic_stringstream<wchar_t> wstringstream;
 }
+#define NONS_LOW_MEMORY_ENVIRONMENT
 #endif
 #endif

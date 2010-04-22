@@ -103,9 +103,6 @@ void INIfile::readFile(const char *buffer,ulong size,ENCODING::ENCODING encoding
 		case ENCODING::SJIS:
 			buffer2=UniFromSJIS(std::string(buffer,size));
 			break;
-		case ENCODING::UCS2:
-			buffer2=UniFromUCS2(std::string(buffer,size),UNDEFINED_ENDIANNESS);
-			break;
 		case ENCODING::UTF8:
 			buffer2=UniFromUTF8(std::string(buffer,size));
 	}

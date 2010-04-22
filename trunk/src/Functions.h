@@ -31,14 +31,15 @@
 #define NONS_FUNCTIONS_H
 
 #include "ErrorCodes.h"
-#include <map>
 #include "Common.h"
+#include "enums.h"
 #include <SDL/SDL.h>
 #include <iomanip>
 #include <sstream>
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <map>
 #include <ctime>
 
 #ifndef M_PI
@@ -517,17 +518,14 @@ int lexcmp_CI_bounded(const T1 *a,size_t sizeA,const T2 *b,size_t sizeB){
 ulong getUTF8size(const wchar_t *buffer,ulong size);
 std::wstring UniFromISO88591(const std::string &str);
 std::wstring UniFromUTF8(const std::string &str);
-/*
-Important note: this procedure assumes that the text string is a valid UCS-2
-string, so while it does take BOM into account, it doesn't compensate for
-streams with an odd length, as all valid UCS-2 strings have an even length.
-*/
-std::wstring UniFromUCS2(const std::string &str,char end=UNDEFINED_ENDIANNESS);
 std::wstring UniFromSJIS(const std::string &str);
 std::string UniToISO88591(const std::wstring &str);
 std::string UniToUTF8(const std::wstring &str,bool addBOM=0);
-std::string UniToUCS2(const std::wstring &str,char end=UNDEFINED_ENDIANNESS);
 std::string UniToSJIS(const std::wstring &str);
+bool ConvertSingleCharacter(wchar_t &dst,void *buffer,size_t size,ulong &bytes_used,ENCODING::ENCODING encoding);
+void ConvertSingleCharacterToUTF8(char dst[4],wchar_t src,ulong &bytes_used);
+ulong find_first_not_of_in_utf8(const std::string &,const wchar_t *,ulong =0);
+ulong find_last_not_of_in_utf8(const std::string &,const wchar_t *,ulong =ULONG_MAX);
 
 template <typename T>
 inline void toupper(std::basic_string<T> &str){

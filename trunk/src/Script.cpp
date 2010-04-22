@@ -88,7 +88,11 @@ NONS_Statement::NONS_Statement(const std::wstring &string,NONS_ScriptLine *line,
 					return;
 				case '*':
 					this->type=StatementType::BLOCK;
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 					this->commandName=string.substr(1);
+#else
+					this->commandName=this->stmt.substr(1);
+#endif
 					trim_string(this->commandName);
 					break;
 				case '~':
@@ -288,14 +292,25 @@ std::wstring NONS_ScriptLine::toString(){
 	return res;
 }
 
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 NONS_ScriptBlock::NONS_ScriptBlock(const std::wstring &name,const wchar_t *buffer,ulong start,ulong end,ulong line_start,ulong line_end){
-	this->name=name;
 	this->data=std::wstring(buffer+start,end-start+1);
+#else
+NONS_ScriptBlock::NONS_ScriptBlock(const std::wstring &name,NONS_Script *script,ulong start,ulong end,ulong line_start,ulong line_end){
+	this->script=script;
+#endif
+	this->name=name;
 	this->first_offset=start;
 	this->last_offset=end;
 	this->first_line=line_start;
 	this->last_line=line_end;
 }
+
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+std::string NONS_ScriptBlock::get_data() const{
+	return this->script->get_string(this->first_offset,this->last_offset-this->first_offset+1);
+}
+#endif
 
 NONS_Script::NONS_Script(){
 	memset(this->hash,0,sizeof(unsigned)*5);
@@ -305,6 +320,7 @@ bool preprocess(std::wstring &dst,const std::wstring &script);
 
 extern std::wstring save_directory;
 
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	ulong l;
 	char *temp=(char *)archive->getFileBuffer(scriptname,l);
@@ -333,13 +349,6 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 			break;
 		case ENCODING::ISO_8859_1:
 			wtemp=UniFromISO88591(std::string(temp,l));
-			break;
-		case ENCODING::UCS2:
-			if (l%2){
-				o_stderr <<"WARNING: input text has odd length. It may not be valid UCS-2 text.\n";
-				l--;
-			}
-			wtemp=UniFromUCS2(std::string(temp,l),UNDEFINED_ENDIANNESS);
 			break;
 		case ENCODING::UTF8:
 			wtemp=UniFromUTF8(std::string(temp,l));
@@ -451,6 +460,162 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 	save_directory=getSaveLocation(this->hash);
 	return NONS_NO_ERROR;
 }
+#else
+ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
+	if (encoding!=ENCODING::UTF8 || encryption!=ENCRYPTION::NONE){
+		this->cache_filename=CACHE_FILENAME;
+		ulong l;
+		char *buffer=(char *)archive->getFileBuffer(scriptname,l);
+		if (!buffer)
+			return NONS_FILE_NOT_FOUND;
+		{
+			int error_code=inPlaceDecryption(buffer,l,encryption);
+			if (error_code!=NONS_NO_ERROR){
+				delete[] buffer;
+				return error_code;
+			}
+		}
+		if (encoding==ENCODING::AUTO){
+			if (isValidUTF8(buffer,l)){
+				o_stderr <<"The script seems to be a valid UTF-8 stream. Using it as such.\n";
+				encoding=ENCODING::UTF8;
+			}else if (isValidSJIS(buffer,l)){
+				o_stderr <<"The script seems to be a valid Shift JIS stream. Using it as such.\n";
+				encoding=ENCODING::SJIS;
+			}else{
+				o_stderr <<"The script seems to be a valid ISO-8859-1 stream. Using it as such.\n";
+				encoding=ENCODING::ISO_8859_1;
+			}
+		}
+
+		{
+			std::ofstream cache(this->cache_filename.c_str(),std::ios::binary);
+			ulong advance;
+			std::string obuffer;
+			obuffer.reserve(4099);
+			for (ulong a=0;a<l;a+=advance){
+				wchar_t c;
+				if (!ConvertSingleCharacter(c,buffer+a,l-a,advance,encoding))
+					continue;
+				ulong bytes;
+				char utf8[4];
+				ConvertSingleCharacterToUTF8(utf8,c,bytes);
+				obuffer.append(utf8,bytes);
+				if (obuffer.size()>=4096){
+					cache.write(&obuffer[0],obuffer.size());
+					obuffer.clear();
+				}
+			}
+			if (obuffer.size())
+				cache.write(&obuffer[0],obuffer.size());
+		}
+		delete[] buffer;
+	}
+	{
+		std::string buffer;
+		{
+			std::ifstream file(this->cache_filename.c_str(),std::ios::binary|std::ios::ate);
+			this->scriptSize=file.tellg();
+			file.seekg(0);
+			buffer.resize(this->scriptSize);
+			file.read(&buffer[0],buffer.size());
+		}
+
+		ulong currentLine=1,
+			start_of_block_offset=0,
+			start_of_block_line=currentLine;
+		std::wstring block_name=NONS_FIRST_BLOCK;
+		std::set<std::wstring,stdStringCmpCI<wchar_t> > *checkDuplicates=new std::set<std::wstring,stdStringCmpCI<wchar_t> >;
+		ErrorCode error=NONS_NO_ERROR;
+		char *char_buffer=(char *)&buffer[0];
+		for (ulong a=0,size=buffer.size();a<size;){
+			this->lineOffsets.push_back(a);
+			ulong start_of_line=buffer.find_first_not_of("\x09\x20",a),
+				end_of_line=buffer.find_first_of("\x0A\x0D",a),
+				currentLineCopy=currentLine;
+			if (end_of_line==buffer.npos)
+				end_of_line=buffer.size();
+			if (start_of_line!=end_of_line){
+				while (char_buffer[end_of_line-1]=='/' && end_of_line<size-1){
+					a=end_of_line;
+					if (char_buffer[a]==10)
+						a++;
+					else if (a+1<buffer.size() && char_buffer[a+1]==10)
+						a+=2;
+					else
+						a++;
+					this->lineOffsets.push_back(a);
+					currentLine++;
+					end_of_line=buffer.find_first_of("\x0A\x0D",a);
+					if (end_of_line==buffer.npos)
+						end_of_line=size-1;
+				}
+				if (char_buffer[start_of_line]=='*'){
+					ulong beg=buffer.find_first_not_of(STR_WHITESPACE,start_of_line+1);
+					ulong len=buffer.find_first_of(STR_WHITESPACE,beg);
+					if (len!=buffer.npos)
+						len-=beg;
+					std::wstring id=UniFromUTF8(buffer.substr(beg,len));
+					id=string_replace<wchar_t>(id,L"/\x0D\x0A",0);
+					id=string_replace<wchar_t>(id,L"/\x0D",0);
+					id=string_replace<wchar_t>(id,L"/\x0A",0);
+					if (checkDuplicates->find(id)!=checkDuplicates->end()){
+						handleErrors(NONS_DUPLICATE_LABEL,currentLine,"NONS_Script::init",0);
+						error=NONS_FATAL_ERROR;
+					}
+					if (isValidLabel(id)){
+						if (start_of_line)
+							this->blocksByLine.push_back(new NONS_ScriptBlock(
+								block_name,
+								this,
+								start_of_block_offset,
+								start_of_line-1,
+								start_of_block_line,
+								currentLine-1));
+						start_of_block_offset=start_of_line;
+						start_of_block_line=currentLine;
+						block_name=id;
+						checkDuplicates->insert(id);
+					}else
+						handleErrors(NONS_INVALID_ID_NAME,currentLineCopy,"NONS_Script::init",0,L"The label will be ignored");
+				}else if (char_buffer[start_of_line]=='~')
+					this->jumps.push_back(std::pair<ulong,ulong>(currentLineCopy,start_of_line));
+			}
+			a=end_of_line;
+			if (char_buffer[a]==10)
+				a++;
+			else if (a+1<buffer.size() && char_buffer[a+1]==10)
+				a+=2;
+			else
+				a++;
+			currentLine++;
+		}
+		delete checkDuplicates;
+		if (!CHECK_FLAG(error,NONS_NO_ERROR_FLAG))
+			return error;
+		this->blocksByLine.push_back(new NONS_ScriptBlock(
+			block_name,
+			this,
+			start_of_block_offset,
+			this->scriptSize-1,
+			start_of_block_line,
+			currentLine));
+	}
+	this->blocksByName.assign(this->blocksByLine.begin(),this->blocksByLine.end());
+	std::sort(this->blocksByName.begin(),this->blocksByName.end(),sortBlocksByName);
+	if (!this->blockFromLabel(L"define"))
+		return NONS_NO_DEFINE_LABEL;
+	SHA1 hash;
+	for (ulong a=0;a<this->blocksByLine.size();a++){
+		std::wstring &b=this->blocksByLine[a]->name;
+		std::vector<char> temp2(b.begin(),b.end());
+		hash.Input(&temp2[0],temp2.size());
+	}
+	hash.Result(this->hash);
+	save_directory=getSaveLocation(this->hash);
+	return NONS_NO_ERROR;
+}
+#endif
 
 NONS_Script::~NONS_Script(){
 	for (ulong a=0;a<this->blocksByLine.size();a++)
@@ -549,6 +714,18 @@ ulong NONS_Script::offsetFromLine(ulong line){
 		return this->scriptSize;
 	return this->lineOffsets[line-1];
 }
+
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+std::string NONS_Script::get_string(ulong offset,ulong size){
+ 	if (offset+size>this->scriptSize)
+ 		size=this->scriptSize-offset;
+	std::string res(size,0);
+ 	std::ifstream file(CACHE_FILENAME,std::ios::binary);
+	file.seekg(offset);
+	file.read(&res[0],size);
+ 	return res;
+}
+#endif
 
 NONS_ScriptThread::NONS_ScriptThread(NONS_Script *script){
 	this->script=script;
@@ -685,25 +862,42 @@ bool NONS_ScriptThread::readBlock(const NONS_ScriptBlock &block,ulong start_at_o
 	for (ulong a=0;a<this->lines.size();a++)
 		delete this->lines[a];
 	this->lines.clear();
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 	if (start_at_offset>=block.data.size())
+#else
+	if (start_at_offset>=block.last_offset-block.first_offset+1)
+#endif
 		return 0;
 	this->currentBlock=&block;
 
 	this->first_line=block.first_line+start_at_line;
 	this->first_offset=block.first_offset+start_at_offset;
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 	const std::wstring &txt=block.data;
+#else
+	std::string txt=block.get_data();
+#endif
 	ulong lineNo=block.first_line+start_at_line;
 	ulong a=start_at_offset;
 	for (ulong size=txt.size();a<size && this->lines.size()<lines_limit;){
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 		ulong start_of_line=txt.find_first_not_of(L"\x09\x20",a),
 			end_of_line=txt.find_first_of(L"\x0A\x0D",a),
+#else
+		ulong start_of_line=txt.find_first_not_of("\x09\x20",a),
+			end_of_line=txt.find_first_of("\x0A\x0D",a),
+#endif
 			lineNo0=lineNo;
 		if (start_of_line==txt.npos)
 			break;
 		if (end_of_line==txt.npos)
 			end_of_line=txt.size();
 		if (start_of_line!=end_of_line){
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 			std::wstring lineCopy=txt.substr(start_of_line,end_of_line-start_of_line);
+#else
+			std::string lineCopy=txt.substr(start_of_line,end_of_line-start_of_line);
+#endif
 readBlock_000:
 			while (txt[end_of_line-1]=='/' && end_of_line<size-1){
 				lineCopy.resize(lineCopy.size()-1);
@@ -715,15 +909,27 @@ readBlock_000:
 				else
 					a++;
 				lineNo++;
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 				end_of_line=txt.find_first_of(L"\x0A\x0D",a);
+#else
+				end_of_line=txt.find_first_of("\x0A\x0D",a);
+#endif
 				if (end_of_line==txt.npos)
 					end_of_line=size-1;
 				lineCopy.append(txt,a,end_of_line-a);
 			}
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 			NONS_ScriptLine *line=new NONS_ScriptLine(lineNo0,lineCopy,block.first_offset+a,1);
+#else
+			NONS_ScriptLine *line=new NONS_ScriptLine(lineNo0,UniFromUTF8(lineCopy),block.first_offset+a,1);
+#endif
 			if (line->statements.size()){
 				if (line->statements.back()->type==StatementType::COMMAND &&
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 						lineCopy[lineCopy.find_last_not_of(WCS_WHITESPACE)]==','){
+#else
+						lineCopy[find_last_not_of_in_utf8(lineCopy,WCS_NON_NEWLINE_WHITESPACE)]==','){
+#endif
 					delete line;
 
 					while (1){
@@ -735,9 +941,17 @@ readBlock_000:
 							a+=2;
 						else
 							a++;
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 						a=txt.find_first_not_of(WCS_NON_NEWLINE_WHITESPACE,a);
+#else
+						a=find_first_not_of_in_utf8(txt,WCS_NON_NEWLINE_WHITESPACE,a);
+#endif
 						lineNo++;
+#ifndef NONS_LOW_MEMORY_ENVIRONMENT
 						end_of_line=txt.find_first_of(L"\x0A\x0D",a);
+#else
+						end_of_line=txt.find_first_of("\x0A\x0D",a);
+#endif
 						if (end_of_line!=a)
 							break;
 					}
