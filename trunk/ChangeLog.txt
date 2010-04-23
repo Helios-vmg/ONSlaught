@@ -5,6 +5,11 @@
         blocks.
     * Added partial font style support.
         TODO: Document changes.
+    * Added internal support for font outlines.
+        TODO: Implement user-level interface and save mechanism.
+    * Discontinued UCS-2 support.
+    * Implemented reduced memory consumption builds for low memory
+        environments. Note: Macros are disabled in this state.
     * Fixed bug in division operator (!).
     * Fixed bug in fullscreen switch.
     * Updated expression parsing mechanism.
