@@ -720,9 +720,7 @@ void NONS_VariableMember::set(long a){
 void NONS_VariableMember::atoi(const std::wstring &a){
 	if (this->constant || this->type!=INTEGER)
 		return;
-	std::wstringstream stream;
-	stream <<a;
-	stream >>this->intValue;
+	this->intValue=::atoi(a);
 	this->fixint();
 }
 

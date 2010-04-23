@@ -29,6 +29,7 @@
 
 #include "ImageLoader.h"
 #include "Functions.h"
+#include <iostream>
 
 NONS_AnimationInfo::TRANSPARENCY_METHODS NONS_AnimationInfo::default_trans=COPY_TRANS;
 
@@ -68,9 +69,9 @@ void NONS_AnimationInfo::parse(const std::wstring &image_string){
 		}
 		p=p2;
 		if (image_string[p]=='/'){
-			std::wstringstream stream;
+			std::stringstream stream;
 			while (image_string[++p]!=',' && image_string[p]!=';')
-				stream <<image_string[p];
+				stream <<(char)image_string[p];
 			if (!(stream >>this->animation_length) || image_string[p]!=',')
 				return;
 			stream.clear();

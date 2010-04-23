@@ -461,6 +461,8 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 	return NONS_NO_ERROR;
 }
 #else
+#include <iostream>
+
 ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	if (encoding!=ENCODING::UTF8 || encryption!=ENCRYPTION::NONE){
 		this->cache_filename=CACHE_FILENAME;
@@ -489,6 +491,8 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 		}
 
 		{
+			ulong t0,t1;
+			t0=SDL_GetTicks();
 			std::ofstream cache(this->cache_filename.c_str(),std::ios::binary);
 			ulong advance;
 			std::string obuffer;
@@ -508,9 +512,14 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 			}
 			if (obuffer.size())
 				cache.write(&obuffer[0],obuffer.size());
+			t1=SDL_GetTicks();
+			std::cout <<"Script converted in "<<t1-t0<<" ms."<<std::endl;
 		}
 		delete[] buffer;
-	}
+	}else
+		this->cache_filename=UniToUTF8(scriptname);
+	ulong t0,t1;
+	t0=SDL_GetTicks();
 	{
 		std::string buffer;
 		{
@@ -613,6 +622,8 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 	}
 	hash.Result(this->hash);
 	save_directory=getSaveLocation(this->hash);
+	t1=SDL_GetTicks();
+	std::cout <<"Script data loaded in "<<t1-t0<<" ms."<<std::endl;
 	return NONS_NO_ERROR;
 }
 #endif
@@ -620,6 +631,10 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 NONS_Script::~NONS_Script(){
 	for (ulong a=0;a<this->blocksByLine.size();a++)
 		delete this->blocksByLine[a];
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+	if (this->cache_filename==CACHE_FILENAME)
+		remove(this->cache_filename.c_str());
+#endif
 }
 
 NONS_ScriptBlock *NONS_Script::blockFromLabel(std::wstring name){

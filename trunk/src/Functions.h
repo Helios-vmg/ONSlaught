@@ -138,6 +138,7 @@ inline T HEX2DEC(T x){
 
 template <typename T,typename T2>
 std::basic_string<T> itoa(T2 n,unsigned w=0){
+#ifndef PSP
 	std::basic_stringstream<T> stream;
 	if (w){
 		stream.fill('0');
@@ -145,6 +146,22 @@ std::basic_string<T> itoa(T2 n,unsigned w=0){
 	}
 	stream <<n;
 	return stream.str();
+#else
+	bool sign=n<0;
+	if (n<0)
+		n=-n;
+	std::basic_string<T> res;
+	while (n>0){
+		res.push_back(n%10+'0');
+		n/=10;
+	}
+	while (res.size()<1 || res.size()<w)
+		res.push_back('0');
+	if (sign)
+		res[res.size()-1]='-';
+	std::reverse(res.begin(),res.end());
+	return res;
+#endif
 }
 template <typename T> inline std::string  itoac(T n,unsigned w=0){ return itoa<char>   (n,w); }
 template <typename T> inline std::wstring itoaw(T n,unsigned w=0){ return itoa<wchar_t>(n,w); }

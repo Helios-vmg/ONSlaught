@@ -116,11 +116,9 @@ long ConfigFile::getInt(const std::wstring &index,ulong subindex){
 		return 0;
 	std::wstring &str=i->second[subindex];
 	long ret=0;
-	std::wstringstream stream;
 	switch (getDataType(str)){
 		case 1:
-			stream <<str;
-			stream >>ret;
+			ret=atoi(str);
 			break;
 		case 2:
 			for (size_t a=0;a<str.size();a++){
@@ -158,16 +156,14 @@ void ConfigFile::assignWString(const std::wstring &var,const std::wstring &val,u
 
 void ConfigFile::assignInt(const std::wstring &var,long val,ulong subindex){
 	config_map_t::iterator i=this->entries.find(var);
-	std::wstringstream stream;
-	stream <<val;
 	if (i!=this->entries.end()){
 		if (subindex>=i->second.size())
-			i->second.push_back(stream.str());
+			i->second.push_back(itoaw(val));
 		else
-			i->second[subindex]=stream.str();
+			i->second[subindex]=itoaw(val);
 	}else{
 		this->entries[var]=std::vector<std::wstring>();
-		this->entries[var].push_back(stream.str());
+		this->entries[var].push_back(itoaw(val));
 	}
 }
 

@@ -134,6 +134,8 @@ void NONS_Layer::usePicAsDefaultShade(SDL_Surface *pic){
 	this->useDataAsDefaultShade=1;
 }
 
+#include <iostream>
+
 bool NONS_Layer::load(const std::wstring *string){
 	if (!string){
 		int w=this->data->w,
