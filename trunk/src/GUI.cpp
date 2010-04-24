@@ -940,7 +940,7 @@ int NONS_ButtonLayer::getUserInput(int x,int y){
 		queue.WaitForEvent(10);
 		SDL_Event event=queue.pop();
 		//Handle entering to lookback.
-		if (event.type==SDL_KEYDOWN && (event.key.keysym.sym==SDLK_UP || event.key.keysym.sym==SDLK_PAGEUP) ||
+		if (event.type==SDL_KEYDOWN && (/*event.key.keysym.sym==SDLK_UP || */event.key.keysym.sym==SDLK_PAGEUP) ||
 				event.type==SDL_MOUSEBUTTONDOWN && (event.button.button==SDL_BUTTON_WHEELUP || event.button.button==SDL_BUTTON_WHEELDOWN)){
 			this->screen->BlendNoText(0);
 			this->screen->screen->blitToScreen(this->screen->screenBuffer,0,0);
@@ -1009,41 +1009,9 @@ int NONS_ButtonLayer::getUserInput(int x,int y){
 							this->screen->screen->updateWholeScreen();
 						}
 						break;
-					//Will never happen:
-					/*
 					case SDLK_UP:
-					case SDLK_PAGEUP:
-						{
-						}
-					*/
-					case SDLK_PAUSE:
-						console.enter(this->screen);
-						if (!queue.emptify()){
-							SDL_FreeSurface(screenCopy);
-							return INT_MIN;
-						}
-						break;
-					default:
-						break;
-				}
-			case SDL_MOUSEMOTION:
-				{
-					if (mouseOver>=0 && this->buttons[mouseOver]->MouseOver(&event))
-						break;
-					int tempMO=-1;
-					for (ulong a=0;a<this->buttons.size() && tempMO==-1;a++)
-						if (this->buttons[a]->MouseOver(&event))
-							tempMO=a;
-					if (tempMO<0){
-						if (mouseOver>=0)
-							this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
-						mouseOver=-1;
-						break;
-					}else{
-						if (mouseOver>=0)
-							this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
-						mouseOver=tempMO;
-						this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,1);
+					case SDLK_DOWN:
+						this->react_to_updown(mouseOver,event.key.keysym.sym,screenCopy);
 						if (this->voiceMouseOver.size()){
 							if (this->audio->bufferIsLoaded(this->voiceMouseOver))
 								this->audio->playSoundAsync(&this->voiceMouseOver,0,0,7,0);
@@ -1054,37 +1022,93 @@ int NONS_ButtonLayer::getUserInput(int x,int y){
 									delete[] buffer;
 							}
 						}
-						//o_stdout <<"ButtonLayer::getUserInput(): "<<mouseOver<<std::endl;
+						break;
+					case SDLK_RETURN:
+						if (this->react_to_click(mouseOver,screenCopy))
+							return mouseOver;
+						break;
+					case SDLK_PAUSE:
+						console.enter(this->screen);
+						if (!queue.emptify()){
+							SDL_FreeSurface(screenCopy);
+							return INT_MIN;
+						}
+						break;
+					default:
+						break;
+				}
+				break;
+			case SDL_MOUSEMOTION:
+				if (this->react_to_movement(mouseOver,&event,screenCopy) && this->voiceMouseOver.size()){
+					if (this->audio->bufferIsLoaded(this->voiceMouseOver))
+						this->audio->playSoundAsync(&this->voiceMouseOver,0,0,7,0);
+					else{
+						ulong l;
+						char *buffer=(char *)this->archive->getFileBuffer(this->voiceMouseOver,l);
+						if (this->audio->playSoundAsync(&this->voiceMouseOver,buffer,l,7,0)!=NONS_NO_ERROR)
+							delete[] buffer;
 					}
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:
-				{
-					if (mouseOver<0)
-						break;
-					else{
-						if (this->voiceClick.size()){
-							if (this->audio->bufferIsLoaded(this->voiceClick))
-								this->audio->playSoundAsync(&this->voiceClick,0,0,7,0);
-							else{
-								ulong l;
-								char *buffer=(char *)this->archive->getFileBuffer(this->voiceClick,l);
-								if (this->audio->playSoundAsync(&this->voiceClick,buffer,l,7,0)!=NONS_NO_ERROR)
-									delete[] buffer;
-							}
-						}
-						{
-							NONS_MutexLocker ml(screenMutex);
-							manualBlit(screenCopy,0,this->screen->screen->screens[VIRTUAL],0);
-						}
-						this->screen->screen->updateWholeScreen();
-						SDL_FreeSurface(screenCopy);
-						return mouseOver;
-					}
-				}
+				if (this->react_to_click(mouseOver,screenCopy))
+					return mouseOver;
 				break;
 		}
 	}
+}
+
+bool NONS_ButtonLayer::react_to_movement(int &mouseOver,SDL_Event *event,SDL_Surface *screenCopy){
+	if (mouseOver>=0 && this->buttons[mouseOver]->MouseOver(event))
+		return 0;
+	int tempMO=-1;
+	for (ulong a=0;a<this->buttons.size() && tempMO==-1;a++)
+		if (this->buttons[a] && this->buttons[a]->MouseOver(event))
+			tempMO=a;
+	if (tempMO<0){
+		if (mouseOver>=0)
+			this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
+		mouseOver=-1;
+		return 0;
+	}
+	if (mouseOver>=0)
+		this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
+	mouseOver=tempMO;
+	this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,1);
+	return 1;
+}
+
+void NONS_ButtonLayer::react_to_updown(int &mouseOver,SDLKey key,SDL_Surface *screenCopy){
+	if (mouseOver>=0)
+		this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
+	mouseOver+=(key==SDLK_UP)?-1:1;
+	if (mouseOver<=-1)
+		mouseOver=this->buttons.size()-1;
+	else if ((ulong)mouseOver>=this->buttons.size())
+		mouseOver=0;
+	this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,1);
+}
+
+bool NONS_ButtonLayer::react_to_click(int &mouseOver,SDL_Surface *screenCopy){
+	if (mouseOver<0)
+		return 0;
+	if (this->voiceClick.size()){
+		if (this->audio->bufferIsLoaded(this->voiceClick))
+			this->audio->playSoundAsync(&this->voiceClick,0,0,7,0);
+		else{
+			ulong l;
+			char *buffer=(char *)this->archive->getFileBuffer(this->voiceClick,l);
+			if (this->audio->playSoundAsync(&this->voiceClick,buffer,l,7,0)!=NONS_NO_ERROR)
+				delete[] buffer;
+		}
+	}
+	{
+		NONS_MutexLocker ml(screenMutex);
+		manualBlit(screenCopy,0,this->screen->screen->screens[VIRTUAL],0);
+	}
+	this->screen->screen->updateWholeScreen();
+	SDL_FreeSurface(screenCopy);
+	return 1;
 }
 
 void NONS_ButtonLayer::addImageButton(ulong index,int posx,int posy,int width,int height,int originX,int originY){
@@ -1169,25 +1193,7 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 					SDL_FreeSurface(screenCopy);
 					return INT_MIN;
 				case SDL_MOUSEMOTION:
-					{
-						if (mouseOver>=0 && this->buttons[mouseOver]->MouseOver(&event))
-							break;
-						int tempMO=-1;
-						for (ulong a=0;a<this->buttons.size() && tempMO==-1;a++)
-							if (this->buttons[a] && this->buttons[a]->MouseOver(&event))
-								tempMO=a;
-						if (tempMO<0){
-							if (mouseOver>=0)
-								this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
-							mouseOver=-1;
-							break;
-						}else{
-							if (mouseOver>=0)
-								this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
-							mouseOver=tempMO;
-							this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,1);
-						}
-					}
+					this->react_to_movement(mouseOver,&event,screenCopy);
 					break;
 				case SDL_MOUSEBUTTONDOWN:
 					{

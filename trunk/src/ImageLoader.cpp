@@ -77,7 +77,7 @@ void NONS_AnimationInfo::parse(const std::wstring &image_string){
 			stream.clear();
 			if (image_string[p+1]!='<'){
 				while (image_string[++p]!=',' && image_string[p]!=';')
-					stream <<image_string[p];
+					stream <<(char)image_string[p];
 				ulong delay;
 				if (!(stream >>delay))
 					return;
@@ -92,7 +92,7 @@ void NONS_AnimationInfo::parse(const std::wstring &image_string){
 					return;
 				while (image_string[p]!='>' && image_string[++p]!='>'){
 					while (image_string[p]!=',' && image_string[p]!='>')
-						stream <<image_string[p++];
+						stream <<(char)image_string[p++];
 					ulong delay;
 					if (!(stream >>delay))
 						return;
@@ -106,7 +106,7 @@ void NONS_AnimationInfo::parse(const std::wstring &image_string){
 			if (image_string[p]!=',')
 				return;
 			while (image_string[++p]!=',' && image_string[p]!=';')
-				stream <<image_string[p];
+				stream <<(char)image_string[p];
 			ulong type;
 			if (!(stream >>type))
 				return;

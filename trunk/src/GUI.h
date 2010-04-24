@@ -276,6 +276,10 @@ struct NONS_ButtonLayer{
 	*/
 	int getUserInput(ulong expiration=0);
 	ulong countActualButtons();
+private:
+	bool react_to_movement(int &mouseOver,SDL_Event *event,SDL_Surface *screenCopy);
+	void react_to_updown(int &mouseOver,SDLKey key,SDL_Surface *screenCopy);
+	bool react_to_click(int &mouseOver,SDL_Surface *screenCopy);
 };
 
 struct NONS_Menu{
