@@ -1735,7 +1735,7 @@ bool iswhitespace(wchar_t character){
 }
 
 bool iswhitespace(char character){
-	return (character>0)?iswhitespaceASCIIe(character):0;
+	return (uchar(character)<0x80)?iswhitespaceASCIIe(character):0;
 }
 
 bool iswhitespaceASCIIe(char character){

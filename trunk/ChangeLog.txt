@@ -17,6 +17,8 @@
     * Minor bug in string interpretation fixed.
     * Minor bug in animation fixed.
     * Bug in date command fixed.
+    * Fixed bug in NONS_VariableStore::NONS_VariableStore() whereby an invalid
+        global.sav could crash the engine.
 
 20091212
     * Implemented: avi, mpegplay.

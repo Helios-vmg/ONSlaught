@@ -460,7 +460,7 @@ namespace NONS_Expression{
 		dst.clear();
 		for (ulong a=0;a<evaluation_stack.size();a++){
 			Value *val=evaluation_stack[a];
-			if (val->type!=INTEGER){
+			if (val->type!=Value::INTEGER){
 				freePointerVector(evaluation_stack);
 				return NONS_EXPECTED_INTEGRAL_VALUE;
 			}
@@ -857,16 +857,18 @@ NONS_VariableStore::NONS_VariableStore(){
 				intervals.push_back(readSignedDWord((char *)buffer,offset));
 			}
 		}
-		ulong currentInterval=0;
-		while (offset<l){
-			ulong a=intervals[currentInterval],
-				b=intervals[currentInterval+1];
-			currentInterval+=2;
-			for (ulong c=0;c<b;c++){
-				NONS_Variable *var=new NONS_Variable();
-				var->intValue->set(readSignedDWord((char *)buffer,offset));
-				var->wcsValue->set(UniFromUTF8(readString((char *)buffer,offset)));
-				this->variables[a++]=var;
+		if (intervalsN){
+			ulong currentInterval=0;
+			while (offset<l){
+				ulong a=intervals[currentInterval],
+					b=intervals[currentInterval+1];
+				currentInterval+=2;
+				for (ulong c=0;c<b;c++){
+					NONS_Variable *var=new NONS_Variable();
+					var->intValue->set(readSignedDWord((char *)buffer,offset));
+					var->wcsValue->set(UniFromUTF8(readString((char *)buffer,offset)));
+					this->variables[a++]=var;
+				}
 			}
 		}
 	}
