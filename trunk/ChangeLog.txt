@@ -10,6 +10,8 @@
     * Discontinued UCS-2 support.
     * Implemented reduced memory consumption builds for low memory
         environments. Note: Macros are disabled in this state.
+    * Moved video player module to libVLC-based code. FFmpeg-based code kept
+        for nostalgia.
     * Fixed bug in division operator (!).
     * Fixed bug in fullscreen switch.
     * Updated expression parsing mechanism.
