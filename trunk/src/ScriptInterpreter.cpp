@@ -829,7 +829,8 @@ void NONS_ScriptInterpreter::queue(NONS_ScriptLine *line){
 	this->commandQueue.push(line);
 }
 
-#include "../video_player.h"
+//#include "../video_player.h"
+#include "f:\Documents and Settings\root\My Documents\Visual Studio 2008\Projects\VLC\video_player\video_player.h"
 
 struct playback_input_thread_params{
 	bool allow_quit;
@@ -895,8 +896,8 @@ SDL_Surface *playback_screenshot_callback(volatile SDL_Surface *screen,void *use
 
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){
 	NONS_LibraryLoader video_player("video_player",0);
-	video_playback_fp function=(video_playback_fp)video_player.getFunction(PLAYBACK_FUNCTION_NAME_STRING);
-	if (!function){
+	video_playback_fp C_play_video=(video_playback_fp)video_player.getFunction(PLAYBACK_FUNCTION_NAME_STRING);
+	if (!C_play_video){
 		switch (video_player.error){
 			case NONS_LibraryLoader::LIBRARY_NOT_FOUND:
 				return NONS_LIBRARY_NOT_FOUND;
@@ -904,7 +905,8 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 				return NONS_FUNCTION_NOT_FOUND;
 		}
 	}
-	int error;
+	bool success;
+	std::string exception_string(10000,0);
 	{
 		NONS_MutexLocker ml(screenMutex);
 		SDL_Surface *screen=this->screen->screen->screens[REAL];
@@ -920,53 +922,35 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		};
 		video_playback_params playback_params={ this->screen->screen };
 		NONS_Thread input_thread(playback_input_thread,&thread_params);
-		while (1){
-			error=function(
-				screen,
-				UniToUTF8(filename).c_str(),
-				&stop,
-				&playback_params,
-				&toggle_fullscreen,
-				&take_screenshot,
-				playback_fullscreen_callback,
-				playback_screenshot_callback,
-				0
-			);
-			if (CHECK_FLAG(error,PLAYBACK_OPEN_AUDIO_OUTPUT_FAILED) && this->audio){
-				delete this->audio;
-				this->audio=0;
-				continue;
-			}
-			if (!this->audio){
-				this->audio=new NONS_Audio(CLOptions.musicDirectory);
-				if (CLOptions.musicFormat.size())
-					this->audio->musicFormat=CLOptions.musicFormat;
-			}
-			break;
-		}
+		C_play_video_params::trigger_callback_pair pairs[]={
+			{&toggle_fullscreen,playback_fullscreen_callback},
+			{&take_screenshot,playback_screenshot_callback}
+		};
+		std::string utf8_filename=UniToUTF8(filename);
+		C_play_video_params parameters={
+			C_PLAY_VIDEO_PARAMS_VERSION,
+			screen,
+			&utf8_filename[0],
+			&playback_params,
+			sizeof(pairs)/sizeof(*pairs),
+			pairs,
+			&stop,
+			0,
+			&exception_string[0],
+			exception_string.size(),
+		};
+		success=!!C_play_video(&parameters);
+		exception_string.resize(strlen(exception_string.c_str()));
 		stop=1;
 	}
-	if (error!=PLAYBACK_NO_ERROR){
-		if (CHECK_FLAG(error,PLAYBACK_FILE_NOT_FOUND))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): File not found.\n";
-		if (CHECK_FLAG(error,PLAYBACK_STREAM_INFO_NOT_FOUND))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): Stream info not found. Bad file?\n";
-		if (CHECK_FLAG(error,PLAYBACK_NO_VIDEO_STREAM))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): No video stream.\n";
-		if (CHECK_FLAG(error,PLAYBACK_NO_AUDIO_STREAM))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): No audio stream. Pure video files not yet supported.\n";
-		if (CHECK_FLAG(error,PLAYBACK_UNSUPPORTED_VIDEO_CODEC))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): Unsupported video codec.\n";
-		if (CHECK_FLAG(error,PLAYBACK_UNSUPPORTED_AUDIO_CODEC))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): Unsupported audio codec.\n";
-		if (CHECK_FLAG(error,PLAYBACK_OPEN_VIDEO_CODEC_FAILED))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): Couldn't open video codec.\n";
-		if (CHECK_FLAG(error,PLAYBACK_OPEN_AUDIO_CODEC_FAILED))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): Couldn't open audio codec.\n";
-		if (CHECK_FLAG(error,PLAYBACK_OPEN_AUDIO_OUTPUT_FAILED))
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): Couldn't initialize audio output module.\n";
+	if (!success){
+		if (exception_string.size())
+			o_stderr <<"NONS_ScriptInterpreter::play_video(): "<<exception_string<<"\n";
+		else
+			o_stderr <<"NONS_ScriptInterpreter::play_video(): Unknown error.\n";
+		return NONS_UNDEFINED_ERROR;
 	}
-	return (error==PLAYBACK_NO_ERROR)?NONS_NO_ERROR:NONS_UNDEFINED_ERROR;
+	return NONS_NO_ERROR;
 }
 
 #define generic_play_loop(condition) {\
@@ -984,33 +968,96 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 	}\
 }
 
+const wchar_t *image_formats[]={
+	L"bmp",
+	L"gif",
+	L"iff",
+	L"jpeg",
+	L"jpg",
+	L"lbm",
+	L"pbm",
+	L"pcx",
+	L"png",
+	L"ppm",
+	L"tga",
+	L"tif",
+	L"tiff",
+	L"xcf",
+	L"xpm",
+	0
+};
+
+const wchar_t *sound_formats[]={
+	L"669",
+	L"aiff",
+	L"flac",
+	L"it",
+	L"med",
+	L"mid",
+	L"mod",
+	L"mp3",
+	L"ogg",
+	L"s3m",
+	L"voc",
+	L"wav",
+	L"xm",
+	0
+};
+
+//0: unknown
+//1: image
+//2: sound
+//3: video
+ulong get_file_type(const std::wstring &filename){
+	ulong dot=filename.rfind('.');
+	if (dot==filename.npos)
+		return 0;
+	std::wstring extension=filename.substr(dot+1);
+	tolower(extension);
+	for (ulong a=0;image_formats[a];a++)
+		if (extension==image_formats[a])
+			return 1;
+	for (ulong a=0;sound_formats[a];a++)
+		if (extension==sound_formats[a])
+			return 2;
+	return 3;
+}
+
 bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from_archive){
 	NONS_ScreenSpace *scr=this->screen;
-	if (scr->Background->load(&filename)){
-		scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
-		scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
-		scr->BlendOnlyBG(1);
-		generic_play_loop(1);
-	}else{
-		if (from_archive){
-			ulong l;
-			uchar *buffer=this->archive->getFileBuffer(filename,l);
-			if (!buffer)
-				return 0;
-			ErrorCode error=this->audio->playMusic(filename,(char *)buffer,l,1);
-			delete[] buffer;
-			if (!CHECK_FLAG(error,NONS_NO_ERROR_FLAG))
-				return 0;
-		}else{
-			if (!CHECK_FLAG(this->play_video(filename,1),NONS_NO_ERROR_FLAG)){
+	ulong type=get_file_type(filename);
+	switch (type){
+		case 0:
+			return 0;
+		case 1:
+			if (scr->Background->load(&filename)){
+				scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
+				scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
+				scr->BlendOnlyBG(1);
+				generic_play_loop(1);
+			}
+			return 1;
+		case 2:
+			if (from_archive){
+				ulong l;
+				uchar *buffer=this->archive->getFileBuffer(filename,l);
+				if (!buffer)
+					return 0;
+				ErrorCode error=this->audio->playMusic(filename,(char *)buffer,l,1);
+				delete[] buffer;
+				if (!CHECK_FLAG(error,NONS_NO_ERROR_FLAG))
+					return 0;
+			}else{
 				ErrorCode error=this->audio->playMusic(&filename,1);
 				if (!CHECK_FLAG(error,NONS_NO_ERROR_FLAG))
 					return 0;
 			}
-		}
-		generic_play_loop(this->audio->music->is_playing());
+			generic_play_loop(this->audio->music->is_playing());
+			return 1;
+		case 3:
+			return !CHECK_FLAG(this->play_video(filename,1),NONS_NO_ERROR_FLAG);
 	}
-	return 1;
+	return 0;
 }
 
 ulong NONS_ScriptInterpreter::totalCommands(){

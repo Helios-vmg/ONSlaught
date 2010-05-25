@@ -156,6 +156,8 @@ void usage(){
 	exit(0);
 }
 
+extern const wchar_t *sound_formats[];
+
 void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 	static const wchar_t *options[]={
 		L"--help",                  //0
@@ -243,25 +245,24 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				std::cerr <<"Unrecognized encoding: \""<<arguments[a]<<"\""<<std::endl;
 				break;
 			case 3: //-music-format
-				if (a+1>=size){
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
-					break;
+				{
+					if (a+1>=size){
+						std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+						break;
+					}
+					if (arguments[++a]==L"auto"){
+						this->musicFormat.clear();
+						break;
+					}
+					long format=-1;
+					for (ulong b=0;sound_formats[b] && format<0;b++)
+						if (arguments[a]==sound_formats[b])
+							format=b;
+					if (format>=0)
+						this->musicFormat=arguments[a];
+					else
+						std::cerr <<"Unrecognized music format: \""<<arguments[a]<<"\""<<std::endl;
 				}
-				if (arguments[++a]==L"auto"){
-					this->musicFormat.clear();
-					break;
-				}
-				if (arguments[a]==L"ogg" ||
-						arguments[a]==L"mp3" ||
-						arguments[a]==L"mid" ||
-						arguments[a]==L"it" ||
-						arguments[a]==L"xm" ||
-						arguments[a]==L"s3m" ||
-						arguments[a]==L"mod"){
-					this->musicFormat=arguments[a];
-					break;
-				}
-				std::cerr <<"Unrecognized music format: \""<<arguments[a]<<"\""<<std::endl;
 				break;
 			case 4: //-music-directory
 				if (a+1>=size){

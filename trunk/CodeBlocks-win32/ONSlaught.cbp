@@ -95,9 +95,7 @@
 			<Add library="z" />
 			<Add directory="..\lib-win32\MinGW" />
 		</Linker>
-		<Unit filename="..\onslaught.rc">
-			<Option compilerVar="WINDRES" />
-		</Unit>
+		<Unit filename="..\onslaught.rc" />
 		<Unit filename="..\src\Archive.cpp" />
 		<Unit filename="..\src\Archive.h" />
 		<Unit filename="..\src\Audio.cpp" />
@@ -107,6 +105,7 @@
 		<Unit filename="..\src\Common.h" />
 		<Unit filename="..\src\ConfigFile.cpp" />
 		<Unit filename="..\src\ConfigFile.h" />
+		<Unit filename="..\src\enums.h" />
 		<Unit filename="..\src\ErrorCodes.cpp" />
 		<Unit filename="..\src\ErrorCodes.h" />
 		<Unit filename="..\src\ExpressionParser.tab.cpp" />
@@ -119,14 +118,14 @@
 		<Unit filename="..\src\GFX.h" />
 		<Unit filename="..\src\GUI.cpp" />
 		<Unit filename="..\src\GUI.h" />
-		<Unit filename="..\src\INIParser.tab.cpp" />
-		<Unit filename="..\src\INIParser.tab.hpp" />
-		<Unit filename="..\src\INIfile.cpp" />
-		<Unit filename="..\src\INIfile.h" />
-		<Unit filename="..\src\IOFunctions.cpp" />
-		<Unit filename="..\src\IOFunctions.h" />
 		<Unit filename="..\src\ImageLoader.cpp" />
 		<Unit filename="..\src\ImageLoader.h" />
+		<Unit filename="..\src\INIfile.cpp" />
+		<Unit filename="..\src\INIfile.h" />
+		<Unit filename="..\src\INIParser.tab.cpp" />
+		<Unit filename="..\src\INIParser.tab.hpp" />
+		<Unit filename="..\src\IOFunctions.cpp" />
+		<Unit filename="..\src\IOFunctions.h" />
 		<Unit filename="..\src\LZMA.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -138,11 +137,10 @@
 		<Unit filename="..\src\ONSlaught.cpp" />
 		<Unit filename="..\src\Plugin\LibraryLoader.cpp" />
 		<Unit filename="..\src\Plugin\LibraryLoader.h" />
-		<Unit filename="..\src\SDL_bilinear.c">
+		<Unit filename="..\src\puff.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="..\src\SDL_bilinear.h" />
-		<Unit filename="..\src\SJIS.table.cpp" />
+		<Unit filename="..\src\puff.h" />
 		<Unit filename="..\src\SaveFile.cpp" />
 		<Unit filename="..\src\SaveFile.h" />
 		<Unit filename="..\src\ScreenSpace.cpp" />
@@ -151,20 +149,22 @@
 		<Unit filename="..\src\Script.h" />
 		<Unit filename="..\src\ScriptInterpreter.cpp" />
 		<Unit filename="..\src\ScriptInterpreter.h" />
+		<Unit filename="..\src\SDL_bilinear.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\src\SDL_bilinear.h" />
+		<Unit filename="..\src\sha1.cpp" />
+		<Unit filename="..\src\sha1.h" />
+		<Unit filename="..\src\SJIS.table.cpp" />
 		<Unit filename="..\src\ThreadManager.cpp" />
 		<Unit filename="..\src\ThreadManager.h" />
 		<Unit filename="..\src\VariableStore.cpp" />
 		<Unit filename="..\src\VariableStore.h" />
+		<Unit filename="..\src\version.h" />
 		<Unit filename="..\src\VirtualScreen.cpp" />
 		<Unit filename="..\src\VirtualScreen.h" />
-		<Unit filename="..\src\enums.h" />
-		<Unit filename="..\src\puff.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="..\src\puff.h" />
-		<Unit filename="..\src\sha1.cpp" />
-		<Unit filename="..\src\sha1.h" />
-		<Unit filename="..\src\version.h" />
+
+
 		<Extensions>
 			<code_completion />
 			<envvars />

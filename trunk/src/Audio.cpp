@@ -303,8 +303,9 @@ void NONS_Audio::freeCacheElement(int channel){
 	i->second->unload();
 }
 
+extern const wchar_t *sound_formats[];
+
 ErrorCode NONS_Audio::playMusic(const std::wstring *filename,long times){
-	static const wchar_t *formats[]={L"ogg",L"mp3",L"mid",L"it",L"xm",L"s3m",L"mod",0};
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	if (!filename){
@@ -321,9 +322,9 @@ ErrorCode NONS_Audio::playMusic(const std::wstring *filename,long times){
 		if (!this->musicFormat.size()){
 			ulong a=0;
 			while (1){
-				if (!formats[a])
+				if (!sound_formats[a])
 					break;
-				temp=this->musicDir+L"/"+*filename+L"."+formats[a];
+				temp=this->musicDir+L"/"+*filename+L"."+sound_formats[a];
 				if (fileExists(temp))
 					break;
 				a++;

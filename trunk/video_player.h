@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2009, Helios (helios.vmg@gmail.com)
+* Copyright (c) 2010, Helios (helios.vmg@gmail.com)
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -50,17 +50,28 @@
 #define DLLexport
 #endif
 
-typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *screen,void *user_data);
-#define PLAYBACK_FUNCTION_PARAMETERS \
-	SDL_Surface *screen,\
-	const char *input,\
-	int *stop,\
-	void *user_data,\
-	int *toggle_fullscreen,\
-	int *take_screenshot,\
-	playback_cb fullscreen_callback,\
-	playback_cb screenshot_callback,\
-	int print_debug
+typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *,void *);
+typedef unsigned long ulong;
+
+typedef struct{
+	ulong version;
+	SDL_Surface *screen;
+	const char *input;
+	void *user_data;
+	ulong trigger_callback_pairs_n;
+	typedef struct{
+		volatile int *trigger;
+		playback_cb callback;
+	} trigger_callback_pair;
+	trigger_callback_pair *pairs;
+	volatile int *stop;
+	int print_debug;
+	char *exception_string;
+	size_t exception_string_size;
+} C_play_video_params;
+#define C_PLAY_VIDEO_PARAMS_VERSION 1
+
+#define PLAYBACK_FUNCTION_PARAMETERS void *parameters
 #define PLAYBACK_FUNCTION_NAME C_play_video
 #define PLAYBACK_FUNCTION_NAME_STRING "C_play_video"
 #define PLAYBACK_FUNCTION_SIGNATURE \
@@ -70,90 +81,81 @@ typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *screen,void *user_data
  * video_playback_fp:
  *
  * Description (C_play_video()):
- *     Plays a video using libavcodec to parse and decode the file, SDL for
- *     video output, and OpenAL for audio output.
- *     The video file must contain at least one video stream. If it contains
- *     more than one, the function chooses the first one it finds.
- *     An audio stream is optional.
- *     Subtitles are not rendered.
+ *     Plays a video using libVLC for parsing, decoding, and audio output, and
+ *     SDL for video output.
+ *     The video, audio, and subtitle streams to use will be the default ones,
+ *     if they exist.
+ *     Subtitle redering depends on available plugins.
  *     The function requires exclusive access to the destination surface, so if
  *     there are other threads running in the caller program that could read or
  *     write to the surface, either they should be stopped, or accesses to the
  *     surface should be locked with a mutex.
- *     See video_player/formats.txt for a list of formats and codecs supported
- *     by the libav* libraries.
- *     If the video and the destination surface are of different sizes, a
- *     bilinear interpolation (provided by libswscale) is applied to each frame.
- *     If the video and the destination surface are of different width-to-height
- *     ratios, the video is sized and positioned so that it fits completely
- *     inside the surface. For example, playing a 1920x1080 (16:9) video on an
+ *     If the video and the destination surface are of different dimensions, an
+ *     interpolation function will be applied to each frame.
+ *     If the video and the destination surface are of different aspect ratios,
+ *     the video is sized and positioned so that it fits completely inside the
+ *     surface. For example, playing a 1920x1080 (16:9) video on a
  *     1024x768 (4:3) surface would produce a letterboxed picture, while doing
  *     the opposite would produce a pillarboxed picture.
- *     The function does not clear (i.e. fill with black) the destination
- *     surface before or after. That job is left to the caller.
+ *     The function clears (i.e. fill with black) the destination before, but
+ *     not after being finishing. That job is left to the caller.
  *     Like any video-related code, the function is rather resource-consuming.
- *     Depending on the screen size of the video, the function can use anywhere
- *     between ~20 MiB (512x382) and 60 MiB (720p high definition video).
+ *     The computational requirements depend on the kind of codec used by the
+ *     video. The exact memory requirements depend on: the size of the screen,
+ *     the size of the video, and the kind of codec and container used.
  *
  * Parameters:
+ *     void *parameters
+ *         This is the only parameter the function takes. It should be a
+ *         pointer to a C_play_video_params structure. See below for details.
+ * Returns:
+ *     0 if the function failed, anything else otherwise.
+*
+ * C_play_video_params:
+ *     This structure is designed to allow ABI compatibility between different
+ *     dynamic library versions.
+ *     Its members are:
+ *     ulong version
+ *         The structure version that the client application is using. Set this
+ *         to C_PLAY_VIDEO_PARAMS_VERSION. If this version is higher than the
+ *         one the library was built for, the funtion will fail.
  *     SDL_Surface *screen
  *         A pointer to the SDL_Surface that the video will be rendered to. The
  *         surface *must* be the real screen (i.e. the pointer returned by
  *         SDL_SetVideoMode()).
  *     const char *input
  *         The path to the video file to be played.
- *     int *stop
- *         The function continually checks the int pointed to by stop and
- *         returns as soon as possible when its value becomes !0. The pointer is
- *         not checked, so passing an invalid pointer (including NULL) is likely
- *         to cause a segmentation fault.
  *     void *user_data
  *         This pointer will be passed to the callback functions if they are
  *         called.
- *     int *toggle_fullscreen
- *         Serves the same purpose as 'stop'. The pointer is also assumed to be
- *         valid.
- *         When the int pointed becomes !0, the function pointed to by
- *         'fullscreen_callback' is called. The int is reset back to zero
- *         immediately.
- *     int *take_screenshot
- *         Same as 'toggle_fullscreen', but calls screenshot_callback.
- *     playback_cb fullscreen_callback
- *     playback_cb screenshot_callback
- *         See above. The only other noteworthy thing to say is that these
- *         pointers don't need to be valid. If NULL is passed, the pointer will
- *         not be dereferenced even if the associated variable becomes !0.
- *         The functions will be called from threads other than the caller's.
- *         This should be considered when writing the callback to avoid race
- *         conditions and deadlocks.
- *         A callback is supposed to return an updated pointer to the screen.
- *         If the callback doesn't relocate the screen (e.g. by not calling
- *         SDL_SetVideoMode()), it must return the value of 'screen', possibly
- *         explicitly casted to (SDL_Surface *).
- *
- *     Note: Despite their names, The functions can be used for purposes other
- *         than coming back and forth from fullscreen mode or taking a
- *         screenshot. The parameters were so called merely because that's what
- *         the parent project uses them for.
- *         Using these parameters may place the caller program under the GPL.
- *
- * Returns:
- *     An error code describing the execution result. See the #defines below.
- *     Note that two or more of these codes may be bitwise-OR'd.
+ *     ulong trigger_callback_pairs_n
+ *         The size of the array pointed to by pairs.
+ *     trigger_callback_pair *pairs
+ *         A pointer to an array of pairs of int pointers and function
+ *         pointers. The function continually checks each of the ints pointed
+ *         to and, when it finds one that's !0, calls the associated function.
+ *         All pointers must be valid. The function doesn't check them.
+ *         The callbacks will be ran from the same thread as the one that
+ *         called C_play_video.
+ *         All callbacks must return updated pointers to the screen. If a
+ *         callback doesn't relocate the screen (e.g. by not calling
+ *         SDL_SetVideoMode()), it should return the same value it was passed.
+ *         Using callbacks may place the caller program under the GPL.
+ *     int *stop
+ *         The function continually checks the int pointed to by stop and
+ *         returns as soon as possible when its value becomes !0. The pointer
+ *         is not checked for validity.
+ *     int print_debug
+ *         The function writes debug messages to stdout if this is !0.
+ *         Currently unused.
+ *     char *exception_string
+ *         A pointer to a char array that will be used to write extra error
+ *         information in case the function fails.
+ *     size_t exception_string_size
+ *         The size of the buffer pointed to by exception_string. The function
+ *         Will write at most this many characters to it.
  *
  */
 typedef int (*video_playback_fp)(PLAYBACK_FUNCTION_PARAMETERS);
 PLAYBACK_FUNCTION_SIGNATURE;
-
-/* Return codes for C_play_video() */
-#define PLAYBACK_NO_ERROR					0x0000
-#define PLAYBACK_FILE_NOT_FOUND				0x0001
-#define PLAYBACK_STREAM_INFO_NOT_FOUND		0x0002
-#define PLAYBACK_NO_VIDEO_STREAM			0x0004
-#define PLAYBACK_NO_AUDIO_STREAM			0x0008 /* unused */
-#define PLAYBACK_UNSUPPORTED_VIDEO_CODEC	0x0010
-#define PLAYBACK_UNSUPPORTED_AUDIO_CODEC	0x0020
-#define PLAYBACK_OPEN_VIDEO_CODEC_FAILED	0x0040
-#define PLAYBACK_OPEN_AUDIO_CODEC_FAILED	0x0080
-#define PLAYBACK_OPEN_AUDIO_OUTPUT_FAILED	0x0100
 #endif

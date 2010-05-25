@@ -267,17 +267,13 @@ void initialize_conversion_tables();
 PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 #endif
 
-#ifdef main
+#if NONS_SYS_WINDOWS && !defined _CONSOLE && defined main
 #undef main
 #endif
 
 extern ConfigFile settings;
 
-#if NONS_SYS_WINDOWS && !defined _CONSOLE
-int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR,int){
-#else
 int main(int argc,char **argv){
-#endif
 	std::cout <<"ONSlaught: An ONScripter clone with Unicode support."<<std::endl;
 #if ONSLAUGHT_BUILD_VERSION<99999999
 		std::cout <<"Build "<<ONSLAUGHT_BUILD_VERSION<<", ";
@@ -295,12 +291,7 @@ int main(int argc,char **argv){
 	initialize_conversion_tables();
 	config_directory=getConfigLocation();
 
-#if NONS_SYS_WINDOWS && !defined _CONSOLE
-	std::vector<std::wstring> cmdl_arg=getParameterList(std::wstring(GetCommandLine()),0);
-	cmdl_arg.erase(cmdl_arg.begin());
-#else
 	std::vector<std::wstring> cmdl_arg=getArgumentsVector(argv);
-#endif
 	if (!useArgumentsFile("arguments.txt",cmdl_arg))
 		CLOptions.parse(cmdl_arg);
 
