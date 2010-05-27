@@ -58,7 +58,6 @@ struct NONS_InputObserver{
 	std::vector<NONS_EventQueue *> data;
 	NONS_Mutex mutex;
 	NONS_InputObserver();
-	~NONS_InputObserver();
 	void attach(NONS_EventQueue *what);
 	void detach(NONS_EventQueue *what);
 	void notify(SDL_Event *event);

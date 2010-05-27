@@ -88,8 +88,6 @@ NONS_InputObserver::NONS_InputObserver(){
 	this->data.reserve(50);
 }
 
-NONS_InputObserver::~NONS_InputObserver(){}
-
 void NONS_InputObserver::attach(NONS_EventQueue *what){
 	NONS_MutexLocker ml(this->mutex);
 	ulong pos=this->data.size();

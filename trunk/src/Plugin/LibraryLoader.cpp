@@ -40,13 +40,13 @@
 
 NONS_LibraryLoader::NONS_LibraryLoader(const char *libName,bool append_debug){
 #if NONS_SYS_WINDOWS
-	std::wstring filename=UniFromISO88591(libName);
+	std::string filename=libName;
 #ifdef _DEBUG
 	if (append_debug)
-		filename.append(L"_d");
+		filename.append("_d");
 #endif
-	filename.append(L".dll");
-	this->lib=LoadLibrary(filename.c_str());
+	filename.append(".dll");
+	this->lib=LoadLibraryA(filename.c_str());
 #elif NONS_SYS_UNIX
 	std::string filename="lib";
 	filename.append(libName);
