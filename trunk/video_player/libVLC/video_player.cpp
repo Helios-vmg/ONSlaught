@@ -27,7 +27,7 @@
 #include <cstdio>
 #include <stdint.h>
 #include <cmath>
-#include <stdlib.h>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -35,13 +35,83 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_mutex.h>
 #include <vlc/vlc.h>
-#include "threading.h"
-#include "video_player.h"
-
-#define VLC_TREE "."
+#include "../../video_player.h"
 
 typedef unsigned char uchar;
 typedef unsigned long ulong;
+
+#if NONS_SYS_WINDOWS
+#include <windows.h>
+#elif NONS_SYS_UNIX
+#include <unistd.h>
+#elif NONS_SYS_PSP
+#undef NONS_PARALLELIZE
+#endif
+
+class NONS_Event{
+	bool initialized;
+#if NONS_SYS_WINDOWS
+	HANDLE event;
+#elif NONS_SYS_UNIX
+	sem_t sem;
+#endif
+public:
+	NONS_Event():initialized(0){}
+	void init();
+	~NONS_Event();
+	void set();
+	void reset();
+	void wait();
+};
+
+void NONS_Event::init(){
+#if NONS_SYS_WINDOWS
+	this->event=CreateEvent(0,0,0,0);
+#elif NONS_SYS_UNIX
+	sem_init(&this->sem,0,0);
+#elif NONS_SYS_PSP
+	this->sem=SDL_CreateSemaphore(0);
+#endif
+	this->initialized=1;
+}
+
+NONS_Event::~NONS_Event(){
+	if (!this->initialized)
+		return;
+#if NONS_SYS_WINDOWS
+	CloseHandle(this->event);
+#elif NONS_SYS_UNIX
+	sem_destroy(&this->sem);
+#elif NONS_SYS_PSP
+	SDL_DestroySemaphore(this->sem);
+#endif
+}
+
+void NONS_Event::set(){
+#if NONS_SYS_WINDOWS
+	SetEvent(this->event);
+#elif NONS_SYS_UNIX
+	sem_post(&this->sem);
+#elif NONS_SYS_PSP
+	SDL_SemPost(this->sem);
+#endif
+}
+
+void NONS_Event::reset(){
+#if NONS_SYS_WINDOWS
+	ResetEvent(this->event);
+#endif
+}
+
+void NONS_Event::wait(){
+#if NONS_SYS_WINDOWS
+	WaitForSingleObject(this->event,INFINITE);
+#elif NONS_SYS_UNIX
+	sem_wait(&this->sem);
+#elif NONS_SYS_PSP
+	SDL_SemWait(this->sem);
+#endif
+}
 
 class ctx{
 protected:
@@ -190,7 +260,7 @@ bool get_true_dimensions(ulong &w,ulong &h,const char *filename,std::string &exc
 	vlc_argv.push_back(".");
 	vlc_argv.push_back("-q");
 	vlc_argv.push_back("--plugin-path");
-	vlc_argv.push_back(VLC_TREE"/modules");
+	vlc_argv.push_back("./modules");
 	vlc_argv.push_back("--ignore-config");
 	vlc_argv.push_back("--noaudio");
 	vlc_argv.push_back("--vout");
@@ -272,15 +342,9 @@ SDL_Rect fix_rect(SDL_Surface *screen,ulong w,ulong h){
 	return r;
 }
 
-bool play_video(
-		SDL_Surface *screen,
-		const char *input,
-		volatile int *stop,
-		void *user_data,
-		int print_debug,
-		std::string &exception_string,
-		std::vector<C_play_video_params::trigger_callback_pair> &callback_pairs
-	){
+#include "../C_play_video.cpp"
+
+play_video_SIGNATURE{
 	char clock[64],
 		cunlock[64],
 		cdata[64],
@@ -301,7 +365,7 @@ bool play_video(
 	vlc_argv.push_back(".");
 	vlc_argv.push_back("-q");
 	vlc_argv.push_back("--plugin-path");
-	vlc_argv.push_back(VLC_TREE"/modules");
+	vlc_argv.push_back("./modules");
 	vlc_argv.push_back("--ignore-config");
 	//vlc_argv.push_back("--noaudio");
 	vlc_argv.push_back("--vout");
@@ -368,41 +432,10 @@ bool play_video(
 	return 1;
 }
 
-typedef C_play_video_params C_play_video_params_1;
-typedef C_play_video_params C_play_video_params_latest;
-typedef bool (*versioned_play_video_f)(void *);
-
-bool play_video_1(void *void_params){
-	C_play_video_params_1 *params=(C_play_video_params_1 *)void_params;
-	if (params->exception_string)
-		*params->exception_string=0;
-	std::string temp;
-	std::vector<C_play_video_params::trigger_callback_pair> callback_pairs(
-		params->pairs,
-		params->pairs+params->trigger_callback_pairs_n
-	);
-	if (play_video(
-			params->screen,
-			params->input,
-			params->stop,
-			params->user_data,
-			params->print_debug,
-			temp,
-			callback_pairs
-		))
-		return 1;
-	strncpy(params->exception_string,temp.c_str(),params->exception_string_size);
-	params->exception_string[params->exception_string_size-1]=0;
-	return 0;
+PLAYER_TYPE_FUNCTION_SIGNATURE{
+	return "libVLC";
 }
 
-PLAYBACK_FUNCTION_SIGNATURE{
-	ulong version=*(ulong *)parameters;
-	versioned_play_video_f functions[]={
-		play_video_1
-	};
-	version--;
-	if (version>=sizeof(functions)/sizeof(*functions))
-		return 0;
-	return functions[version](parameters);
+PLAYER_VERSION_FUNCTION_SIGNATURE{
+	return C_PLAY_VIDEO_PARAMS_VERSION;
 }

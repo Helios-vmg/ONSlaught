@@ -401,7 +401,7 @@ std::string NONS_VirtualScreen::takeScreenshot(const std::string &name){
 }
 
 void NONS_VirtualScreen::takeScreenshotFromVideo(void){
-	NONS_MutexLocker ml(screenMutex);
+	//NONS_MutexLocker ml(screenMutex);
 	SDL_SaveBMP(this->screens[REAL],(getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp").c_str());
 }
 

@@ -41,13 +41,13 @@
 #endif
 
 #if NONS_SYS_WINDOWS
-#ifndef _USRDLL
-#define DLLexport __declspec(dllexport)
+#ifdef _USRDLL
+#define EXPORT_DEF __declspec(dllexport)
 #else
-#define DLLexport __declspec(dllimport)
+#define EXPORT_DEF __declspec(dllimport)
 #endif
 #else
-#define DLLexport
+#define EXPORT_DEF
 #endif
 
 typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *,void *);
@@ -75,7 +75,7 @@ typedef struct{
 #define PLAYBACK_FUNCTION_NAME C_play_video
 #define PLAYBACK_FUNCTION_NAME_STRING "C_play_video"
 #define PLAYBACK_FUNCTION_SIGNATURE \
-	EXTERN_C DLLexport int PLAYBACK_FUNCTION_NAME(PLAYBACK_FUNCTION_PARAMETERS)
+	EXTERN_C EXPORT_DEF int PLAYBACK_FUNCTION_NAME(PLAYBACK_FUNCTION_PARAMETERS)
 
 /*
  * video_playback_fp:
@@ -110,7 +110,7 @@ typedef struct{
  *         pointer to a C_play_video_params structure. See below for details.
  * Returns:
  *     0 if the function failed, anything else otherwise.
-*
+ *
  * C_play_video_params:
  *     This structure is designed to allow ABI compatibility between different
  *     dynamic library versions.
@@ -135,7 +135,7 @@ typedef struct{
  *         pointers. The function continually checks each of the ints pointed
  *         to and, when it finds one that's !0, calls the associated function.
  *         All pointers must be valid. The function doesn't check them.
- *         The callbacks will be ran from the same thread as the one that
+ *         The callbacks may not be ran from the same thread as the one that
  *         called C_play_video.
  *         All callbacks must return updated pointers to the screen. If a
  *         callback doesn't relocate the screen (e.g. by not calling
@@ -147,7 +147,6 @@ typedef struct{
  *         is not checked for validity.
  *     int print_debug
  *         The function writes debug messages to stdout if this is !0.
- *         Currently unused.
  *     char *exception_string
  *         A pointer to a char array that will be used to write extra error
  *         information in case the function fails.
@@ -158,4 +157,40 @@ typedef struct{
  */
 typedef int (*video_playback_fp)(PLAYBACK_FUNCTION_PARAMETERS);
 PLAYBACK_FUNCTION_SIGNATURE;
+
+#define PLAYER_TYPE_FUNCTION_PARAMETERS void
+#define PLAYER_TYPE_FUNCTION_NAME get_player_type
+#define PLAYER_TYPE_FUNCTION_NAME_STRING "get_player_type"
+#define PLAYER_TYPE_FUNCTION_SIGNATURE \
+	EXTERN_C EXPORT_DEF const char *PLAYER_TYPE_FUNCTION_NAME \
+	(PLAYER_TYPE_FUNCTION_PARAMETERS)
+
+/*
+ * player_type_fp:
+ *
+ * Description (get_player_type()):
+ *     Returns the library that the player uses as a string. E.g.: "FFmpeg",
+ *     "libVLC".
+ *
+ */
+typedef const char *(*player_type_fp)(PLAYER_TYPE_FUNCTION_PARAMETERS);
+PLAYER_TYPE_FUNCTION_SIGNATURE;
+
+#define PLAYER_VERSION_FUNCTION_PARAMETERS void
+#define PLAYER_VERSION_FUNCTION_NAME get_player_version
+#define PLAYER_VERSION_FUNCTION_NAME_STRING "get_player_version"
+#define PLAYER_VERSION_FUNCTION_SIGNATURE \
+	EXTERN_C EXPORT_DEF ulong PLAYER_VERSION_FUNCTION_NAME \
+	(PLAYER_VERSION_FUNCTION_PARAMETERS)
+
+/*
+ * player_type_fp:
+ *
+ * Description (get_player_type()):
+ *     Returns the value of C_PLAY_VIDEO_PARAMS_VERSION that the player was
+ *     built with.
+ *
+ */
+typedef ulong (*player_version_fp)(PLAYER_VERSION_FUNCTION_PARAMETERS);
+PLAYER_VERSION_FUNCTION_SIGNATURE;
 #endif

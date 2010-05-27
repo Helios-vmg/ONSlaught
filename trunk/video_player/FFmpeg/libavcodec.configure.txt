@@ -6,3 +6,6 @@ GPL:
 
 minimal:
 ./configure --enable-static --disable-shared --disable-ffmpeg --disable-ffplay --disable-ffserver --disable-network --disable-ipv6 --enable-memalign-hack
+
+../configure --enable-static --enable-shared --enable-gpl --enable-nonfree --enable-memalign-hack --prefix=. >config.txt
+make -rj2 && make install

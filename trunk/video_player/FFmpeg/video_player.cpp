@@ -24,7 +24,7 @@
 * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "../video_player.h"
+#include "../../video_player.h"
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -479,9 +479,11 @@ public:
 		if (this->device)
 			alcCloseDevice(this->device);
 	}
-	void startThread(TSqueue<audioBuffer> *queue){
-		this->incoming_queue=queue;
+	TSqueue<audioBuffer> *startThread(/*TSqueue<audioBuffer> *queue*/){
+		this->incoming_queue=new TSqueue<audioBuffer>;
+		this->incoming_queue->max_size=30;
 		this->thread.call(running_thread_support,this);
+		return this->incoming_queue;
 	}
 	void stopThread(bool join){
 		this->stop_thread=1;
@@ -532,6 +534,8 @@ private:
 			}
 		}
 		this->wait_until_stop();
+		delete this->incoming_queue;
+		this->incoming_queue=0;
 	}
 	static bool fill(int16_t *buffer,size_t size,TSqueue<audioBuffer> *queue){
 		bool ret=1;
@@ -557,7 +561,7 @@ private:
 					write_at+=read_size;
 				}
 				if (write_at<size){
-					memset(buffer+write_at,0,size-write_at*sizeof(int16_t));
+					memset(buffer+write_at,0,(size-write_at)*sizeof(int16_t));
 					ret=0;
 				}
 			}
@@ -592,22 +596,28 @@ public:
 	CompleteVideoFrame(volatile SDL_Surface *screen,AVCodecContext *videoCC,AVFrame *videoFrame,double pts){
 		ulong width,height;
 		float screenRatio=float(screen->w)/float(screen->h),
+			videoRatio;
+		if (videoCC->sample_aspect_ratio.num)
+			videoRatio=
+				float(videoCC->width*videoCC->sample_aspect_ratio.num)/
+				float(videoCC->height*videoCC->sample_aspect_ratio.den);
+		else
 			videoRatio=float(videoCC->width)/float(videoCC->height);
-		if (screenRatio==videoRatio){
+		if (screenRatio<videoRatio){ //widescreen
 			width=screen->w;
+			height=ulong(float(screen->w)/videoRatio);
+		}else if (screenRatio>videoRatio){ //"narrowscreen"
+			width=ulong(float(screen->h)*videoRatio);
 			height=screen->h;
-		}else if (screenRatio<videoRatio){ //widescreen
+		}else{
 			width=screen->w;
-			height=float(screen->w)/videoRatio;
-		}else{ //"narrowscreen"
-			width=float(screen->h)*videoRatio;
 			height=screen->h;
 		}
 		this->overlay=SDL_CreateYUVOverlay(width,height,SDL_YV12_OVERLAY,(SDL_Surface *)screen);
-		this->frameRect.x=(screen->w-width)/2;
-		this->frameRect.y=(screen->h-height)/2;
-		this->frameRect.w=width;
-		this->frameRect.h=height;
+		this->frameRect.x=Sint16((screen->w-width)/2);
+		this->frameRect.y=Sint16((screen->h-height)/2);
+		this->frameRect.w=(Uint16)width;
+		this->frameRect.h=(Uint16)height;
 		SDL_LockYUVOverlay(this->overlay);
 		AVPicture pict;
 		pict.data[0]=this->overlay->pixels[0];
@@ -640,16 +650,13 @@ public:
 static volatile bool stop_playback;
 static bool debug_messages;
 static volatile SDL_Surface *global_screen;
-static NONS_Mutex screenMutex;
+//static NONS_Mutex screenMutex;
 
 struct video_display_thread_params{
 	TSqueue<CompleteVideoFrame *> *queue;
 	AudioOutput *aoutput;
 	void *user_data;
-	int *toggle_fullscreen;
-	int *take_screenshot;
-	playback_cb fullscreen_callback,
-		screenshot_callback;
+	std::vector<C_play_video_params::trigger_callback_pair> *callback_pairs;
 };
 
 void video_display_thread(void *p){
@@ -661,18 +668,10 @@ void video_display_thread(void *p){
 		double current_time=double(global_time)/1000.0;
 		if (params.queue->is_empty())
 			continue;
-		if (*params.take_screenshot){
-			*params.take_screenshot=0;
-			if (params.screenshot_callback){
-				NONS_MutexLocker ml(screenMutex);
-				global_screen=params.screenshot_callback(global_screen,params.user_data);
-			}
-		}
-		if (*params.toggle_fullscreen){
-			*params.toggle_fullscreen=0;
-			if (params.fullscreen_callback){
-				NONS_MutexLocker ml(screenMutex);
-				global_screen=params.fullscreen_callback(global_screen,params.user_data);
+		for (ulong a=0;a<params.callback_pairs->size();a++){
+			if (*(*params.callback_pairs)[a].trigger){
+				*(*params.callback_pairs)[a].trigger=0;
+				global_screen=(*params.callback_pairs)[a].callback(global_screen,params.user_data);
 			}
 		}
 
@@ -712,9 +711,7 @@ void decode_audio(void *p){
 	const size_t output_s=AVCODEC_MAX_AUDIO_FRAME_SIZE*2;
 	static int16_t audioOutputBuffer[output_s];
 
-	TSqueue<audioBuffer> queue;
-	queue.max_size=30;
-	params.output->startThread(&queue);
+	TSqueue<audioBuffer> *queue=params.output->startThread();
 
 	while (1){
 		Packet *packet=0;
@@ -742,7 +739,7 @@ void decode_audio(void *p){
 				packet_data_s=0;
 			buffer_size+=bytes_decoded/sizeof(int16_t);
 		}
-		queue.push(audioBuffer(audioOutputBuffer,buffer_size,1));
+		queue->push(audioBuffer(audioOutputBuffer,buffer_size,1));
 		delete packet;
 	}
 	params.output->stopThread(0);
@@ -777,10 +774,7 @@ struct decode_video_params{
 	TSqueue<Packet *> *packet_queue;
 	AudioOutput *aoutput;
 	void *user_data;
-	int *toggle_fullscreen;
-	int *take_screenshot;
-	playback_cb fullscreen_callback,
-		screenshot_callback;
+	std::vector<C_play_video_params::trigger_callback_pair> *callback_pairs;
 };
 
 struct cmp_pCompleteVideoFrame{
@@ -803,10 +797,7 @@ void decode_video(void *p){
 		temp->queue=&frameQueue;
 		temp->aoutput=params.aoutput;
 		temp->user_data=params.user_data;
-		temp->toggle_fullscreen=params.toggle_fullscreen;
-		temp->take_screenshot=params.take_screenshot;
-		temp->fullscreen_callback=params.fullscreen_callback;
-		temp->screenshot_callback=params.screenshot_callback;
+		temp->callback_pairs=params.callback_pairs;
 		display.call(video_display_thread,temp);
 	}
 
@@ -828,9 +819,9 @@ void decode_video(void *p){
 		double pts;
 		{
 			if ((packet->dts!=AV_NOPTS_VALUE))
-				pts=packet->dts;
+				pts=(double)packet->dts;
 			else if (videoFrame->opaque && *(int64_t *)videoFrame->opaque!=AV_NOPTS_VALUE)
-				pts=*(int64_t *)videoFrame->opaque;
+				pts=(double)*(int64_t *)videoFrame->opaque;
 			else
 				pts=0;
 			double period=av_q2d(params.videoS->time_base);
@@ -869,21 +860,29 @@ void decode_video(void *p){
 	}
 }
 
-int play_video(PLAYBACK_FUNCTION_PARAMETERS){
+#include "../C_play_video.cpp"
+
+play_video_SIGNATURE{
 	reset_start_time=1;
 	stop_playback=0;
-	debug_messages=print_debug;
+	debug_messages=!!print_debug;
 	global_screen=screen;
 	av_register_all();
 	AVFormatContext *avfc;
+	SDL_FillRect(screen,0,0);
+	SDL_UpdateRect(screen,0,0,0,0);
 
-	if (av_open_input_file(&avfc,input,0,0,0)!=0)
-		return PLAYBACK_FILE_NOT_FOUND;
+	if (av_open_input_file(&avfc,input,0,0,0)!=0){
+		exception_string="File not found.";
+		return 0;
+	}
 	if (av_find_stream_info(avfc)<0){
 		av_close_input_file(avfc);
-		return PLAYBACK_STREAM_INFO_NOT_FOUND;
+		exception_string="Stream info not found.";
+		return 0;
 	}
-	//dump_format(avfc,0,input,0);
+	if (debug_messages)
+		dump_format(avfc,0,input,0);
 
 	AVCodecContext *videoCC,
 		*audioCC=0;
@@ -898,7 +897,14 @@ int play_video(PLAYBACK_FUNCTION_PARAMETERS){
 	bool useAudio=(audioStream!=-1);
 	if (videoStream==-1){
 		av_close_input_file(avfc);
-		return ((videoStream==-1)?PLAYBACK_NO_VIDEO_STREAM:0)|((audioStream==-1)?PLAYBACK_NO_AUDIO_STREAM:0);
+		if (videoStream==-1)
+			exception_string="No video stream.";
+		if (audioStream==-1){
+			if (exception_string.size())
+				exception_string.push_back(' ');
+			exception_string.append("No audio stream.");
+		}
+		return 0;
 	}
 	videoCC=avfc->streams[videoStream]->codec;
 	if (useAudio)
@@ -908,9 +914,16 @@ int play_video(PLAYBACK_FUNCTION_PARAMETERS){
 		*audioCodec=0;
 	if (useAudio)
 		audioCodec=avcodec_find_decoder(audioCC->codec_id);
-	if(!videoCodec || useAudio && !audioCodec){
+	if (!videoCodec || useAudio && !audioCodec){
 		av_close_input_file(avfc);
-		return ((!videoCodec)?PLAYBACK_UNSUPPORTED_VIDEO_CODEC:0)|((!audioCodec)?PLAYBACK_UNSUPPORTED_AUDIO_CODEC:0);
+		if (!videoCodec)
+			exception_string="Unsupported video codec.";
+		if (!audioCodec){
+			if (exception_string.size())
+				exception_string.push_back(' ');
+			exception_string.append("Unsupported audio codec.");
+		}
+		return 0;
 	}
 	{
 		int video_codec=avcodec_open(videoCC,videoCodec),
@@ -920,17 +933,19 @@ int play_video(PLAYBACK_FUNCTION_PARAMETERS){
 		if (video_codec<0 || useAudio && audio_codec<0){
 			int ret=0;
 			if (video_codec<0)
-				ret=PLAYBACK_OPEN_VIDEO_CODEC_FAILED;
+				exception_string="Open video codec failed.";
 			else
 				avcodec_close(videoCC);
 			if (useAudio){
-				if (audio_codec<0)
-					ret|=PLAYBACK_OPEN_AUDIO_CODEC_FAILED;
-				else
+				if (audio_codec<0){
+					if (exception_string.size())
+						exception_string.push_back(' ');
+					exception_string.append("Open audio codec failed.");
+				}else
 					avcodec_close(audioCC);
 			}
 			av_close_input_file(avfc);
-			return ret;
+			return 0;
 		}
 	}
 	ulong channels,sample_rate;
@@ -948,7 +963,8 @@ int play_video(PLAYBACK_FUNCTION_PARAMETERS){
 			if (useAudio)
 				avcodec_close(audioCC);
 			av_close_input_file(avfc);
-			return PLAYBACK_OPEN_AUDIO_OUTPUT_FAILED;
+			exception_string="Open audio output failed.";
+			return 0;
 		}
 		output.expect_buffers=useAudio;
 
@@ -971,10 +987,7 @@ int play_video(PLAYBACK_FUNCTION_PARAMETERS){
 			params->packet_queue=&video_packets;
 			params->aoutput=&output;
 			params->user_data=user_data;
-			params->toggle_fullscreen=toggle_fullscreen;
-			params->take_screenshot=take_screenshot;
-			params->fullscreen_callback=fullscreen_callback;
-			params->screenshot_callback=screenshot_callback;
+			params->callback_pairs=&callback_pairs;
 			video_decoder.call(decode_video,params);
 		}
 		video_packets.max_size=25;
@@ -1000,19 +1013,13 @@ int play_video(PLAYBACK_FUNCTION_PARAMETERS){
 			avcodec_close(audioCC);
 		av_close_input_file(avfc);
 	}
-	return PLAYBACK_NO_ERROR;
+	return 1;
 }
 
-PLAYBACK_FUNCTION_SIGNATURE{
-	return play_video(
-		screen,
-		input,
-		stop,
-		user_data,
-		toggle_fullscreen,
-		take_screenshot,
-		fullscreen_callback,
-		screenshot_callback,
-		print_debug
-	);
+PLAYER_TYPE_FUNCTION_SIGNATURE{
+	return "FFmpeg";
+}
+
+PLAYER_VERSION_FUNCTION_SIGNATURE{
+	return C_PLAY_VIDEO_PARAMS_VERSION;
 }

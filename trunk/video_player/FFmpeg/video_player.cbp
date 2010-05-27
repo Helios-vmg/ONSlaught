@@ -38,7 +38,7 @@
 			</Target>
 		</Build>
 		<Compiler>
-			<Add directory="..\include" />
+			<Add directory="..\..\include" />
 			<Add directory="include" />
 		</Compiler>
 		<Linker>
@@ -50,7 +50,7 @@
 			<Add library="SDL" />
 			<Add library="winmm" />
 			<Add library="OpenAL32" />
-			<Add directory="..\lib-win32\MinGW" />
+			<Add directory="..\..\lib-win32\MinGW" />
 			<Add directory="lib-win32" />
 		</Linker>
 		<Unit filename="video_player.cpp" />

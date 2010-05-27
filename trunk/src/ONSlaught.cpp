@@ -267,7 +267,7 @@ void initialize_conversion_tables();
 PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 #endif
 
-#if NONS_SYS_WINDOWS && !defined _CONSOLE && defined main
+#if NONS_SYS_WINDOWS && defined _CONSOLE && defined main
 #undef main
 #endif
 

@@ -829,8 +829,7 @@ void NONS_ScriptInterpreter::queue(NONS_ScriptLine *line){
 	this->commandQueue.push(line);
 }
 
-//#include "../video_player.h"
-#include "f:\Documents and Settings\root\My Documents\Visual Studio 2008\Projects\VLC\video_player\video_player.h"
+#include "../video_player.h"
 
 struct playback_input_thread_params{
 	bool allow_quit;
@@ -896,15 +895,32 @@ SDL_Surface *playback_screenshot_callback(volatile SDL_Surface *screen,void *use
 
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){
 	NONS_LibraryLoader video_player("video_player",0);
-	video_playback_fp C_play_video=(video_playback_fp)video_player.getFunction(PLAYBACK_FUNCTION_NAME_STRING);
-	if (!C_play_video){
-		switch (video_player.error){
-			case NONS_LibraryLoader::LIBRARY_NOT_FOUND:
-				return NONS_LIBRARY_NOT_FOUND;
-			case NONS_LibraryLoader::FUNCTION_NOT_FOUND:
-				return NONS_FUNCTION_NOT_FOUND;
-		}
+#define play_video_TRY_GET_FUNCTION(type,name,string)\
+	type name=(type)video_player.getFunction(string);\
+	if (!name){\
+		switch (video_player.error){\
+			case NONS_LibraryLoader::LIBRARY_NOT_FOUND:\
+				return NONS_LIBRARY_NOT_FOUND;\
+			case NONS_LibraryLoader::FUNCTION_NOT_FOUND:\
+				return NONS_FUNCTION_NOT_FOUND;\
+		}\
 	}
+	play_video_TRY_GET_FUNCTION(
+		video_playback_fp,
+		C_play_video,
+		PLAYBACK_FUNCTION_NAME_STRING
+	);
+	play_video_TRY_GET_FUNCTION(
+		player_type_fp,
+		get_player_type,
+		PLAYER_TYPE_FUNCTION_NAME_STRING
+	);
+	play_video_TRY_GET_FUNCTION(
+		player_version_fp,
+		get_player_version,
+		PLAYER_VERSION_FUNCTION_NAME_STRING
+	);
+	o_stdout <<"Loaded video player based on "<<get_player_type()<<" (v"<<get_player_version()<<").\n";
 	bool success;
 	std::string exception_string(10000,0);
 	{
