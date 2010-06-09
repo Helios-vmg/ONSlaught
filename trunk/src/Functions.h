@@ -679,6 +679,7 @@ struct surfaceData{
 		Goffset,
 		Boffset,
 		Aoffset;
+	uchar offsets[4];
 	ulong advance,
 		pitch,
 		w,h;
@@ -698,6 +699,10 @@ struct surfaceData{
 		this->w=surface->w;
 		this->h=surface->h;
 		this->alpha=(this->Aoffset!=this->Roffset && this->Aoffset!=this->Goffset && this->Aoffset!=this->Boffset);
+		this->offsets[0]=this->Roffset;
+		this->offsets[1]=this->Goffset;
+		this->offsets[2]=this->Boffset;
+		this->offsets[3]=this->Aoffset;
 		return *this;
 	}
 };
