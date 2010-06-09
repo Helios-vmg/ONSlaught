@@ -156,9 +156,9 @@ class NONS_Thread{
 	bool called;
 public:
 	NONS_Thread():called(0){}
-	NONS_Thread(NONS_ThreadedFunctionPointer function,void *data);
+	NONS_Thread(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority=0);
 	~NONS_Thread();
-	void call(NONS_ThreadedFunctionPointer function,void *data);
+	void call(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority=0);
 	void join();
 };
 
@@ -338,9 +338,9 @@ void NONS_Event::wait(){
 #endif
 }
 
-NONS_Thread::NONS_Thread(NONS_ThreadedFunctionPointer function,void *data){
+NONS_Thread::NONS_Thread(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority){
 	this->called=0;
-	this->call(function,data);
+	this->call(function,data,give_highest_priority);
 }
 
 NONS_Thread::~NONS_Thread(){
@@ -352,7 +352,7 @@ NONS_Thread::~NONS_Thread(){
 #endif
 }
 
-void NONS_Thread::call(NONS_ThreadedFunctionPointer function,void *data){
+void NONS_Thread::call(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority){
 	if (this->called)
 		return;
 	threadStruct *ts=new threadStruct;
@@ -360,8 +360,24 @@ void NONS_Thread::call(NONS_ThreadedFunctionPointer function,void *data){
 	ts->d=data;
 #if NONS_SYS_WINDOWS
 	this->thread=CreateThread(0,0,(LPTHREAD_START_ROUTINE)runningThread,ts,0,0);
+	if (give_highest_priority)
+		SetThreadPriority(this->thread,THREAD_PRIORITY_HIGHEST);
 #elif NONS_SYS_UNIX
-	pthread_create(&this->thread,0,runningThread,ts);
+	pthread_attr_t attr,
+		*pattr=0;
+	if (give_highest_priority){
+		pattr=&attr;
+		pthread_attr_init(pattr);
+		sched_param params;
+		pthread_attr_getschedparam(pattr,&params);
+		int policy;
+		pthread_attr_getschedpolicy(pattr,&policy);
+		params.sched_priority=sched_get_priority_max(policy);
+		pthread_attr_setschedparam(pattr,&params);
+	}
+	pthread_create(&this->thread,pattr,runningThread,ts);
+	if (give_highest_priority)
+		pthread_attr_destroy(pattr);
 #endif
 	this->called=1;
 }
@@ -625,7 +641,7 @@ class AudioOutput{
 	NONS_Thread thread;
 	ulong frequency;
 	ALenum format;
-	static const size_t n=10;
+	static const size_t n=2;
 	ALuint ALbuffers[n];
 	ulong current;
 	int16_t *buffers[n];
@@ -689,7 +705,7 @@ public:
 	TSqueue<audioBuffer> *startThread(){
 		this->incoming_queue=new TSqueue<audioBuffer>;
 		this->incoming_queue->max_size=30;
-		this->thread.call(running_thread_support,this);
+		this->thread.call(running_thread_support,this,1);
 		return this->incoming_queue;
 	}
 	void stopThread(bool join){
@@ -745,8 +761,8 @@ private:
 				ulong t;
 				fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
 				//correct time
-				if (t+100*this->n!=global_time)
-					start_time=now-t+100*this->n;
+				if (t+100*(buffers_finished)!=global_time)
+					start_time=now-t+100*(buffers_finished);
 				alBufferData(
 					this->ALbuffers[this->current],
 					this->format,
@@ -908,6 +924,7 @@ public:
 				std::string s=seconds_to_time_format(this->pts);
 				s.push_back('\n');
 				s.append(seconds_to_time_format(double(real_global_time)/1000.0));
+				s.append(" "+itoa<char>(real_global_time-this->pts*1000.0,4));
 				blit_font(this->overlay,s.c_str(),0,0);
 			}
 			SDL_DisplayYUVOverlay(this->overlay,&this->frameRect);
@@ -1277,7 +1294,7 @@ play_video_SIGNATURE{
 			params->audioS=avfc->streams[audioStream];
 			params->packet_queue=&audio_packets;
 			params->output=&output;
-			audio_decoder.call(decode_audio,params);
+			audio_decoder.call(decode_audio,params,1);
 		}
 		NONS_Thread video_decoder;
 		TSqueue<Packet *> video_packets;
