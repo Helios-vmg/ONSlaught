@@ -36,6 +36,7 @@
 #include <SDL/SDL_mutex.h>
 #include <vlc/vlc.h>
 #include "../../video_player.h"
+#include "../common.h"
 
 typedef unsigned char uchar;
 typedef unsigned long ulong;
@@ -118,6 +119,8 @@ protected:
 	SDL_mutex *mutex;
 	NONS_Event event;
 public:
+	bool debug;
+	ulong t0;
 	ctx(){
 		this->mutex=SDL_CreateMutex();
 		this->event.init();
@@ -171,6 +174,8 @@ public:
 		SDL_LockMutex(this->mutex);
 		SDL_BlitSurface(this->surf,0,screen,rect);
 		SDL_UnlockMutex(this->mutex);
+		if (this->debug)
+			blit_font(screen,seconds_to_time_format(double(SDL_GetTicks()-this->t0)/1000.0),rect->x,rect->y);
 		SDL_UpdateRect(screen,0,0,0,0);
 	}
 	ulong get_width(){
@@ -407,10 +412,10 @@ play_video_SIGNATURE{
 
 	libvlc_media_player_play(mp, &ex);
 	CATCH;
+	ctx.t0=SDL_GetTicks();
+	ctx.debug=print_debug;
 
-	for (ulong i=0;;i++){
-		if (*stop)
-			break;
+	for (ulong i=0;!*stop;i++){
 		bool a=libvlc_media_player_get_state(mp,&ex)==libvlc_Ended;
 		CATCH;
 		if (a)
