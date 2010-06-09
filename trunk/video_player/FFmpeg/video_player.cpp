@@ -25,10 +25,13 @@
 */
 
 #include "../../video_player.h"
+#include "../common.h"
+#include <SDL/SDL_gfxPrimitives.h>
 #include <iostream>
 #include <sstream>
 #include <vector>
 #include <set>
+#include <sstream>
 #include <al.h>
 #include <alc.h>
 
@@ -40,9 +43,89 @@
 #elif NONS_SYS_UNIX
 #include <pthread.h>
 #include <semaphore.h>
+#include <time.h>
 #endif
 
 typedef unsigned long ulong;
+
+#if NONS_SYS_WINDOWS
+#include <cassert>
+
+class VirtualConsole{
+	HANDLE near_end,
+		far_end,
+		process;
+public:
+	bool good;
+	VirtualConsole(const std::string &name,ulong color);
+	~VirtualConsole();
+	void put(const char *str,size_t size=0);
+	void put(const std::string &str){
+		this->put(str.c_str(),str.size());
+	}
+};
+
+VirtualConsole::VirtualConsole(const std::string &name,ulong color){
+	this->good=0;
+	SECURITY_ATTRIBUTES sa;
+	sa.nLength=sizeof(SECURITY_ATTRIBUTES);
+	sa.bInheritHandle=1;
+	sa.lpSecurityDescriptor=0;
+	if (!CreatePipe(&this->far_end,&this->near_end,&sa,0)){
+		assert(this->near_end==INVALID_HANDLE_VALUE);
+		return;
+	}
+	SetHandleInformation(this->near_end,HANDLE_FLAG_INHERIT,0);
+	PROCESS_INFORMATION pi;
+	STARTUPINFO si;
+	ZeroMemory(&pi,sizeof(pi));
+	ZeroMemory(&si,sizeof(si));
+	si.cb=sizeof(STARTUPINFO);
+	si.hStdInput=this->far_end;
+	si.dwFlags|=STARTF_USESTDHANDLES;
+	TCHAR program[]=TEXT("console.exe");
+	TCHAR arguments[100];
+#ifndef UNICODE
+	sprintf(arguments,"%d",color);
+#else
+	swprintf(arguments,L"0 %d",color);
+#endif
+	if (!CreateProcess(program,arguments,0,0,1,CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT,0,0,&si,&pi))
+		return;
+	this->process=pi.hProcess;
+	CloseHandle(pi.hThread);
+	this->good=1;
+
+	this->put(name);
+	this->put("\n",1);
+}
+
+VirtualConsole::~VirtualConsole(){
+	if (this->near_end!=INVALID_HANDLE_VALUE){
+		if (this->process!=INVALID_HANDLE_VALUE){
+			TerminateProcess(this->process,0);
+			CloseHandle(this->process);
+		}
+		CloseHandle(this->near_end);
+		CloseHandle(this->far_end);
+	}
+}
+	
+void VirtualConsole::put(const char *str,size_t size){
+	if (!this->good)
+		return;
+	if (!size)
+		size=strlen(str);
+	DWORD l;
+	WriteFile(this->near_end,str,size,&l,0);
+}
+
+static VirtualConsole *vc[10]={0};
+#define VC_AUDIO_DECODE 0
+#define VC_VIDEO_DECODE 1
+#define VC_AUDIO_RENDER 2
+#define VC_VIDEO_RENDER 3
+#endif
 
 class NONS_Event{
 	bool initialized;
@@ -79,9 +162,10 @@ public:
 	void join();
 };
 
+#define NONS_Mutex_USE_MUTEX
 class NONS_Mutex{
 #if NONS_SYS_WINDOWS
-	//pointer to CRITICAL_SECTION
+	//pointer to CRITICAL_SECTION or mutex HANDLE
 	void *mutex;
 #elif NONS_SYS_UNIX
 	pthread_mutex_t mutex;
@@ -93,6 +177,10 @@ public:
 	~NONS_Mutex();
 	void lock();
 	void unlock();
+	bool try_lock();
+#ifdef NONS_Mutex_USE_MUTEX
+	bool timed_lock(ulong ms);
+#endif
 };
 
 class NONS_MutexLocker{
@@ -112,10 +200,6 @@ template <typename T>
 class TSqueue{
 	std::queue<T> queue;
 	NONS_Mutex mutex;
-	void wait_if_full(){
-		while (this->size()>=this->max_size)
-			SDL_Delay(10);
-	}
 public:
 	ulong max_size;
 	TSqueue(){
@@ -135,26 +219,56 @@ public:
 	void lock(){
 		this->mutex.lock();
 	}
+	bool try_lock(){
+		return this->mutex.try_lock();
+	}
 	void unlock(){
 		this->mutex.unlock();
 	}
 	void push(const T &e){
-		this->wait_if_full();
-		NONS_MutexLocker ml(this->mutex);
+		while (1){
+			this->mutex.lock();
+			ulong size=this->queue.size();
+			if (size<this->max_size)
+				break;
+			this->mutex.unlock();
+			SDL_Delay(10);
+		}
 		this->queue.push(e);
+		this->mutex.unlock();
+	}
+	bool try_is_empty(bool &res){
+		if (!this->mutex.try_lock())
+			return 0;
+		res=this->queue.empty();
+		this->mutex.unlock();
+		return 1;
 	}
 	bool is_empty(){
 		NONS_MutexLocker ml(this->mutex);
-		bool r=this->queue.empty();
-		return r;
+		return this->queue.empty();
 	}
 	ulong size(){
 		NONS_MutexLocker ml(this->mutex);
 		return this->queue.size();
 	}
+	bool try_size(ulong &res){
+		if (!this->mutex.try_lock())
+			return 0;
+		res=this->queue.size();
+		this->mutex.unlock();
+		return 1;
+	}
 	T &peek(){
 		NONS_MutexLocker ml(this->mutex);
 		return this->queue.front();
+	}
+	bool try_peek(T *res){
+		if (!this->mutex.try_lock())
+			return 0;
+		res=&this->queue.front();
+		this->mutex.unlock();
+		return 1;
 	}
 	T pop(){
 		NONS_MutexLocker ml(this->mutex);
@@ -162,9 +276,24 @@ public:
 		this->queue.pop();
 		return ret;
 	}
+	bool try_pop(T &res){
+		if (!this->mutex.try_lock())
+			return 0;
+		res=this->queue.front();
+		this->queue.pop();
+		this->mutex.unlock();
+		return 1;
+	}
 	void pop_without_copy(){
 		NONS_MutexLocker ml(this->mutex);
 		this->queue.pop();
+	}
+	bool try_pop_without_copy(){
+		if (!this->mutex.try_lock())
+			return 0;
+		this->queue.pop();
+		this->mutex.unlock();
+		return 1;
 	}
 };
 
@@ -263,8 +392,13 @@ NONS_Thread::runningThread(void *p){
 
 NONS_Mutex::NONS_Mutex(){
 #if NONS_SYS_WINDOWS
+#ifndef NONS_Mutex_USE_MUTEX
 	this->mutex=new CRITICAL_SECTION;
 	InitializeCriticalSection((CRITICAL_SECTION *)this->mutex);
+#else
+	this->mutex=new HANDLE;
+	*(HANDLE *)this->mutex=CreateMutex(0,0,0);
+#endif
 #elif NONS_SYS_UNIX
 	pthread_mutexattr_t attr;
 	pthread_mutexattr_init(&attr);
@@ -276,8 +410,13 @@ NONS_Mutex::NONS_Mutex(){
 
 NONS_Mutex::~NONS_Mutex(){
 #if NONS_SYS_WINDOWS
+#ifndef NONS_Mutex_USE_MUTEX
 	DeleteCriticalSection((CRITICAL_SECTION *)this->mutex);
 	delete (CRITICAL_SECTION *)this->mutex;
+#else
+	CloseHandle(*(HANDLE *)this->mutex);
+	delete (HANDLE *)this->mutex;
+#endif
 #elif NONS_SYS_UNIX
 	pthread_mutex_destroy(&this->mutex);
 #endif
@@ -285,18 +424,63 @@ NONS_Mutex::~NONS_Mutex(){
 
 void NONS_Mutex::lock(){
 #if NONS_SYS_WINDOWS
+#ifndef NONS_Mutex_USE_MUTEX
 	EnterCriticalSection((CRITICAL_SECTION *)this->mutex);
+#else
+	WaitForSingleObject(*(HANDLE *)this->mutex,INFINITE);
+#endif
 #elif NONS_SYS_UNIX
 	pthread_mutex_lock(&this->mutex);
 #endif
 }
 
+bool NONS_Mutex::try_lock(){
+	return
+#if NONS_SYS_WINDOWS
+#ifndef NONS_Mutex_USE_MUTEX
+		!!TryEnterCriticalSection((CRITICAL_SECTION *)this->mutex);
+#else
+		WaitForSingleObject(*(HANDLE *)this->mutex,0)==WAIT_OBJECT_0;
+#endif
+#elif NONS_SYS_UNIX
+		pthread_mutex_trylock(&this->mutex)!=EBUSY;
+#endif
+}
+
+#ifdef NONS_Mutex_USE_MUTEX
+bool NONS_Mutex::timed_lock(ulong ms){
+#if NONS_SYS_WINDOWS
+	return WaitForSingleObject(*(HANDLE *)this->mutex,ms)==WAIT_OBJECT_0;
+#elif NONS_SYS_UNIX
+	timespec ts;
+	memset(&ts,0,sizeof(ts));
+	ts.tv_nsec=ms*1000000;
+	return pthread_mutex_timedlock(&this->mutex,&ts)!=ETIMEDOUT;
+#endif
+}
+#endif
+
 void NONS_Mutex::unlock(){
 #if NONS_SYS_WINDOWS
+#ifndef NONS_Mutex_USE_MUTEX
 	LeaveCriticalSection((CRITICAL_SECTION *)this->mutex);
+#else
+	ReleaseMutex(*(HANDLE *)this->mutex);
+#endif
 #elif NONS_SYS_UNIX
 	pthread_mutex_unlock(&this->mutex);
 #endif
+}
+
+template <typename T,typename T2>
+std::basic_string<T> itoa(T2 n,unsigned w=0){
+	std::basic_stringstream<T> stream;
+	if (w){
+		stream.fill('0');
+		stream.width(w);
+	}
+	stream <<n;
+	return stream.str();
 }
 
 extern "C"{
@@ -356,6 +540,24 @@ struct Packet{
 		if (this->data)
 			av_free(this->data);
 	}
+	double compute_time(AVStream *stream,AVFrame *frame){
+		double ret;
+		if ((this->dts!=AV_NOPTS_VALUE))
+			ret=(double)this->dts;
+		else if (frame->opaque && *(int64_t *)frame->opaque!=AV_NOPTS_VALUE)
+			ret=(double)*(int64_t *)frame->opaque;
+		else
+			ret=0;
+		return ret*av_q2d(stream->time_base);
+	}
+	double compute_time(AVStream *stream){
+		double ret;
+		if ((this->dts!=AV_NOPTS_VALUE))
+			ret=(double)this->dts;
+		else
+			ret=0;
+		return ret*av_q2d(stream->time_base);
+	}
 private:
 	Packet(const Packet &){}
 	Packet &operator=(const Packet &){ return *this; }
@@ -367,7 +569,8 @@ struct audioBuffer{
 		start_reading;
 	bool quit,
 		for_copy;
-	audioBuffer(const int16_t *src,size_t size,bool for_copy){
+	ulong time_offset;
+	audioBuffer(const int16_t *src,size_t size,bool for_copy,double t){
 		this->quit=0;
 		this->size=size;
 		this->start_reading=0;
@@ -375,6 +578,7 @@ struct audioBuffer{
 		this->buffer=new int16_t[size];
 		memcpy(this->buffer,src,size*sizeof(int16_t));
 		this->for_copy=for_copy;
+		this->time_offset=t*1000.0;
 	}
 	audioBuffer(bool q){
 		this->quit=q;
@@ -386,6 +590,7 @@ struct audioBuffer{
 		this->start_reading=b.start_reading;
 		this->quit=b.quit;
 		this->for_copy=0;
+		this->time_offset=b.time_offset;
 	}
 	~audioBuffer(){
 		if (this->buffer && !this->for_copy)
@@ -407,8 +612,10 @@ struct audioBuffer{
 	}
 };
 
-static ulong global_time,
-	start_time;
+static ulong global_time=0,
+	start_time=0,
+	real_global_time=0,
+	real_start_time=0;
 static bool reset_start_time;
 
 class AudioOutput{
@@ -418,7 +625,7 @@ class AudioOutput{
 	NONS_Thread thread;
 	ulong frequency;
 	ALenum format;
-	static const size_t n=2;
+	static const size_t n=10;
 	ALuint ALbuffers[n];
 	ulong current;
 	int16_t *buffers[n];
@@ -479,7 +686,7 @@ public:
 		if (this->device)
 			alcCloseDevice(this->device);
 	}
-	TSqueue<audioBuffer> *startThread(/*TSqueue<audioBuffer> *queue*/){
+	TSqueue<audioBuffer> *startThread(){
 		this->incoming_queue=new TSqueue<audioBuffer>;
 		this->incoming_queue->max_size=30;
 		this->thread.call(running_thread_support,this);
@@ -497,9 +704,10 @@ private:
 	void running_thread(){
 		if (this->expect_buffers)
 			while (this->incoming_queue->is_empty());
-		for (ulong a=0;a<n;a++){
+		for (ulong a=0;a<this->n;a++){
 			this->current=a;
-			fill(this->buffers[this->current],this->buffers_size,this->incoming_queue);
+			ulong t;
+			fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
 			alBufferData(
 				this->ALbuffers[this->current],
 				this->format,
@@ -511,17 +719,34 @@ private:
 		}
 		this->current=0;
 
-		start_time=SDL_GetTicks();
+		real_start_time=start_time=SDL_GetTicks();
 		this->play();
 		while (!this->stop_thread){
 			SDL_Delay(10);
-			global_time=SDL_GetTicks()-start_time;
-			ALint buffers_finished=0;
+			ulong now=SDL_GetTicks();
+			global_time=now-start_time;
+			real_global_time=now-real_start_time;
+			ALint buffers_finished=0,
+				queued;
 			alGetSourcei(this->source,AL_BUFFERS_PROCESSED,&buffers_finished);
-			while (buffers_finished--){
+			alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
+			bool call_play=0;
+			ulong count=0;
+			if (buffers_finished==this->n){
+				call_play=1;
+#if NONS_SYS_WINDOWS
+				vc[VC_AUDIO_RENDER]->put("Critical point!\n");
+#endif
+			}
+			for (;buffers_finished;buffers_finished--,count++){
 				ALuint temp;
 				alSourceUnqueueBuffers(this->source,1,&temp);
-				fill(this->buffers[this->current],this->buffers_size,this->incoming_queue);
+				bool loop=1;
+				ulong t;
+				fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
+				//correct time
+				if (t+100*this->n!=global_time)
+					start_time=now-t+100*this->n;
 				alBufferData(
 					this->ALbuffers[this->current],
 					this->format,
@@ -532,13 +757,20 @@ private:
 				alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
 				this->current=(this->current+1)%n;
 			}
+			if (call_play){
+#if NONS_SYS_WINDOWS
+				vc[VC_AUDIO_RENDER]->put("count: "+itoa<char>(count)+"!\n");
+#endif
+				this->play();
+			}
 		}
 		this->wait_until_stop();
 		delete this->incoming_queue;
 		this->incoming_queue=0;
 	}
-	static bool fill(int16_t *buffer,size_t size,TSqueue<audioBuffer> *queue){
-		bool ret=1;
+	static bool fill(int16_t *buffer,size_t size,TSqueue<audioBuffer> *queue,ulong &time){
+		bool ret=1,
+			time_unset=1;
 		queue->lock();
 		if (queue->is_empty()){
 			memset(buffer,0,size*sizeof(int16_t));
@@ -553,6 +785,10 @@ private:
 				while (write_at<size){
 					read_size=size-write_at;
 					if (buffer2->read_into_buffer(buffer+write_at,read_size)){
+						if (time_unset){
+							time=buffer2->time_offset;
+							time_unset=0;
+						}
 						queue->pop();
 						if (queue->is_empty())
 							break;
@@ -584,16 +820,39 @@ public:
 	}
 };
 
+//#define USE_OVERLAY
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+const int rmask=0xFF000000;
+const int gmask=0x00FF0000;
+const int bmask=0x0000FF00;
+const int amask=0x000000FF;
+const int rshift=24;
+const int gshift=16;
+const int bshift=8;
+const int ashift=0;
+#else
+const int rmask=0x000000FF;
+const int gmask=0x0000FF00;
+const int bmask=0x00FF0000;
+const int amask=0xFF000000;
+const int rshift=0;
+const int gshift=8;
+const int bshift=16;
+const int ashift=24;
+#endif
+static bool debug_messages;
+
 class CompleteVideoFrame{
 	SDL_Overlay *overlay;
-	SDL_Rect frameRect;
 	SDL_Surface *old_screen;
+	SDL_Rect frameRect;
 	CompleteVideoFrame(const CompleteVideoFrame &){}
 	const CompleteVideoFrame &operator=(const CompleteVideoFrame &){ return *this; }
 public:
 	uint64_t repeat;
 	double pts;
 	CompleteVideoFrame(volatile SDL_Surface *screen,AVCodecContext *videoCC,AVFrame *videoFrame,double pts){
+		this->overlay=0;
 		ulong width,height;
 		float screenRatio=float(screen->w)/float(screen->h),
 			videoRatio;
@@ -629,28 +888,36 @@ public:
 		SwsContext *sc=sws_getContext(
 			videoCC->width,videoCC->height,videoCC->pix_fmt,
 			this->overlay->w,this->overlay->h,PIX_FMT_YUV420P,
-			SWS_FAST_BILINEAR,0,0,0
+			SWS_FAST_BILINEAR,
+			0,0,0
 		);
 		sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoCC->height,pict.data,pict.linesize);
 		sws_freeContext(sc);
-		SDL_UnlockYUVOverlay(overlay);
+		SDL_UnlockYUVOverlay(this->overlay);
+		this->old_screen=(SDL_Surface *)screen;
 		this->pts=pts;
 		this->repeat=videoFrame->repeat_pict;
-		this->old_screen=(SDL_Surface *)screen;
 	}
 	~CompleteVideoFrame(){
-		SDL_FreeYUVOverlay(this->overlay);
+		if (!!this->overlay)
+			SDL_FreeYUVOverlay(this->overlay);
 	}
 	void blit(volatile SDL_Surface *currentScreen){
-		if (this->old_screen==currentScreen)
+		if (this->old_screen==currentScreen){
+			if (debug_messages){
+				std::string s=seconds_to_time_format(this->pts);
+				s.push_back('\n');
+				s.append(seconds_to_time_format(double(real_global_time)/1000.0));
+				blit_font(this->overlay,s.c_str(),0,0);
+			}
 			SDL_DisplayYUVOverlay(this->overlay,&this->frameRect);
+		}
 	}
+	const SDL_Rect &frame(){ return this->frameRect; }
 };
 
 static volatile bool stop_playback;
-static bool debug_messages;
 static volatile SDL_Surface *global_screen;
-//static NONS_Mutex screenMutex;
 
 struct video_display_thread_params{
 	TSqueue<CompleteVideoFrame *> *queue;
@@ -663,6 +930,8 @@ void video_display_thread(void *p){
 	video_display_thread_params params=*(video_display_thread_params *)p;
 	delete (video_display_thread_params *)p;
 
+	SDL_Color white={0xFF,0xFF,0xFF,0xFF},
+		black={0,0,0,0xFF};
 	while (!stop_playback){
 		SDL_Delay(10);
 		double current_time=double(global_time)/1000.0;
@@ -677,11 +946,13 @@ void video_display_thread(void *p){
 
 		CompleteVideoFrame *frame=(CompleteVideoFrame *)params.queue->peek();
 
+		/*
 		if (debug_messages){
 			std::stringstream stream;
 			stream <<frame->pts<<'\t'<<current_time<<" ("<<SDL_GetTicks()<<'-'<<start_time<<'='<<global_time<<')'<<std::endl;
 			threadsafe_print(stream.str());
 		}
+		*/
 
 		while (frame->pts<=current_time){
 			frame->blit(global_screen);
@@ -698,8 +969,26 @@ void video_display_thread(void *p){
 	}
 }
 
+uint64_t global_pts=AV_NOPTS_VALUE;
+
+namespace this_player{
+	int get_buffer(struct AVCodecContext *c,AVFrame *pic){
+		int ret=avcodec_default_get_buffer(c,pic);
+		int64_t *pts=new int64_t;
+		*pts=global_pts;
+		pic->opaque=pts;
+		return ret;
+	}
+	void release_buffer(struct AVCodecContext *c, AVFrame *pic) {
+	  if (pic)
+		  delete (int64_t *)pic->opaque;
+	  avcodec_default_release_buffer(c, pic);
+	}
+}
+
 struct decode_audio_params{
 	AVCodecContext *audioCC;
+	AVStream *audioS;
 	TSqueue<Packet *> *packet_queue;
 	AudioOutput *output;
 };
@@ -713,19 +1002,30 @@ void decode_audio(void *p){
 
 	TSqueue<audioBuffer> *queue=params.output->startThread();
 
+	params.audioCC->get_buffer=this_player::get_buffer;
+	params.audioCC->release_buffer=this_player::release_buffer;
 	while (1){
 		Packet *packet=0;
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("decode_audio(): Waiting for packet.\n");
+#endif
 		while (params.packet_queue->is_empty() && !stop_playback){
 			SDL_Delay(10);
 		}
 		if (stop_playback)
 			break;
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("decode_audio(): Popping queue.\n");
+#endif
 		packet=params.packet_queue->pop();
 
 		uint8_t *packet_data=packet->data;
 		size_t packet_data_s=packet->size,
 			write_at=0,
 			buffer_size=0;
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("decode_audio(): Decoding packet.\n");
+#endif
 		while (packet_data_s){
 			int bytes_decoded=output_s,
 				bytes_extracted;
@@ -739,7 +1039,10 @@ void decode_audio(void *p){
 				packet_data_s=0;
 			buffer_size+=bytes_decoded/sizeof(int16_t);
 		}
-		queue->push(audioBuffer(audioOutputBuffer,buffer_size,1));
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("decode_audio(): Pushing frame.\n");
+#endif
+		queue->push(audioBuffer(audioOutputBuffer,buffer_size,1,packet->compute_time(params.audioS)));
 		delete packet;
 	}
 	params.output->stopThread(0);
@@ -748,23 +1051,6 @@ void decode_audio(void *p){
 		Packet *packet=params.packet_queue->pop();
 		if (packet)
 			delete packet;
-	}
-}
-
-uint64_t global_pts=AV_NOPTS_VALUE;
-
-namespace this_player{
-	int get_buffer(struct AVCodecContext *c,AVFrame *pic){
-		int ret=avcodec_default_get_buffer(c,pic);
-		int64_t *pts=new int64_t;
-		*pts=global_pts;
-		pic->opaque = pts;
-		return ret;
-	}
-	void release_buffer(struct AVCodecContext *c, AVFrame *pic) {
-	  if (pic)
-		  delete (int64_t *)pic->opaque;
-	  avcodec_default_release_buffer(c, pic);
 	}
 }
 
@@ -804,35 +1090,42 @@ void decode_video(void *p){
 	params.videoCC->get_buffer=this_player::get_buffer;
 	params.videoCC->release_buffer=this_player::release_buffer;
 	double max_pts=-9999;
+	bool msg=0;
 	while (1){
 		Packet *packet;
 		if (stop_playback)
 			break;
 		if (params.packet_queue->is_empty()){
+			if (!msg){
+#if NONS_SYS_WINDOWS
+				vc[VC_VIDEO_DECODE]->put("decode_video(): Queue is empty. Nothing to do.\n");
+#endif
+				msg=1;
+			}
 			SDL_Delay(10);
 			continue;
 		}
+		msg=0;
+#if NONS_SYS_WINDOWS
+		vc[VC_VIDEO_DECODE]->put("decode_video(): Popping queue.\n");
+#endif
 		packet=params.packet_queue->pop();
 		int frameFinished;
 		global_pts=packet->pts;
+#if NONS_SYS_WINDOWS
+		vc[VC_VIDEO_DECODE]->put("decode_video(): Decoding packet.\n");
+#endif
 		avcodec_decode_video(params.videoCC,videoFrame,&frameFinished,packet->data,packet->size);
-		double pts;
-		{
-			if ((packet->dts!=AV_NOPTS_VALUE))
-				pts=(double)packet->dts;
-			else if (videoFrame->opaque && *(int64_t *)videoFrame->opaque!=AV_NOPTS_VALUE)
-				pts=(double)*(int64_t *)videoFrame->opaque;
-			else
-				pts=0;
-			double period=av_q2d(params.videoS->time_base);
-			pts*=period;
-		}
+		double pts=packet->compute_time(params.videoS,videoFrame);
 		if (frameFinished){
 			CompleteVideoFrame *new_frame=new CompleteVideoFrame(global_screen,params.videoCC,videoFrame,pts);
 			if (new_frame->pts>max_pts){
 				max_pts=new_frame->pts;
 				while (!preQueue.empty()){
 					std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame>::iterator first=preQueue.begin();
+#if NONS_SYS_WINDOWS
+					vc[VC_AUDIO_DECODE]->put("decode_audio(): Pushing frame.\n");
+#endif
 					frameQueue.push(*first);
 					preQueue.erase(first);
 				}
@@ -871,6 +1164,13 @@ play_video_SIGNATURE{
 	AVFormatContext *avfc;
 	SDL_FillRect(screen,0,0);
 	SDL_UpdateRect(screen,0,0,0,0);
+#if NONS_SYS_WINDOWS
+	std::auto_ptr<VirtualConsole> auto_vc[]={
+		std::auto_ptr<VirtualConsole>(vc[0]=new VirtualConsole("audio_decode",7)),
+		std::auto_ptr<VirtualConsole>(vc[1]=new VirtualConsole("video_decode",7)),
+		std::auto_ptr<VirtualConsole>(vc[2]=new VirtualConsole("audio_render",7))
+	};
+#endif
 
 	if (av_open_input_file(&avfc,input,0,0,0)!=0){
 		exception_string="File not found.";
@@ -974,6 +1274,7 @@ play_video_SIGNATURE{
 		{
 			decode_audio_params *params=new decode_audio_params;
 			params->audioCC=audioCC;
+			params->audioS=avfc->streams[audioStream];
 			params->packet_queue=&audio_packets;
 			params->output=&output;
 			audio_decoder.call(decode_audio,params);
