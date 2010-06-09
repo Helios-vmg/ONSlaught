@@ -594,7 +594,7 @@ struct audioBuffer{
 		this->buffer=new int16_t[size];
 		memcpy(this->buffer,src,size*sizeof(int16_t));
 		this->for_copy=for_copy;
-		this->time_offset=t*1000.0;
+		this->time_offset=ulong(t*1000.0);
 	}
 	audioBuffer(bool q){
 		this->quit=q;
@@ -775,7 +775,7 @@ private:
 			}
 			if (call_play){
 #if NONS_SYS_WINDOWS
-				vc[VC_AUDIO_RENDER]->put("count: "+itoa<char>(count)+"!\n");
+				vc[VC_AUDIO_RENDER]->put("count: "+itoa<char>(count)+"\n");
 #endif
 				this->play();
 			}

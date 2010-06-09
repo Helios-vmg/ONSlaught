@@ -158,7 +158,7 @@ const char *seconds_to_time_format(double seconds){
 	seconds-=hours*3600;
 	minutes=ulong(seconds)/60;
 	seconds-=minutes*60;
-	seconds_int=seconds;
+	seconds_int=(ulong)seconds;
 	seconds-=seconds_int;
 	char temp[10];
 	static char res[1000];
