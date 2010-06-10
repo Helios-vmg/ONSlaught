@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2009, Helios (helios.vmg@gmail.com)
+* Copyright (c) 2009, 2010, Helios (helios.vmg@gmail.com)
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -754,6 +754,17 @@ private:
 				vc[VC_AUDIO_RENDER]->put("Critical point!\n");
 #endif
 			}
+			if (!call_play){
+				ALint state;
+				alGetSourcei(this->source,AL_SOURCE_STATE,&state);
+				if (state!=AL_PLAYING){
+#if NONS_SYS_WINDOWS
+					vc[VC_AUDIO_RENDER]->put("The source has stopped playing!\n");
+#endif
+					call_play=1;
+					buffers_finished=this->n;
+				}
+			}
 			for (;buffers_finished;buffers_finished--,count++){
 				ALuint temp;
 				alSourceUnqueueBuffers(this->source,1,&temp);
@@ -1024,7 +1035,7 @@ void decode_audio(void *p){
 	while (1){
 		Packet *packet=0;
 #if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("decode_audio(): Waiting for packet.\n");
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Waiting for packet.\n");
 #endif
 		while (params.packet_queue->is_empty() && !stop_playback){
 			SDL_Delay(10);
@@ -1032,7 +1043,7 @@ void decode_audio(void *p){
 		if (stop_playback)
 			break;
 #if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("decode_audio(): Popping queue.\n");
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Popping queue.\n");
 #endif
 		packet=params.packet_queue->pop();
 
@@ -1041,7 +1052,7 @@ void decode_audio(void *p){
 			write_at=0,
 			buffer_size=0;
 #if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("decode_audio(): Decoding packet.\n");
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Decoding packet.\n");
 #endif
 		while (packet_data_s){
 			int bytes_decoded=output_s,
@@ -1057,7 +1068,7 @@ void decode_audio(void *p){
 			buffer_size+=bytes_decoded/sizeof(int16_t);
 		}
 #if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("decode_audio(): Pushing frame.\n");
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
 #endif
 		queue->push(audioBuffer(audioOutputBuffer,buffer_size,1,packet->compute_time(params.audioS)));
 		delete packet;
@@ -1115,7 +1126,7 @@ void decode_video(void *p){
 		if (params.packet_queue->is_empty()){
 			if (!msg){
 #if NONS_SYS_WINDOWS
-				vc[VC_VIDEO_DECODE]->put("decode_video(): Queue is empty. Nothing to do.\n");
+				vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Queue is empty. Nothing to do.\n");
 #endif
 				msg=1;
 			}
@@ -1124,13 +1135,13 @@ void decode_video(void *p){
 		}
 		msg=0;
 #if NONS_SYS_WINDOWS
-		vc[VC_VIDEO_DECODE]->put("decode_video(): Popping queue.\n");
+		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Popping queue.\n");
 #endif
 		packet=params.packet_queue->pop();
 		int frameFinished;
 		global_pts=packet->pts;
 #if NONS_SYS_WINDOWS
-		vc[VC_VIDEO_DECODE]->put("decode_video(): Decoding packet.\n");
+		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Decoding packet.\n");
 #endif
 		avcodec_decode_video(params.videoCC,videoFrame,&frameFinished,packet->data,packet->size);
 		double pts=packet->compute_time(params.videoS,videoFrame);
@@ -1141,7 +1152,7 @@ void decode_video(void *p){
 				while (!preQueue.empty()){
 					std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame>::iterator first=preQueue.begin();
 #if NONS_SYS_WINDOWS
-					vc[VC_AUDIO_DECODE]->put("decode_audio(): Pushing frame.\n");
+					vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
 #endif
 					frameQueue.push(*first);
 					preQueue.erase(first);
