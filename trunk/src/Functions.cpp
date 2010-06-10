@@ -262,31 +262,24 @@ void manualBlit_threaded(void *parameters){
 	manualBlit_threaded(p->src,p->srcRect,p->dst,p->dstRect,p->alpha);
 }
 
+uchar integer_division_lookup[0x10000];
+
 void do_alpha_blend(uchar *r1,uchar *g1,uchar *b1,uchar *a1,long r0,long g0,long b0,long a0,bool alpha1,bool alpha0,uchar alpha){
 #define do_alpha_blend_SINGLE_ALPHA_SOURCE(alpha_source)\
-	*r1=(uchar)APPLY_ALPHA(r0,*r1,alpha_source);		\
-	*g1=(uchar)APPLY_ALPHA(g0,*g1,alpha_source);		\
-	*b1=(uchar)APPLY_ALPHA(b0,*b1,alpha_source)
-#if 0
-#define do_alpha_blend_DOUBLE_ALPHA_SOURCE(alpha_source)							\
-	ulong el;																		\
-	ulong previous=*rgba1[3];														\
-	*rgba1[3]=(uchar)INTEGER_MULTIPLICATION(alpha_source^0xFF,*rgba1[3]^0xFF)^0xFF;	\
-	el=(!alpha_source && !previous)?0:(alpha_source*255)/(*rgba1[3]);				\
-	*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],el);							\
-	*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],el);							\
-	*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],el)
-#else
+	ulong as=(alpha_source);							\
+	*r1=(uchar)APPLY_ALPHA(r0,*r1,as);					\
+	*g1=(uchar)APPLY_ALPHA(g0,*g1,as);					\
+	*b1=(uchar)APPLY_ALPHA(b0,*b1,as)
 #define do_alpha_blend_DOUBLE_ALPHA_SOURCE(alpha_source)			\
+	ulong as=(alpha_source);										\
 	ulong bottom_alpha=												\
-	*a1=~(uchar)INTEGER_MULTIPLICATION(alpha_source^0xFF,*a1^0xFF);	\
-	if (bottom_alpha){												\
-		ulong composite=(alpha_source*255)/bottom_alpha;			\
+	*a1=~(uchar)INTEGER_MULTIPLICATION(as^0xFF,*a1^0xFF);			\
+	ulong composite=integer_division_lookup[as+bottom_alpha*256];	\
+	if (composite){													\
 		*r1=(uchar)APPLY_ALPHA(r0,*r1,composite);					\
 		*g1=(uchar)APPLY_ALPHA(g0,*g1,composite);					\
 		*b1=(uchar)APPLY_ALPHA(b0,*b1,composite);					\
 	}
-#endif
 //#define APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
 #define APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION(a,(c0)-(c1))+(c1))
 
@@ -367,30 +360,22 @@ void manualBlit_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL
 		sd[1].pixels+=sd[1].pitch;					\
 	}												\
 }
-#define manualBlit_threaded_SINGLE_ALPHA_SOURCE(alpha_source)		\
-	*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],alpha_source);	\
-	*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],alpha_source);	\
-	*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],alpha_source)
-#if 0
-#define manualBlit_threaded_DOUBLE_ALPHA_SOURCE(alpha_source)						\
-	ulong el;																		\
-	ulong previous=*rgba1[3];														\
-	*rgba1[3]=(uchar)INTEGER_MULTIPLICATION(alpha_source^0xFF,*rgba1[3]^0xFF)^0xFF;	\
-	el=(!alpha_source && !previous)?0:(alpha_source*255)/(*rgba1[3]);				\
-	*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],el);							\
-	*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],el);							\
-	*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],el)
-#else
-#define manualBlit_threaded_DOUBLE_ALPHA_SOURCE(alpha_source)					\
-	ulong bottom_alpha=															\
-	*rgba1[3]=~(uchar)INTEGER_MULTIPLICATION(alpha_source^0xFF,*rgba1[3]^0xFF);	\
-	if (bottom_alpha){															\
-		ulong composite=(alpha_source*255)/bottom_alpha;						\
-		*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],composite);				\
-		*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],composite);				\
-		*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],composite);				\
+#define manualBlit_threaded_SINGLE_ALPHA_SOURCE(alpha_source)	\
+	ulong as=(alpha_source);									\
+	*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],as);		\
+	*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],as);		\
+	*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],as)
+#define manualBlit_threaded_DOUBLE_ALPHA_SOURCE(alpha_source)			\
+	ulong as=(alpha_source);											\
+	ulong bottom_alpha=													\
+	*rgba1[3]=~(uchar)INTEGER_MULTIPLICATION(as^0xFF,*rgba1[3]^0xFF);	\
+	ulong composite=integer_division_lookup[as+bottom_alpha*256];		\
+	if (composite){														\
+		*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],composite);		\
+		*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],composite);		\
+		*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],composite);		\
 	}
-#endif
+
 	if (alpha==255){
 		if (!sd[0].alpha){
 			manualBlit_threaded_DO_ALPHA(

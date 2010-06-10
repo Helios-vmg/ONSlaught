@@ -260,6 +260,7 @@ std::vector<std::wstring> getArgumentsVector(wchar_t **argv){
 extern wchar_t SJIS2Unicode[0x10000],
 	Unicode2SJIS[0x10000],
 	SJIS2Unicode_compact[];
+extern uchar integer_division_lookup[0x10000];
 void initialize_conversion_tables();
 
 #if NONS_SYS_PSP
@@ -289,6 +290,12 @@ int main(int argc,char **argv){
 	signal(SIGTERM,handle_SIGTERM);
 	signal(SIGINT,handle_SIGINT);
 	initialize_conversion_tables();
+	//initialize lookup table/s
+	memset(integer_division_lookup,0,256);
+	for (ulong y=1;y<256;y++)
+		for (ulong x=0;x<256;x++)
+			integer_division_lookup[x+y*256]=x*255/y;
+
 	config_directory=getConfigLocation();
 
 	std::vector<std::wstring> cmdl_arg=getArgumentsVector(argv);
