@@ -5,5 +5,5 @@
 #ifndef FONT_H
 #define FONT_H
 const unsigned long GFX_font_size=8*256;
-extern unsigned char GFX_font[GFX_font_size];
+extern const unsigned char GFX_font[GFX_font_size];
 #endif

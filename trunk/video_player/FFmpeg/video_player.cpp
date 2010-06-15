@@ -162,10 +162,8 @@ public:
 	void join();
 };
 
-#define NONS_Mutex_USE_MUTEX
 class NONS_Mutex{
 #if NONS_SYS_WINDOWS
-	//pointer to CRITICAL_SECTION or mutex HANDLE
 	void *mutex;
 #elif NONS_SYS_UNIX
 	pthread_mutex_t mutex;
@@ -237,13 +235,6 @@ public:
 		this->queue.push(e);
 		this->mutex.unlock();
 	}
-	bool try_is_empty(bool &res){
-		if (!this->mutex.try_lock())
-			return 0;
-		res=this->queue.empty();
-		this->mutex.unlock();
-		return 1;
-	}
 	bool is_empty(){
 		NONS_MutexLocker ml(this->mutex);
 		return this->queue.empty();
@@ -252,23 +243,9 @@ public:
 		NONS_MutexLocker ml(this->mutex);
 		return this->queue.size();
 	}
-	bool try_size(ulong &res){
-		if (!this->mutex.try_lock())
-			return 0;
-		res=this->queue.size();
-		this->mutex.unlock();
-		return 1;
-	}
 	T &peek(){
 		NONS_MutexLocker ml(this->mutex);
 		return this->queue.front();
-	}
-	bool try_peek(T *res){
-		if (!this->mutex.try_lock())
-			return 0;
-		res=&this->queue.front();
-		this->mutex.unlock();
-		return 1;
 	}
 	T pop(){
 		NONS_MutexLocker ml(this->mutex);
@@ -276,24 +253,9 @@ public:
 		this->queue.pop();
 		return ret;
 	}
-	bool try_pop(T &res){
-		if (!this->mutex.try_lock())
-			return 0;
-		res=this->queue.front();
-		this->queue.pop();
-		this->mutex.unlock();
-		return 1;
-	}
 	void pop_without_copy(){
 		NONS_MutexLocker ml(this->mutex);
 		this->queue.pop();
-	}
-	bool try_pop_without_copy(){
-		if (!this->mutex.try_lock())
-			return 0;
-		this->queue.pop();
-		this->mutex.unlock();
-		return 1;
 	}
 };
 
@@ -408,13 +370,8 @@ NONS_Thread::runningThread(void *p){
 
 NONS_Mutex::NONS_Mutex(){
 #if NONS_SYS_WINDOWS
-#ifndef NONS_Mutex_USE_MUTEX
 	this->mutex=new CRITICAL_SECTION;
 	InitializeCriticalSection((CRITICAL_SECTION *)this->mutex);
-#else
-	this->mutex=new HANDLE;
-	*(HANDLE *)this->mutex=CreateMutex(0,0,0);
-#endif
 #elif NONS_SYS_UNIX
 	pthread_mutexattr_t attr;
 	pthread_mutexattr_init(&attr);
@@ -426,13 +383,8 @@ NONS_Mutex::NONS_Mutex(){
 
 NONS_Mutex::~NONS_Mutex(){
 #if NONS_SYS_WINDOWS
-#ifndef NONS_Mutex_USE_MUTEX
 	DeleteCriticalSection((CRITICAL_SECTION *)this->mutex);
 	delete (CRITICAL_SECTION *)this->mutex;
-#else
-	CloseHandle(*(HANDLE *)this->mutex);
-	delete (HANDLE *)this->mutex;
-#endif
 #elif NONS_SYS_UNIX
 	pthread_mutex_destroy(&this->mutex);
 #endif
@@ -440,49 +392,15 @@ NONS_Mutex::~NONS_Mutex(){
 
 void NONS_Mutex::lock(){
 #if NONS_SYS_WINDOWS
-#ifndef NONS_Mutex_USE_MUTEX
 	EnterCriticalSection((CRITICAL_SECTION *)this->mutex);
-#else
-	WaitForSingleObject(*(HANDLE *)this->mutex,INFINITE);
-#endif
 #elif NONS_SYS_UNIX
 	pthread_mutex_lock(&this->mutex);
 #endif
 }
 
-bool NONS_Mutex::try_lock(){
-	return
-#if NONS_SYS_WINDOWS
-#ifndef NONS_Mutex_USE_MUTEX
-		!!TryEnterCriticalSection((CRITICAL_SECTION *)this->mutex);
-#else
-		WaitForSingleObject(*(HANDLE *)this->mutex,0)==WAIT_OBJECT_0;
-#endif
-#elif NONS_SYS_UNIX
-		pthread_mutex_trylock(&this->mutex)!=EBUSY;
-#endif
-}
-
-#ifdef NONS_Mutex_USE_MUTEX
-bool NONS_Mutex::timed_lock(ulong ms){
-#if NONS_SYS_WINDOWS
-	return WaitForSingleObject(*(HANDLE *)this->mutex,ms)==WAIT_OBJECT_0;
-#elif NONS_SYS_UNIX
-	timespec ts;
-	memset(&ts,0,sizeof(ts));
-	ts.tv_nsec=ms*1000000;
-	return pthread_mutex_timedlock(&this->mutex,&ts)!=ETIMEDOUT;
-#endif
-}
-#endif
-
 void NONS_Mutex::unlock(){
 #if NONS_SYS_WINDOWS
-#ifndef NONS_Mutex_USE_MUTEX
 	LeaveCriticalSection((CRITICAL_SECTION *)this->mutex);
-#else
-	ReleaseMutex(*(HANDLE *)this->mutex);
-#endif
 #elif NONS_SYS_UNIX
 	pthread_mutex_unlock(&this->mutex);
 #endif
@@ -518,17 +436,6 @@ static const int64_t AV_NOPTS_VALUE=0x8000000000000000LL;
 
 typedef unsigned long ulong;
 typedef unsigned char uchar;
-
-void threadsafe_print(const char *str){
-	static NONS_Mutex mutex;
-	mutex.lock();
-	std::cout <<str;
-	mutex.unlock();
-}
-
-void threadsafe_print(const std::string &str){
-	threadsafe_print(str.c_str());
-}
 
 struct Packet{
 	uint8_t *data;
@@ -632,7 +539,6 @@ static ulong global_time=0,
 	start_time=0,
 	real_global_time=0,
 	real_start_time=0;
-static bool reset_start_time;
 
 class AudioOutput{
 	ALCdevice *device;
@@ -867,7 +773,7 @@ const int gshift=8;
 const int bshift=16;
 const int ashift=24;
 #endif
-static bool debug_messages;
+static bool debug_messages=0;
 
 class CompleteVideoFrame{
 	SDL_Overlay *overlay;
@@ -878,17 +784,21 @@ class CompleteVideoFrame{
 public:
 	uint64_t repeat;
 	double pts;
-	CompleteVideoFrame(volatile SDL_Surface *screen,AVCodecContext *videoCC,AVFrame *videoFrame,double pts){
+	CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts){
 		this->overlay=0;
 		ulong width,height;
 		float screenRatio=float(screen->w)/float(screen->h),
 			videoRatio;
-		if (videoCC->sample_aspect_ratio.num)
+		if (videoStream->sample_aspect_ratio.num)
 			videoRatio=
-				float(videoCC->width*videoCC->sample_aspect_ratio.num)/
-				float(videoCC->height*videoCC->sample_aspect_ratio.den);
+				float(videoStream->codec->width*videoStream->sample_aspect_ratio.num)/
+				float(videoStream->codec->height*videoStream->sample_aspect_ratio.den);
+		else if (videoStream->codec->sample_aspect_ratio.num)
+			videoRatio=
+				float(videoStream->codec->width*videoStream->codec->sample_aspect_ratio.num)/
+				float(videoStream->codec->height*videoStream->codec->sample_aspect_ratio.den);
 		else
-			videoRatio=float(videoCC->width)/float(videoCC->height);
+			videoRatio=float(videoStream->codec->width)/float(videoStream->codec->height);
 		if (screenRatio<videoRatio){ //widescreen
 			width=screen->w;
 			height=ulong(float(screen->w)/videoRatio);
@@ -913,12 +823,12 @@ public:
 		pict.linesize[1]=this->overlay->pitches[2];
 		pict.linesize[2]=this->overlay->pitches[1];
 		SwsContext *sc=sws_getContext(
-			videoCC->width,videoCC->height,videoCC->pix_fmt,
+			videoStream->codec->width,videoStream->codec->height,videoStream->codec->pix_fmt,
 			this->overlay->w,this->overlay->h,PIX_FMT_YUV420P,
 			SWS_FAST_BILINEAR,
 			0,0,0
 		);
-		sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoCC->height,pict.data,pict.linesize);
+		sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoStream->codec->height,pict.data,pict.linesize);
 		sws_freeContext(sc);
 		SDL_UnlockYUVOverlay(this->overlay);
 		this->old_screen=(SDL_Surface *)screen;
@@ -933,9 +843,9 @@ public:
 		if (this->old_screen==currentScreen){
 			if (debug_messages){
 				std::string s=seconds_to_time_format(this->pts);
-				s.push_back('\n');
-				s.append(seconds_to_time_format(double(real_global_time)/1000.0));
-				s.append(" "+itoa<char>(real_global_time-this->pts*1000.0,4));
+				//s.push_back('\n');
+				//s.append(seconds_to_time_format(double(real_global_time)/1000.0));
+				//s.append(" "+itoa<char>(real_global_time-this->pts*1000.0,4));
 				blit_font(this->overlay,s.c_str(),0,0);
 			}
 			SDL_DisplayYUVOverlay(this->overlay,&this->frameRect);
@@ -944,8 +854,8 @@ public:
 	const SDL_Rect &frame(){ return this->frameRect; }
 };
 
-static volatile bool stop_playback;
-static volatile SDL_Surface *global_screen;
+static volatile bool stop_playback=0;
+static volatile SDL_Surface *global_screen=0;
 
 struct video_display_thread_params{
 	TSqueue<CompleteVideoFrame *> *queue;
@@ -1146,7 +1056,7 @@ void decode_video(void *p){
 		avcodec_decode_video(params.videoCC,videoFrame,&frameFinished,packet->data,packet->size);
 		double pts=packet->compute_time(params.videoS,videoFrame);
 		if (frameFinished){
-			CompleteVideoFrame *new_frame=new CompleteVideoFrame(global_screen,params.videoCC,videoFrame,pts);
+			CompleteVideoFrame *new_frame=new CompleteVideoFrame(global_screen,params.videoS,videoFrame,pts);
 			if (new_frame->pts>max_pts){
 				max_pts=new_frame->pts;
 				while (!preQueue.empty()){
@@ -1184,7 +1094,6 @@ void decode_video(void *p){
 #include "../C_play_video.cpp"
 
 play_video_SIGNATURE{
-	reset_start_time=1;
 	stop_playback=0;
 	debug_messages=!!print_debug;
 	global_screen=screen;

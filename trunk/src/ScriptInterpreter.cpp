@@ -524,6 +524,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"add_filter"]=              &NONS_ScriptInterpreter::command_add_filter                           |ALLOW_IN_RUN;
 	this->commandList[L"base_resolution"]=         &NONS_ScriptInterpreter::command_base_resolution      |ALLOW_IN_DEFINE             ;
 	this->commandList[L"use_nice_svg"]=            &NONS_ScriptInterpreter::command_use_nice_svg                         |ALLOW_IN_RUN;
+	this->commandList[L"clock"]=                   &NONS_ScriptInterpreter::command_clock                                |ALLOW_IN_RUN;
 	/*
 	this->commandList[L""]=&NONS_ScriptInterpreter::command_;
 	*/
@@ -617,7 +618,7 @@ void NONS_ScriptInterpreter::init(){
 		ulong fs=this->defaultfs*this->virtual_size[1]/this->base_size[1];
 		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,0,black FONTCACHE_DEBUG_PARAMETERS);
 	}
-	{
+	if (!CLOptions.play.size()){
 		ErrorCode error=NONS_NO_ERROR;
 		if (CLOptions.scriptPath.size())
 			error=init_script(this->script,this->archive,CLOptions.scriptPath,CLOptions.scriptencoding,CLOptions.scriptEncryption);
@@ -627,6 +628,8 @@ void NONS_ScriptInterpreter::init(){
 			handleErrors(error,-1,"NONS_ScriptInterpreter::NONS_ScriptInterpreter",0);
 			exit(error);
 		}
+		this->thread=new NONS_ScriptThread(this->script);
+		memcpy(this->saveGame->hash,this->script->hash,sizeof(unsigned)*5);
 	}
 	{
 		labellog.init(L"NScrllog.dat",L"nonsllog.dat");
@@ -638,7 +641,6 @@ void NONS_ScriptInterpreter::init(){
 			this->audio->musicFormat=CLOptions.musicFormat;
 		this->screen=init_screen(this->archive,*this->font_cache);
 	}
-	this->thread=new NONS_ScriptThread(this->script);
 	this->store=new NONS_VariableStore();
 	this->interpreter_mode=UNDEFINED_MODE;
 	this->nsadir="./";
@@ -652,7 +654,6 @@ void NONS_ScriptInterpreter::init(){
 	else
 		this->current_speed_setting=1;
 
-	srand((unsigned int)time(0));
 	this->legacy_set_window=1;
 	this->arrowCursor=new NONS_Cursor(L":l/3,160,2;cursor0.bmp",0,0,0,this->screen);
 	if (!this->arrowCursor->data){
@@ -681,7 +682,6 @@ void NONS_ScriptInterpreter::init(){
 	this->imageButtonExpiration=0;
 	this->saveGame=new NONS_SaveFile();
 	this->saveGame->format='N';
-	memcpy(this->saveGame->hash,this->script->hash,sizeof(unsigned)*5);
 	this->printed_lines.clear();
 	this->screen->char_baseline=this->screen->screen->inRect.h-1;
 	this->useWheel=0;
@@ -951,7 +951,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			sizeof(pairs)/sizeof(*pairs),
 			pairs,
 			&stop,
-			0,
+			CLOptions.verbosity>=255,
 			&exception_string[0],
 			exception_string.size(),
 		};
@@ -1000,6 +1000,7 @@ const wchar_t *image_formats[]={
 	L"tiff",
 	L"xcf",
 	L"xpm",
+	L"svg",
 	0
 };
 
@@ -1047,6 +1048,7 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from
 			return 0;
 		case 1:
 			if (scr->Background->load(&filename)){
+				NONS_MutexLocker ml(screenMutex);
 				scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
 				scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
 				scr->BlendOnlyBG(1);
@@ -2286,6 +2288,12 @@ ErrorCode NONS_ScriptInterpreter::command_add(NONS_Statement &stmt){
 			var->div(val);
 			break;
 		}
+		if (!stdStrCmpCI(stmt.commandName,L"mod")){
+			if (!val)
+				return NONS_DIVISION_BY_ZERO;
+			var->mod(val);
+			break;
+		}
 		if (!stdStrCmpCI(stmt.commandName,L"sin")){
 			var->set(long(sin(M_PI*double(val)/180.0)*1000.0));
 			break;
@@ -2296,12 +2304,6 @@ ErrorCode NONS_ScriptInterpreter::command_add(NONS_Statement &stmt){
 		}
 		if (!stdStrCmpCI(stmt.commandName,L"tan")){
 			var->set(long(tan(M_PI*double(val)/180.0)*1000.0));
-			break;
-		}
-		if (!stdStrCmpCI(stmt.commandName,L"mod")){
-			if (!val)
-				return NONS_DIVISION_BY_ZERO;
-			var->mod(val);
 			break;
 		}
 	}
@@ -2758,6 +2760,14 @@ ErrorCode NONS_ScriptInterpreter::command_clickstr(NONS_Statement &stmt){
 	return NONS_NO_ERROR;
 }
 
+ErrorCode NONS_ScriptInterpreter::command_clock(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	NONS_VariableMember *dst;
+	GET_INT_VARIABLE(dst,0);
+	dst->set(SDL_GetTicks());
+	return NONS_NO_ERROR;
+}
+
 ErrorCode NONS_ScriptInterpreter::command_cmp(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(3);
 	NONS_VariableMember *var;
@@ -2850,7 +2860,7 @@ ErrorCode NONS_ScriptInterpreter::command_deletescreenshot(NONS_Statement &stmt)
 ErrorCode NONS_ScriptInterpreter::command_dim(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	std::vector<long> indices;
-	this->store->array_declaration(indices,stmt.parameters[0]);
+	HANDLE_POSSIBLE_ERRORS(this->store->array_declaration(indices,stmt.parameters[0]));
 	if (indices[0]>1)
 		return NONS_UNDEFINED_ARRAY;
 	for (size_t a=1;a<indices.size();a++)
@@ -2945,7 +2955,14 @@ ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_drawclear(NONS_Statement &stmt){
-	SDL_FillRect(this->screen->screenBuffer,0,this->screen->screenBuffer->format->Amask);
+	SDL_LockSurface(this->screen->screenBuffer);
+	surfaceData sd=this->screen->screenBuffer;
+	Uint32 *p=(Uint32 *)sd.pixels;
+	Uint32 mask=this->screen->screenBuffer->format->Amask;
+	for (ulong n=sd.w*sd.h;n;n--)
+		*p++=mask;
+	SDL_UnlockSurface(this->screen->screenBuffer);
+	//SDL_FillRect(this->screen->screenBuffer,0,this->screen->screenBuffer->format->Amask);
 	return NONS_NO_ERROR;
 }
 

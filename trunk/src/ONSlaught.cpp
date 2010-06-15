@@ -260,8 +260,8 @@ std::vector<std::wstring> getArgumentsVector(wchar_t **argv){
 extern wchar_t SJIS2Unicode[0x10000],
 	Unicode2SJIS[0x10000],
 	SJIS2Unicode_compact[];
-extern uchar integer_division_lookup[0x10000];
 void initialize_conversion_tables();
+extern uchar integer_division_lookup[0x10000];
 
 #if NONS_SYS_PSP
 #include <pspkernel.h>
@@ -275,6 +275,7 @@ PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 extern ConfigFile settings;
 
 int main(int argc,char **argv){
+	srand((unsigned int)time(0));
 	std::cout <<"ONSlaught: An ONScripter clone with Unicode support."<<std::endl;
 #if ONSLAUGHT_BUILD_VERSION<99999999
 		std::cout <<"Build "<<ONSLAUGHT_BUILD_VERSION<<", ";
@@ -294,7 +295,7 @@ int main(int argc,char **argv){
 	memset(integer_division_lookup,0,256);
 	for (ulong y=1;y<256;y++)
 		for (ulong x=0;x<256;x++)
-			integer_division_lookup[x+y*256]=x*255/y;
+			integer_division_lookup[x+y*256]=uchar(x*255/y);
 
 	config_directory=getConfigLocation();
 

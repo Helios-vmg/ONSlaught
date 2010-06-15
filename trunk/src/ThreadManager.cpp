@@ -246,6 +246,7 @@ void *
 int
 #endif
 NONS_Thread::runningThread(void *p){
+	srand((unsigned int)time(0));
 	NONS_ThreadedFunctionPointer f=((threadStruct *)p)->f;
 	void *d=((threadStruct *)p)->d;
 	delete (threadStruct *)p;

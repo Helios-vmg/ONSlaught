@@ -34,7 +34,7 @@ void blit_font(SDL_Surface *dst,const char *string,ulong x,ulong y){
 	ulong n=strlen(string);
 	uchar *buffer=new uchar[n*8*8]; //width*height*depth
 	for (ulong a=0;a<n;a++){
-		uchar *glyph=GFX_font+string[a]*8;
+		const uchar *glyph=GFX_font+string[a]*8;
 		uchar *pixel=buffer+a*8*8;
 		for (ulong b=0;b<8;b++,glyph++){
 			ulong c=*glyph;
@@ -126,7 +126,7 @@ void blit_font(SDL_Overlay *dst,const char *string,ulong x,ulong y){
 	ulong n=strlen(string);
 	uchar *buffer=new uchar[n*8*8];
 	for (ulong a=0;a<n;a++){
-		uchar *glyph=GFX_font+string[a]*8;
+		const uchar *glyph=GFX_font+string[a]*8;
 		uchar *pixel=buffer+a*8*8;
 		for (ulong b=0;b<8;b++,glyph++){
 			ulong c=*glyph;

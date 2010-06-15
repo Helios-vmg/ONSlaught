@@ -756,26 +756,41 @@ void applyTransformationMatrix_threaded(const applyTransformationMatrix_paramete
 		correct_x=param.correct_x,
 		correct_y=param.correct_y;
 	assert(advance0==advance1);
-	const long *matrix=param.matrix;
+	long matrix[]={
+		param.matrix[0],
+		param.matrix[1],
+		param.matrix[2],
+		param.matrix[3]
+	};
+	Uint32 mask=0xFFFFFFFF;
+	if (advance0!=4)
+#if SDL_BYTEORDER==SDL_BIG_ENDIAN
+		mask=0xFFFFFF00;
+#else
+		mask=0x00FFFFFF;
+#endif
 	for (ulong y=y0;y<h1;y++){
 		uchar *dst0=dst;
 		bool pixels_were_copied=0;
+		long src_x0=(x0-correct_x)*matrix[0]+(y-correct_y)*matrix[1];
+		long src_y0=(x0-correct_x)*matrix[2]+(y-correct_y)*matrix[3];
 		for (ulong x=x0;x<w1;x++){
-			long src_x=(x-correct_x)*matrix[0]+(y-correct_y)*matrix[1];
-			long src_y=(x-correct_x)*matrix[2]+(y-correct_y)*matrix[3];
-			src_x>>=16;
-			src_y>>=16;
-			if (src_x<0 || src_y<0 || (ulong)src_x>=w0 || (ulong)src_y>=h0){
-				if (!pixels_were_copied){
-					dst+=advance1;
-					continue;
-				}
-				break;
+			long src_x=src_x0>>16;
+			long src_y=src_y0>>16;
+			src_x0+=matrix[0];
+			src_y0+=matrix[2];
+			if (!(src_x<0 || src_y<0 || (ulong)src_x>=w0 || (ulong)src_y>=h0)){
+				uchar *src2=src+src_x*advance0+src_y*pitch0;
+				*(Uint32 *)dst=(*(Uint32 *)src2)&mask;
+				dst+=advance0;
+				pixels_were_copied=1;
+				continue;
 			}
-			uchar *src2=src+src_x*advance0+src_y*pitch0;
-			for (ulong a=0;a<advance0;a++)
-				*dst++=*src2++;
-			pixels_were_copied=1;
+			if (!pixels_were_copied){
+				dst+=advance0;
+				continue;
+			}
+			break;
 		}
 		dst=dst0+pitch1;
 	}

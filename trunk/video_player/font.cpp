@@ -5,7 +5,7 @@
 
 #include "font.h"
 
-unsigned char GFX_font[GFX_font_size]={
+const unsigned char GFX_font[GFX_font_size]={
 
     /*
      * 0 0x00 '^@' 

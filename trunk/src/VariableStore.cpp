@@ -126,6 +126,7 @@ namespace NONS_Expression{
 		ulong n=operands.back()->integer+1;
 		CHECK_OPERANDS(n);
 		deleteTop(operands);
+		n--;
 		std::vector<Sint32> v(n-1);
 		EXPECT_INTEGER(0);
 		Sint32 array=OPERAND(0)->integer;
@@ -397,9 +398,9 @@ namespace NONS_Expression{
 				return 0;
 			return (integer)?var->intValue:var->wcsValue;
 		}
-		ulong indices=full_expression.back()->operands.size(),
+		ulong indices=full_expression.back()->operands.size()-1,
 			base=evaluation_stack.size()-indices-1;
-		if (evaluation_stack.size()>indices){
+		if (evaluation_stack.size()>indices+1){
 			freePointerVector(evaluation_stack);
 			return 0;
 		}

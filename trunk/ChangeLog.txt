@@ -21,6 +21,10 @@
     * Bug in date command fixed.
     * Fixed bug in NONS_VariableStore::NONS_VariableStore() whereby an invalid
         global.sav could crash the engine.
+    * Minor rand() bug fixed.
+    * Bug in array implementation fixed.
+    * Fixed major bug in FFmpeg video player that caused deadlock on slow
+        systems.
 
 20091212
     * Implemented: avi, mpegplay.
