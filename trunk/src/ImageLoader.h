@@ -140,13 +140,12 @@ struct NONS_Image{
 	NONS_Image(SDL_Surface *image);
 	NONS_Image(const NONS_AnimationInfo *anim,const NONS_Image *primary,const NONS_Image *secondary,double base_scale[2],optim_t *rects);
 	~NONS_Image();
-	SDL_Surface *LoadImage(const std::wstring &string,const uchar *buffer,ulong bufferSize,NONS_DiskCache *dcache,double base_scale[2]);
+	SDL_Surface *LoadImage(const std::wstring &string,NONS_DataStream *stream,NONS_DiskCache *dcache,double base_scale[2]);
 private:
 	SDL_Rect getUpdateRect(ulong from,ulong to);
 };
 
 struct NONS_ImageLoader{
-	NONS_GeneralArchive *archive;
 	std::vector<NONS_Image *> imageCache;
 	NONS_LibraryLoader svg_library;
 	SVG_Functions svg_functions;
@@ -155,7 +154,7 @@ struct NONS_ImageLoader{
 	double base_scale[2];
 	NONS_DiskCache disk_cache;
 
-	NONS_ImageLoader(NONS_GeneralArchive *archive);
+	NONS_ImageLoader();
 	~NONS_ImageLoader();
 	ulong getCacheSize();
 	bool fetchSprite(SDL_Surface *&dst,const std::wstring &string,optim_t *rects=0);

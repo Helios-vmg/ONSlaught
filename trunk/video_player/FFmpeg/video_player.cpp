@@ -1093,7 +1093,74 @@ void decode_video(void *p){
 
 #include "../C_play_video.cpp"
 
+namespace protocol{
+	inline file_protocol *deref_h(URLContext *h){ return (file_protocol *)h->priv_data; }
+
+	int open(URLContext *h,const char *url,int flags){
+		file_protocol *fp=deref_h(h);
+		if (!fp)
+			return 0;
+		return fp->open(h->priv_data,url);
+	}
+	int close(URLContext *h){
+		return deref_h(h)->close(h->priv_data);
+	}
+	int read(URLContext *h,uchar *buf,int size){
+		return deref_h(h)->read(h->priv_data,buf,size);
+	}
+	int write(URLContext *h,uchar *buf,int size){
+		return deref_h(h)->write(h->priv_data,buf,size);
+	}
+	int64_t seek(URLContext *h,int64_t pos,int whence){
+		file_protocol *fp=deref_h(h);
+		if (!fp)
+			return 0;
+		switch (whence){
+			case SEEK_SET:
+				whence=1;
+				break;
+			case SEEK_CUR:
+				whence=0;
+				break;
+			case SEEK_END:
+				whence=-1;
+				break;
+			case AVSEEK_SIZE:
+				whence=2;
+				break;
+		}
+		return deref_h(h)->seek(h->priv_data,pos,whence);
+	}
+	int get_file_handle(URLContext *h){
+		return 0;
+		return deref_h(h)->get_file_handle(h->priv_data);
+	}
+};
+
 play_video_SIGNATURE{
+	{
+		URLProtocol up;
+		up.name="Helios";
+		up.next=0;
+		up.url_close=protocol::close;
+		up.url_get_file_handle=protocol::get_file_handle;
+		up.url_open=protocol::open;
+		up.url_read=protocol::read;
+		up.url_seek=protocol::seek;
+		up.url_write=protocol::write;
+		up.url_read_pause=0;
+		up.url_read_seek=0;
+		av_register_protocol(&up);
+		URLContext *url;
+		int a;
+		const char *filename="./0.txt";
+		if (a=url_open_protocol(&url,&up,filename,URL_RDWR))
+			return 0;
+		url->priv_data=&fp;
+		url->prot->url_open(url,filename,0);
+		a=url->prot->url_seek(url,0,AVSEEK_SIZE);
+		url_close(url);
+	}
 	stop_playback=0;
 	debug_messages=!!print_debug;
 	global_screen=screen;

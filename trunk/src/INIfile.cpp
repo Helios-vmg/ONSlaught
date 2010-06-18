@@ -29,7 +29,7 @@
 
 #include "INIfile.h"
 #include "INIParser.tab.hpp"
-#include "IOFunctions.h"
+#include "Archive.h"
 
 /*void INIvalue::setIntValue(long a){
 	this->value=itoaw(a);
@@ -82,29 +82,30 @@ INIvalue *INIsection::getValue(const std::wstring &a){
 INIfile::INIfile(){}
 
 INIfile::INIfile(const std::wstring &filename,ENCODING::ENCODING encoding){
-	ulong l;
-	char *buffer=(char *)NONS_File::read(filename,l);
-	if (!!buffer){
-		this->readFile(buffer,l,encoding);
-		delete buffer;
-	}
+	NONS_DataStream *stream=general_archive.open(filename);
+	if (!stream)
+		return;
+	std::vector<uchar> buffer;
+	stream->read_all(buffer);
+	general_archive.close(stream);
+	this->readFile(buffer,encoding);
 }
 
-INIfile::INIfile(const char *buffer,ulong size,ENCODING::ENCODING encoding){
-	this->readFile(buffer,size,encoding);
+INIfile::INIfile(std::vector<uchar> &buffer,ENCODING::ENCODING encoding){
+	this->readFile(buffer,encoding);
 }
 
-void INIfile::readFile(const char *buffer,ulong size,ENCODING::ENCODING encoding){
+void INIfile::readFile(std::vector<uchar> &buffer,ENCODING::ENCODING encoding){
 	std::wstring buffer2;
 	switch (encoding){
 		case ENCODING::ISO_8859_1:
-			buffer2=UniFromISO88591(std::string(buffer,size));
+			buffer2=UniFromISO88591(buffer);
 			break;
 		case ENCODING::SJIS:
-			buffer2=UniFromSJIS(std::string(buffer,size));
+			buffer2=UniFromSJIS(buffer);
 			break;
 		case ENCODING::UTF8:
-			buffer2=UniFromUTF8(std::string(buffer,size));
+			buffer2=UniFromUTF8(buffer);
 	}
 	std::wstringstream stream;
 	stream <<'\0'<<buffer2;

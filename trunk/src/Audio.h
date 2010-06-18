@@ -35,6 +35,7 @@
 #include "Common.h"
 #include "ErrorCodes.h"
 #include "ThreadManager.h"
+#include "IOFunctions.h"
 #include <map>
 #include <list>
 #include <string>
@@ -45,7 +46,7 @@ struct NONS_CachedSound{
 	long references;
 	Uint32 lastused;
 	std::wstring name;
-	NONS_CachedSound(char *databuffer,long size);
+	NONS_CachedSound(SDL_RWops &rwops);
 	~NONS_CachedSound();
 };
 
@@ -75,7 +76,7 @@ struct NONS_SoundCache{
 	~NONS_SoundCache();
 	NONS_CachedSound *getSound(const std::wstring &filename);
 	NONS_CachedSound *checkSound(const std::wstring &filename);
-	NONS_CachedSound *newSound(const std::wstring &filename,char *databuffer,long size);
+	NONS_CachedSound *newSound(const std::wstring &filename);
 	static void GarbageCollector(NONS_SoundCache *dis);
 	NONS_Mutex mutex;
 private:
@@ -85,14 +86,12 @@ private:
 
 class NONS_Music{
 	Mix_Music *data;
-	SDL_RWops *RWop;
-	char *buffer;
-	long buffersize;
+	NONS_DataStream *stream;
+	SDL_RWops rwops;
 	long playingTimes;
 public:
 	std::wstring filename;
 	NONS_Music(const std::wstring &filename);
-	NONS_Music(const std::wstring &filename,char *databuffer,long size);
 	~NONS_Music();
 	void play(long times=-1);
 	void stop();
@@ -112,12 +111,11 @@ struct NONS_Audio{
 	NONS_Audio(const std::wstring &musicDir);
 	~NONS_Audio();
 	ErrorCode playMusic(const std::wstring *filename,long times=-1);
-	ErrorCode playMusic(const std::wstring &filename,char *buffer,long l,long times=-1);
 	ErrorCode stopMusic();
 	ErrorCode pauseMusic();
-	ErrorCode playSoundAsync(const std::wstring *filename,char *buffer,long l,int channel,long times=-1);
+	ErrorCode playSoundAsync(const std::wstring *filename,int channel,long times=-1);
 	ErrorCode stopSoundAsync(int channel);
-	ErrorCode loadAsyncBuffer(const std::wstring &filename,char *buffer,long l,int channel);
+	ErrorCode loadAsyncBuffer(const std::wstring &filename,int channel);
 	ErrorCode stopAllSound();
 	bool bufferIsLoaded(const std::wstring &filename);
 	bool asyncBufferIsLoaded(int channel,std::wstring *filename=0);

@@ -40,7 +40,7 @@ extern std::wstring save_directory;
 
 void NONS_LogStrings::init(const std::wstring &oldName,const std::wstring &newName){
 	this->commit=0;
-	ulong l;
+	size_t l;
 	this->saveAs=save_directory;
 	this->saveAs.append(newName);
 	char *buffer=(char *)NONS_File::read(this->saveAs,l);
@@ -49,7 +49,7 @@ void NONS_LogStrings::init(const std::wstring &oldName,const std::wstring &newNa
 	if (!buffer)
 		return;
 	if (firstcharsCI(std::string(buffer),0,"BZh")){
-		char *temp=decompressBuffer_BZ2(buffer,l,(unsigned long *)&l);
+		char *temp=decompressBuffer_BZ2(buffer,l,&l);
 		delete[] buffer;
 		buffer=temp;
 	}
@@ -108,7 +108,7 @@ void NONS_LogStrings::writeOut(){
 		buf.push_back(0);
 	}
 	inPlaceDecryption(&buf[startEncryption],buf.size()-startEncryption,ENCRYPTION::XOR84);
-	ulong l;
+	size_t l;
 	char *writebuffer=compressBuffer_BZ2(&buf[0],buf.size(),&l);
 	NONS_File::write(this->saveAs,writebuffer,l);
 	delete[] writebuffer;

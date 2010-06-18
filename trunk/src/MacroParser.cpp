@@ -27,7 +27,7 @@
 * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "IOFunctions.h"
+#include "Archive.h"
 #include "CommandLineOptions.h"
 #include "MacroParser.h"
 #include <cassert>
@@ -987,12 +987,16 @@ bool MacroFile::checkSymbols(){
 bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::MacroFile &macros,bool output);
 
 bool preprocess(std::wstring &dst,const std::wstring &script){
-	ulong l;
-	char *temp;
+	NONS_DataStream *dstream=general_archive.open(L"macros.txt");
 	bool ret;
-	if (temp=(char *)NONS_File::read(L"macros.txt",l)){
-		std::wstringstream stream(UniFromUTF8(std::string(temp,l)));
-		delete[] temp;
+	if (dstream){
+		std::wstringstream stream;
+		{
+			std::vector<uchar> temp;
+			dstream->read_all(temp);
+			general_archive.close(dstream);
+			stream <<UniFromUTF8(temp);
+		}
 		NONS_Macro::MacroFile *MacroFile;
 		bool pointerIsValid=!macroParser_yyparse(stream,MacroFile);
 		if (pointerIsValid && MacroFile->checkSymbols() && preprocess(dst,script,*MacroFile,1)){

@@ -859,7 +859,6 @@ void NONS_ButtonLayer::makeTextButtons(const std::vector<std::wstring> &arr,
 		std::wstring *mouseover,
 		std::wstring *click,
 		NONS_Audio *audio,
-		NONS_GeneralArchive *archive,
 		int width,
 		int height){
 	if (!this->font_cache)
@@ -867,7 +866,6 @@ void NONS_ButtonLayer::makeTextButtons(const std::vector<std::wstring> &arr,
 	for (ulong a=0;a<this->buttons.size();a++)
 		delete this->buttons[a];
 	this->buttons.clear();
-	this->archive=archive;
 	this->audio=audio;
 	if (entry)
 		this->voiceEntry=*entry;
@@ -900,23 +898,10 @@ int NONS_ButtonLayer::getUserInput(int x,int y){
 	}
 	if (y>this->screen->output->y0+this->screen->output->h)
 		return -2;
-	if (this->voiceEntry.size()){
-		if (this->audio->bufferIsLoaded(this->voiceEntry))
-			this->audio->playSoundAsync(&this->voiceEntry,0,0,7,0);
-		else{
-			ulong l;
-			char *buffer=(char *)this->archive->getFileBuffer(this->voiceEntry,l);
-			if (this->audio->playSoundAsync(&this->voiceClick,buffer,l,7,0)!=NONS_NO_ERROR)
-				delete[] buffer;
-		}
-	}
-	if (this->voiceMouseOver.size()){
-		if (this->audio->bufferIsLoaded(this->voiceMouseOver)){
-			ulong l;
-			char *buffer=(char *)this->archive->getFileBuffer(this->voiceMouseOver,l);
-			this->audio->loadAsyncBuffer(this->voiceMouseOver,buffer,l,7);
-		}
-	}
+	if (this->voiceEntry.size())
+		this->audio->playSoundAsync(&this->voiceEntry,7,0);
+	if (this->voiceMouseOver.size())
+		this->audio->loadAsyncBuffer(this->voiceEntry,7);
 	NONS_EventQueue queue;
 	SDL_Surface *screenCopy=makeSurface(this->screen->screen->inRect.w,this->screen->screen->inRect.h,32);
 	{
@@ -1012,16 +997,8 @@ int NONS_ButtonLayer::getUserInput(int x,int y){
 					case SDLK_UP:
 					case SDLK_DOWN:
 						this->react_to_updown(mouseOver,event.key.keysym.sym,screenCopy);
-						if (this->voiceMouseOver.size()){
-							if (this->audio->bufferIsLoaded(this->voiceMouseOver))
-								this->audio->playSoundAsync(&this->voiceMouseOver,0,0,7,0);
-							else{
-								ulong l;
-								char *buffer=(char *)this->archive->getFileBuffer(this->voiceMouseOver,l);
-								if (this->audio->playSoundAsync(&this->voiceMouseOver,buffer,l,7,0)!=NONS_NO_ERROR)
-									delete[] buffer;
-							}
-						}
+						if (this->voiceMouseOver.size())
+							this->audio->playSoundAsync(&this->voiceMouseOver,7,0);
 						break;
 					case SDLK_RETURN:
 						if (this->react_to_click(mouseOver,screenCopy))
@@ -1039,16 +1016,8 @@ int NONS_ButtonLayer::getUserInput(int x,int y){
 				}
 				break;
 			case SDL_MOUSEMOTION:
-				if (this->react_to_movement(mouseOver,&event,screenCopy) && this->voiceMouseOver.size()){
-					if (this->audio->bufferIsLoaded(this->voiceMouseOver))
-						this->audio->playSoundAsync(&this->voiceMouseOver,0,0,7,0);
-					else{
-						ulong l;
-						char *buffer=(char *)this->archive->getFileBuffer(this->voiceMouseOver,l);
-						if (this->audio->playSoundAsync(&this->voiceMouseOver,buffer,l,7,0)!=NONS_NO_ERROR)
-							delete[] buffer;
-					}
-				}
+				if (this->react_to_movement(mouseOver,&event,screenCopy) && this->voiceMouseOver.size())
+					this->audio->playSoundAsync(&this->voiceMouseOver,7,0);
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				if (this->react_to_click(mouseOver,screenCopy))
@@ -1092,16 +1061,8 @@ void NONS_ButtonLayer::react_to_updown(int &mouseOver,SDLKey key,SDL_Surface *sc
 bool NONS_ButtonLayer::react_to_click(int &mouseOver,SDL_Surface *screenCopy){
 	if (mouseOver<0)
 		return 0;
-	if (this->voiceClick.size()){
-		if (this->audio->bufferIsLoaded(this->voiceClick))
-			this->audio->playSoundAsync(&this->voiceClick,0,0,7,0);
-		else{
-			ulong l;
-			char *buffer=(char *)this->archive->getFileBuffer(this->voiceClick,l);
-			if (this->audio->playSoundAsync(&this->voiceClick,buffer,l,7,0)!=NONS_NO_ERROR)
-				delete[] buffer;
-		}
-	}
+	if (this->voiceClick.size())
+		this->audio->playSoundAsync(&this->voiceClick,7,0);
 	{
 		NONS_MutexLocker ml(screenMutex);
 		manualBlit(screenCopy,0,this->screen->screen->screens[VIRTUAL],0);
@@ -1279,7 +1240,6 @@ NONS_Menu::NONS_Menu(NONS_ScriptInterpreter *interpreter){
 	}
 	this->slots=10;
 	this->audio=interpreter->audio;
-	this->archive=interpreter->archive;
 	this->rightClickMode=1;
 }
 
@@ -1307,7 +1267,6 @@ NONS_Menu::NONS_Menu(std::vector<std::wstring> *options,NONS_ScriptInterpreter *
 		h=scr->screen->screens[VIRTUAL]->h;
 	}
 	this->audio=interpreter->audio;
-	this->archive=interpreter->archive;
 	this->buttons->makeTextButtons(
 		this->strings,
 		this->on,
@@ -1317,7 +1276,6 @@ NONS_Menu::NONS_Menu(std::vector<std::wstring> *options,NONS_ScriptInterpreter *
 		&this->voiceMO,
 		&this->voiceClick,
 		this->audio,
-		this->archive,
 		w,
 		h);
 	this->x=(w-this->buttons->boundingBox.w)/2;
@@ -1345,16 +1303,8 @@ int NONS_Menu::callMenu(){
 	}
 	int choice=this->buttons->getUserInput(this->x,this->y);
 	if (choice<0){
-		if (choice!=INT_MIN && this->voiceCancel.size()){
-			if (this->audio->bufferIsLoaded(this->voiceCancel))
-				this->audio->playSoundAsync(&this->voiceCancel,0,0,7,0);
-			else{
-				ulong l;
-				char *buffer=(char *)this->archive->getFileBuffer(this->voiceCancel,l);
-				if (this->audio->playSoundAsync(&this->voiceCancel,buffer,l,7,0)!=NONS_NO_ERROR)
-					delete[] buffer;
-			}
-		}
+		if (choice!=INT_MIN && this->voiceCancel.size())
+			this->audio->playSoundAsync(&this->voiceCancel,7,0);
 		return 0;
 	}
 	return this->call(this->commands[choice]);
@@ -1382,7 +1332,7 @@ void NONS_Menu::reset(){
 		this->on,
 		this->off,
 		this->shadow,
-		0,0,0,0,0,
+		0,0,0,0,
 		w,h);
 	this->x=(w-this->buttons->boundingBox.w)/2;
 	this->y=(h-this->buttons->boundingBox.h)/2;
@@ -1410,7 +1360,7 @@ void NONS_Menu::resetStrings(std::vector<std::wstring> *options){
 		this->on,
 		this->off,
 		this->shadow,
-		0,0,0,0,0,
+		0,0,0,0,
 		w,h);
 	this->x=(w-this->buttons->boundingBox.w)/2;
 	this->y=(h-this->buttons->boundingBox.h)/2;
@@ -1501,7 +1451,7 @@ int NONS_Menu::save(){
 			&this->voiceMO,
 			&this->voiceClick,
 			this->audio,
-			this->archive,w,h);
+			w,h);
 		choice=files.getUserInput((w-files.boundingBox.w)/2,y0*2+20);
 		if (choice==INT_MIN)
 			ret=INT_MIN;
@@ -1510,18 +1460,8 @@ int NONS_Menu::save(){
 				this->slots--;
 				continue;
 			}
-			if (choice<0){
-				if (this->voiceCancel.size()){
-					if (this->audio->bufferIsLoaded(this->voiceCancel))
-						this->audio->playSoundAsync(&this->voiceCancel,0,0,7,0);
-					else{
-						ulong l;
-						char *buffer=(char *)this->archive->getFileBuffer(this->voiceCancel,l);
-						if (this->audio->playSoundAsync(&this->voiceCancel,buffer,l,7,0)!=NONS_NO_ERROR)
-							delete[] buffer;
-					}
-				}
-			}
+			if (choice<0 && this->voiceCancel.size())
+				this->audio->playSoundAsync(&this->voiceCancel,7,0);
 			ret=choice+1;
 		}
 		break;
@@ -1576,7 +1516,6 @@ int NONS_Menu::load(){
 			&this->voiceMO,
 			&this->voiceClick,
 			this->audio,
-			this->archive,
 			w,h);
 		choice=files.getUserInput((w-files.boundingBox.w)/2,y0*2+20);
 		if (choice==INT_MIN)
@@ -1587,16 +1526,8 @@ int NONS_Menu::load(){
 				strings.pop_back();
 				continue;
 			}
-			if (choice<0 && this->voiceCancel.size()){
-				if (this->audio->bufferIsLoaded(this->voiceCancel))
-					this->audio->playSoundAsync(&this->voiceCancel,0,0,7,0);
-				else{
-					ulong l;
-					char *buffer=(char *)this->archive->getFileBuffer(this->voiceCancel,l);
-					if (this->audio->playSoundAsync(&this->voiceCancel,buffer,l,7,0)!=NONS_NO_ERROR)
-						delete[] buffer;
-				}
-			}
+			if (choice<0 && this->voiceCancel.size())
+				this->audio->playSoundAsync(&this->voiceCancel,7,0);
 			ret=choice+1;
 		}
 		break;
@@ -1690,9 +1621,9 @@ NONS_Font::NONS_Font(const std::string &filename){
 	this->size=0;
 }
 
-NONS_Font::NONS_Font(uchar *buffer,size_t size){
+NONS_Font::NONS_Font(std::vector<uchar> *buffer){
 	this->buffer=buffer;
-	this->error=FT_New_Memory_Face(NONS_FreeType_Lib::instance.get_lib(),(const FT_Byte *)buffer,size,0,&this->ft_font);
+	this->error=FT_New_Memory_Face(NONS_FreeType_Lib::instance.get_lib(),(const FT_Byte *)&(*buffer)[0],buffer->size(),0,&this->ft_font);
 	if (!this->good())
 		return;
 	this->size=0;
@@ -1701,7 +1632,7 @@ NONS_Font::NONS_Font(uchar *buffer,size_t size){
 NONS_Font::~NONS_Font(){
 	if (this->good())
 		FT_Done_Face(this->ft_font);
-	delete[] this->buffer;
+	delete this->buffer;
 }
 
 void NONS_Font::set_size(ulong size){
@@ -2026,15 +1957,17 @@ void NONS_FontCache::done(NONS_Glyph *g){
 	//otherwise, the glyph doesn't belong to this cache
 }
 
-NONS_Font *init_font(NONS_GeneralArchive *archive,const std::string &filename){
+NONS_Font *init_font(const std::string &filename){
 	NONS_Font *font=new NONS_Font(filename);
 	if (!font->good()){
 		delete font;
-		ulong l;
-		uchar *buffer=archive->getFileBuffer(UniFromISO88591(filename),l);
-		if (!buffer)
+		NONS_DataStream *stream=general_archive.open(UniFromISO88591(filename));
+		if (!stream)
 			return 0;
-		font=new NONS_Font(buffer,l);
+		std::vector<uchar> *buffer=new std::vector<uchar>;
+		stream->read_all(*buffer);
+		general_archive.close(stream);
+		font=new NONS_Font(buffer);
 	}
 	return font;
 }
@@ -2066,10 +1999,10 @@ std::string getConsoleFontFilename(){
 	return UniToUTF8(settings.getWString(L"console font"));
 }
 
-void NONS_DebuggingConsole::init(NONS_GeneralArchive *archive){
+void NONS_DebuggingConsole::init(){
 	if (!this->font){
 		std::string font=getConsoleFontFilename();
-		this->font=init_font(archive,font.c_str());
+		this->font=init_font(font);
 		if (!this->font){
 			o_stderr <<"The font \""<<font<<"\" could not be found. The debugging console will not be available.\n";
 		}else{

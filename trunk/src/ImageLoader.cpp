@@ -429,13 +429,14 @@ SDL_Surface *generateEmptySurface(ulong w,ulong h){
 
 #undef LoadImage
 
-SDL_Surface *NONS_Image::LoadImage(const std::wstring &string,const uchar *buffer,ulong bufferSize,NONS_DiskCache *dcache,double base_scale[2]){
-	if (!buffer || !bufferSize || this->image && this->refCount)
+SDL_Surface *NONS_Image::LoadImage(const std::wstring &string,NONS_DataStream *stream,NONS_DiskCache *dcache,double base_scale[2]){
+	if (!stream || this->image && this->refCount)
 		return 0;
+	stream->reset();
 	if (this->image)
 		SDL_FreeSurface(this->image);
-	SDL_RWops *rwops=SDL_RWFromMem((void *)buffer,bufferSize);
-	SDL_Surface *surface=IMG_Load_RW(rwops,0);
+	SDL_RWops rwops=stream->to_rwops();
+	SDL_Surface *surface=IMG_Load_RW(&rwops,0);
 	if (surface){
 		this->image=makeSurface(surface->w,surface->h,32);
 		if (!!surface && surface->format->BitsPerPixel<24)
@@ -443,10 +444,11 @@ SDL_Surface *NONS_Image::LoadImage(const std::wstring &string,const uchar *buffe
 		else
 			manualBlit(surface,0,this->image,0);
 		SDL_FreeSurface(surface);
-		SDL_FreeRW(rwops);
 	}else if (svg_functions && svg_functions->valid){
 		if (!dcache || !(this->image=dcache->get(string))){
-			this->svg_source=svg_functions->SVG_load((void *)buffer,bufferSize);
+			std::vector<uchar> buffer;
+			stream->read_all(buffer);
+			this->svg_source=svg_functions->SVG_load(&buffer[0],buffer.size());
 			if (!this->svg_source)
 				this->image=0;
 			else{
@@ -564,7 +566,7 @@ SDL_Surface *NONS_DiskCache::get(const std::wstring &filename){
 	map_t::iterator i=this->cache_list.find(filename);
 	if (i==this->cache_list.end())
 		return 0;
-	ulong size;
+	size_t size;
 	uchar *buffer=NONS_File::read(i->second,size);
 	if (!buffer)
 		return 0;
@@ -623,10 +625,9 @@ SDL_Surface *NONS_DiskCache::get(const std::wstring &filename){
 
 NONS_ImageLoader *ImageLoader=0;
 
-NONS_ImageLoader::NONS_ImageLoader(NONS_GeneralArchive *archive)
+NONS_ImageLoader::NONS_ImageLoader()
 		:filelog(LOG_FILENAME_OLD,LOG_FILENAME_NEW),
 		svg_library("svg_loader",0){
-	this->archive=archive;
 	this->imageCache.reserve(50);
 	this->svg_functions.valid=1;
 #define NONS_ImageLoader_INIT_MEMBER(id) if (this->svg_functions.valid && !(this->svg_functions.id=(id##_f)this->svg_library.getFunction(#id)))\
@@ -688,18 +689,17 @@ bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,
 		if (fileMatch>=0)
 			primary=this->imageCache[fileMatch];
 		else{
-			ulong l;
-			uchar *buffer=this->archive->getFileBuffer(anim.getFilename(),l);
-			if (!buffer)
+			NONS_DataStream *stream=general_archive.open(anim.getFilename());
+			if (!stream)
 				goto fetchSprite_fail;
-			primary=new (std::nothrow) NONS_Image;
-			if (!primary->LoadImage(anim.getFilename(),buffer,l,(this->fast_svg)?&this->disk_cache:0,this->base_scale)){
-				delete[] buffer;
+			primary=new NONS_Image;
+			bool result=!primary->LoadImage(anim.getFilename(),stream,(this->fast_svg)?&this->disk_cache:0,this->base_scale);
+			general_archive.close(stream);
+			if (result){
 				delete primary;
 				goto fetchSprite_fail;
 			}
 			this->filelog.addString(anim.getFilename());
-			delete[] buffer;
 			freePrimary=1;
 		}
 		NONS_Image *secondary=0;
@@ -707,14 +707,13 @@ bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,
 		if (maskMatch>=0)
 			secondary=this->imageCache[maskMatch];
 		else if (anim.method==NONS_AnimationInfo::SEPARATE_MASK){
-			ulong l;
-			uchar *buffer=this->archive->getFileBuffer(anim.getMaskFilename(),l);
-			if (!buffer)
+			NONS_DataStream *stream=general_archive.open(anim.getMaskFilename());
+			if (!stream)
 				goto fetchSprite_fail;
 			secondary=new NONS_Image;
-			secondary->LoadImage(anim.getMaskFilename(),buffer,l,(this->fast_svg)?&this->disk_cache:0,this->base_scale);
-			this->filelog.addString(anim.getMaskFilename());
-			delete[] buffer;
+			bool result=!secondary->LoadImage(anim.getMaskFilename(),stream,(this->fast_svg)?&this->disk_cache:0,this->base_scale);
+			this->filelog.addString(anim.getFilename());
+			general_archive.close(stream);
 			freeSecondary=1;
 		}
 		NONS_Image *image=new NONS_Image(&anim,primary,secondary,this->base_scale,rects);

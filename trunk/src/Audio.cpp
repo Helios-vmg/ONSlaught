@@ -30,6 +30,7 @@
 #include "Audio.h"
 #include "IOFunctions.h"
 #include "CommandLineOptions.h"
+#include "Archive.h"
 #include <iostream>
 
 void GC(void *param){
@@ -88,7 +89,6 @@ void NONS_SoundCache::GarbageCollector(NONS_SoundCache *_this){
 						}else
 							i2++;
 					}
-					SDL_Delay(100);
 				}
 			}
 			bool justreported=0;
@@ -125,10 +125,13 @@ NONS_CachedSound *NONS_SoundCache::getSound(const std::wstring &filename){
 	return res;
 }
 
-NONS_CachedSound *NONS_SoundCache::newSound(const std::wstring &filename,char *databuffer,long size){
+NONS_CachedSound *NONS_SoundCache::newSound(const std::wstring &filename){
 	if (NONS_CachedSound *ret=this->getSound(filename))
 		return ret;
-	NONS_CachedSound *a=new NONS_CachedSound(databuffer,size);
+	NONS_DataStream *stream=general_archive.open(filename);
+	SDL_RWops rwops=stream->to_rwops();
+	NONS_CachedSound *a=new NONS_CachedSound(rwops);
+	general_archive.close(stream);
 	std::wstring temp=filename;
 	toforwardslash(temp);
 	a->name=temp;
@@ -136,9 +139,8 @@ NONS_CachedSound *NONS_SoundCache::newSound(const std::wstring &filename,char *d
 	return a;
 }
 
-NONS_CachedSound::NONS_CachedSound(char *databuffer,long size){
-	this->chunk=Mix_LoadWAV_RW(SDL_RWFromMem((void *)databuffer,size),1);
-	delete[] databuffer;
+NONS_CachedSound::NONS_CachedSound(SDL_RWops &rwops){
+	this->chunk=Mix_LoadWAV_RW(&rwops,0);
 	this->references=1;
 	this->lastused=secondsSince1970();
 }
@@ -199,18 +201,13 @@ int NONS_SoundEffect::volume(int vol){
 }
 
 NONS_Music::NONS_Music(const std::wstring &filename){
-	this->data=Mix_LoadMUS(UniToUTF8(filename).c_str());
-	this->buffer=0;
-	this->buffersize=0;
-	this->filename=filename;
-	this->RWop=0;
-}
-
-NONS_Music::NONS_Music(const std::wstring &filename,char *databuffer,long size){
-	this->buffer=databuffer;
-	this->buffersize=size;
-	this->RWop=SDL_RWFromMem((void *)databuffer,size);
-	this->data=Mix_LoadMUS_RW(this->RWop);
+	this->stream=general_archive.open(filename);
+	this->data=0;
+	if (!stream)
+		return;
+	//keep the SDL_RWops to keep SDL_mixer from killing itself
+	this->rwops=this->stream->to_rwops();
+	this->data=Mix_LoadMUS_RW(&rwops);
 	this->filename=filename;
 }
 
@@ -218,18 +215,13 @@ NONS_Music::~NONS_Music(){
 	this->stop();
 	if (this->data)
 		Mix_FreeMusic(this->data);
-	if (this->buffer)
-		delete[] this->buffer;
+	general_archive.close(stream);
 }
 
 void NONS_Music::play(long times){
 	if (Mix_PlayingMusic())
 		return;
 	Mix_PlayMusic(this->data,times);
-	int x=Mix_VolumeMusic(-1);
-	Mix_VolumeMusic(0);
-	SDL_Delay(50);
-	Mix_VolumeMusic(x);
 }
 
 void NONS_Music::stop(){
@@ -325,13 +317,13 @@ ErrorCode NONS_Audio::playMusic(const std::wstring *filename,long times){
 				if (!sound_formats[a])
 					break;
 				temp=this->musicDir+L"/"+*filename+L"."+sound_formats[a];
-				if (fileExists(temp))
+				if (general_archive.exists(temp))
 					break;
 				a++;
 			}
 		}else
 			temp=this->musicDir+L"/"+*filename+L"."+this->musicFormat;
-		if (!fileExists(temp) && !fileExists(temp=*filename))
+		if (!general_archive.exists(temp) && !general_archive.exists(temp=*filename))
 			return NONS_FILE_NOT_FOUND;
 		this->music=new NONS_Music(temp);
 		if (!this->music->loaded()){
@@ -340,30 +332,6 @@ ErrorCode NONS_Audio::playMusic(const std::wstring *filename,long times){
 		}
 		return this->playMusic(0,times);
 	}
-}
-
-ErrorCode NONS_Audio::playMusic(const std::wstring &filename,char *buffer,long l,long times){
-	if (this->uninitialized)
-		return NONS_NO_ERROR;
-	if (buffer && l){
-		if (this->music){
-			if (filename==this->music->filename)
-				return this->playMusic(0,times);
-			delete this->music;
-		}
-		this->music=new NONS_Music(filename,buffer,l);
-		if (!this->music->loaded()){
-			o_stderr <<Mix_GetError()<<"\n";
-			return NONS_UNDEFINED_ERROR;
-		}
-		if (this->notmute)
-			this->music->volume(this->mvol);
-		else
-			this->music->volume(0);
-		return this->playMusic(0,times);
-	}
-	o_stderr <<"int NONS_Audio::playMusic(): Internal error.\n";
-	return NONS_INTERNAL_INVALID_PARAMETER;
 }
 
 ErrorCode NONS_Audio::stopMusic(){
@@ -386,7 +354,7 @@ ErrorCode NONS_Audio::pauseMusic(){
 	return NONS_NO_MUSIC_LOADED;
 }
 
-ErrorCode NONS_Audio::playSoundAsync(const std::wstring *filename,char *buffer,long l,int channel,long times){
+ErrorCode NONS_Audio::playSoundAsync(const std::wstring *filename,int channel,long times){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	if (!filename){
@@ -408,8 +376,8 @@ ErrorCode NONS_Audio::playSoundAsync(const std::wstring *filename,char *buffer,l
 		}
 		return NONS_NO_ERROR;
 	}else{
-		HANDLE_POSSIBLE_ERRORS(this->loadAsyncBuffer(*filename,buffer,l,channel));
-		return this->playSoundAsync(0,0,0,channel,times);
+		HANDLE_POSSIBLE_ERRORS(this->loadAsyncBuffer(*filename,channel));
+		return this->playSoundAsync(0,channel,times);
 	}
 }
 
@@ -434,7 +402,7 @@ ErrorCode NONS_Audio::stopAllSound(){
 	return NONS_NO_ERROR;
 }
 
-ErrorCode NONS_Audio::loadAsyncBuffer(const std::wstring &filename,char *buffer,long l,int channel){
+ErrorCode NONS_Audio::loadAsyncBuffer(const std::wstring &filename,int channel){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	std::map<int,NONS_SoundEffect *>::iterator i=this->asynchronous_seffect.find(channel);
@@ -444,9 +412,7 @@ ErrorCode NONS_Audio::loadAsyncBuffer(const std::wstring &filename,char *buffer,
 	}
 	NONS_CachedSound *cs=this->soundcache->getSound(filename);
 	if (!cs){
-		if (!buffer)
-			return NONS_UNDEFINED_ERROR;
-		cs=this->soundcache->newSound(filename,buffer,l);
+		cs=this->soundcache->newSound(filename);
 	}
 	i->second->load(cs);
 	if (!i->second->loaded())

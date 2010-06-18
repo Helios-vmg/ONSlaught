@@ -321,45 +321,48 @@ bool preprocess(std::wstring &dst,const std::wstring &script);
 extern std::wstring save_directory;
 
 #ifndef NONS_LOW_MEMORY_ENVIRONMENT
-ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
-	ulong l;
-	char *temp=(char *)archive->getFileBuffer(scriptname,l);
-	if (!temp)
-		return NONS_FILE_NOT_FOUND;
+ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
+	std::wstring wtemp;
 	{
-		int error_code=inPlaceDecryption(temp,l,encryption);
-		if (error_code!=NONS_NO_ERROR){
-			delete[] temp;
-			return error_code;
+		std::vector<uchar> temp;
+		{
+			NONS_DataStream *stream=general_archive.open(scriptname);
+			if (!stream)
+				return NONS_FILE_NOT_FOUND;
+			stream->read_all(temp);
+			general_archive.close(stream);
+		}
+		{
+			ErrorCode error_code=inPlaceDecryption(&temp[0],temp.size(),encryption);
+			if (error_code!=NONS_NO_ERROR)
+				return error_code;
+		}
+		switch (encoding){
+			case ENCODING::AUTO:
+				if (isValidUTF8(&temp[0],temp.size())){
+					o_stderr <<"The script seems to be a valid UTF-8 stream. Using it as such.\n";
+					wtemp=UniFromUTF8(temp);
+				}else if (isValidSJIS(&temp[0],temp.size())){
+					o_stderr <<"The script seems to be a valid Shift JIS stream. Using it as such.\n";
+					wtemp=UniFromSJIS(temp);
+				}else{
+					o_stderr <<"The script seems to be a valid ISO-8859-1 stream. Using it as such.\n";
+					wtemp=UniFromISO88591(temp);
+				}
+				break;
+			case ENCODING::ISO_8859_1:
+				wtemp=UniFromISO88591(temp);
+				break;
+			case ENCODING::UTF8:
+				wtemp=UniFromUTF8(temp);
+				break;
+			case ENCODING::SJIS:
+				wtemp=UniFromSJIS(temp);
+				break;
+			default:
+				break;
 		}
 	}
-	std::wstring wtemp;
-	switch (encoding){
-		case ENCODING::AUTO:
-			if (isValidUTF8(temp,l)){
-				o_stderr <<"The script seems to be a valid UTF-8 stream. Using it as such.\n";
-				wtemp=UniFromUTF8(std::string(temp,l));
-			}else if (isValidSJIS(temp,l)){
-				o_stderr <<"The script seems to be a valid Shift JIS stream. Using it as such.\n";
-				wtemp=UniFromSJIS(std::string(temp,l));
-			}else{
-				o_stderr <<"The script seems to be a valid ISO-8859-1 stream. Using it as such.\n";
-				wtemp=UniFromISO88591(std::string(temp,l));
-			}
-			break;
-		case ENCODING::ISO_8859_1:
-			wtemp=UniFromISO88591(std::string(temp,l));
-			break;
-		case ENCODING::UTF8:
-			wtemp=UniFromUTF8(std::string(temp,l));
-			break;
-		case ENCODING::SJIS:
-			wtemp=UniFromSJIS(std::string(temp,l));
-			break;
-		default:
-			break;
-	}
-	delete[] temp;
 	{
 		std::wstring preprocessed;
 		if (preprocess(preprocessed,wtemp))
@@ -463,25 +466,27 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 #else
 #include <iostream>
 
-ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
+ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	if (encoding!=ENCODING::UTF8 || encryption!=ENCRYPTION::NONE){
 		this->cache_filename=CACHE_FILENAME;
-		ulong l;
-		char *buffer=(char *)archive->getFileBuffer(scriptname,l);
-		if (!buffer)
-			return NONS_FILE_NOT_FOUND;
+		std::vector<uchar> buffer;
 		{
-			int error_code=inPlaceDecryption(buffer,l,encryption);
-			if (error_code!=NONS_NO_ERROR){
-				delete[] buffer;
+			NONS_DataStream *stream=general_archive.open(scriptname);
+			if (!stream)
+				return NONS_FILE_NOT_FOUND;
+			stream->read_all(buffer);
+			general_archive.close(stream);
+		}
+		{
+			ErrorCode error_code=inPlaceDecryption(&buffer[0],buffer.size(),encryption);
+			if (error_code!=NONS_NO_ERROR)
 				return error_code;
-			}
 		}
 		if (encoding==ENCODING::AUTO){
-			if (isValidUTF8(buffer,l)){
+			if (isValidUTF8(&buffer[0],buffer.size())){
 				o_stderr <<"The script seems to be a valid UTF-8 stream. Using it as such.\n";
 				encoding=ENCODING::UTF8;
-			}else if (isValidSJIS(buffer,l)){
+			}else if (isValidSJIS(&buffer[0],buffer.size())){
 				o_stderr <<"The script seems to be a valid Shift JIS stream. Using it as such.\n";
 				encoding=ENCODING::SJIS;
 			}else{
@@ -493,13 +498,13 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 		{
 			ulong t0,t1;
 			t0=SDL_GetTicks();
-			std::ofstream cache(this->cache_filename.c_str(),std::ios::binary);
+			NONS_File cache(this->cache_filename,0);
 			ulong advance;
 			std::string obuffer;
 			obuffer.reserve(4099);
-			for (ulong a=0;a<l;a+=advance){
+			for (ulong a=0;a<buffer.size();a+=advance){
 				wchar_t c;
-				if (!ConvertSingleCharacter(c,buffer+a,l-a,advance,encoding))
+				if (!ConvertSingleCharacter(c,&buffer[a],buffer.size()-a,advance,encoding))
 					continue;
 				ulong bytes;
 				char utf8[4];
@@ -515,19 +520,18 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,NONS_GeneralArchive *
 			t1=SDL_GetTicks();
 			std::cout <<"Script converted in "<<t1-t0<<" ms."<<std::endl;
 		}
-		delete[] buffer;
 	}else
-		this->cache_filename=UniToUTF8(scriptname);
+		this->cache_filename=scriptname;
 	ulong t0,t1;
 	t0=SDL_GetTicks();
 	{
 		std::string buffer;
 		{
-			std::ifstream file(this->cache_filename.c_str(),std::ios::binary|std::ios::ate);
-			this->scriptSize=file.tellg();
-			file.seekg(0);
+			NONS_File file(this->cache_filename,1);
+			this->scriptSize=(size_t)file.filesize();
 			buffer.resize(this->scriptSize);
-			file.read(&buffer[0],buffer.size());
+			file.read(&buffer[0],this->scriptSize,this->scriptSize,0);
+			buffer.resize(this->scriptSize);
 		}
 
 		ulong currentLine=1,
@@ -633,7 +637,7 @@ NONS_Script::~NONS_Script(){
 		delete this->blocksByLine[a];
 #ifdef NONS_LOW_MEMORY_ENVIRONMENT
 	if (this->cache_filename==CACHE_FILENAME)
-		remove(this->cache_filename.c_str());
+		NONS_File::delete_file(this->cache_filename);
 #endif
 }
 

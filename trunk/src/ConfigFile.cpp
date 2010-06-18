@@ -66,7 +66,7 @@ ConfigFile::ConfigFile(const std::wstring &filename,ENCODING::ENCODING encoding)
 
 void ConfigFile::init(const std::wstring &filename,ENCODING::ENCODING encoding){
 	this->entries.clear();
-	ulong l;
+	size_t l;
 	char *buffer=(char *)NONS_File::read(filename,l);
 	if (!buffer)
 		return;
@@ -140,7 +140,7 @@ long ConfigFile::getInt(const std::wstring &index,ulong subindex){
 
 void ConfigFile::assignWString(const std::wstring &var,const std::wstring &val,ulong subindex){
 	config_map_t::iterator i=this->entries.find(var);
-	std::wstring str=UniFromISO88591("\"");
+	std::wstring str=L"\"";
 	str+=val;
 	str.push_back('\"');
 	if (i!=this->entries.end()){

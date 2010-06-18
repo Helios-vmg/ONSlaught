@@ -74,11 +74,11 @@ public:
 
 class INIfile{
 	std::map<std::wstring,INIsection> sections;
-	void readFile(const char *buffer,ulong size,ENCODING::ENCODING encoding=ENCODING::ISO_8859_1);
+	void readFile(std::vector<uchar> &buffer,ENCODING::ENCODING encoding=ENCODING::ISO_8859_1);
 public:
 	INIfile();
 	INIfile(const std::wstring &filename,ENCODING::ENCODING encoding=ENCODING::ISO_8859_1);
-	INIfile(const char *buffer,ulong size,ENCODING::ENCODING encoding=ENCODING::ISO_8859_1);
+	INIfile(std::vector<uchar> &buffer,ENCODING::ENCODING encoding=ENCODING::ISO_8859_1);
 	INIsection *getSection(const std::wstring &index);
 };
 #endif

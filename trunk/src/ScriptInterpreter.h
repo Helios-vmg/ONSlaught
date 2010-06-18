@@ -412,7 +412,6 @@ public:
 	NONS_ScreenSpace *screen;
 	NONS_Audio *audio;
 	NONS_Script *script;
-	NONS_GeneralArchive *archive;
 	NONS_ScriptInterpreter(bool initialize=1);
 	~NONS_ScriptInterpreter();
 	bool interpretNextLine();

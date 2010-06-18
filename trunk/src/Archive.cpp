@@ -35,6 +35,8 @@
 #include <iostream>
 #include <cassert>
 
+NONS_GeneralArchive general_archive;
+
 class CRC32{
 	Uint32 crc32;
 	static Uint32 CRC32lookup[];
@@ -114,22 +116,28 @@ TreeNode *TreeNode::get_branch(const std::wstring &_path,bool create){
 		if (!name.size())
 			return _this;
 		bool is_dir=(slash!=path.npos);
-		container_iterator i=_this->branches.find(name);
-		if (i==_this->branches.end()){
-			if (!create)
-				return 0;
-			_this->branches[name]=TreeNode(name);
+		bool stay=1;
+		container_iterator i;
+		if (name!=L"."){
+			stay=0;
 			i=_this->branches.find(name);
-			i->second.is_dir=is_dir;
+			if (i==_this->branches.end()){
+				if (!create)
+					return 0;
+				_this->branches[name]=TreeNode(name);
+				i=_this->branches.find(name);
+				i->second.is_dir=is_dir;
+			}
 		}
-		if (slash!=path.npos)
-			name=path.substr(slash+1);
-		else
-			name.clear();
-		if (!name.size())
+		if (slash!=path.npos){
+			while (slash<path.size() && (path[slash]=='/' || path[slash]=='\\'))
+				slash++;
+			name=path.substr(slash);
+		}else
 			return &(i->second);
 		path=name;
-		_this=&(i->second);
+		if (!stay)
+			_this=&(i->second);
 	}
 	return 0;
 }
@@ -139,31 +147,25 @@ bool Archive::exists(const std::wstring &path){
 	return !!node;
 }
 
-bool Archive::test(){
-	return this->test_rec(&this->root);
+TreeNode *Archive::find_file(const std::wstring &path){
+	return (this->good)?this->root.get_branch(path,0):0;
 }
 
-bool Archive::test_rec(TreeNode *node){
-	bool ret=1;
-	if (!node->is_dir && !node->skip){
-		ulong l;
-		uchar *buffer=this->get_file_buffer(L"",node,l);
-		if (!buffer)
-			return 0;
-		delete[] buffer;
-	}
-	for (TreeNode::container_iterator i=node->branches.begin();i!=node->branches.end() && ret;i++)
-		ret=ret&this->test_rec(&(i->second));
-	return ret;
+bool Archive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,const std::wstring &path,Uint64 offset){
+	TreeNode *node=this->find_file(path);
+	if (!node)
+		return 0;
+	return this->read_raw_bytes(dst,read_bytes,bytes_read,node,offset);
 }
 
-uchar *Archive::get_file_buffer(const std::wstring &path,ulong &size){
+bool Archive::get_file_size(Uint64 &size,const std::wstring &path){
 	if (!this->good)
 		return 0;
 	TreeNode *node=this->root.get_branch(path,0);
 	if (!node)
 		return 0;
-	return this->get_file_buffer(path,node,size);
+	size=this->get_size(node);
+	return 1;
 }
 
 template <typename T>
@@ -192,7 +194,7 @@ NSAarchive::NSAarchive(const std::wstring &path,bool nsa)
 	this->root.freeExtraData=NSAarchive::freeExtraData;
 	if (!this->file)
 		return;
-	ulong l;
+	size_t l;
 	char *buffer=(char *)this->file.read(6,l,0);
 	if (l<6){
 		delete[] buffer;
@@ -356,51 +358,19 @@ char *decode_LZSS(char *buffer,ulong compressedSize,ulong decompressedSize){
 	return (char *)res;
 }
 
-char *decompressBuffer_BZ2(char *src,unsigned long srcl,unsigned long &dstl){
-	unsigned long l=dstl,realsize=l;
-	char *dst=new char[l];
-	while (BZ2_bzBuffToBuffDecompress(dst,(unsigned int *)&l,src,srcl,1,0)==BZ_OUTBUFF_FULL){
-		delete[] dst;
-		l*=2;
-		realsize=l;
-		dst=new char[l];
+bool NSAarchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,TreeNode *node,Uint64 offset){
+	const NSAdata &nd=derefED(node->extraData);
+	if (offset>=nd.compressed)
+		read_bytes=0;
+	else if (offset+read_bytes>nd.compressed)
+		read_bytes=size_t(nd.compressed-offset);
+	if (!read_bytes){
+		bytes_read=0;
+		return 1;
 	}
-	if (l!=realsize){
-		char *temp=new char[l];
-		memcpy(temp,dst,l);
-		delete[] dst;
-		dst=temp;
-	}
-	dstl=l;
-	return dst;
-}
-
-uchar *NSAarchive::get_file_buffer(const std::wstring &path,TreeNode *node,ulong &size){
-	ulong l;
-	uchar *buffer=this->file.read(derefED(node->extraData).compressed,l,derefED(node->extraData).offset);
-	if (l<derefED(node->extraData).compressed){
-		delete[] buffer;
-		return 0;
-	}
-	uchar *res=0;
-	size=derefED(node->extraData).uncompressed;
-	if ((derefED(node->extraData).compression)==NSAdata::COMPRESSION_NONE)
-		res=buffer;
-	else{
-		switch (derefED(node->extraData).compression){
-			case NSAdata::COMPRESSION_SPB:
-				res=(uchar *)decode_SPB((char *)buffer,l,size);
-				break;
-			case NSAdata::COMPRESSION_LZSS:
-				res=(uchar *)decode_LZSS((char *)buffer,l,size);
-				break;
-			case NSAdata::COMPRESSION_BZ2:
-				res=(uchar *)decompressBuffer_BZ2((char *)buffer+4,l,size);
-				break;
-		}
-		delete[] buffer;
-	}
-	return res;
+	offset+=nd.offset;
+	this->file.read(dst,read_bytes,bytes_read,offset);
+	return 1;
 }
 
 struct endOfCDR{
@@ -408,21 +378,21 @@ struct endOfCDR{
 	ulong disk_number,
 		CD_start_disk,
 		CD_entries_n_, //(total number of entries in the central directory on this disk)
-		CD_entries_n, //(total number of entries in the central directory)
-		CD_size,
+		CD_entries_n; //(total number of entries in the central directory)
+	Uint64 CD_size,
 		CD_start;
 	endOfCDR():good(0){}
-	endOfCDR(NONS_File &file,ulong offset);
-	bool init(NONS_File &file,ulong offset);
+	endOfCDR(NONS_File &file,Uint64 offset);
+	bool init(NONS_File &file,Uint64 offset);
 };
 
-endOfCDR::endOfCDR(NONS_File &file,ulong offset){
+endOfCDR::endOfCDR(NONS_File &file,Uint64 offset){
 	this->init(file,offset);
 }
 
-bool endOfCDR::init(NONS_File &file,ulong offset){
+bool endOfCDR::init(NONS_File &file,Uint64 offset){
 	this->good=0;
-	ulong l;
+	size_t l;
 	uchar *buffer=file.read(22,l,offset);
 	if (l<22){
 		delete[] buffer;
@@ -437,7 +407,7 @@ bool endOfCDR::init(NONS_File &file,ulong offset){
 	this->CD_entries_n=readWord(buffer,offset2);
 	this->CD_size=readDWord(buffer,offset2);
 	this->CD_start=readDWord(buffer,offset2);
-	ulong comment_l=readWord(buffer,offset2);
+	size_t comment_l=readWord(buffer,offset2);
 	assert(offset2==22);
 	delete[] buffer;
 	delete[] file.read(comment_l,l,offset+offset2);
@@ -453,16 +423,16 @@ struct centralHeader{
 	ulong bit_flag,
 		compression_method;
 	Uint32 crc32;
-	ulong compressed_size,
+	Uint64 compressed_size,
 		uncompressed_size,
-		disk_number_start,
 		local_header_off;
-	centralHeader(NONS_File &file,ulong &offset,bool &enough_room);
+	ulong disk_number_start;
+	centralHeader(NONS_File &file,Uint64 &offset,bool &enough_room);
 };
 
-centralHeader::centralHeader(NONS_File &file,ulong &offset,bool &enough_room){
+centralHeader::centralHeader(NONS_File &file,Uint64 &offset,bool &enough_room){
 	this->good=0;
-	ulong l;
+	size_t l;
 	enough_room=0;
 	uchar *buffer=file.read(46,l,offset);
 	if (l<46){
@@ -480,9 +450,9 @@ centralHeader::centralHeader(NONS_File &file,ulong &offset,bool &enough_room){
 		this->crc32=readDWord(buffer,offset2);
 		this->compressed_size=readDWord(buffer,offset2);
 		this->uncompressed_size=readDWord(buffer,offset2);
-		ulong filename_l=readWord(buffer,offset2);
-		ulong extra_field_l=readWord(buffer,offset2),
-			file_comment_l=readWord(buffer,offset2);
+		size_t filename_l=readWord(buffer,offset2);
+		size_t extra_field_l=readWord(buffer,offset2);
+		ulong file_comment_l=readWord(buffer,offset2);
 		this->disk_number_start=readWord(buffer,offset2);
 		readWord(buffer,offset2);
 		readDWord(buffer,offset2);
@@ -513,16 +483,16 @@ struct localHeader{
 	ulong bit_flag,
 		compression_method;
 	Uint32 crc32;
-	ulong compressed_size,
+	Uint64 compressed_size,
 		uncompressed_size,
 		data_offset;
 	localHeader():good(0){}
-	localHeader(NONS_File &file,ulong offset);
+	localHeader(NONS_File &file,Uint64 offset);
 };
 
-localHeader::localHeader(NONS_File &file,ulong offset){
+localHeader::localHeader(NONS_File &file,Uint64 offset){
 	this->good=0;
-	ulong l;
+	size_t l;
 	uchar *buffer=file.read(30,l,offset);
 	if (l<30){
 		delete[] buffer;
@@ -538,7 +508,7 @@ localHeader::localHeader(NONS_File &file,ulong offset){
 		this->crc32=readDWord(buffer,offset2);
 		this->compressed_size=readDWord(buffer,offset2);
 		this->uncompressed_size=readDWord(buffer,offset2);
-		ulong filename_l=readWord(buffer,offset2),
+		size_t filename_l=readWord(buffer,offset2),
 			extra_field_l=readWord(buffer,offset2);
 
 		assert(offset2==30);
@@ -565,14 +535,15 @@ ZIParchive::ZIParchive(const std::wstring &path)
 	endOfCDR eocdr;
 	NONS_File file;
 	file.open(path,1);
-	ulong filesize,offset;
+	Uint64 filesize;
+	Uint64 offset;
 	if (!file || (filesize=file.filesize())<22)
 		return;
 	offset=filesize-22;
 	eocdr.init(file,offset);
 	while (!eocdr.good && offset)
 		eocdr.init(file,--offset);
-	if (!offset)
+	if (!eocdr.good)
 		return;
 	std::wstring name=path;
 	size_t dot=name.rfind('.');
@@ -664,72 +635,44 @@ bool UncompressLZMA(void *dst,size_t dst_l,void *src,size_t src_l){
 		header,5)==SZ_OK;
 }
 
-
-uchar *ZIParchive::get_file_buffer(const std::wstring &path,TreeNode *node,ulong &size){
-	ulong fileno=derefED(node->extraData).disk;
-	NONS_File file(this->disks[fileno],1);
-	ulong l,
-		offset=derefED(node->extraData).data_offset,
-		desired=derefED(node->extraData).compressed,
-		write_at=0;
-	uchar *compressed=new uchar[derefED(node->extraData).compressed];
+bool ZIParchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,TreeNode *node,Uint64 offset){
+	const ZIPdata &zd=derefED(node->extraData);
+	Uint64 internal_size=zd.uncompressed;
+	if (offset>=internal_size)
+		read_bytes=0;
+	else if (offset+read_bytes>internal_size)
+		read_bytes=size_t(zd.compressed-offset);
+	if (!read_bytes){
+		bytes_read=0;
+		return 1;
+	}
+	//find where the file stream section begins
+	Uint64 internal_offset=zd.data_offset;
+	ulong first_disk=zd.disk;
 	while (1){
-		uchar *buffer=file.read(desired,l,offset);
-		if (!buffer){
-			delete[] compressed;
-			return 0;
+		Uint64 disk_size;
+		NONS_File::get_file_size(disk_size,this->disks[first_disk]);
+		if (internal_offset+offset>=disk_size){
+			first_disk++;
+			offset-=disk_size-internal_offset;
+			internal_offset=0;
+			continue;
 		}
-		memcpy(compressed+write_at,buffer,l);
-		delete[] buffer;
-		if (l==desired)
-			break;
-		else{
-			write_at+=l;
-			desired-=l;
-			offset=0;
-			file.close();
-			file.open(this->disks[++fileno],1);
-		}
+		break;
 	}
-	uchar *uncompressed=0;
-	ulong compressed_l=derefED(node->extraData).compressed;
-	size=derefED(node->extraData).uncompressed;
-	if (derefED(node->extraData).compression==ZIPdata::COMPRESSION_NONE)
-		uncompressed=compressed;
-	else{
-		bool good;
-		switch (derefED(node->extraData).compression){
-			case ZIPdata::COMPRESSION_DEFLATE:
-				uncompressed=new uchar[size];
-				good=UncompressDEFLATE(uncompressed,size,compressed,compressed_l);
-				break;
-			case ZIPdata::COMPRESSION_BZ2:
-				uncompressed=new uchar[size];
-				good=UncompressBZ2(uncompressed,size,compressed,compressed_l);
-				break;
-			case ZIPdata::COMPRESSION_LZMA:
-				uncompressed=new uchar[size];
-				good=UncompressLZMA(uncompressed,size,compressed,compressed_l);
-				break;
-			default:
-				o_stderr <<"Unsupported compression ("<<(ulong)derefED(node->extraData).compression<<") used for file \""<<path<<"\".\n";
-				good=0;
-		}
-		if (!good){
-			delete[] compressed;
-			if (uncompressed)
-				delete[] uncompressed;
-			return 0;
-		}
-		delete[] compressed;
+	//read until the destination buffer is full
+	bytes_read=0;
+	while (read_bytes){
+		NONS_File file(this->disks[first_disk++],1);
+		size_t temp;
+		file.read(dst,read_bytes,temp,internal_offset+offset);
+		bytes_read+=temp;
+		read_bytes-=temp;
+		dst=((uchar *)dst)+temp;
+		internal_offset=0;
+		offset=0;
 	}
-	CRC32 crc;
-	crc.Input(uncompressed,size);
-	if (crc.Result()!=derefED(node->extraData).crc32){
-		delete[] uncompressed;
-		uncompressed=0;
-	}
-	return uncompressed;
+	return 1;
 }
 
 void ZIParchive::freeExtraData(void *p){
@@ -750,7 +693,7 @@ ZIParchive::SignatureType ZIParchive::getSignatureType(void *buffer){
 	return ZIParchive::NOT_A_SIGNATURE;
 }
 
-NONS_GeneralArchive::NONS_GeneralArchive(){
+void NONS_GeneralArchive::init(){
 	std::wstring path;
 	if (CLOptions.archiveDirectory.size())
 		path=CLOptions.archiveDirectory+L"/";
@@ -763,6 +706,7 @@ NONS_GeneralArchive::NONS_GeneralArchive(){
 			L".zip",
 			0
 		};
+	this->archives.push_back(&filesystem);
 	for (ulong a=ULONG_MAX;;a++){
 		std::wstring full_name;
 		ulong format;
@@ -776,7 +720,7 @@ NONS_GeneralArchive::NONS_GeneralArchive(){
 				full_name=path;
 				full_name.append(name);
 				full_name.append(formats[b]);
-				if (!fileExists(full_name) && !fileExists(toupperCopy(full_name)))
+				if (!NONS_File::file_exists(full_name) && !NONS_File::file_exists(toupperCopy(full_name)))
 					continue;
 				found=1;
 				format=b;
@@ -785,60 +729,279 @@ NONS_GeneralArchive::NONS_GeneralArchive(){
 				break;
 		}else{
 			full_name=path+L"arc.sar";
-			if (!fileExists(full_name) && !fileExists(toupperCopy(full_name)))
+			if (!NONS_File::file_exists(full_name) && !NONS_File::file_exists(toupperCopy(full_name)))
 				continue;
 			format=0;
 		}
-		Archive *arc;
+		NONS_ArchiveSource *ds;
 		switch (format){
 			case 0:
-				arc=(Archive *)new NSAarchive(full_name,0);
+				ds=new NONS_nsaArchiveSource(full_name,0);
 				break;
 			case 1:
-				arc=(Archive *)new NSAarchive(full_name,1);
+				ds=new NONS_nsaArchiveSource(full_name,1);
 				break;
 			case 2:
-				arc=(Archive *)new ZIParchive(full_name);
+				ds=new NONS_zipArchiveSource(full_name);
 				break;
 		}
-		if (arc->good){
-			/*std::cout <<"Testing "<<full_name<<"..."<<std::endl;
-			ulong t0=SDL_GetTicks();
-			bool test=arc->test();
-			ulong t1=SDL_GetTicks();
-			std::cout <<"Archive "<<full_name<<" is "<<((test)?"":"in")<<"valid."<<std::endl;
-			std::cout <<"Tested in "<<t1-t0<<" ms."<<std::endl;
-			if (test)*/
-				this->archives.push_back(arc);
-		}else{
-			delete arc;
+		if (ds->good())
+			this->archives.push_back(ds);
+		else{
+			delete ds;
 			std::cout <<"Archive "<<full_name<<" is invalid."<<std::endl;
 		}
 	}
+	std::reverse(this->archives.begin(),this->archives.end());
 }
 
 NONS_GeneralArchive::~NONS_GeneralArchive(){
-	for (ulong a=0;a<this->archives.size();a++)
+	for (ulong a=0;a<this->archives.size()-1;a++)
 		if (this->archives[a])
 			delete this->archives[a];
 }
 
-uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,ulong &buffersize){
-	uchar *res=getFileBufferWithoutFS(filepath,buffersize);
-	return (res)?res:NONS_File::read(filepath,buffersize);
-}
-
-uchar *NONS_GeneralArchive::getFileBufferWithoutFS(const std::wstring &filepath,ulong &buffersize){
+uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem){
 	uchar *res=0;
-	for (long a=this->archives.size()-1;a>=0;a--)
-		if (res=this->archives[a]->get_file_buffer(filepath,buffersize))
-			return res;
+	size_t end=this->archives.size();
+	if (!use_filesystem)
+		end--;
+	for (size_t a=0;a<end && !res;a++)
+		res=this->archives[a]->read_all(filepath,buffersize);
 	return res;
 }
 
+uchar *NONS_GeneralArchive::getFileBufferWithoutFS(const std::wstring &filepath,size_t &buffersize){
+	return this->getFileBuffer(filepath,buffersize,0);
+}
+
+NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path){
+	for (size_t a=0;a<this->archives.size();a++){
+		NONS_DataStream *stream=this->archives[a]->open(path);
+		if (stream)
+			return stream;
+	}
+	return 0;
+}
+
+bool NONS_GeneralArchive::close(NONS_DataStream *stream){
+	for (size_t a=0;a<this->archives.size();a++)
+		if (this->archives[a]->close(stream))
+			return 1;
+	return 0;
+}
+
 bool NONS_GeneralArchive::exists(const std::wstring &filepath){
-	for (long a=this->archives.size()-1;a>=0;a--)
+	for (size_t a=0;a<this->archives.size();a++)
 		if (this->archives[a]->exists(filepath))
 			return 1;
-	return fileExists(filepath);
+	return 0;
+}
+
+//------------------------------------------------------------------------------
+//NONS_ArchiveSource
+//------------------------------------------------------------------------------
+
+bool NONS_ArchiveSource::get_size(Uint64 &size,const std::wstring &name){
+	return this->archive->get_file_size(size,name);
+}
+
+Uint64 NONS_ArchiveSource::get_size(TreeNode *node){
+	return this->archive->get_size(node);
+}
+
+bool NONS_ArchiveSource::read(void *dst,size_t &bytes_read,NONS_DataStream &stream,size_t count){
+	if (!this->archive->read_raw_bytes(dst,count,bytes_read,stream.get_name(),stream.get_offset()))
+		return 0;
+	stream.seek(bytes_read,0);
+	return 1;
+}
+
+bool NONS_ArchiveSource::read(void *dst,size_t &bytes_read,NONS_ArchiveStream &stream,size_t count){
+	if (!this->archive->read_raw_bytes(dst,count,bytes_read,stream.get_node(),stream.get_offset()))
+		return 0;
+	stream.seek(bytes_read,0);
+	return 1;
+}
+
+TreeNode *NONS_ArchiveSource::get_node(const std::wstring &path){
+	return this->archive->find_file(path);
+}
+
+uchar *NONS_ArchiveSource::read_all(const std::wstring &name,size_t &bytes_read){
+	TreeNode *node=this->get_node(name);
+	if (!node)
+		return 0;
+	return this->read_all(node,bytes_read);
+}
+
+bool NONS_ArchiveSource::exists(const std::wstring &name){
+	return !!this->get_node(name);
+}
+
+//------------------------------------------------------------------------------
+//NONS_nsaArchiveSource
+//------------------------------------------------------------------------------
+
+NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
+	NONS_nsaArchiveStream *p=new NONS_nsaArchiveStream(*this,name);
+	TreeNode *node=p->get_node();
+	if (!node){
+		delete p;
+		return 0;
+	}
+	const NSAdata &data=NSAarchive::derefED(node->extraData);
+	if (data.compression!=NSAdata::COMPRESSION_NONE){
+		size_t uncompressed_l;
+		uchar *uncompressed=this->read_all(node,uncompressed_l);
+		delete p;
+		return NONS_DataSource::open(filesystem.new_temporary_file(uncompressed,uncompressed_l));
+	}
+	return NONS_DataSource::open(p);
+}
+
+NONS_nsaArchiveSource::NONS_nsaArchiveSource(const std::wstring &name,bool nsa){
+	this->archive=new NSAarchive(name,nsa);
+}
+
+NONS_nsaArchiveSource::~NONS_nsaArchiveSource(){
+	delete this->archive;
+}
+
+uchar *NONS_nsaArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
+	const NSAdata &data=NSAarchive::derefED(node->extraData);
+	uchar *uncompressed;
+	bytes_read=data.uncompressed;
+	size_t compressed_l=data.compressed;
+	uchar *compressed=new uchar[compressed_l];
+	{
+		size_t temp;
+		this->archive->read_raw_bytes(compressed,compressed_l,temp,node,0);
+	}
+	if (data.compression==NSAdata::COMPRESSION_NONE)
+		uncompressed=compressed;
+	else{
+		switch (data.compression){
+			case NSAdata::COMPRESSION_SPB:
+				uncompressed=(uchar *)decode_SPB((char *)&compressed[0],data.compressed,bytes_read);
+				break;
+			case NSAdata::COMPRESSION_LZSS:
+				uncompressed=(uchar *)decode_LZSS((char *)&compressed[0],data.compressed,bytes_read);
+				break;
+			case NSAdata::COMPRESSION_BZ2:
+				uncompressed=(uchar *)decompressBuffer_BZ2((char *)&compressed[4],data.compressed,&bytes_read);
+				break;
+		}
+		delete[] compressed;
+	}
+	return uncompressed;
+}
+
+//------------------------------------------------------------------------------
+//NONS_zipArchiveSource
+//------------------------------------------------------------------------------
+
+NONS_zipArchiveSource::NONS_zipArchiveSource(const std::wstring &name){
+	this->archive=new ZIParchive(name);
+}
+
+NONS_zipArchiveSource::~NONS_zipArchiveSource(){
+	delete this->archive;
+}
+
+NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
+	NONS_zipArchiveStream *p=new NONS_zipArchiveStream(*this,name);
+	TreeNode *node=p->get_node();
+	if (!node){
+		delete p;
+		return 0;
+	}
+	const ZIPdata &data=ZIParchive::derefED(node->extraData);
+	if (data.compression!=ZIPdata::COMPRESSION_NONE){
+		size_t uncompressed_l;
+		uchar *uncompressed=this->read_all(node,uncompressed_l);
+		delete p;
+		if (!uncompressed)
+			return 0;
+		return NONS_DataSource::open(filesystem.new_temporary_file(uncompressed,uncompressed_l));
+	}
+	return NONS_DataSource::open(p);
+}
+
+uchar *NONS_zipArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
+	const ZIPdata &data=ZIParchive::derefED(node->extraData);
+	uchar *uncompressed;
+	bytes_read=(size_t)data.uncompressed;
+	size_t compressed_l=(size_t)data.compressed;
+	uchar *compressed=new uchar[compressed_l];
+	{
+		size_t temp;
+		this->archive->read_raw_bytes(compressed,compressed_l,temp,node,0);
+	}
+	if (data.compression==ZIPdata::COMPRESSION_NONE)
+		uncompressed=compressed;
+	else{
+		
+		bool (*f)(void *,size_t,void *,size_t);
+		switch (data.compression){
+			case ZIPdata::COMPRESSION_DEFLATE:
+				f=UncompressDEFLATE;
+				break;
+			case ZIPdata::COMPRESSION_BZ2:
+				f=UncompressBZ2;
+				break;
+			case ZIPdata::COMPRESSION_LZMA:
+				f=UncompressLZMA;
+				break;
+			default:
+				f=0;
+		}
+		if (!f){
+			o_stderr <<"Unsupported compression ("<<(ulong)data.compression<<") used for file \"<???>/"<<node->name<<"\".\n";
+			delete[] compressed;
+			return 0;
+		}
+		uncompressed=new uchar[bytes_read];
+		if (!f(uncompressed,bytes_read,compressed,compressed_l)){
+			delete[] uncompressed;
+			delete[] compressed;
+			return 0;
+		}
+		delete[] compressed;
+	}
+	CRC32 crc;
+	crc.Input(uncompressed,bytes_read);
+	if (crc.Result()!=data.crc32){
+		delete[] uncompressed;
+		uncompressed=0;
+	}
+	return uncompressed;
+}
+
+//------------------------------------------------------------------------------
+//NONS_ArchiveStream
+//------------------------------------------------------------------------------
+
+NONS_ArchiveStream::NONS_ArchiveStream(NONS_DataSource &ds,const std::wstring &name)
+		:NONS_DataStream(ds,name){
+	this->node=((NONS_ArchiveSource *)this->source)->get_node(this->name);
+	if (this->node)
+		this->size=((NONS_ArchiveSource *)this->source)->get_size(this->node);
+}
+
+//------------------------------------------------------------------------------
+//NONS_nsaArchiveStream
+//------------------------------------------------------------------------------
+
+bool NONS_nsaArchiveStream::read(void *dst,size_t &bytes_read,size_t count){
+	//((NONS_nsaArchiveSource *)this->source)->
+	return ((NONS_ArchiveSource *)this->source)->read(dst,bytes_read,*this,count);
+}
+
+//------------------------------------------------------------------------------
+//NONS_zipArchiveStream
+//------------------------------------------------------------------------------
+
+bool NONS_zipArchiveStream::read(void *dst,size_t &bytes_read,size_t count){
+	return ((NONS_ArchiveSource *)this->source)->read(dst,bytes_read,*this,count);
 }

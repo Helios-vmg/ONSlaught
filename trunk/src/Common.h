@@ -101,4 +101,5 @@ typedef basic_stringstream<wchar_t> wstringstream;
 }
 #define NONS_LOW_MEMORY_ENVIRONMENT
 #endif
+#define NONS_LOW_MEMORY_ENVIRONMENT
 #endif

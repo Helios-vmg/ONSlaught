@@ -55,7 +55,7 @@ class NONS_Font{
 	FT_Face ft_font;
 	FT_Error error;
 	ulong size;
-	uchar *buffer;
+	std::vector<uchar> *buffer;
 
 	NONS_Font(const NONS_Font &){}
 	void operator=(const NONS_Font &){}
@@ -64,7 +64,7 @@ public:
 		line_skip;
 
 	NONS_Font(const std::string &filename);
-	NONS_Font(uchar *buffer,size_t size);
+	NONS_Font(std::vector<uchar> *buffer);
 	~NONS_Font();
 	bool good() const{ return !this->error; }
 	FT_Error get_error() const{ return this->error; }
@@ -183,7 +183,7 @@ public:
 	~NONS_AutoGlyph(){ this->cache.done(&this->glyph); }
 };
 
-NONS_Font *init_font(NONS_GeneralArchive *archive,const std::string &filename);
+NONS_Font *init_font(const std::string &filename);
 
 struct NONS_StandardOutput;
 struct NONS_ScreenSpace;
@@ -226,7 +226,6 @@ struct NONS_ButtonLayer{
 	std::wstring voiceMouseOver;
 	std::wstring voiceClick;
 	NONS_Audio *audio;
-	NONS_GeneralArchive *archive;
 	SDL_Rect boundingBox;
 	bool exitable;
 	NONS_Menu *menu;
@@ -254,7 +253,6 @@ struct NONS_ButtonLayer{
 		std::wstring *mouseover,
 		std::wstring *click,
 		NONS_Audio *audio,
-		NONS_GeneralArchive *archive,
 		int width,
 		int height);
 	void addImageButton(ulong index,int posx,int posy,int width,int height,int originX,int originY);
@@ -308,7 +306,6 @@ struct NONS_Menu{
 	std::wstring voiceYes;
 	std::wstring voiceNo;
 	NONS_Audio *audio;
-	NONS_GeneralArchive *archive;
 	uchar rightClickMode;
 
 	NONS_Menu(NONS_ScriptInterpreter *interpreter);
@@ -397,7 +394,7 @@ class NONS_DebuggingConsole{
 public:
 	NONS_DebuggingConsole();
 	~NONS_DebuggingConsole();
-	void init(NONS_GeneralArchive *archive);
+	void init();
 	void enter(NONS_ScreenSpace *dst);
 	void output(const std::wstring &str,NONS_ScreenSpace *dst);
 };

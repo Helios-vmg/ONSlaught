@@ -275,6 +275,7 @@ PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 extern ConfigFile settings;
 
 int main(int argc,char **argv){
+	//test();
 	srand((unsigned int)time(0));
 	std::cout <<"ONSlaught: An ONScripter clone with Unicode support."<<std::endl;
 #if ONSLAUGHT_BUILD_VERSION<99999999
@@ -303,6 +304,8 @@ int main(int argc,char **argv){
 	if (!useArgumentsFile("arguments.txt",cmdl_arg))
 		CLOptions.parse(cmdl_arg);
 
+	general_archive.init();
+
 	if (CLOptions.override_stdout){
 		o_stdout.redirect();
 		o_stderr.redirect();
@@ -325,7 +328,7 @@ int main(int argc,char **argv){
 
 	NONS_ScriptInterpreter *interpreter=gScriptInterpreter=new NONS_ScriptInterpreter;
 	if (CLOptions.debugMode)
-		console.init(interpreter->archive);
+		console.init();
 	SDL_WM_SetCaption("ONSlaught ("ONSLAUGHT_BUILD_VERSION_STR")",0);
 #if NONS_SYS_WINDOWS
 	findMainWindow(L"ONSlaught ("ONSLAUGHT_BUILD_VERSION_WSTR L")");

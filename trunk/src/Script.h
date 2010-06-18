@@ -134,13 +134,13 @@ inline int findBlocksByLine(const ulong &a,NONS_ScriptBlock * const &b){
 
 #define NONS_FIRST_BLOCK L"0BOF0"
 #ifdef NONS_LOW_MEMORY_ENVIRONMENT
-#define CACHE_FILENAME "script.cache"
+#define CACHE_FILENAME L"script.cache"
 #endif
 struct NONS_Script{
 #ifdef NONS_LOW_MEMORY_ENVIRONMENT
-	std::string cache_filename;
+	std::wstring cache_filename;
 #endif
-	ulong scriptSize;
+	size_t scriptSize;
 	std::vector<NONS_ScriptBlock *> blocksByLine,
 		blocksByName;
 	//First: line No. of the jump. Second: file offset of the jump.
@@ -149,7 +149,7 @@ struct NONS_Script{
 	unsigned hash[5];
 	NONS_Script();
 	~NONS_Script();
-	ErrorCode init(const std::wstring &scriptname,NONS_GeneralArchive *archive,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption);
+	ErrorCode init(const std::wstring &scriptname,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption);
 	NONS_ScriptBlock *blockFromLabel(std::wstring name);
 	NONS_ScriptBlock *blockFromOffset(ulong offset);
 	NONS_ScriptBlock *blockFromLine(ulong line);

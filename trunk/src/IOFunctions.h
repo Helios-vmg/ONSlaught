@@ -39,6 +39,7 @@
 #include <string>
 #include <fstream>
 #include <queue>
+#include <list>
 
 class NONS_EventQueue{
 	std::queue<SDL_Event> data;
@@ -91,16 +92,19 @@ public:
 	void open(const std::wstring &path,bool open_for_read);
 	void close();
 	bool operator!();
-	type *read(ulong read_bytes,ulong &bytes_read,ulong offset);
-	type *read(ulong &bytes_read);
+	bool read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offset);
+	bool read(void *dst,size_t &bytes_read);
+	type *read(size_t read_bytes,size_t &bytes_read,Uint64 offset);
+	type *read(size_t &bytes_read);
 	bool write(void *buffer,ulong size,bool write_at_end=1);
-	ulong filesize();
-	static type *read(const std::wstring &path,ulong read_bytes,ulong &bytes_read,ulong offset);
-	static type *read(const std::wstring &path,ulong &bytes_read);
+	Uint64 filesize();
+	static type *read(const std::wstring &path,size_t read_bytes,size_t &bytes_read,Uint64 offset);
+	static type *read(const std::wstring &path,size_t &bytes_read);
 	static bool write(const std::wstring &path,void *buffer,ulong size);
 	static bool delete_file(const std::wstring &path);
+	static bool file_exists(const std::wstring &name);
+	static bool get_file_size(Uint64 &size,const std::wstring &name);
 };
-bool fileExists(const std::wstring &name);
 
 struct NONS_CommandLineOptions;
 extern NONS_CommandLineOptions CLOptions;
@@ -149,4 +153,80 @@ extern NONS_InputObserver InputObserver;
 extern NONS_RedirectedOutput o_stdout;
 extern NONS_RedirectedOutput o_stderr;
 //extern NONS_RedirectedOutput o_stdlog;
+
+class NONS_DataStream;
+
+class NONS_DataSource{
+	std::list<NONS_DataStream *> streams;
+public:
+	virtual ~NONS_DataSource();
+	virtual NONS_DataStream *open(const std::wstring &name)=0;
+	NONS_DataStream *open(NONS_DataStream *p);
+	virtual bool close(NONS_DataStream *stream);
+	virtual bool get_size(Uint64 &size,const std::wstring &name)=0;
+	virtual bool read(void *dst,size_t &bytes_read,NONS_DataStream &stream,size_t count)=0;
+	virtual uchar *read_all(const std::wstring &name,size_t &bytes_read)=0;
+	virtual bool exists(const std::wstring &name)=0;
+};
+
+class NONS_FileSystem:public NONS_DataSource{
+	NONS_Mutex mutex;
+	ulong temp_id;
+public:
+	NONS_FileSystem():temp_id(0){}
+	NONS_DataStream *open(const std::wstring &name);
+	NONS_DataStream *new_temporary_file(void *src,size_t count);
+	bool get_size(Uint64 &size,const std::wstring &name);
+	bool read(void *dst,size_t &bytes_read,NONS_DataStream &stream,size_t count);
+	uchar *read_all(const std::wstring &name,size_t &bytes_read);
+	bool exists(const std::wstring &name);
+};
+
+extern NONS_FileSystem filesystem;
+
+class NONS_DataStream{
+protected:
+	NONS_DataSource *source;
+	std::wstring name;
+	Uint64 offset,
+		size;
+public:
+	NONS_DataStream(NONS_DataSource &ds,const std::wstring &name):source(&ds),offset(0),name(name){}
+	virtual ~NONS_DataStream(){}
+	virtual bool read(void *dst,size_t &bytes_read,size_t count)=0;
+	virtual Uint64 seek(Sint64 offset,int direction);
+	void reset(){ this->seek(0,1); }
+	void read_all(std::vector<uchar> &dst){
+		this->reset();
+		size_t size=(size_t)this->size;
+		dst.resize(size);
+		this->read(&dst[0],size,size);
+		dst.resize(size);
+	}
+	Uint64 get_size() const{ return this->size; }
+	Uint64 get_offset() const{ return this->offset; }
+	const std::wstring &get_name() const{ return this->name; }
+
+	SDL_RWops to_rwops();
+	static int SDLCALL rw_seek(SDL_RWops *,int,int);
+	static int SDLCALL rw_read(SDL_RWops *,void *,int,int);
+	static int SDLCALL rw_write(SDL_RWops *,const void *,int,int);
+	static int SDLCALL rw_close(SDL_RWops *);
+};
+
+class NONS_InputFile:public NONS_DataStream{
+	NONS_File file;
+public:
+	NONS_InputFile(NONS_DataSource &ds,const std::wstring &name);
+	bool read(void *dst,size_t &bytes_read,size_t count);
+};
+
+class NONS_TemporaryFile:public NONS_DataStream{
+	NONS_InputFile *file;
+public:
+	NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name,void *src,size_t count);
+	~NONS_TemporaryFile();
+	bool read(void *dst,size_t &bytes_read,size_t count);
+	Uint64 seek(Sint64 offset,int direction);
+};
 #endif

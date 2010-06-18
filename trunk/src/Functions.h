@@ -372,7 +372,7 @@ src: input buffer.
 srcl: length of the input buffer in bytes.
 dstl: the length of the compressed buffer will be written here.
 */
-char *compressBuffer_BZ2(char *src,unsigned long srcl,unsigned long *dstl);
+char *compressBuffer_BZ2(char *src,size_t srcl,size_t *dstl);
 /*
 Decompresses src[0..srcl-1].
 Return value: allocated decompressed buffer.
@@ -380,7 +380,7 @@ src: input buffer.
 srcl: length of the input buffer in bytes.
 dstl: the length of the decompressed buffer will be written here.
 */
-char *decompressBuffer_BZ2(char *src,unsigned long srcl,unsigned long *dstl);
+char *decompressBuffer_BZ2(char *src,size_t srcl,size_t *dstl);
 
 template <typename T1,typename T2>
 bool binary_search(const T1 *set,size_t begin,size_t end,const T2 &value,size_t &at_offset,int (*comp_f)(const T2 &,const T1 &)){
@@ -410,7 +410,7 @@ bool binary_search(const T1 *set,size_t begin,size_t end,const T2 &value,size_t 
 	return 0;
 }
 
-ErrorCode inPlaceDecryption(char *buffer,ulong length,ulong mode);
+ErrorCode inPlaceDecryption(void *buffer,size_t length,ulong mode);
 
 #if NONS_SYS_WINDOWS
 void findMainWindow(const wchar_t *caption);
@@ -533,9 +533,43 @@ int lexcmp_CI_bounded(const T1 *a,size_t sizeA,const T2 *b,size_t sizeB){
 }
 
 ulong getUTF8size(const wchar_t *buffer,ulong size);
-std::wstring UniFromISO88591(const std::string &str);
-std::wstring UniFromUTF8(const std::string &str);
-std::wstring UniFromSJIS(const std::string &str);
+
+template <typename T>
+std::wstring UniFromISO88591(const T &str){
+	std::wstring res;
+	res.resize(str.size());
+	void ISO_WC(wchar_t *dst,const uchar *src,ulong srcl);
+	ISO_WC(&res[0],(const uchar *)&str[0],str.size());
+	return res;
+}
+
+template <typename T>
+std::wstring UniFromUTF8(const T &str){
+	ulong start=0;
+	if (str.size()>=3 && (uchar)str[0]==BOM8A && (uchar)str[1]==BOM8B && (uchar)str[2]==BOM8C)
+		start+=3;
+	const uchar *str2=(const uchar *)&str[0]+start;
+	ulong size=0;
+	for (ulong a=start,end=str.size();a<end;a++,str2++)
+		if (*str2<128 || (*str2&192)==192)
+			size++;
+	std::wstring res;
+	res.resize(size);
+	str2=(const uchar *)&str[0]+start;
+	void UTF8_WC(wchar_t *dst,const uchar *src,ulong srcl);
+	UTF8_WC(&res[0],str2,str.size()-start);
+	return res;
+}
+
+template <typename T>
+std::wstring UniFromSJIS(const T &str){
+	std::wstring res;
+	res.resize(str.size());
+	ulong SJIS_WC(wchar_t *dst,const uchar *src,ulong srcl);
+	res.resize(SJIS_WC(&res[0],(const uchar *)&str[0],str.size()));
+	return res;
+}
+
 std::string UniToISO88591(const std::wstring &str);
 std::string UniToUTF8(const std::wstring &str,bool addBOM=0);
 std::string UniToSJIS(const std::wstring &str);
@@ -580,8 +614,8 @@ char checkEnd(wchar_t a);
 //Determines the system's endianness.
 char checkNativeEndianness();
 
-bool isValidUTF8(const char *buffer,ulong size);
-bool isValidSJIS(const char *buffer,ulong size);
+bool isValidUTF8(const void *buffer,ulong size);
+bool isValidSJIS(const void *buffer,ulong size);
 
 bool iswhitespace(char character);
 bool iswhitespace(wchar_t character);

@@ -31,7 +31,8 @@
 		void *user_data,\
 		int print_debug,\
 		std::string &exception_string,\
-		std::vector<C_play_video_params::trigger_callback_pair> &callback_pairs\
+		std::vector<C_play_video_params::trigger_callback_pair> &callback_pairs,\
+		file_protocol fp\
 	)
 
 play_video_SIGNATURE;
@@ -56,7 +57,8 @@ bool play_video_1(void *void_params){
 			params->user_data,
 			params->print_debug,
 			temp,
-			callback_pairs
+			callback_pairs,
+			params->protocol
 		))
 		return 1;
 	if (params->exception_string){

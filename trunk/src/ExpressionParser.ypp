@@ -502,5 +502,5 @@ expressionParser_yylex_000:
 }
 
 void expressionParser_yyerror(std::wstringstream *,NONS_VariableStore *,NONS_Expression::Expression *&,PreParserData *,char const *s){
-	handleErrors(NONS_UNDEFINED_ERROR,0,"yyparse",1,UniFromISO88591(s));
+	handleErrors(NONS_UNDEFINED_ERROR,0,"yyparse",1,UniFromISO88591((std::string)s));
 }

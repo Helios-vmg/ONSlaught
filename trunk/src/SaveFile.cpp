@@ -88,7 +88,7 @@ std::vector<tm *> existing_files(const std::wstring &location){
 		path.push_back('/');
 	for (short a=1;a<21;a++){
 		std::wstring filename=path+L"save"+itoaw(a)+L".dat";
-		if (!fileExists(filename))
+		if (!NONS_File::file_exists(filename))
 			res.push_back(0);
 		else
 			res.push_back(getDate(filename));
@@ -278,7 +278,7 @@ NONS_VariableMember *readArray(char *buffer,ulong &offset){
 }
 
 void NONS_SaveFile::load(std::wstring filename){
-	ulong l;
+	size_t l;
 	char *buffer=(char *)NONS_File::read(filename.c_str(),l);
 	if (!buffer)
 		return;
@@ -287,7 +287,7 @@ void NONS_SaveFile::load(std::wstring filename){
 		this->error=NONS_NO_ERROR;
 		this->format='N';
 		if (firstcharsCI(std::string(buffer),0,"BZh")){
-			char *temp=decompressBuffer_BZ2(buffer,l,(unsigned long *)&l);
+			char *temp=decompressBuffer_BZ2(buffer,l,&l);
 			delete[] buffer;
 			buffer=temp;
 		}
@@ -888,7 +888,7 @@ bool NONS_SaveFile::save(std::wstring filename){
 		}
 	}
 
-	ulong l;
+	size_t l;
 	char *writebuffer=compressBuffer_BZ2((char *)buffer.c_str(),buffer.size(),&l);
 	bool ret=!NONS_File::write(filename.c_str(),writebuffer,l);
 	delete[] writebuffer;

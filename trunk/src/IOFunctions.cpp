@@ -41,6 +41,7 @@ NONS_InputObserver InputObserver;
 NONS_RedirectedOutput o_stdout(std::cout);
 NONS_RedirectedOutput o_stderr(std::cerr);
 //NONS_RedirectedOutput o_stdlog(std::clog);
+NONS_FileSystem filesystem;
 
 NONS_EventQueue::NONS_EventQueue(){
 	InputObserver.attach(this);
@@ -480,65 +481,89 @@ void NONS_File::close(){
 }
 	
 bool NONS_File::operator!(){
+	return
 #if NONS_SYS_WINDOWS
-	return this->file==INVALID_HANDLE_VALUE;
+		this->file==INVALID_HANDLE_VALUE;
 #else
-	return !this->file;
+		!this->file;
 #endif
 }
 
-ulong NONS_File::filesize(){
+Uint64 NONS_File::filesize(){
 	if (!this->is_open)
 		return 0;
 #if NONS_SYS_WINDOWS
-	return GetFileSize(this->file,0);
+	LARGE_INTEGER li;
+	return (GetFileSizeEx(this->file,&li))?li.QuadPart:0;
 #else
 	this->file.seekg(0,std::ios::end);
 	return this->file.tellg();
 #endif
 }
 
-NONS_File::type *NONS_File::read(ulong read_bytes,ulong &bytes_read,ulong offset){
+bool NONS_File::read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offset){
 	if (!this->is_open || !this->opened_for_read)
 		return 0;
-	ulong filesize=this->filesize();
+	Uint64 filesize=this->filesize();
 	if (offset>=filesize)
 		offset=filesize-1;
 #if NONS_SYS_WINDOWS
-	SetFilePointer(this->file,offset,0,FILE_BEGIN);
+	{
+		LARGE_INTEGER temp;
+		temp.QuadPart=offset;
+		SetFilePointerEx(this->file,temp,0,FILE_BEGIN);
+	}
 #else
-	this->file.seekg(offset);
+	this->file.seekg((size_t)offset);
 #endif
 	if (filesize-offset<read_bytes)
-		read_bytes=filesize-offset;
-	NONS_File::type *buffer=new NONS_File::type[read_bytes];
+		read_bytes=size_t(filesize-offset);
+	if (dst){
 #if NONS_SYS_WINDOWS
-	DWORD rb=read_bytes,br=0;
-	ReadFile(this->file,buffer,rb,&br,0);
+		DWORD rb=read_bytes,br=0;
+		ReadFile(this->file,dst,rb,&br,0);
 #else
-	this->file.read((char *)buffer,read_bytes);
+		this->file.read((char *)dst,read_bytes);
 #endif
+	}
 	bytes_read=read_bytes;
-	return buffer;
+	return 1;
 }
 
-NONS_File::type *NONS_File::read(ulong &bytes_read){
+bool NONS_File::read(void *dst,size_t &bytes_read){
 	if (!this->is_open || !this->opened_for_read)
 		return 0;
-	ulong filesize=this->filesize();
+	Uint64 filesize=this->filesize();
 #if NONS_SYS_WINDOWS
 	SetFilePointer(this->file,0,0,FILE_BEGIN);
 #else
 	this->file.seekg(0);
 #endif
-	NONS_File::type *buffer=new NONS_File::type[filesize];
+	if (dst){
 #if NONS_SYS_WINDOWS
-	DWORD rb=filesize,br=0;
-	ReadFile(this->file,buffer,rb,&br,0);
+		DWORD rb=(DWORD)filesize,br=0;
+		ReadFile(this->file,dst,rb,&br,0);
 #else
-	this->file.read((char *)buffer,filesize);
+		this->file.read((char *)dst,filesize);
 #endif
-	bytes_read=filesize;
+	}
+	bytes_read=(size_t)filesize;
+	return 1;
+}
+
+NONS_File::type *NONS_File::read(size_t read_bytes,size_t &bytes_read,Uint64 offset){
+	if (!this->read(0,read_bytes,bytes_read,offset))
+		return 0;
+	NONS_File::type *buffer=new NONS_File::type[bytes_read];
+	this->read(buffer,read_bytes,bytes_read,offset);
+	return buffer;
+}
+
+NONS_File::type *NONS_File::read(size_t &bytes_read){
+	if (!this->read(0,bytes_read))
+		return 0;
+	NONS_File::type *buffer=new NONS_File::type[bytes_read];
+	this->read(buffer,bytes_read);
 	return buffer;
 }
 
@@ -562,12 +587,12 @@ bool NONS_File::write(void *buffer,ulong size,bool write_at_end){
 	return 1;
 }
 
-NONS_File::type *NONS_File::read(const std::wstring &path,ulong read_bytes,ulong &bytes_read,ulong offset){
+NONS_File::type *NONS_File::read(const std::wstring &path,size_t read_bytes,size_t &bytes_read,Uint64 offset){
 	NONS_File file(path,1);
 	return file.read(read_bytes,bytes_read,offset);
 }
 
-NONS_File::type *NONS_File::read(const std::wstring &path,ulong &bytes_read){
+NONS_File::type *NONS_File::read(const std::wstring &path,size_t &bytes_read){
 	NONS_File file(path,1);
 	return file.read(bytes_read);
 }
@@ -586,7 +611,7 @@ bool NONS_File::delete_file(const std::wstring &path){
 #endif
 }
 
-bool fileExists(const std::wstring &name){
+bool NONS_File::file_exists(const std::wstring &name){
 	bool ret;
 #if NONS_SYS_WINDOWS
 	HANDLE file=CreateFile(&name[0],0,0,0,OPEN_EXISTING,0,0);
@@ -598,4 +623,163 @@ bool fileExists(const std::wstring &name){
 	file.close();
 #endif
 	return ret;
+}
+
+bool NONS_File::get_file_size(Uint64 &size,const std::wstring &name){
+	NONS_File file(name,1);
+	if (!file)
+		return 0;
+	size=file.filesize();
+	return 1;
+}
+
+NONS_DataSource::~NONS_DataSource(){
+	while (this->streams.size()){
+		delete this->streams.back();
+		this->streams.pop_back();
+	}
+}
+
+NONS_DataStream *NONS_DataSource::open(NONS_DataStream *p){
+	std::cout <<"Opening stream to "<<p->get_name()<<"\n";
+	this->streams.push_back(p);
+	return p;
+}
+
+NONS_DataStream *NONS_FileSystem::open(const std::wstring &name){
+	if (!NONS_File::file_exists(name))
+		return 0;
+	NONS_InputFile *p=new NONS_InputFile(*this,name);
+	return NONS_DataSource::open(p);
+}
+
+bool NONS_DataSource::close(NONS_DataStream *p){
+	std::list<NONS_DataStream *>::iterator i=std::find(
+		this->streams.begin(),
+		this->streams.end(),
+		p
+	);
+	if (i==this->streams.end())
+		return 0;
+	std::cout <<"Closing stream to "<<(*i)->get_name()<<"\n";
+	delete *i;
+	this->streams.erase(i);
+	return 1;
+}
+
+NONS_DataStream *NONS_FileSystem::new_temporary_file(void *src,size_t count){
+	return new NONS_TemporaryFile(*this,L"__ONSlaught_temp_"+itoaw(this->temp_id++)+L".tmp",src,count);
+}
+
+bool NONS_FileSystem::get_size(Uint64 &size,const std::wstring &name){
+	return NONS_File::get_file_size(size,name);
+}
+
+bool NONS_FileSystem::read(void *dst,size_t &bytes_read,NONS_DataStream &stream,size_t count){
+	return 1;
+}
+
+uchar *NONS_FileSystem::read_all(const std::wstring &name,size_t &bytes_read){
+	return (uchar *)NONS_File::read(name,bytes_read);
+}
+
+bool NONS_FileSystem::exists(const std::wstring &name){
+	return NONS_File::file_exists(name);
+}
+
+Uint64 NONS_DataStream::seek(Sint64 offset,int direction){
+	switch (direction){
+		case -1:
+			this->offset=this->size-offset-1;
+			break;
+		case 0:
+			this->offset+=offset;
+			break;
+		case 1:
+			this->offset=offset;
+			break;
+		default:
+			return 0;
+	}
+	return this->offset;
+}
+
+SDL_RWops NONS_DataStream::to_rwops(){
+	SDL_RWops ops;
+	memset(&ops,0,sizeof(ops));
+	ops.hidden.unknown.data1=this;
+	ops.seek=rw_seek;
+	ops.read=rw_read;
+	ops.write=rw_write;
+	ops.close=rw_close;
+	return ops;
+}
+
+int SDLCALL NONS_DataStream::rw_seek(SDL_RWops *ops,int offset,int whence){
+	NONS_DataStream *ds=(NONS_DataStream *)ops->hidden.unknown.data1;
+	switch (whence){
+		case RW_SEEK_SET:
+			whence=1;
+			break;
+		case RW_SEEK_CUR:
+			whence=0;
+			if (!offset)
+				return (int)ds->get_offset();
+			break;
+		case RW_SEEK_END:
+			whence=-1;
+			break;
+	}
+	return (int)ds->seek(offset,whence);
+}
+
+int SDLCALL NONS_DataStream::rw_read(SDL_RWops *ops,void *dst,int a,int b){
+	NONS_DataStream *ds=(NONS_DataStream *)ops->hidden.unknown.data1;
+	size_t size=a*b;
+	if (size<=0)
+		return -1;
+	if (!ds->read(dst,size,size))
+		return -1;
+	return size/a;
+}
+
+int SDLCALL NONS_DataStream::rw_write(SDL_RWops *,const void *,int,int){
+	return -1;
+}
+
+int SDLCALL NONS_DataStream::rw_close(SDL_RWops *ops){
+	NONS_DataStream *ds=(NONS_DataStream *)ops->hidden.unknown.data1;
+	NONS_DataSource *source=ds->source;
+	source->close(ds);
+	return 0;
+}
+
+NONS_InputFile::NONS_InputFile(NONS_DataSource &ds,const std::wstring &name):NONS_DataStream(ds,name),file(name,1){
+	this->size=file.filesize();
+}
+
+bool NONS_InputFile::read(void *dst,size_t &bytes_read,size_t count){
+	if (!this->file.read(dst,count,bytes_read,this->offset))
+		return 0;
+	this->offset+=bytes_read;
+	return 1;
+}
+
+NONS_TemporaryFile::NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name,void *src,size_t count)
+		:NONS_DataStream(ds,name){
+	NONS_File::write(name,src,count);
+	this->file=new NONS_InputFile(ds,name);
+}
+
+NONS_TemporaryFile::~NONS_TemporaryFile(){
+	delete this->file;
+	NONS_File::delete_file(this->name);
+}
+
+bool NONS_TemporaryFile::read(void *dst,size_t &bytes_read,size_t count){
+	return this->file->read(dst,bytes_read,count);
+}
+
+Uint64 NONS_TemporaryFile::seek(Sint64 offset,int direction){
+	return this->file->seek(offset,direction);
 }
