@@ -175,11 +175,17 @@ class NONS_FileSystem:public NONS_DataSource{
 public:
 	NONS_FileSystem():temp_id(0){}
 	NONS_DataStream *open(const std::wstring &name);
-	NONS_DataStream *new_temporary_file(void *src,size_t count);
+	NONS_DataStream *new_temporary_file(const std::wstring &path);
 	bool get_size(Uint64 &size,const std::wstring &name);
 	bool read(void *dst,size_t &bytes_read,NONS_DataStream &stream,size_t count);
 	uchar *read_all(const std::wstring &name,size_t &bytes_read);
 	bool exists(const std::wstring &name);
+	std::wstring new_temp_name(){
+		this->mutex.lock();
+		ulong id=this->temp_id++;
+		this->mutex.unlock();
+		return L"__ONSlaught_temp_"+itoaw(id)+L".tmp";
+	}
 };
 
 extern NONS_FileSystem filesystem;
@@ -215,18 +221,16 @@ public:
 };
 
 class NONS_InputFile:public NONS_DataStream{
+protected:
 	NONS_File file;
 public:
 	NONS_InputFile(NONS_DataSource &ds,const std::wstring &name);
 	bool read(void *dst,size_t &bytes_read,size_t count);
 };
 
-class NONS_TemporaryFile:public NONS_DataStream{
-	NONS_InputFile *file;
+class NONS_TemporaryFile:public NONS_InputFile{
 public:
-	NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name,void *src,size_t count);
+	NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name);
 	~NONS_TemporaryFile();
-	bool read(void *dst,size_t &bytes_read,size_t count);
-	Uint64 seek(Sint64 offset,int direction);
 };
 #endif

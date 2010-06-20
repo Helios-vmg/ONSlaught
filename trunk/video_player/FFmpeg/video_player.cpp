@@ -90,6 +90,7 @@ VirtualConsole::VirtualConsole(const std::string &name,ulong color){
 #else
 	swprintf(arguments,L"0 %d",color);
 #endif
+	this->process=INVALID_HANDLE_VALUE;
 	if (!CreateProcess(program,arguments,0,0,1,CREATE_NEW_CONSOLE|CREATE_UNICODE_ENVIRONMENT,0,0,&si,&pi))
 		return;
 	this->process=pi.hProcess;
@@ -1094,25 +1095,8 @@ void decode_video(void *p){
 #include "../C_play_video.cpp"
 
 namespace protocol{
-	inline file_protocol *deref_h(URLContext *h){ return (file_protocol *)h->priv_data; }
-
-	int open(URLContext *h,const char *url,int flags){
-		file_protocol *fp=deref_h(h);
-		if (!fp)
-			return 0;
-		return fp->open(h->priv_data,url);
-	}
-	int close(URLContext *h){
-		return deref_h(h)->close(h->priv_data);
-	}
-	int read(URLContext *h,uchar *buf,int size){
-		return deref_h(h)->read(h->priv_data,buf,size);
-	}
-	int write(URLContext *h,uchar *buf,int size){
-		return deref_h(h)->write(h->priv_data,buf,size);
-	}
-	int64_t seek(URLContext *h,int64_t pos,int whence){
-		file_protocol *fp=deref_h(h);
+	int64_t seek(void *p,int64_t pos,int whence){
+		file_protocol *fp=(file_protocol *)p;
 		if (!fp)
 			return 0;
 		switch (whence){
@@ -1129,38 +1113,39 @@ namespace protocol{
 				whence=2;
 				break;
 		}
-		return deref_h(h)->seek(h->priv_data,pos,whence);
+		return fp->seek(fp,pos,whence);
 	}
-	int get_file_handle(URLContext *h){
-		return 0;
-		return deref_h(h)->get_file_handle(h->priv_data);
+};
+
+struct auto_protocol{
+	file_protocol &fp;
+	auto_protocol(file_protocol &fp,const char *s):fp(fp){
+		fp.open(&fp,s);
+	}
+	~auto_protocol(){
+		fp.close(&fp);
+	}
+};
+
+struct auto_stream{
+	AVFormatContext *&avfc;
+	auto_stream(AVFormatContext *&avfc):avfc(avfc){}
+	~auto_stream(){
+		av_close_input_stream(this->avfc);
+	}
+};
+
+struct auto_codec_context{
+	AVCodecContext *&cc;
+	bool close;
+	auto_codec_context(AVCodecContext *&cc,bool close):cc(cc),close(close){}
+	~auto_codec_context(){
+		if (close)
+			avcodec_close(this->cc);
 	}
 };
 
 play_video_SIGNATURE{
-	{
-		URLProtocol up;
-		up.name="Helios";
-		up.next=0;
-		up.url_close=protocol::close;
-		up.url_get_file_handle=protocol::get_file_handle;
-		up.url_open=protocol::open;
-		up.url_read=protocol::read;
-		up.url_seek=protocol::seek;
-		up.url_write=protocol::write;
-		up.url_read_pause=0;
-		up.url_read_seek=0;
-		av_register_protocol(&up);
-		URLContext *url;
-		int a;
-		const char *filename="./0.txt";
-		if (a=url_open_protocol(&url,&up,filename,URL_RDWR))
-			return 0;
-		url->priv_data=&fp;
-		url->prot->url_open(url,filename,0);
-		a=url->prot->url_seek(url,0,AVSEEK_SIZE);
-		url_close(url);
-	}
 	stop_playback=0;
 	debug_messages=!!print_debug;
 	global_screen=screen;
@@ -1176,12 +1161,28 @@ play_video_SIGNATURE{
 	};
 #endif
 
-	if (av_open_input_file(&avfc,input,0,0,0)!=0){
+	ByteIOContext bioc;
+	std::vector<uchar> io_buffer(4096+FF_INPUT_BUFFER_PADDING_SIZE);
+	init_put_byte(&bioc,&io_buffer[0],io_buffer.size(),0,&fp,fp.read,0,protocol::seek);
+
+	AVInputFormat *aif;
+	auto_protocol ap(fp,input);
+	{
+		AVProbeData pd;
+		pd.filename=input;
+		std::vector<uchar> temp(pd.buf_size=1<<12);
+		pd.buf=&temp[0];
+		fp.read(&fp,pd.buf,temp.size());
+		aif=av_probe_input_format(&pd,1);
+	}
+	
+	fp.seek(&fp,0,1);
+	if (av_open_input_stream(&avfc,&bioc,input,aif,0)!=0){
 		exception_string="File not found.";
 		return 0;
 	}
+	auto_stream as(avfc);
 	if (av_find_stream_info(avfc)<0){
-		av_close_input_file(avfc);
 		exception_string="Stream info not found.";
 		return 0;
 	}
@@ -1200,14 +1201,10 @@ play_video_SIGNATURE{
 	}
 	bool useAudio=(audioStream!=-1);
 	if (videoStream==-1){
-		av_close_input_file(avfc);
 		if (videoStream==-1)
-			exception_string="No video stream.";
-		if (audioStream==-1){
-			if (exception_string.size())
-				exception_string.push_back(' ');
+			exception_string="No video stream. ";
+		if (audioStream==-1)
 			exception_string.append("No audio stream.");
-		}
 		return 0;
 	}
 	videoCC=avfc->streams[videoStream]->codec;
@@ -1219,38 +1216,25 @@ play_video_SIGNATURE{
 	if (useAudio)
 		audioCodec=avcodec_find_decoder(audioCC->codec_id);
 	if (!videoCodec || useAudio && !audioCodec){
-		av_close_input_file(avfc);
 		if (!videoCodec)
-			exception_string="Unsupported video codec.";
-		if (!audioCodec){
-			if (exception_string.size())
-				exception_string.push_back(' ');
+			exception_string="Unsupported video codec. ";
+		if (!audioCodec)
 			exception_string.append("Unsupported audio codec.");
-		}
 		return 0;
 	}
-	{
-		int video_codec=avcodec_open(videoCC,videoCodec),
-			audio_codec=0;
-		if (useAudio)
-			audio_codec=avcodec_open(audioCC,audioCodec);
-		if (video_codec<0 || useAudio && audio_codec<0){
-			int ret=0;
-			if (video_codec<0)
-				exception_string="Open video codec failed.";
-			else
-				avcodec_close(videoCC);
-			if (useAudio){
-				if (audio_codec<0){
-					if (exception_string.size())
-						exception_string.push_back(' ');
-					exception_string.append("Open audio codec failed.");
-				}else
-					avcodec_close(audioCC);
-			}
-			av_close_input_file(avfc);
-			return 0;
-		}
+	int video_codec=avcodec_open(videoCC,videoCodec),
+		audio_codec=0;
+	if (useAudio)
+		audio_codec=avcodec_open(audioCC,audioCodec);
+	auto_codec_context acc_video(videoCC,video_codec>=0);
+	auto_codec_context acc_audio(audioCC,useAudio && audio_codec>=0);
+	if (video_codec<0 || useAudio && audio_codec<0){
+		int ret=0;
+		if (video_codec<0)
+			exception_string="Open video codec failed. ";
+		if (useAudio && audio_codec<0)
+			exception_string.append("Open audio codec failed.");
+		return 0;
 	}
 	ulong channels,sample_rate;
 	if (useAudio){
@@ -1263,10 +1247,6 @@ play_video_SIGNATURE{
 	{
 		AudioOutput output(channels,sample_rate);
 		if (!output.good){
-			avcodec_close(videoCC);
-			if (useAudio)
-				avcodec_close(audioCC);
-			av_close_input_file(avfc);
 			exception_string="Open audio output failed.";
 			return 0;
 		}
@@ -1313,10 +1293,6 @@ play_video_SIGNATURE{
 		audio_decoder.join();
 		video_decoder.join();
 		output.wait_until_stop();
-		avcodec_close(videoCC);
-		if (useAudio)
-			avcodec_close(audioCC);
-		av_close_input_file(avfc);
 	}
 	return 1;
 }

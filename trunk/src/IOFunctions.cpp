@@ -506,7 +506,7 @@ bool NONS_File::read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offse
 		return 0;
 	Uint64 filesize=this->filesize();
 	if (offset>=filesize)
-		offset=filesize-1;
+		return 0;
 #if NONS_SYS_WINDOWS
 	{
 		LARGE_INTEGER temp;
@@ -667,8 +667,8 @@ bool NONS_DataSource::close(NONS_DataStream *p){
 	return 1;
 }
 
-NONS_DataStream *NONS_FileSystem::new_temporary_file(void *src,size_t count){
-	return new NONS_TemporaryFile(*this,L"__ONSlaught_temp_"+itoaw(this->temp_id++)+L".tmp",src,count);
+NONS_DataStream *NONS_FileSystem::new_temporary_file(const std::wstring &path){
+	return new NONS_TemporaryFile(*this,path);
 }
 
 bool NONS_FileSystem::get_size(Uint64 &size,const std::wstring &name){
@@ -690,7 +690,7 @@ bool NONS_FileSystem::exists(const std::wstring &name){
 Uint64 NONS_DataStream::seek(Sint64 offset,int direction){
 	switch (direction){
 		case -1:
-			this->offset=this->size-offset-1;
+			this->offset=this->size-offset;
 			break;
 		case 0:
 			this->offset+=offset;
@@ -765,21 +765,11 @@ bool NONS_InputFile::read(void *dst,size_t &bytes_read,size_t count){
 	return 1;
 }
 
-NONS_TemporaryFile::NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name,void *src,size_t count)
-		:NONS_DataStream(ds,name){
-	NONS_File::write(name,src,count);
-	this->file=new NONS_InputFile(ds,name);
+NONS_TemporaryFile::NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name)
+		:NONS_InputFile(ds,name){
 }
 
 NONS_TemporaryFile::~NONS_TemporaryFile(){
-	delete this->file;
+	this->file.close();
 	NONS_File::delete_file(this->name);
-}
-
-bool NONS_TemporaryFile::read(void *dst,size_t &bytes_read,size_t count){
-	return this->file->read(dst,bytes_read,count);
-}
-
-Uint64 NONS_TemporaryFile::seek(Sint64 offset,int direction){
-	return this->file->seek(offset,direction);
 }

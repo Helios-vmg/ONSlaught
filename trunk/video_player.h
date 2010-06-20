@@ -57,11 +57,9 @@ typedef struct{
 	void *data;
 	int (*open)(void *,const char *);
 	int (*close)(void *);
-	int (*read)(void *,void *,int);
-	int (*write)(void *,void *,int);
+	int (*read)(void *,uint8_t *,int);
 	/* We can safely assume 64-bit integer support at this point. */
 	int64_t (*seek)(void *,int64_t,int);
-	int (*get_file_handle)(void *);
 } file_protocol;
 
 typedef struct{

@@ -29,11 +29,13 @@
 
 #include "Archive.h"
 #include "CommandLineOptions.h"
-#include "puff.h"
 #include "LZMA.h"
 #include <bzlib.h>
+#include <zlib.h>
 #include <iostream>
 #include <cassert>
+
+template <typename T> inline void zero_structure(T &s){ memset(&s,0,sizeof(s)); }
 
 NONS_GeneralArchive general_archive;
 
@@ -245,13 +247,13 @@ inline void writeByte(void *_src,ulong src,size_t &offset){
 	((uchar *)_src)[offset++]=(uchar)src;
 }
 
-char *decode_SPB(char *buffer,ulong compressedSize,ulong decompressedSize){
+uchar *decode_SPB(uchar *buffer,ulong compressedSize,ulong decompressedSize){
 	ulong ioffset=0;
 	ulong width=readBigEndian(2,buffer,ioffset),
 		height=readBigEndian(2,buffer,ioffset);
 	ulong width_pad=(4-width*3%4)%4,
 		original_length=(width*3+width_pad)*height+54;
-	char *res=new char[original_length];
+	uchar *res=new uchar[original_length];
 	memset(res,0,original_length);
 	size_t ooffset=0;
 	writeByte(res,'B',ooffset);
@@ -269,10 +271,10 @@ char *decode_SPB(char *buffer,ulong compressedSize,ulong decompressedSize){
 	ooffset=34;
 	writeLittleEndian(4,res,original_length-54,ooffset);
 	uchar ibitoffset=0;
-	char *buf=res+54;
+	uchar *buf=res+54;
 	ulong surface=width*height,
 		decompressionbufferlen=surface+4;
-	char *decompressionbuffer=new char[decompressionbufferlen];
+	uchar *decompressionbuffer=new uchar[decompressionbufferlen];
 	ooffset=54;
 	for (int a=0;a<3;a++){
 		ulong count=0;
@@ -303,8 +305,8 @@ char *decode_SPB(char *buffer,ulong compressedSize,ulong decompressedSize){
 				decompressionbuffer[count++]=x;
 			}
 		}
-		char *pbuf=buf+(width*3+width_pad)*(height-1)+a;
-		char *psbuf=decompressionbuffer;
+		uchar *pbuf=buf+(width*3+width_pad)*(height-1)+a;
+		uchar *psbuf=decompressionbuffer;
 		for (ulong b=0;b<height;b++){
 			if (b&1){
 				for (ulong c=0;c<width;c++,pbuf-=3)
@@ -329,33 +331,6 @@ char *decode_SPB(char *buffer,ulong compressedSize,ulong decompressedSize){
 	}
 	delete[] decompressionbuffer;
 	return res;
-}
-
-char *decode_LZSS(char *buffer,ulong compressedSize,ulong decompressedSize){
-	uchar decompression_buffer[256*2];
-	ulong decompresssion_buffer_offset=239;
-	memset(decompression_buffer,0,239);
-	uchar *res=new uchar[decompressedSize];
-	ulong byteoffset=0;
-	uchar bitoffset=0;
-	for (ulong len=0;len<decompressedSize;){
-		if (getbit(buffer,&byteoffset,&bitoffset)){
-			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
-			res[len++]=a;
-			decompression_buffer[decompresssion_buffer_offset++]=a;
-			decompresssion_buffer_offset&=0xFF;
-		}else{
-			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
-			uchar b=(uchar)getbits(buffer,4,&byteoffset,&bitoffset);
-			for (long c=0;c<=b+1 && len<decompressedSize;c++){
-				uchar d=decompression_buffer[(a+c)&0xFF];
-				res[len++]=d;
-				decompression_buffer[decompresssion_buffer_offset++]=d;
-				decompresssion_buffer_offset&=0xFF;
-			}
-		}
-	}
-	return (char *)res;
 }
 
 bool NSAarchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,TreeNode *node,Uint64 offset){
@@ -608,31 +583,216 @@ ZIParchive::ZIParchive(const std::wstring &path)
 	this->good=!fail;
 }
 
-bool UncompressDEFLATE(void *dst,size_t dst_l,void *src,size_t src_l){
-	ulong dst_l2=dst_l,
-		src_l2=src_l;
-	//int res=uncompress((Bytef *)dst,&dst_l2,(Bytef *)src,src_l2);
-	int res=puff((uchar *)dst,&dst_l2,(uchar *)src,&src_l2);
-	return !res;
+struct base_in_decompression{
+	std::vector<uchar> in;
+	base_in_decompression(){}
+	virtual ~base_in_decompression(){}
+	virtual in_func get_f()=0;
+};
+
+struct base_out_decompression{
+	static const ulong bits=15,
+		size=1<<bits;
+	std::vector<uchar> out;
+	base_out_decompression():out(size){}
+	virtual ~base_out_decompression(){}
+	virtual out_func get_f()=0;
+};
+
+struct decompress_from_file:public base_in_decompression{
+	Archive *archive;
+	TreeNode *node;
+	Uint64 offset;
+	decompress_from_file():offset(0){}
+	~decompress_from_file(){}
+	in_func get_f(){
+		return in_func;
+	}
+	static unsigned in_func(void *p,unsigned char **buffer){
+		decompress_from_file *_this=(decompress_from_file *)p;
+		size_t l=1<<12;
+		_this->in.resize(l);
+		_this->archive->read_raw_bytes(&_this->in[0],l,l,_this->node,_this->offset);
+		_this->in.resize(l);
+		if (!l){
+			buffer=0;
+			return 0;
+		}
+		if (buffer)
+			*buffer=&_this->in[0];
+		_this->offset+=l;
+		return _this->in.size();
+	}
+};
+
+struct decompress_to_file:public base_out_decompression{
+	NONS_File *file;
+	out_func get_f(){
+		return out_func;
+	}
+	static int out_func(void *p,unsigned char *buffer,unsigned size){
+		((decompress_to_file *)p)->file->write(buffer,size);
+		return 0;
+	}
+};
+
+struct decompress_to_memory:public base_out_decompression{
+	void *buffer;
+	out_func get_f(){
+		return out_func;
+	}
+	static int out_func(void *p,unsigned char *buffer,unsigned size){
+		memcpy(((decompress_to_memory *)p)->buffer,buffer,size);
+		return 0;
+	}
+};
+
+typedef bool (*decompression_f)(base_out_decompression *,base_in_decompression *);
+
+bool DecompressDEFLATE(base_out_decompression *dst,base_in_decompression *src){
+	z_stream stream;
+	zero_structure(stream);
+
+	if (inflateBackInit(&stream,dst->bits,&dst->out[0])!=Z_OK)
+		return 0;
+	int res=inflateBack(
+		&stream,
+		src->get_f(),
+		src,
+		dst->get_f(),
+		dst
+	);
+	inflateBackEnd(&stream);
+	return res==Z_STREAM_END;
 }
 
-bool UncompressBZ2(void *dst,size_t dst_l,void *src,size_t src_l){
-	unsigned int dst_l2=dst_l,
-		src_l2=src_l;
-	int res=BZ2_bzBuffToBuffDecompress((char *)dst,&dst_l2,(char *)src,src_l2,1,0);
-	return res==BZ_OK;
+bool DecompressBZ2(base_out_decompression *dst,base_in_decompression *src){
+	bz_stream stream;
+	zero_structure(stream);
+
+	stream.next_in=(char *)&src->in[0];
+	stream.avail_in=src->in.size();
+	stream.next_out=(char *)&dst->out[0];
+	stream.avail_out=dst->size;
+	if (BZ2_bzDecompressInit(&stream,0,0)!=BZ_OK)
+		return 0;
+	int res;
+	in_func in=src->get_f();
+	out_func out=dst->get_f();
+	while ((res=BZ2_bzDecompress(&stream))==BZ_OK){
+		if (!stream.avail_out){
+			out(dst,&dst->out[0],dst->size);
+			stream.next_out=(char *)&dst->out[0];
+			stream.avail_out=dst->size;
+		}
+		if (!stream.avail_in)
+			stream.avail_in=in(src,(uchar **)&stream.next_in);
+	}
+	if (res!=BZ_FINISH_OK)
+		return 0;
+	if (stream.avail_out<dst->size)
+		out(dst,&dst->out[0],dst->size-stream.avail_out);
+	return 1;
 }
 
-bool UncompressLZMA(void *dst,size_t dst_l,void *src,size_t src_l){
-	uchar *data=((uchar *)src)+9,
-		*header=((uchar *)src)+4;
-	src_l-=9;
-	return LzmaUncompress(
-		(uchar *)dst,
-		(SizeT *)&dst_l,
-		data,
-		(SizeT *)&dst_l,
-		header,5)==SZ_OK;
+static void *SzAlloc(void *p, size_t size) { return malloc(size); }
+static void SzFree(void *p, void *address) { free(address); }
+
+bool DecompressLZMA(base_out_decompression *dst,base_in_decompression *src){
+	bz_stream stream;
+	zero_structure(stream);
+
+	in_func in=src->get_f();
+	out_func out=dst->get_f();
+	std::vector<uchar> dictionary;
+	in(src,0);
+	CLzmaDec p;
+	LzmaDec_Construct(&p);
+	ISzAlloc alloc={SzAlloc,SzFree};
+	SRes res=LzmaDec_AllocateProbs(&p,(const Byte *)&src->in[4],LZMA_PROPS_SIZE,&alloc);
+	if (res)
+		return 0;
+	dictionary.resize(p.prop.dicSize);
+	p.dic=(Byte *)&dictionary[0];
+	p.dicBufSize=dictionary.size();
+	LzmaDec_Init(&p);
+	src->in.erase(src->in.begin(),src->in.begin()+4+LZMA_PROPS_SIZE+8);
+	SizeT srcLen=src->in.size(),
+		dstLen=dst->size;
+	ELzmaStatus status;
+	size_t in_pos=0,
+		out_pos=0;
+	while ((res=LzmaDec_DecodeToBuf(&p,(Byte *)&dst->out[out_pos],&dstLen,(const Byte *)&src->in[in_pos],&srcLen,LZMA_FINISH_ANY,&status))==SZ_OK){
+		if (status==LZMA_STATUS_FINISHED_WITH_MARK)
+			break;
+		out_pos+=dstLen;
+		dstLen=dst->out.size()-out_pos;
+		if (!dstLen){
+			out(dst,&dst->out[0],dst->size);
+			dstLen=dst->size;
+			out_pos=0;
+		}
+		in_pos+=srcLen;
+		srcLen=src->in.size()-in_pos;
+		if (!srcLen){
+			srcLen=in(src,0);
+			if (!srcLen)
+				break;
+			in_pos=0;
+		}
+	}
+	if (status!=LZMA_STATUS_FINISHED_WITH_MARK)
+		return 0;
+	if (dstLen)
+		out(dst,&dst->out[out_pos],dstLen);
+	return 1;
+}
+
+uchar *decode_LZSS(uchar *buffer,ulong compressedSize,ulong decompressedSize){
+	uchar decompression_buffer[256*2];
+	ulong decompresssion_buffer_offset=239;
+	memset(decompression_buffer,0,239);
+	uchar *res=new uchar[decompressedSize];
+	ulong byteoffset=0;
+	uchar bitoffset=0;
+	for (ulong len=0;len<decompressedSize;){
+		if (getbit(buffer,&byteoffset,&bitoffset)){
+			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
+			res[len++]=a;
+			decompression_buffer[decompresssion_buffer_offset++]=a;
+			decompresssion_buffer_offset&=0xFF;
+		}else{
+			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
+			uchar b=(uchar)getbits(buffer,4,&byteoffset,&bitoffset);
+			for (long c=0;c<=b+1 && len<decompressedSize;c++){
+				uchar d=decompression_buffer[(a+c)&0xFF];
+				res[len++]=d;
+				decompression_buffer[decompresssion_buffer_offset++]=d;
+				decompresssion_buffer_offset&=0xFF;
+			}
+		}
+	}
+	return res;
+}
+
+decompression_f select_function(ZIPdata::compression_type c){
+	switch (c){
+		case ZIPdata::COMPRESSION_DEFLATE:
+			return DecompressDEFLATE;
+		case ZIPdata::COMPRESSION_BZ2:
+			return DecompressBZ2;
+		case ZIPdata::COMPRESSION_LZMA:
+			return DecompressLZMA;
+	}
+	return 0;
+}
+
+decompression_f select_function(NSAdata::compression_type c){
+	switch (c){
+		case NSAdata::COMPRESSION_BZ2:
+			return DecompressBZ2;
+	}
+	return 0;
 }
 
 bool ZIParchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,TreeNode *node,Uint64 offset){
@@ -843,6 +1003,29 @@ bool NONS_ArchiveSource::exists(const std::wstring &name){
 //NONS_nsaArchiveSource
 //------------------------------------------------------------------------------
 
+template <typename T>
+bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,const std::wstring &name,T compression,Uint64 offset=0){
+	decompression_f f=select_function(compression);
+	if (!f){
+		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
+		return 0;
+	}
+	NONS_File file(path,0);
+	decompress_from_file dff;
+	decompress_to_file dtf;
+	dff.archive=a;
+	dff.node=n;
+	dff.offset=offset;
+	dtf.file=&file;
+	if (!f(&dtf,&dff)){
+		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
+		file.close();
+		NONS_File::delete_file(path);
+		return 0;
+	}
+	return 1;
+}
+
 NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 	NONS_nsaArchiveStream *p=new NONS_nsaArchiveStream(*this,name);
 	TreeNode *node=p->get_node();
@@ -850,12 +1033,21 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 		delete p;
 		return 0;
 	}
-	const NSAdata &data=NSAarchive::derefED(node->extraData);
+	NSAdata data=NSAarchive::derefED(node->extraData);
 	if (data.compression!=NSAdata::COMPRESSION_NONE){
-		size_t uncompressed_l;
-		uchar *uncompressed=this->read_all(node,uncompressed_l);
 		delete p;
-		return NONS_DataSource::open(filesystem.new_temporary_file(uncompressed,uncompressed_l));
+		std::wstring path=filesystem.new_temp_name();
+		if (data.compression==NSAdata::COMPRESSION_BZ2)
+			decompress_file_to_file(path,this->archive,node,name,data.compression,4);
+		else{
+			size_t l;
+			uchar *decompressed=this->read_all(node,l);
+			NONS_File::write(path,decompressed,l);
+			delete[] decompressed;
+		}
+		NONS_DataStream *stream=filesystem.new_temporary_file(path);
+		assert(!!stream);
+		return NONS_DataSource::open(stream);
 	}
 	return NONS_DataSource::open(p);
 }
@@ -868,33 +1060,57 @@ NONS_nsaArchiveSource::~NONS_nsaArchiveSource(){
 	delete this->archive;
 }
 
+template <typename T>
+bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const std::wstring &name,T compression){
+	decompression_f f=select_function(compression);
+	if (!f){
+		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
+		return 0;
+	}
+	decompress_from_file dff;
+	decompress_to_memory dtm;
+	dff.archive=a;
+	dff.node=n;
+	dtm.buffer=dst;
+	if (!f(&dtm,&dff)){
+		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
+		return 0;
+	}
+	return 1;
+}
+
 uchar *NONS_nsaArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
-	const NSAdata &data=NSAarchive::derefED(node->extraData);
-	uchar *uncompressed;
+	NSAdata data=NSAarchive::derefED(node->extraData);
+	uchar *ret;
 	bytes_read=data.uncompressed;
-	size_t compressed_l=data.compressed;
-	uchar *compressed=new uchar[compressed_l];
-	{
-		size_t temp;
-		this->archive->read_raw_bytes(compressed,compressed_l,temp,node,0);
-	}
-	if (data.compression==NSAdata::COMPRESSION_NONE)
-		uncompressed=compressed;
-	else{
-		switch (data.compression){
-			case NSAdata::COMPRESSION_SPB:
-				uncompressed=(uchar *)decode_SPB((char *)&compressed[0],data.compressed,bytes_read);
-				break;
-			case NSAdata::COMPRESSION_LZSS:
-				uncompressed=(uchar *)decode_LZSS((char *)&compressed[0],data.compressed,bytes_read);
-				break;
-			case NSAdata::COMPRESSION_BZ2:
-				uncompressed=(uchar *)decompressBuffer_BZ2((char *)&compressed[4],data.compressed,&bytes_read);
-				break;
+	if (data.compression==NSAdata::COMPRESSION_NONE){
+		ret=new uchar[(size_t)data.uncompressed];
+		size_t l=(size_t)data.compressed;
+		this->archive->read_raw_bytes(ret,l,l,node,0);
+	}else{
+		std::wstring path=filesystem.new_temp_name();
+		if (data.compression==NSAdata::COMPRESSION_BZ2){
+			ret=new uchar[(size_t)data.uncompressed];
+			if (!decompress_file_to_memory(ret,this->archive,node,node->name,data.compression)){
+				delete[] ret;
+				return 0;
+			}
+		}else{
+			uchar *compressed=new uchar[data.compressed];
+			size_t l=data.compressed;
+			this->archive->read_raw_bytes(compressed,l,l,node,0);
+			switch (data.compression){
+				case NSAdata::COMPRESSION_LZSS:
+					ret=decode_LZSS(compressed,data.compressed,data.uncompressed);
+					break;
+				case NSAdata::COMPRESSION_SPB:
+					ret=decode_SPB(compressed,data.compressed,data.uncompressed);
+					break;
+			}
+			delete[] compressed;
 		}
-		delete[] compressed;
 	}
-	return uncompressed;
+	return ret;
 }
 
 //------------------------------------------------------------------------------
@@ -909,6 +1125,20 @@ NONS_zipArchiveSource::~NONS_zipArchiveSource(){
 	delete this->archive;
 }
 
+Uint32 crc32_from_stream(NONS_DataStream *stream){
+	stream->reset();
+	CRC32 crc32;
+	std::vector<uchar> buffer(1<<12);
+	while (1){
+		size_t l=buffer.size();
+		if (!stream->read(&buffer[0],l,l) || !l)
+			break;
+		crc32.Input(&buffer[0],l);
+	}
+	stream->reset();
+	return crc32.Result();
+}
+
 NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
 	NONS_zipArchiveStream *p=new NONS_zipArchiveStream(*this,name);
 	TreeNode *node=p->get_node();
@@ -916,66 +1146,43 @@ NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
 		delete p;
 		return 0;
 	}
-	const ZIPdata &data=ZIParchive::derefED(node->extraData);
+	ZIPdata data=ZIParchive::derefED(node->extraData);
 	if (data.compression!=ZIPdata::COMPRESSION_NONE){
-		size_t uncompressed_l;
-		uchar *uncompressed=this->read_all(node,uncompressed_l);
 		delete p;
-		if (!uncompressed)
+		std::wstring path=filesystem.new_temp_name();
+		decompress_file_to_file(path,this->archive,node,name,data.compression);
+		NONS_DataStream *stream=filesystem.new_temporary_file(path);
+		assert(!!stream);
+		Uint32 crc32=crc32_from_stream(stream);
+		if (crc32!=data.crc32){
+			delete stream;
+			o_stderr <<"File "<<name<<" did not pass CRC32 test.\n";
 			return 0;
-		return NONS_DataSource::open(filesystem.new_temporary_file(uncompressed,uncompressed_l));
+		}
+		return NONS_DataSource::open(stream);
 	}
 	return NONS_DataSource::open(p);
 }
 
 uchar *NONS_zipArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
-	const ZIPdata &data=ZIParchive::derefED(node->extraData);
-	uchar *uncompressed;
-	bytes_read=(size_t)data.uncompressed;
-	size_t compressed_l=(size_t)data.compressed;
-	uchar *compressed=new uchar[compressed_l];
-	{
-		size_t temp;
-		this->archive->read_raw_bytes(compressed,compressed_l,temp,node,0);
-	}
-	if (data.compression==ZIPdata::COMPRESSION_NONE)
-		uncompressed=compressed;
-	else{
-		
-		bool (*f)(void *,size_t,void *,size_t);
-		switch (data.compression){
-			case ZIPdata::COMPRESSION_DEFLATE:
-				f=UncompressDEFLATE;
-				break;
-			case ZIPdata::COMPRESSION_BZ2:
-				f=UncompressBZ2;
-				break;
-			case ZIPdata::COMPRESSION_LZMA:
-				f=UncompressLZMA;
-				break;
-			default:
-				f=0;
-		}
-		if (!f){
-			o_stderr <<"Unsupported compression ("<<(ulong)data.compression<<") used for file \"<???>/"<<node->name<<"\".\n";
-			delete[] compressed;
+	ZIPdata data=ZIParchive::derefED(node->extraData);
+	uchar *ret=new uchar[(size_t)data.uncompressed];
+	if (data.compression==ZIPdata::COMPRESSION_NONE){
+		size_t l=(size_t)data.compressed;
+		this->archive->read_raw_bytes(ret,l,l,node,0);
+	}else{
+		if (!decompress_file_to_memory(ret,this->archive,node,node->name,data.compression)){
+			delete[] ret;
 			return 0;
 		}
-		uncompressed=new uchar[bytes_read];
-		if (!f(uncompressed,bytes_read,compressed,compressed_l)){
-			delete[] uncompressed;
-			delete[] compressed;
-			return 0;
-		}
-		delete[] compressed;
 	}
 	CRC32 crc;
-	crc.Input(uncompressed,bytes_read);
+	crc.Input(ret,(size_t)data.uncompressed);
 	if (crc.Result()!=data.crc32){
-		delete[] uncompressed;
-		uncompressed=0;
+		delete[] ret;
+		ret=0;
 	}
-	return uncompressed;
+	return ret;
 }
 
 //------------------------------------------------------------------------------
@@ -994,7 +1201,6 @@ NONS_ArchiveStream::NONS_ArchiveStream(NONS_DataSource &ds,const std::wstring &n
 //------------------------------------------------------------------------------
 
 bool NONS_nsaArchiveStream::read(void *dst,size_t &bytes_read,size_t count){
-	//((NONS_nsaArchiveSource *)this->source)->
 	return ((NONS_ArchiveSource *)this->source)->read(dst,bytes_read,*this,count);
 }
 

@@ -899,6 +899,50 @@ SDL_Surface *playback_screenshot_callback(volatile SDL_Surface *screen,void *use
 	return (SDL_Surface *)screen;
 }
 
+struct ff_file{
+	NONS_DataStream *stream;
+	ff_file():stream(0){}
+	~ff_file(){
+		general_archive.close(this->stream);
+	}
+	int open(const char *name){
+		this->stream=general_archive.open(UniFromUTF8(std::string(name)));
+		return (this->stream)?0:-1;
+	}
+	int close(){
+		general_archive.close(this->stream);
+		this->stream=0;
+		return 0;
+	}
+	int read(uint8_t *dst,int count){
+		if (count<0)
+			return -1;
+		size_t l=(size_t)count;
+		if (!this->stream->read(dst,l,l))
+			return -1;
+		return l;
+	}
+	int64_t seek(int64_t pos,int whence){
+		if (whence<-1 || whence>2)
+			return -1;
+		if (whence!=2)
+			return this->stream->seek(pos,whence);
+		return this->stream->get_size();
+	}
+	static int open(void *_this,const char *a){
+		return ((ff_file *)_this)->open(a);
+	}
+	static int close(void *_this){
+		return ((ff_file *)_this)->close();
+	}
+	static int read(void *_this,uint8_t *a,int b){
+		return ((ff_file *)_this)->read(a,b);
+	}
+	static int64_t seek(void *_this,int64_t a,int b){
+		return ((ff_file *)_this)->seek(a,b);
+	}
+};
+
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){
 	NONS_LibraryLoader video_player("video_player",0);
 #define play_video_TRY_GET_FUNCTION(type,name,string)\
@@ -949,6 +993,13 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			{&take_screenshot,playback_screenshot_callback}
 		};
 		std::string utf8_filename=UniToUTF8(filename);
+		file_protocol fp;
+		ff_file file;
+		fp.data=&file;
+		fp.close=ff_file::close;
+		fp.open=ff_file::open;
+		fp.read=ff_file::read;
+		fp.seek=ff_file::seek;
 		C_play_video_params parameters={
 			C_PLAY_VIDEO_PARAMS_VERSION,
 			screen,
@@ -960,6 +1011,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			CLOptions.verbosity>=255,
 			&exception_string[0],
 			exception_string.size(),
+			fp
 		};
 		success=!!C_play_video(&parameters);
 		exception_string.resize(strlen(exception_string.c_str()));
@@ -1011,19 +1063,19 @@ const wchar_t *image_formats[]={
 };
 
 const wchar_t *sound_formats[]={
-	L"669",
+	L"ogg",
+	L"mp3",
+	L"mid",
+	L"it",
+	L"xm",
+	L"s3m",
+	L"mod",
 	L"aiff",
 	L"flac",
-	L"it",
+	L"669",
 	L"med",
-	L"mid",
-	L"mod",
-	L"mp3",
-	L"ogg",
-	L"s3m",
 	L"voc",
 	L"wav",
-	L"xm",
 	0
 };
 

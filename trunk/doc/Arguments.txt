@@ -107,9 +107,9 @@ This doesn't just zeroes the volume, it avoids sound initialization. With this
 flag, sound can't be turned back on without restarting the engine.
 
 
--music-format {auto|ogg|mp3|midi|it|xm|s3m|mod}
+-music-format {auto|ogg|mp3|mid|it|xm|s3m|mod|aiff}
 Selects the music format to be used. 'auto's priority is as follows: ogg, mp3,
-it, xm, s3m, and then mod.
+mid, it, xm, s3m, mod, aiff.
 
 
 -music-directory <directory>
