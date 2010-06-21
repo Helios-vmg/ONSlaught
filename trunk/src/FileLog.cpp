@@ -43,37 +43,33 @@ void NONS_LogStrings::init(const std::wstring &oldName,const std::wstring &newNa
 	size_t l;
 	this->saveAs=save_directory;
 	this->saveAs.append(newName);
-	char *buffer=(char *)NONS_File::read(this->saveAs,l);
+	uchar *buffer=NONS_File::read(this->saveAs,l);
 	if (!buffer)
-		buffer=(char *)NONS_File::read(oldName,l);
+		buffer=NONS_File::read(oldName,l);
 	if (!buffer)
 		return;
-	if (firstcharsCI(std::string(buffer),0,"BZh")){
-		char *temp=decompressBuffer_BZ2(buffer,l,&l);
+	if (firstcharsCI((char *)buffer,"BZh")){
+		uchar *temp=decompressBuffer_BZ2(buffer,l,l);
 		delete[] buffer;
 		buffer=temp;
 	}
-	char *str=strpbrk(buffer,"\x0A\x0D");
+	uchar *str=(uchar *)strpbrk((char *)buffer,"\x0A\x0D");
 	if (!str){
 		delete[] buffer;
 		return;
 	}
 	*str=0;
-	ulong entries;
-	{
-		std::stringstream stream(buffer);
-		stream >>entries;
-	}
+	ulong entries=atoi((std::string)(char *)buffer);
 	ulong offset=str-buffer+1;
 	for (;buffer[offset]==10 || buffer[offset]==13;offset++);
 	bool newFormat=0;
-	if (offset+4<l && firstcharsCI(std::string(buffer+offset,4),0,"NONS")){
+	if (offset+4<l && firstcharsCI(std::string((char *)(buffer+offset),4),0,"NONS")){
 		newFormat=1;
 		for (offset+=4;buffer[offset]==10 || buffer[offset]==13;offset++);
 		inPlaceDecryption(buffer+offset,l-offset,ENCRYPTION::XOR84);
 		for (ulong a=0;offset<l && a<entries;a++){
-			std::wstring newElement=UniFromUTF8(std::string(buffer+offset));
-			offset+=strlen(buffer+offset)+1;
+			std::wstring newElement=UniFromUTF8((std::string)(char *)(buffer+offset));
+			offset+=newElement.size()+1;
 			this->addString(newElement);
 		}
 	}else{
@@ -84,7 +80,7 @@ void NONS_LogStrings::init(const std::wstring &oldName,const std::wstring &newNa
 			if (buffer[filel+offset]!='\"')
 				break;
 			inPlaceDecryption(buffer+offset,filel,ENCRYPTION::XOR84);
-			std::wstring newElement=UniFromSJIS(std::string(buffer+offset,filel));
+			std::wstring newElement=UniFromSJIS(std::string((char *)(buffer+offset),filel));
 			this->addString(newElement);
 			offset+=filel+1;
 		}
@@ -109,7 +105,7 @@ void NONS_LogStrings::writeOut(){
 	}
 	inPlaceDecryption(&buf[startEncryption],buf.size()-startEncryption,ENCRYPTION::XOR84);
 	size_t l;
-	char *writebuffer=compressBuffer_BZ2(&buf[0],buf.size(),&l);
+	uchar *writebuffer=compressBuffer_BZ2((uchar *)&buf[0],buf.size(),l);
 	NONS_File::write(this->saveAs,writebuffer,l);
 	delete[] writebuffer;
 }

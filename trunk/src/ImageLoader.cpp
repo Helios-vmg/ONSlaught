@@ -532,18 +532,18 @@ void NONS_DiskCache::add(const std::wstring &filename,SDL_Surface *surface){
 		this->cache_list[src]=dst;
 	}else
 		dst=i->second;
-	std::string buffer;
+	std::vector<uchar> buffer;
 	surfaceData sd=surface;
 	writeDWord(sd.w,buffer);
 	writeDWord(sd.h,buffer);
-	buffer.append(4,0);
+	writeDWord(0,buffer);
 	buffer[8+sd.Roffset]='R';
 	buffer[8+sd.Goffset]='G';
 	buffer[8+sd.Boffset]='B';
 	if (sd.alpha)
 		buffer[8+sd.Aoffset]='A';
-	buffer.append(sd.w*sd.h*sd.advance,0);
-	char *p=&buffer[0];
+	buffer.resize(buffer.size()+sd.w*sd.h*sd.advance,0);
+	uchar *p=&buffer[0];
 	p+=12;
 	{
 		SDL_LockSurface(surface);

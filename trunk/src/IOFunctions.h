@@ -41,6 +41,43 @@
 #include <queue>
 #include <list>
 
+class NONS_File{
+#if NONS_SYS_WINDOWS
+	void *
+#elif NONS_SYS_UNIX
+	int
+#else
+	std::fstream
+#endif
+		file;
+	bool opened_for_read;
+	bool is_open;
+	Uint64 _filesize;
+	NONS_File(const NONS_File &){}
+	const NONS_File &operator=(const NONS_File &){ return *this; }
+	Uint64 reload_filesize();
+public:
+	typedef unsigned char type;
+	NONS_File():is_open(0){}
+	NONS_File(const std::wstring &path,bool open_for_read);
+	~NONS_File(){ this->close(); }
+	void open(const std::wstring &path,bool open_for_read);
+	void close();
+	bool operator!();
+	bool read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offset);
+	bool read(void *dst,size_t &bytes_read){ return this->read(dst,(size_t)this->_filesize,bytes_read,0); }
+	type *read(size_t read_bytes,size_t &bytes_read,Uint64 offset);
+	type *read(size_t &bytes_read){ return this->read((size_t)this->_filesize,bytes_read,0); }
+	bool write(void *buffer,size_t size,bool write_at_end=1);
+	Uint64 filesize(){ return (this->opened_for_read)?this->_filesize:this->reload_filesize(); }
+	static type *read(const std::wstring &path,size_t read_bytes,size_t &bytes_read,Uint64 offset);
+	static type *read(const std::wstring &path,size_t &bytes_read);
+	static bool write(const std::wstring &path,void *buffer,size_t size);
+	static bool delete_file(const std::wstring &path);
+	static bool file_exists(const std::wstring &name);
+	static bool get_file_size(Uint64 &size,const std::wstring &name);
+};
+
 class NONS_EventQueue{
 	std::queue<SDL_Event> data;
 	NONS_Mutex mutex;
@@ -72,39 +109,6 @@ Uint8 getCorrectedMousePosition(NONS_VirtualScreen *screen,int *x,int *y);
 inline std::ostream &operator<<(std::ostream &stream,const std::wstring &str){
 	return stream<<UniToUTF8(str);
 }
-
-class NONS_File{
-#if NONS_SYS_WINDOWS
-	HANDLE
-#else
-	std::fstream
-#endif
-		file;
-	bool opened_for_read;
-	bool is_open;
-	NONS_File(const NONS_File &){}
-	const NONS_File &operator=(const NONS_File &){ return *this; }
-public:
-	typedef uchar type;
-	NONS_File():is_open(0){}
-	NONS_File(const std::wstring &path,bool open_for_read);
-	~NONS_File(){ this->close(); }
-	void open(const std::wstring &path,bool open_for_read);
-	void close();
-	bool operator!();
-	bool read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offset);
-	bool read(void *dst,size_t &bytes_read);
-	type *read(size_t read_bytes,size_t &bytes_read,Uint64 offset);
-	type *read(size_t &bytes_read);
-	bool write(void *buffer,ulong size,bool write_at_end=1);
-	Uint64 filesize();
-	static type *read(const std::wstring &path,size_t read_bytes,size_t &bytes_read,Uint64 offset);
-	static type *read(const std::wstring &path,size_t &bytes_read);
-	static bool write(const std::wstring &path,void *buffer,ulong size);
-	static bool delete_file(const std::wstring &path);
-	static bool file_exists(const std::wstring &name);
-	static bool get_file_size(Uint64 &size,const std::wstring &name);
-};
 
 struct NONS_CommandLineOptions;
 extern NONS_CommandLineOptions CLOptions;

@@ -261,7 +261,7 @@ std::wstring getSaveLocation(unsigned hash[5]){
 #endif
 }
 
-NONS_VariableMember *readArray(char *buffer,ulong &offset){
+NONS_VariableMember *readArray(void *buffer,ulong &offset){
 	NONS_VariableMember *var;
 	Uint32 dim=readDWord(buffer,offset);
 	if (dim){
@@ -279,15 +279,17 @@ NONS_VariableMember *readArray(char *buffer,ulong &offset){
 
 void NONS_SaveFile::load(std::wstring filename){
 	size_t l;
-	char *buffer=(char *)NONS_File::read(filename.c_str(),l);
+	uchar *buffer=NONS_File::read(filename.c_str(),l);
 	if (!buffer)
 		return;
 	ulong offset=0;
-	if (firstcharsCI(std::string(buffer),0,"NONS") || firstcharsCI(std::string(buffer),0,"BZh")){
+	bool compressed=firstcharsCI((char *)buffer,"BZh");
+	bool nons_file=compressed || firstcharsCI((char *)buffer,"NONS");
+	if (nons_file){
 		this->error=NONS_NO_ERROR;
 		this->format='N';
-		if (firstcharsCI(std::string(buffer),0,"BZh")){
-			char *temp=decompressBuffer_BZ2(buffer,l,&l);
+		if (compressed){
+			uchar *temp=decompressBuffer_BZ2(buffer,l,l);
 			delete[] buffer;
 			buffer=temp;
 		}
@@ -618,7 +620,7 @@ NONS_SaveFile::~NONS_SaveFile(){
 			delete this->channels[a];
 }
 
-void writeArray(NONS_VariableMember *var,std::string &buffer){
+void writeArray(NONS_VariableMember *var,std::vector<uchar> &buffer){
 	writeDWord(var->dimensionSize,buffer);
 	if (var->dimensionSize){
 		for (ulong a=0;a<var->dimensionSize;a++)
@@ -630,8 +632,8 @@ void writeArray(NONS_VariableMember *var,std::string &buffer){
 bool NONS_SaveFile::save(std::wstring filename){
 	if (this->format!='N')
 		return 0;
-	std::string buffer("NONS");
-	buffer.push_back(0);
+	std::vector<uchar> buffer;
+	writeString(L"NONS",buffer);
 	writeWord(NONS_SAVEFILE_VERSION,buffer);
 	for (ulong a=0;a<5;a++)
 		writeDWord(this->hash[a],buffer);
@@ -889,8 +891,8 @@ bool NONS_SaveFile::save(std::wstring filename){
 	}
 
 	size_t l;
-	char *writebuffer=compressBuffer_BZ2((char *)buffer.c_str(),buffer.size(),&l);
-	bool ret=!NONS_File::write(filename.c_str(),writebuffer,l);
+	uchar *writebuffer=compressBuffer_BZ2(&buffer[0],buffer.size(),l);
+	bool ret=!NONS_File::write(filename,writebuffer,l);
 	delete[] writebuffer;
 	return ret;
 	//return !writefile(filename,(char *)buffer.c_str(),buffer.size());

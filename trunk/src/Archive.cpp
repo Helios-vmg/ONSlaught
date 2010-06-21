@@ -31,7 +31,6 @@
 #include "CommandLineOptions.h"
 #include "LZMA.h"
 #include <bzlib.h>
-#include <zlib.h>
 #include <iostream>
 #include <cassert>
 
@@ -103,6 +102,359 @@ inline size_t find_slash(const std::basic_string<T> &str,size_t off=0){
 		r=str.find('\\',off);
 	return r;
 }
+
+//------------------------------------------------------------------------------
+//------------------- COMPRESSION-RELATED FUNCTIONS ----------------------------
+//------------------------------------------------------------------------------
+
+unsigned decompress_from_regular_file::in_func(void *p,unsigned char **buffer){
+	decompress_from_regular_file *_this=(decompress_from_regular_file *)p;
+	size_t l=1<<12;
+	_this->in.resize(l);
+	_this->file->read(&_this->in[0],l,l,_this->offset);
+	_this->in.resize(l);
+	if (!l){
+		_this->in_buffer=0;
+		if (buffer)
+			*buffer=0;
+		_this->remaining=0;
+		return 0;
+	}
+	_this->in_buffer=&_this->in[0];
+	if (buffer)
+		*buffer=_this->in_buffer;
+	_this->remaining=l;
+	_this->offset+=l;
+	return _this->in.size();
+}
+
+unsigned decompress_from_file::in_func(void *p,unsigned char **buffer){
+	decompress_from_file *_this=(decompress_from_file *)p;
+	size_t l=1<<12;
+	_this->in.resize(l);
+	_this->archive->read_raw_bytes(&_this->in[0],l,l,_this->node,_this->offset);
+	_this->in.resize(l);
+	if (!l){
+		_this->in_buffer=0;
+		if (buffer)
+			*buffer=0;
+		_this->remaining=0;
+		return 0;
+	}
+	_this->in_buffer=&_this->in[0];
+	if (buffer)
+		*buffer=_this->in_buffer;
+	_this->remaining=l;
+	_this->offset+=l;
+	return _this->in.size();
+}
+
+unsigned decompress_from_memory::in_func(void *p,unsigned char **buffer){
+	decompress_from_memory *_this=(decompress_from_memory *)p;
+	if (buffer)
+		*buffer=_this->src;
+	size_t a=_this->remaining;
+	_this->src+=a;
+	_this->remaining=0;
+	return a;
+}
+
+int decompress_to_file::out_func(void *p,unsigned char *buffer,unsigned size){
+	((decompress_to_file *)p)->file->write(buffer,size);
+	return 0;
+}
+
+int decompress_to_memory::out_func(void *p,unsigned char *buffer,unsigned size){
+	memcpy(((decompress_to_memory *)p)->buffer,buffer,size);
+	return 0;
+}
+
+int decompress_to_unknown_size::out_func(void *p,unsigned char *buffer,unsigned size){
+	decompress_to_unknown_size *_this=(decompress_to_unknown_size *)p;
+	_this->dst->push_back(std::vector<uchar>(buffer,buffer+size));
+	_this->final_size+=size;
+	return 0;
+}
+
+typedef bool (*decompression_f)(base_out_decompression *,base_in_decompression *);
+
+bool DecompressDEFLATE(base_out_decompression *dst,base_in_decompression *src){
+	z_stream stream;
+	zero_structure(stream);
+
+	if (inflateBackInit(&stream,dst->bits,&dst->out[0])!=Z_OK)
+		return 0;
+	int res=inflateBack(
+		&stream,
+		src->get_f(),
+		src,
+		dst->get_f(),
+		dst
+	);
+	inflateBackEnd(&stream);
+	return res==Z_STREAM_END;
+}
+
+bool DecompressBZ2(base_out_decompression *dst,base_in_decompression *src){
+	bz_stream stream;
+	zero_structure(stream);
+
+	stream.next_in=0;
+	stream.avail_in=0;
+	stream.next_out=(char *)&dst->out[0];
+	stream.avail_out=dst->size;
+	if (BZ2_bzDecompressInit(&stream,0,0)!=BZ_OK)
+		return 0;
+	int res;
+	in_func in=src->get_f();
+	out_func out=dst->get_f();
+	while ((res=BZ2_bzDecompress(&stream))==BZ_OK){
+		if (!stream.avail_out){
+			out(dst,&dst->out[0],dst->size);
+			stream.next_out=(char *)&dst->out[0];
+			stream.avail_out=dst->size;
+		}
+		if (!stream.avail_in && !(stream.avail_in=in(src,(uchar **)&stream.next_in))){
+			while (1){
+				BZ2_bzDecompress(&stream);
+				if (stream.avail_out<dst->size){
+					out(dst,&dst->out[0],dst->size);
+					stream.next_out=(char *)&dst->out[0];
+					stream.avail_out=dst->size;
+				}else
+					break;
+			}
+			break;
+		}
+	}
+	bool ret=1;
+	if (res!=BZ_STREAM_END)
+		ret=0;
+	else if (stream.avail_out<dst->size)
+		out(dst,&dst->out[0],dst->size-stream.avail_out);
+	BZ2_bzDecompress(&stream);
+	return ret;
+}
+
+bool CompressBZ2(base_out_decompression *dst,base_in_decompression *src){
+	bz_stream stream;
+	zero_structure(stream);
+
+	in_func in=src->get_f();
+	out_func out=dst->get_f();
+	stream.avail_in=in(src,(uchar **)&stream.next_in);
+	stream.next_out=(char *)&dst->out[0];
+	stream.avail_out=dst->size;
+	if (BZ2_bzCompressInit(&stream,4,0,0)!=BZ_OK)
+		return 0;
+	int res;
+	int action=BZ_RUN;
+	while (1){
+		res=BZ2_bzCompress(&stream,action);
+		if (res!=BZ_OK && res!=BZ_RUN_OK && res!=BZ_FINISH_OK)
+			break;
+		if (!stream.avail_out){
+			out(dst,&dst->out[0],dst->size);
+			stream.next_out=(char *)&dst->out[0];
+			stream.avail_out=dst->size;
+		}
+		if (!stream.avail_in)
+			if (!(stream.avail_in=in(src,(uchar **)&stream.next_in)))
+				action=BZ_FINISH;
+	}
+	bool ret=1;
+	if (res!=BZ_STREAM_END)
+		ret=0;
+	else if (stream.avail_out<dst->size)
+		out(dst,&dst->out[0],dst->size-stream.avail_out);
+	BZ2_bzCompressEnd(&stream);
+	return ret;
+}
+
+static void *SzAlloc(void *p, size_t size) { return malloc(size); }
+static void SzFree(void *p, void *address) { free(address); }
+
+bool DecompressLZMA(base_out_decompression *dst,base_in_decompression *src){
+	bz_stream stream;
+	zero_structure(stream);
+
+	in_func in=src->get_f();
+	out_func out=dst->get_f();
+	std::vector<uchar> dictionary;
+	in(src,0);
+	if (src->remaining<4+LZMA_PROPS_SIZE+8)
+		return 0;
+	CLzmaDec p;
+	LzmaDec_Construct(&p);
+	ISzAlloc alloc={SzAlloc,SzFree};
+	SRes res=LzmaDec_AllocateProbs(&p,(const Byte *)src->in_buffer+4,LZMA_PROPS_SIZE,&alloc);
+	if (res)
+		return 0;
+	dictionary.resize(p.prop.dicSize);
+	p.dic=(Byte *)&dictionary[0];
+	p.dicBufSize=dictionary.size();
+	LzmaDec_Init(&p);
+	src->in_buffer+=4+LZMA_PROPS_SIZE+8;
+	src->remaining-=4+LZMA_PROPS_SIZE+8;
+	SizeT srcLen=src->remaining,
+		dstLen=dst->size;
+	ELzmaStatus status;
+	size_t in_pos=0,
+		out_pos=0;
+	while ((res=LzmaDec_DecodeToBuf(&p,(Byte *)&dst->out[out_pos],&dstLen,(const Byte *)src->in_buffer,&srcLen,LZMA_FINISH_ANY,&status))==SZ_OK){
+		if (status==LZMA_STATUS_FINISHED_WITH_MARK)
+			break;
+		out_pos+=dstLen;
+		dstLen=dst->out.size()-out_pos;
+		if (!dstLen){
+			out(dst,&dst->out[0],dst->size);
+			dstLen=dst->size;
+			out_pos=0;
+		}
+		in_pos+=srcLen;
+		srcLen=src->remaining-in_pos;
+		if (!srcLen){
+			srcLen=in(src,0);
+			if (!srcLen)
+				break;
+			in_pos=0;
+		}
+	}
+	bool ret=1;
+	if (status!=LZMA_STATUS_FINISHED_WITH_MARK)
+		ret=0;
+	else if (dstLen)
+		out(dst,&dst->out[out_pos],dstLen);
+	LzmaDec_FreeProbs(&p,&alloc);
+	return ret;
+}
+
+uchar *decode_LZSS(uchar *buffer,ulong compressedSize,ulong decompressedSize){
+	uchar decompression_buffer[256*2];
+	ulong decompresssion_buffer_offset=239;
+	memset(decompression_buffer,0,239);
+	uchar *res=new uchar[decompressedSize];
+	ulong byteoffset=0;
+	uchar bitoffset=0;
+	for (ulong len=0;len<decompressedSize;){
+		if (getbit(buffer,&byteoffset,&bitoffset)){
+			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
+			res[len++]=a;
+			decompression_buffer[decompresssion_buffer_offset++]=a;
+			decompresssion_buffer_offset&=0xFF;
+		}else{
+			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
+			uchar b=(uchar)getbits(buffer,4,&byteoffset,&bitoffset);
+			for (long c=0;c<=b+1 && len<decompressedSize;c++){
+				uchar d=decompression_buffer[(a+c)&0xFF];
+				res[len++]=d;
+				decompression_buffer[decompresssion_buffer_offset++]=d;
+				decompresssion_buffer_offset&=0xFF;
+			}
+		}
+	}
+	return res;
+}
+
+template <typename T>
+bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,const std::wstring &name,T compression,Uint64 offset=0){
+	decompression_f f=select_function(compression);
+	if (!f){
+		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
+		return 0;
+	}
+	NONS_File file(path,0);
+	decompress_from_file dff;
+	decompress_to_file dtf;
+	dff.archive=a;
+	dff.node=n;
+	dff.offset=offset;
+	dtf.file=&file;
+	if (!f(&dtf,&dff)){
+		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
+		file.close();
+		NONS_File::delete_file(path);
+		return 0;
+	}
+	return 1;
+}
+
+template <typename T>
+bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const std::wstring &name,T compression){
+	decompression_f f=select_function(compression);
+	if (!f){
+		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
+		return 0;
+	}
+	decompress_from_file dff;
+	decompress_to_memory dtm;
+	dff.archive=a;
+	dff.node=n;
+	dtm.buffer=dst;
+	if (!f(&dtm,&dff)){
+		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
+		return 0;
+	}
+	return 1;
+}
+
+template <typename T>
+uchar *decompress_memory_to_new_memory(size_t &dst_l,void *src,size_t src_l,T compression){
+	decompression_f f=select_function(compression);
+	if (!f)
+		return 0;
+	decompress_from_memory dfm;
+	dfm.remaining=src_l;
+	dfm.src=(uchar *)src;
+	decompress_to_unknown_size dtus;
+	std::list<std::vector<uchar> > temp;
+	dtus.dst=&temp;
+	if (!f(&dtus,&dfm))
+		return 0;
+	uchar *ret=new uchar[dtus.final_size];
+	for (ulong a=0;a<dtus.final_size;){
+		size_t b=temp.front().size();
+		if (b)
+			memcpy(ret,&(temp.front())[0],b);
+		a+=b;
+		temp.pop_front();
+	}
+	dst_l=dtus.final_size;
+	return ret;
+}
+
+uchar *compress_memory_to_new_memory(size_t &dst_l,void *src,size_t src_l){
+	decompress_from_memory dfm;
+	dfm.remaining=src_l;
+	dfm.src=(uchar *)src;
+	decompress_to_unknown_size dtus;
+	std::list<std::vector<uchar> > temp;
+	dtus.dst=&temp;
+	if (!CompressBZ2(&dtus,&dfm))
+		return 0;
+	uchar *ret=new uchar[dtus.final_size];
+	for (ulong a=0;a<dtus.final_size;){
+		size_t b=temp.front().size();
+		if (b)
+			memcpy(ret,&(temp.front())[0],b);
+		a+=b;
+		temp.pop_front();
+	}
+	dst_l=dtus.final_size;
+	return ret;
+}
+
+uchar *compressBuffer_BZ2(uchar *src,size_t src_l,size_t &dst_l){
+	return compress_memory_to_new_memory(dst_l,src,src_l);
+}
+
+uchar *decompressBuffer_BZ2(uchar *src,size_t src_l,size_t &dst_l){
+	return decompress_memory_to_new_memory(dst_l,src,src_l,ZIPdata::COMPRESSION_BZ2);
+}
+
+//------------------------------------------------------------------------------
+//------------------- ~COMPRESSION-RELATED FUNCTIONS ---------------------------
+//------------------------------------------------------------------------------
 
 TreeNode::~TreeNode(){
 	if (this->freeExtraData)
@@ -351,14 +703,20 @@ bool NSAarchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,T
 struct endOfCDR{
 	bool good;
 	ulong disk_number,
-		CD_start_disk,
-		CD_entries_n_, //(total number of entries in the central directory on this disk)
-		CD_entries_n; //(total number of entries in the central directory)
-	Uint64 CD_size,
+		CD_start_disk;
+	Uint64 CD_entries_n_disk,	//(total number of entries in the central directory on this disk)
+		CD_entries_n,			//(total number of entries in the central directory)
+		CD_size,
 		CD_start;
+	bool use_zip64;
+	ulong ECD_start_disk;
+	Uint64 ECD_start;
 	endOfCDR():good(0){}
 	endOfCDR(NONS_File &file,Uint64 offset);
 	bool init(NONS_File &file,Uint64 offset);
+	bool init64(NONS_File &file,Uint64 offset);
+private:
+	bool _init64(NONS_File &file,Uint64 offset);
 };
 
 endOfCDR::endOfCDR(NONS_File &file,Uint64 offset){
@@ -368,26 +726,77 @@ endOfCDR::endOfCDR(NONS_File &file,Uint64 offset){
 bool endOfCDR::init(NONS_File &file,Uint64 offset){
 	this->good=0;
 	size_t l;
-	uchar *buffer=file.read(22,l,offset);
-	if (l<22){
-		delete[] buffer;
+	std::vector<uchar> buffer(22);
+	uchar *buffer_p=&buffer[0];
+	if (!file.read(buffer_p,22,l,offset) || l<22)
 		return 0;
-	}
-	if (ZIParchive::getSignatureType(buffer)!=ZIParchive::EOCDR)
+	if (ZIParchive::getSignatureType(buffer_p)!=ZIParchive::EOCDR)
 		return 0;
 	ulong offset2=4;
-	this->disk_number=readWord(buffer,offset2);
-	this->CD_start_disk=readWord(buffer,offset2);
-	this->CD_entries_n_=readWord(buffer,offset2);
-	this->CD_entries_n=readWord(buffer,offset2);
-	this->CD_size=readDWord(buffer,offset2);
-	this->CD_start=readDWord(buffer,offset2);
-	size_t comment_l=readWord(buffer,offset2);
+	this->disk_number=			 readWord(buffer_p,offset2);
+	this->CD_start_disk=		 readWord(buffer_p,offset2);
+	this->CD_entries_n_disk=	 readWord(buffer_p,offset2);
+	this->CD_entries_n=			 readWord(buffer_p,offset2);
+	this->CD_size=				readDWord(buffer_p,offset2);
+	this->CD_start=				readDWord(buffer_p,offset2);
+	size_t comment_l=			 readWord(buffer_p,offset2);
+
 	assert(offset2==22);
-	delete[] buffer;
-	delete[] file.read(comment_l,l,offset+offset2);
-	if (l<comment_l)
+	buffer.resize(comment_l);
+	if (buffer.size() && (!file.read(&buffer[0],comment_l,l,offset+offset2) || l<comment_l))
 		return 0;
+	if (
+			this->disk_number==0xFFFF ||
+			this->CD_start_disk==0xFFFF ||
+			this->CD_entries_n_disk==0xFFFF ||
+			this->CD_entries_n==0xFFFF ||
+			this->CD_size==0xFFFFFFFF ||
+			this->CD_start==0xFFFFFFFF)
+		return this->_init64(file,offset-20);
+	this->use_zip64=0;
+	this->good=1;
+	return 1;
+}
+
+bool endOfCDR::init64(NONS_File &file,Uint64 offset){
+	this->good=0;
+	size_t l;
+	std::vector<uchar> buffer(56);
+	uchar *buffer_p=&buffer[0];
+	if (!file.read(buffer_p,56,l,offset) || l<56)
+		return 0;
+	if (ZIParchive::getSignatureType(buffer_p)!=ZIParchive::EOCDR64)
+		return 0;
+	ulong offset2=4;
+	Uint64 ecd64_size=			readQWord(buffer_p,offset2);
+	if (ecd64_size<44)
+		return 0;
+								 readWord(buffer_p,offset2);
+								 readWord(buffer_p,offset2);
+	this->disk_number=			readDWord(buffer_p,offset2);
+	this->CD_start_disk=		readDWord(buffer_p,offset2);
+	this->CD_entries_n_disk=	readQWord(buffer_p,offset2);
+	this->CD_entries_n=			readQWord(buffer_p,offset2);
+	this->CD_size=				readQWord(buffer_p,offset2);
+	this->CD_start=				readQWord(buffer_p,offset2);
+	this->good=1;
+	return 1;
+}
+
+bool endOfCDR::_init64(NONS_File &file,Uint64 offset){
+	this->good=0;
+	this->use_zip64=1;
+	size_t l;
+	std::vector<uchar> buffer(20);
+	uchar *buffer_p=&buffer[0];
+	if (!file.read(buffer_p,20,l,offset) || l<20)
+		return 0;
+	if (ZIParchive::getSignatureType(buffer_p)!=ZIParchive::EOCDR64_LOCATOR)
+		return 0;
+	ulong offset2=4;
+	this->ECD_start_disk=		readDWord(buffer_p,offset2);
+	this->ECD_start=			readQWord(buffer_p,offset2);
+	this->disk_number=			readDWord(buffer_p,offset2)-1;
 	this->good=1;
 	return 1;
 }
@@ -402,51 +811,94 @@ struct centralHeader{
 		uncompressed_size,
 		local_header_off;
 	ulong disk_number_start;
+	static const Uint16 ZIP64_header_ID=0x0001;
 	centralHeader(NONS_File &file,Uint64 &offset,bool &enough_room);
 };
+
+#define PUSH_INTO_TEMP(x)\
+	if (header_length<(x))\
+		continue;\
+	temp.push_back(readQWord(buffer_p,offset2))
+#define POP_FROM_TEMP(x,y)\
+	if ((x)==0xFFFFFFFF && temp.size()){\
+		(x)=(y)temp.front();\
+		temp.pop_front();\
+	}
 
 centralHeader::centralHeader(NONS_File &file,Uint64 &offset,bool &enough_room){
 	this->good=0;
 	size_t l;
 	enough_room=0;
-	uchar *buffer=file.read(46,l,offset);
-	if (l<46){
-		delete[] buffer;
+	Uint64 offset_temp=offset;
+	std::vector<uchar> buffer(46);
+	uchar *buffer_p=&buffer[0];
+	if (!file.read(buffer_p,46,l,offset_temp) || l<46)
 		return;
-	}
-	if (ZIParchive::getSignatureType(buffer)==ZIParchive::CENTRAL_HEADER){
+	if (ZIParchive::getSignatureType(&buffer[0])==ZIParchive::CENTRAL_HEADER){
+		//read main header
 		ulong offset2=4;
-		readWord(buffer,offset2);
-		readWord(buffer,offset2);
-		this->bit_flag=readWord(buffer,offset2);
-		this->compression_method=readWord(buffer,offset2);
-		readWord(buffer,offset2);
-		readWord(buffer,offset2);
-		this->crc32=readDWord(buffer,offset2);
-		this->compressed_size=readDWord(buffer,offset2);
-		this->uncompressed_size=readDWord(buffer,offset2);
-		size_t filename_l=readWord(buffer,offset2);
-		size_t extra_field_l=readWord(buffer,offset2);
-		ulong file_comment_l=readWord(buffer,offset2);
-		this->disk_number_start=readWord(buffer,offset2);
-		readWord(buffer,offset2);
-		readDWord(buffer,offset2);
-		this->local_header_off=readDWord(buffer,offset2);
+									 readWord(buffer_p,offset2);
+									 readWord(buffer_p,offset2);
+		this->bit_flag=				 readWord(buffer_p,offset2);
+		this->compression_method=	 readWord(buffer_p,offset2);
+									 readWord(buffer_p,offset2);
+									 readWord(buffer_p,offset2);
+		this->crc32=				readDWord(buffer_p,offset2);
+		this->compressed_size=		readDWord(buffer_p,offset2);
+		this->uncompressed_size=	readDWord(buffer_p,offset2);
+		size_t filename_l=			 readWord(buffer_p,offset2);
+		size_t extra_field_l=		 readWord(buffer_p,offset2);
+		ulong file_comment_l=		 readWord(buffer_p,offset2);
+		this->disk_number_start=	 readWord(buffer_p,offset2);
+									 readWord(buffer_p,offset2);
+									readDWord(buffer_p,offset2);
+		this->local_header_off=		readDWord(buffer_p,offset2);
 
 		assert(offset2==46);
-		delete[] buffer;
-		buffer=file.read(filename_l,l,offset+offset2);
-		if (l<filename_l){
-			delete[] buffer;
-			return;
+
+		//read filename
+		buffer.resize(filename_l);
+		offset_temp+=offset2;
+		if (buffer.size()){
+			buffer_p=&buffer[0];
+			if (!file.read(&buffer[0],filename_l,l,offset_temp) || l<filename_l)
+				return;
+			this->filename.assign((char *)buffer_p,filename_l);
+		}else
+			this->filename.clear();
+		//read extra field
+		buffer.resize(extra_field_l);
+		offset_temp+=filename_l;
+		if (buffer.size()){
+			buffer_p=&buffer[0];
+			if (!file.read(buffer_p,extra_field_l,l,offset_temp) || l<extra_field_l)
+				return;
+			//look for ZIP64 header in extra field
+			ulong offset2_temp;
+			ulong header_length;
+			std::list<Uint64> temp;
+			for (offset2=0;offset2<extra_field_l;offset2=offset2_temp+header_length){
+				ulong header_type=readWord(buffer_p,offset2);
+				header_length=readWord(buffer_p,offset2);
+				offset2_temp=offset2;
+				if (header_type!=centralHeader::ZIP64_header_ID)
+					continue;
+				PUSH_INTO_TEMP(8);
+				PUSH_INTO_TEMP(16);
+				PUSH_INTO_TEMP(24);
+				PUSH_INTO_TEMP(28);
+				break;
+			}
+			POP_FROM_TEMP(this->uncompressed_size,Uint64);
+			POP_FROM_TEMP(this->compressed_size,Uint64);
+			POP_FROM_TEMP(this->local_header_off,Uint64);
+			POP_FROM_TEMP(this->disk_number_start,ulong);
 		}
-		this->filename.assign((char *)buffer,filename_l);
-		delete[] buffer;
-		extra_field_l+=file_comment_l;
-		delete[] file.read(extra_field_l,l,offset+offset2+filename_l);
-		if (l<extra_field_l)
+		buffer.resize(file_comment_l);
+		offset_temp+=extra_field_l;
+		if (buffer.size() && (!file.read(&buffer[0],file_comment_l,l,offset_temp) || l<file_comment_l))
 			return;
-		offset+=offset2+filename_l+extra_field_l;
+		offset=offset_temp;
 		enough_room=1;
 		this->good=1;
 	}
@@ -468,36 +920,63 @@ struct localHeader{
 localHeader::localHeader(NONS_File &file,Uint64 offset){
 	this->good=0;
 	size_t l;
-	uchar *buffer=file.read(30,l,offset);
-	if (l<30){
-		delete[] buffer;
+	Uint64 offset_temp=offset;
+	std::vector<uchar> buffer(30);
+	uchar *buffer_p=&buffer[0];
+	if (!file.read(buffer_p,30,l,offset_temp) || l<30)
 		return;
-	}
-	if (ZIParchive::getSignatureType(buffer)==ZIParchive::LOCAL_HEADER){
+	if (ZIParchive::getSignatureType(buffer_p)==ZIParchive::LOCAL_HEADER){
 		ulong offset2=4;
-		readWord(buffer,offset2);
-		this->bit_flag=readWord(buffer,offset2);
-		this->compression_method=readWord(buffer,offset2);
-		readWord(buffer,offset2);
-		readWord(buffer,offset2);
-		this->crc32=readDWord(buffer,offset2);
-		this->compressed_size=readDWord(buffer,offset2);
-		this->uncompressed_size=readDWord(buffer,offset2);
-		size_t filename_l=readWord(buffer,offset2),
-			extra_field_l=readWord(buffer,offset2);
+									 readWord(buffer_p,offset2);
+		this->bit_flag=				 readWord(buffer_p,offset2);
+		this->compression_method=	 readWord(buffer_p,offset2);
+									 readWord(buffer_p,offset2);
+									 readWord(buffer_p,offset2);
+		this->crc32=				readDWord(buffer_p,offset2);
+		this->compressed_size=		readDWord(buffer_p,offset2);
+		this->uncompressed_size=	readDWord(buffer_p,offset2);
+		size_t filename_l=			 readWord(buffer_p,offset2),
+			extra_field_l=			 readWord(buffer_p,offset2);
 
 		assert(offset2==30);
-		buffer=file.read(filename_l,l,offset+offset2);
-		if (l<filename_l){
-			delete[] buffer;
-			return;
+
+		//read filename
+		offset_temp+=offset2;
+		buffer.resize(filename_l);
+		if (buffer.size()){
+			buffer_p=&buffer[0];
+			if (!file.read(buffer_p,filename_l,l,offset_temp) || l<filename_l)
+				return;
+			this->filename.assign((char *)buffer_p,filename_l);
+		}else
+			this->filename.clear();
+		buffer.resize(extra_field_l);
+		offset_temp+=filename_l;
+		if (buffer.size()){
+			buffer_p=&buffer[0];
+			if (!file.read(buffer_p,extra_field_l,l,offset_temp) || l<extra_field_l)
+				return;
+			//look for ZIP64 header in extra field
+			ulong offset2_temp;
+			ulong header_length;
+			std::list<Uint64> temp;
+			for (offset2=0;offset2<extra_field_l;offset2=offset2_temp+header_length){
+				ulong header_type=readWord(buffer_p,offset2);
+				header_length=readWord(buffer_p,offset2);
+				offset2_temp=offset2;
+				if (header_type!=centralHeader::ZIP64_header_ID)
+					continue;
+				PUSH_INTO_TEMP(8);
+				PUSH_INTO_TEMP(16);
+				PUSH_INTO_TEMP(24);
+				PUSH_INTO_TEMP(28);
+				break;
+			}
+			POP_FROM_TEMP(this->uncompressed_size,Uint64);
+			POP_FROM_TEMP(this->compressed_size,Uint64);
 		}
-		this->filename.assign((char *)buffer,filename_l);
-		delete[] buffer;
-		delete[] file.read(extra_field_l,l,offset+offset2+filename_l);
-		if (l<extra_field_l)
-			return;
-		this->data_offset=offset+offset2+filename_l+l;
+		offset_temp+=extra_field_l;
+		offset=this->data_offset=offset_temp;
 		this->good=1;
 	}
 }
@@ -516,7 +995,7 @@ ZIParchive::ZIParchive(const std::wstring &path)
 		return;
 	offset=filesize-22;
 	eocdr.init(file,offset);
-	while (!eocdr.good && offset)
+	for (ulong a=0;a<0x10000 && !eocdr.good && offset;a++)
 		eocdr.init(file,--offset);
 	if (!eocdr.good)
 		return;
@@ -531,6 +1010,13 @@ ZIParchive::ZIParchive(const std::wstring &path)
 	}
 	this->disks.push_back(path);
 	file.close();
+	if (eocdr.use_zip64){
+		file.open(this->disks[eocdr.ECD_start_disk],1);
+		eocdr.init64(file,eocdr.ECD_start);
+		file.close();
+		if (!eocdr.good)
+			return;
+	}
 	file.open(this->disks[eocdr.CD_start_disk],1);
 	if (!file)
 		return;
@@ -583,198 +1069,6 @@ ZIParchive::ZIParchive(const std::wstring &path)
 	this->good=!fail;
 }
 
-struct base_in_decompression{
-	std::vector<uchar> in;
-	base_in_decompression(){}
-	virtual ~base_in_decompression(){}
-	virtual in_func get_f()=0;
-};
-
-struct base_out_decompression{
-	static const ulong bits=15,
-		size=1<<bits;
-	std::vector<uchar> out;
-	base_out_decompression():out(size){}
-	virtual ~base_out_decompression(){}
-	virtual out_func get_f()=0;
-};
-
-struct decompress_from_file:public base_in_decompression{
-	Archive *archive;
-	TreeNode *node;
-	Uint64 offset;
-	decompress_from_file():offset(0){}
-	~decompress_from_file(){}
-	in_func get_f(){
-		return in_func;
-	}
-	static unsigned in_func(void *p,unsigned char **buffer){
-		decompress_from_file *_this=(decompress_from_file *)p;
-		size_t l=1<<12;
-		_this->in.resize(l);
-		_this->archive->read_raw_bytes(&_this->in[0],l,l,_this->node,_this->offset);
-		_this->in.resize(l);
-		if (!l){
-			buffer=0;
-			return 0;
-		}
-		if (buffer)
-			*buffer=&_this->in[0];
-		_this->offset+=l;
-		return _this->in.size();
-	}
-};
-
-struct decompress_to_file:public base_out_decompression{
-	NONS_File *file;
-	out_func get_f(){
-		return out_func;
-	}
-	static int out_func(void *p,unsigned char *buffer,unsigned size){
-		((decompress_to_file *)p)->file->write(buffer,size);
-		return 0;
-	}
-};
-
-struct decompress_to_memory:public base_out_decompression{
-	void *buffer;
-	out_func get_f(){
-		return out_func;
-	}
-	static int out_func(void *p,unsigned char *buffer,unsigned size){
-		memcpy(((decompress_to_memory *)p)->buffer,buffer,size);
-		return 0;
-	}
-};
-
-typedef bool (*decompression_f)(base_out_decompression *,base_in_decompression *);
-
-bool DecompressDEFLATE(base_out_decompression *dst,base_in_decompression *src){
-	z_stream stream;
-	zero_structure(stream);
-
-	if (inflateBackInit(&stream,dst->bits,&dst->out[0])!=Z_OK)
-		return 0;
-	int res=inflateBack(
-		&stream,
-		src->get_f(),
-		src,
-		dst->get_f(),
-		dst
-	);
-	inflateBackEnd(&stream);
-	return res==Z_STREAM_END;
-}
-
-bool DecompressBZ2(base_out_decompression *dst,base_in_decompression *src){
-	bz_stream stream;
-	zero_structure(stream);
-
-	stream.next_in=(char *)&src->in[0];
-	stream.avail_in=src->in.size();
-	stream.next_out=(char *)&dst->out[0];
-	stream.avail_out=dst->size;
-	if (BZ2_bzDecompressInit(&stream,0,0)!=BZ_OK)
-		return 0;
-	int res;
-	in_func in=src->get_f();
-	out_func out=dst->get_f();
-	while ((res=BZ2_bzDecompress(&stream))==BZ_OK){
-		if (!stream.avail_out){
-			out(dst,&dst->out[0],dst->size);
-			stream.next_out=(char *)&dst->out[0];
-			stream.avail_out=dst->size;
-		}
-		if (!stream.avail_in)
-			stream.avail_in=in(src,(uchar **)&stream.next_in);
-	}
-	if (res!=BZ_FINISH_OK)
-		return 0;
-	if (stream.avail_out<dst->size)
-		out(dst,&dst->out[0],dst->size-stream.avail_out);
-	return 1;
-}
-
-static void *SzAlloc(void *p, size_t size) { return malloc(size); }
-static void SzFree(void *p, void *address) { free(address); }
-
-bool DecompressLZMA(base_out_decompression *dst,base_in_decompression *src){
-	bz_stream stream;
-	zero_structure(stream);
-
-	in_func in=src->get_f();
-	out_func out=dst->get_f();
-	std::vector<uchar> dictionary;
-	in(src,0);
-	CLzmaDec p;
-	LzmaDec_Construct(&p);
-	ISzAlloc alloc={SzAlloc,SzFree};
-	SRes res=LzmaDec_AllocateProbs(&p,(const Byte *)&src->in[4],LZMA_PROPS_SIZE,&alloc);
-	if (res)
-		return 0;
-	dictionary.resize(p.prop.dicSize);
-	p.dic=(Byte *)&dictionary[0];
-	p.dicBufSize=dictionary.size();
-	LzmaDec_Init(&p);
-	src->in.erase(src->in.begin(),src->in.begin()+4+LZMA_PROPS_SIZE+8);
-	SizeT srcLen=src->in.size(),
-		dstLen=dst->size;
-	ELzmaStatus status;
-	size_t in_pos=0,
-		out_pos=0;
-	while ((res=LzmaDec_DecodeToBuf(&p,(Byte *)&dst->out[out_pos],&dstLen,(const Byte *)&src->in[in_pos],&srcLen,LZMA_FINISH_ANY,&status))==SZ_OK){
-		if (status==LZMA_STATUS_FINISHED_WITH_MARK)
-			break;
-		out_pos+=dstLen;
-		dstLen=dst->out.size()-out_pos;
-		if (!dstLen){
-			out(dst,&dst->out[0],dst->size);
-			dstLen=dst->size;
-			out_pos=0;
-		}
-		in_pos+=srcLen;
-		srcLen=src->in.size()-in_pos;
-		if (!srcLen){
-			srcLen=in(src,0);
-			if (!srcLen)
-				break;
-			in_pos=0;
-		}
-	}
-	if (status!=LZMA_STATUS_FINISHED_WITH_MARK)
-		return 0;
-	if (dstLen)
-		out(dst,&dst->out[out_pos],dstLen);
-	return 1;
-}
-
-uchar *decode_LZSS(uchar *buffer,ulong compressedSize,ulong decompressedSize){
-	uchar decompression_buffer[256*2];
-	ulong decompresssion_buffer_offset=239;
-	memset(decompression_buffer,0,239);
-	uchar *res=new uchar[decompressedSize];
-	ulong byteoffset=0;
-	uchar bitoffset=0;
-	for (ulong len=0;len<decompressedSize;){
-		if (getbit(buffer,&byteoffset,&bitoffset)){
-			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
-			res[len++]=a;
-			decompression_buffer[decompresssion_buffer_offset++]=a;
-			decompresssion_buffer_offset&=0xFF;
-		}else{
-			uchar a=(uchar)getbits(buffer,8,&byteoffset,&bitoffset);
-			uchar b=(uchar)getbits(buffer,4,&byteoffset,&bitoffset);
-			for (long c=0;c<=b+1 && len<decompressedSize;c++){
-				uchar d=decompression_buffer[(a+c)&0xFF];
-				res[len++]=d;
-				decompression_buffer[decompresssion_buffer_offset++]=d;
-				decompresssion_buffer_offset&=0xFF;
-			}
-		}
-	}
-	return res;
-}
-
 decompression_f select_function(ZIPdata::compression_type c){
 	switch (c){
 		case ZIPdata::COMPRESSION_DEFLATE:
@@ -783,16 +1077,20 @@ decompression_f select_function(ZIPdata::compression_type c){
 			return DecompressBZ2;
 		case ZIPdata::COMPRESSION_LZMA:
 			return DecompressLZMA;
+		default:
+			return 0;
 	}
-	return 0;
 }
 
 decompression_f select_function(NSAdata::compression_type c){
 	switch (c){
+		case NSAdata::COMPRESSION_DEFLATE:
+			return DecompressDEFLATE;
 		case NSAdata::COMPRESSION_BZ2:
 			return DecompressBZ2;
+		default:
+			return 0;
 	}
-	return 0;
 }
 
 bool ZIParchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,TreeNode *node,Uint64 offset){
@@ -842,13 +1140,18 @@ void ZIParchive::freeExtraData(void *p){
 
 ZIParchive::SignatureType ZIParchive::getSignatureType(void *buffer){
 	ulong offset=0;
-	switch (readDWord((char *)buffer,offset)){
+	Uint32 s=readDWord((char *)buffer,offset);
+	switch (s){
 		case ZIParchive::local_signature:
 			return ZIParchive::LOCAL_HEADER;
 		case ZIParchive::central_signature:
 			return ZIParchive::CENTRAL_HEADER;
 		case ZIParchive::EOCDR_signature:
 			return ZIParchive::EOCDR;
+		case ZIParchive::EOCDR64_locator_signature:
+			return ZIParchive::EOCDR64_LOCATOR;
+		case ZIParchive::EOCDR64_signature:
+			return ZIParchive::EOCDR64;
 	}
 	return ZIParchive::NOT_A_SIGNATURE;
 }
@@ -916,9 +1219,13 @@ void NONS_GeneralArchive::init(){
 }
 
 NONS_GeneralArchive::~NONS_GeneralArchive(){
-	for (ulong a=0;a<this->archives.size()-1;a++)
-		if (this->archives[a])
-			delete this->archives[a];
+	if (!this->archives.size())
+		return;
+	this->archives.pop_back();
+	while (this->archives.size()){
+		delete this->archives.back();
+		this->archives.pop_back();
+	}
 }
 
 uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem){
@@ -1003,29 +1310,6 @@ bool NONS_ArchiveSource::exists(const std::wstring &name){
 //NONS_nsaArchiveSource
 //------------------------------------------------------------------------------
 
-template <typename T>
-bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,const std::wstring &name,T compression,Uint64 offset=0){
-	decompression_f f=select_function(compression);
-	if (!f){
-		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
-		return 0;
-	}
-	NONS_File file(path,0);
-	decompress_from_file dff;
-	decompress_to_file dtf;
-	dff.archive=a;
-	dff.node=n;
-	dff.offset=offset;
-	dtf.file=&file;
-	if (!f(&dtf,&dff)){
-		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
-		file.close();
-		NONS_File::delete_file(path);
-		return 0;
-	}
-	return 1;
-}
-
 NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 	NONS_nsaArchiveStream *p=new NONS_nsaArchiveStream(*this,name);
 	TreeNode *node=p->get_node();
@@ -1037,13 +1321,21 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 	if (data.compression!=NSAdata::COMPRESSION_NONE){
 		delete p;
 		std::wstring path=filesystem.new_temp_name();
-		if (data.compression==NSAdata::COMPRESSION_BZ2)
-			decompress_file_to_file(path,this->archive,node,name,data.compression,4);
-		else{
-			size_t l;
-			uchar *decompressed=this->read_all(node,l);
-			NONS_File::write(path,decompressed,l);
-			delete[] decompressed;
+		Uint64 offset=0;
+		switch (data.compression){
+			case NSAdata::COMPRESSION_BZ2:
+				offset=4;
+			case NSAdata::COMPRESSION_DEFLATE:
+				decompress_file_to_file(path,this->archive,node,name,data.compression,offset);
+				break;
+			default:
+				{
+					size_t l;
+					uchar *decompressed=this->read_all(node,l);
+					NONS_File::write(path,decompressed,l);
+					delete[] decompressed;
+				}
+				break;
 		}
 		NONS_DataStream *stream=filesystem.new_temporary_file(path);
 		assert(!!stream);
@@ -1058,25 +1350,6 @@ NONS_nsaArchiveSource::NONS_nsaArchiveSource(const std::wstring &name,bool nsa){
 
 NONS_nsaArchiveSource::~NONS_nsaArchiveSource(){
 	delete this->archive;
-}
-
-template <typename T>
-bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const std::wstring &name,T compression){
-	decompression_f f=select_function(compression);
-	if (!f){
-		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
-		return 0;
-	}
-	decompress_from_file dff;
-	decompress_to_memory dtm;
-	dff.archive=a;
-	dff.node=n;
-	dtm.buffer=dst;
-	if (!f(&dtm,&dff)){
-		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
-		return 0;
-	}
-	return 1;
 }
 
 uchar *NONS_nsaArchiveSource::read_all(TreeNode *node,size_t &bytes_read){

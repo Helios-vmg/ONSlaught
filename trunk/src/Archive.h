@@ -37,6 +37,7 @@
 #include <vector>
 #include <map>
 #include <fstream>
+#include <zlib.h>
 
 struct TreeNode{
 	std::wstring name;
@@ -80,7 +81,8 @@ struct NSAdata{
 		COMPRESSION_NONE=0,
 		COMPRESSION_SPB=1,
 		COMPRESSION_LZSS=2,
-		COMPRESSION_BZ2=4
+		COMPRESSION_BZ2=4,
+		COMPRESSION_DEFLATE=5,
 	} compression;
 	size_t compressed,
 		uncompressed;
@@ -144,12 +146,16 @@ public:
 		NOT_A_SIGNATURE=0,
 		LOCAL_HEADER,
 		CENTRAL_HEADER,
-		EOCDR
+		EOCDR,
+		EOCDR64_LOCATOR,
+		EOCDR64,
 	};
 	static SignatureType getSignatureType(void *buffer);
-	static const ulong   local_signature=0x04034B50,
-	                   central_signature=0x02014B50,
-	                     EOCDR_signature=0x06054b50;
+	static const Uint64   local_signature=0x04034B50,
+	                    central_signature=0x02014B50,
+	                      EOCDR_signature=0x06054b50,
+	            EOCDR64_locator_signature=0x07064b50,
+	                    EOCDR64_signature=0x06064b50;
 };
 
 struct NONS_GeneralArchive{
@@ -163,6 +169,8 @@ struct NONS_GeneralArchive{
 	bool close(NONS_DataStream *stream);
 	bool exists(const std::wstring &filepath);
 };
+
+extern NONS_GeneralArchive general_archive;
 
 class NONS_ArchiveStream;
 
@@ -220,5 +228,66 @@ public:
 	bool read(void *dst,size_t &bytes_read,size_t count);
 };
 
-extern NONS_GeneralArchive general_archive;
+struct base_in_decompression{
+	uchar *in_buffer;
+	size_t remaining;
+	base_in_decompression():in_buffer(0){}
+	virtual ~base_in_decompression(){}
+	virtual in_func get_f()=0;
+};
+
+struct base_out_decompression{
+	static const ulong bits=15,
+		size=1<<bits;
+	std::vector<uchar> out;
+	base_out_decompression():out(size){}
+	virtual ~base_out_decompression(){}
+	virtual out_func get_f()=0;
+};
+
+struct decompress_from_regular_file:public base_in_decompression{
+	NONS_File *file;
+	Uint64 offset;
+	std::vector<uchar> in;
+	decompress_from_regular_file():base_in_decompression(),offset(0){}
+	in_func get_f(){ return in_func; }
+	static unsigned in_func(void *p,unsigned char **buffer);
+};
+
+struct decompress_from_file:public base_in_decompression{
+	Archive *archive;
+	TreeNode *node;
+	Uint64 offset;
+	std::vector<uchar> in;
+	decompress_from_file():base_in_decompression(),offset(0){}
+	in_func get_f(){ return in_func; }
+	static unsigned in_func(void *p,unsigned char **buffer);
+};
+
+struct decompress_from_memory:public base_in_decompression{
+	uchar *src;
+	decompress_from_memory():base_in_decompression(){}
+	in_func get_f(){ return in_func; }
+	static unsigned in_func(void *p,unsigned char **buffer);
+};
+
+struct decompress_to_file:public base_out_decompression{
+	NONS_File *file;
+	out_func get_f(){ return out_func; }
+	static int out_func(void *p,unsigned char *buffer,unsigned size);
+};
+
+struct decompress_to_memory:public base_out_decompression{
+	void *buffer;
+	out_func get_f(){ return out_func; }
+	static int out_func(void *p,unsigned char *buffer,unsigned size);
+};
+
+struct decompress_to_unknown_size:public base_out_decompression{
+	std::list<std::vector<uchar> > *dst;
+	size_t final_size;
+	decompress_to_unknown_size():base_out_decompression(),final_size(0){}
+	out_func get_f(){ return out_func; }
+	static int out_func(void *p,unsigned char *buffer,unsigned size);
+};
 #endif

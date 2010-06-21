@@ -179,15 +179,20 @@ std::basic_string<T> itohex(T2 n,unsigned w=0){
 template <typename T> inline std::string  itohexc(T n,unsigned w=0){ return itohex<char>   (n,w); }
 template <typename T> inline std::wstring itohexw(T n,unsigned w=0){ return itohex<wchar_t>(n,w); }
 
+template <typename T>
+bool firstchars(const T *s1,const T *s2){
+	for (;*s2;s1++,s2++)
+		if (*s1!=*s2)
+			return 0;
+	return 1;
+}
+
 //1 if the s1 begins with s2 at off
 template <typename T>
 bool firstchars(const std::basic_string<T> &s1,size_t off,const std::basic_string<T> &s2){
 	if (s1.size()-off<s2.size())
 		return 0;
-	for (ulong a=0;a<s2.size();a++)
-		if (s1[off+a]!=s2[a])
-			return 0;
-	return 1;
+	return firstchars(&s1[off],&s2[0]);
 }
 
 template <typename T>
@@ -197,10 +202,7 @@ bool firstchars(const std::basic_string<T> &s1,size_t off,const T *s2){
 		l++;
 	if (s1.size()-off<l)
 		return 0;
-	for (ulong a=0;a<l;a++)
-		if (s1[off+a]!=s2[a])
-			return 0;
-	return 1;
+	return firstchars(&s1[off],s2);
 }
 
 template <typename T>
@@ -290,18 +292,19 @@ std::basic_string<T> tagValue(const std::basic_string<T> &string,size_t off){
 //binary parsing functions
 bool getbit(void *arr,ulong *byteoffset,uchar *bitoffset);
 ulong getbits(void *arr,uchar bits,ulong *byteoffset,uchar *bitoffset);
-Uint8 readByte(void *buffer,ulong &offset);
-Sint16 readSignedWord(char *buffer,ulong &offset);
-Uint16 readWord(void *buffer,ulong &offset);
-Sint32 readSignedDWord(char *buffer,ulong &offset);
-Uint32 readDWord(void *buffer,ulong &offset);
-std::string readString(char *buffer,ulong &offset);
-void writeByte(Uint8 a,std::string &str,ulong offset=ULONG_MAX);
-void writeWord(Uint16 a,std::string &str,ulong offset=ULONG_MAX);
-void writeDWord(Uint32 a,std::string &str,ulong offset=ULONG_MAX);
-void writeWordBig(Uint16 a,std::string &str,ulong offset=ULONG_MAX);
-void writeDWordBig(Uint32 a,std::string &str,ulong offset=ULONG_MAX);
-void writeString(const std::wstring &a,std::string &str);
+Uint8 readByte(const void *buffer,ulong &offset);
+Sint16 readSignedWord(const void *buffer,ulong &offset);
+Uint16 readWord(const void *buffer,ulong &offset);
+Sint32 readSignedDWord(const void *buffer,ulong &offset);
+Uint32 readDWord(const void *buffer,ulong &offset);
+Uint64 readQWord(const void *buffer,ulong &offset);
+std::string readString(const void *buffer,ulong &offset);
+void writeByte(Uint8 a,std::vector<uchar> &str,ulong offset=ULONG_MAX);
+void writeWord(Uint16 a,std::vector<uchar> &str,ulong offset=ULONG_MAX);
+void writeDWord(Uint32 a,std::vector<uchar> &str,ulong offset=ULONG_MAX);
+void writeWordBig(Uint16 a,std::vector<uchar> &str,ulong offset=ULONG_MAX);
+void writeDWordBig(Uint32 a,std::vector<uchar> &str,ulong offset=ULONG_MAX);
+void writeString(const std::wstring &a,std::vector<uchar> &str);
 
 template <typename T>
 std::vector<Sint32> getIntervals(typename std::map<Sint32,T>::iterator i,typename std::map<Sint32,T>::iterator end){
@@ -372,7 +375,7 @@ src: input buffer.
 srcl: length of the input buffer in bytes.
 dstl: the length of the compressed buffer will be written here.
 */
-char *compressBuffer_BZ2(char *src,size_t srcl,size_t *dstl);
+uchar *compressBuffer_BZ2(uchar *src,size_t src_l,size_t &dstl);
 /*
 Decompresses src[0..srcl-1].
 Return value: allocated decompressed buffer.
@@ -380,7 +383,7 @@ src: input buffer.
 srcl: length of the input buffer in bytes.
 dstl: the length of the decompressed buffer will be written here.
 */
-char *decompressBuffer_BZ2(char *src,size_t srcl,size_t *dstl);
+uchar *decompressBuffer_BZ2(uchar *src,size_t src_l,size_t &dst_l);
 
 template <typename T1,typename T2>
 bool binary_search(const T1 *set,size_t begin,size_t end,const T2 &value,size_t &at_offset,int (*comp_f)(const T2 &,const T1 &)){
@@ -644,15 +647,20 @@ int stdStrCmpCI(const std::basic_string<T1> &s1,const std::basic_string<T2> &s2)
 	return lexcmp_CI_bounded(s1.c_str(),s1.size(),s2.c_str(),s2.size());
 }
 
+template <typename T>
+bool firstcharsCI(const T *s1,const T *s2){
+	for (;*s2;s1++,s2++)
+		if (NONS_tolower(*s1)!=NONS_tolower(*s2))
+			return 0;
+	return 1;
+}
+
 //1 if the s1 begins with s2 at off
 template <typename T>
 bool firstcharsCI(const std::basic_string<T> &s1,size_t off,const std::basic_string<T> &s2){
 	if (s1.size()-off<s2.size())
 		return 0;
-	for (ulong a=0;a<s2.size();a++)
-		if (NONS_tolower(s1[off+a])!=NONS_tolower(s2[a]))
-			return 0;
-	return 1;
+	return firstcharsCI(&s1[off],&s2[off]);
 }
 
 template <typename T>
@@ -662,10 +670,7 @@ bool firstcharsCI(const std::basic_string<T> &s1,size_t off,const T *s2){
 		l++;
 	if (s1.size()-off<l)
 		return 0;
-	for (ulong a=0;a<l;a++)
-		if (NONS_tolower(s1[off+a])!=NONS_tolower(s2[a]))
-			return 0;
-	return 1;
+	return firstcharsCI(&s1[off],s2);
 }
 
 template <typename T>

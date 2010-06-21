@@ -905,41 +905,33 @@ struct ff_file{
 	~ff_file(){
 		general_archive.close(this->stream);
 	}
-	int open(const char *name){
-		this->stream=general_archive.open(UniFromUTF8(std::string(name)));
-		return (this->stream)?0:-1;
+	static int open(void *p,const char *a){
+		ff_file *_this=(ff_file *)p;
+		_this->stream=general_archive.open(UniFromUTF8(std::string(a)));
+		return (_this->stream)?0:-1;
 	}
-	int close(){
-		general_archive.close(this->stream);
-		this->stream=0;
+	static int close(void *p){
+		ff_file *_this=(ff_file *)p;
+		general_archive.close(_this->stream);
+		_this->stream=0;
 		return 0;
 	}
-	int read(uint8_t *dst,int count){
-		if (count<0)
+	static int read(void *p,uint8_t *a,int b){
+		ff_file *_this=(ff_file *)p;
+		if (b<0)
 			return -1;
-		size_t l=(size_t)count;
-		if (!this->stream->read(dst,l,l))
+		size_t l=(size_t)b;
+		if (!_this->stream->read(a,l,l))
 			return -1;
 		return l;
 	}
-	int64_t seek(int64_t pos,int whence){
-		if (whence<-1 || whence>2)
+	static int64_t seek(void *p,int64_t a,int b){
+		ff_file *_this=(ff_file *)p;
+		if (b<-1 || b>2)
 			return -1;
-		if (whence!=2)
-			return this->stream->seek(pos,whence);
-		return this->stream->get_size();
-	}
-	static int open(void *_this,const char *a){
-		return ((ff_file *)_this)->open(a);
-	}
-	static int close(void *_this){
-		return ((ff_file *)_this)->close();
-	}
-	static int read(void *_this,uint8_t *a,int b){
-		return ((ff_file *)_this)->read(a,b);
-	}
-	static int64_t seek(void *_this,int64_t a,int b){
-		return ((ff_file *)_this)->seek(a,b);
+		if (b!=2)
+			return _this->stream->seek(a,b);
+		return _this->stream->get_size();
 	}
 };
 
@@ -973,7 +965,18 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 	o_stdout <<"Loaded video player based on "<<get_player_type()<<" (v"<<get_player_version()<<").\n";
 	bool success;
 	std::string exception_string(10000,0);
-	{
+	std::string utf8_filename=UniToUTF8(filename);
+	file_protocol fp;
+	ff_file file;
+	fp.data=&file;
+	fp.close=ff_file::close;
+	fp.open=ff_file::open;
+	fp.read=ff_file::read;
+	fp.seek=ff_file::seek;
+	if (file.open(&file,utf8_filename.c_str())<0){
+		success=0;
+		exception_string="File not found.";
+	}else{
 		NONS_MutexLocker ml(screenMutex);
 		SDL_Surface *screen=this->screen->screen->screens[REAL];
 		SDL_FillRect(screen,0,0);
@@ -992,18 +995,15 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			{&toggle_fullscreen,playback_fullscreen_callback},
 			{&take_screenshot,playback_screenshot_callback}
 		};
-		std::string utf8_filename=UniToUTF8(filename);
-		file_protocol fp;
-		ff_file file;
-		fp.data=&file;
-		fp.close=ff_file::close;
-		fp.open=ff_file::open;
-		fp.read=ff_file::read;
-		fp.seek=ff_file::seek;
+		std::string utf8_filename_copy=utf8_filename;
+		if (get_player_type()==std::string("libVLC")){
+			utf8_filename_copy.push_back('/');
+			utf8_filename_copy.append(itoac(&fp));
+		}
 		C_play_video_params parameters={
 			C_PLAY_VIDEO_PARAMS_VERSION,
 			screen,
-			&utf8_filename[0],
+			&utf8_filename_copy[0],
 			&playback_params,
 			sizeof(pairs)/sizeof(*pairs),
 			pairs,
@@ -1016,12 +1016,13 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		success=!!C_play_video(&parameters);
 		exception_string.resize(strlen(exception_string.c_str()));
 		stop=1;
+		file.close(&file);
 	}
 	if (!success){
 		if (exception_string.size())
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): "<<exception_string<<"\n";
+			o_stderr <<"NONS_ScriptInterpreter::play_video( \""<<utf8_filename<<"\" ): "<<exception_string<<"\n";
 		else
-			o_stderr <<"NONS_ScriptInterpreter::play_video(): Unknown error.\n";
+			o_stderr <<"NONS_ScriptInterpreter::play_video( \""<<utf8_filename<<"\" ): Unknown error.\n";
 		return NONS_UNDEFINED_ERROR;
 	}
 	return NONS_NO_ERROR;

@@ -275,7 +275,6 @@ PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 extern ConfigFile settings;
 
 int main(int argc,char **argv){
-	//test();
 	srand((unsigned int)time(0));
 	std::cout <<"ONSlaught: An ONScripter clone with Unicode support."<<std::endl;
 #if ONSLAUGHT_BUILD_VERSION<99999999

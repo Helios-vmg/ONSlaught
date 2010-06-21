@@ -1413,21 +1413,22 @@ SDL_Surface *verticalShear(SDL_Surface *src,float amount){
 	return res;
 }
 
-Uint8 readByte(void *buffer,ulong &offset){
+Uint8 readByte(const void *buffer,ulong &offset){
 	return ((uchar *)buffer)[offset++];
 }
 
-Sint16 readSignedWord(char *buffer,ulong &offset){
+Sint16 readSignedWord(const void *_buffer,ulong &offset){
+	uchar *buffer=(uchar *)_buffer;
 	Sint16 r=0;
 	for (char a=2;a>=0;a--){
 		r<<=8;
-		r|=(uchar)buffer[offset+a];
+		r|=buffer[offset+a];
 	}
 	offset+=2;
 	return r;
 }
 
-Uint16 readWord(void *_buffer,ulong &offset){
+Uint16 readWord(const void *_buffer,ulong &offset){
 	uchar *buffer=(uchar *)_buffer;
 	Uint16 r=0;
 	for (char a=2;a>=0;a--){
@@ -1438,17 +1439,18 @@ Uint16 readWord(void *_buffer,ulong &offset){
 	return r;
 }
 
-Sint32 readSignedDWord(char *buffer,ulong &offset){
+Sint32 readSignedDWord(const void *_buffer,ulong &offset){
+	uchar *buffer=(uchar *)_buffer;
 	Sint32 r=0;
 	for (char a=3;a>=0;a--){
 		r<<=8;
-		r|=(uchar)buffer[offset+a];
+		r|=buffer[offset+a];
 	}
 	offset+=4;
 	return r;
 }
 
-Uint32 readDWord(void *_buffer,ulong &offset){
+Uint32 readDWord(const void *_buffer,ulong &offset){
 	uchar *buffer=(uchar *)_buffer;
 	Uint32 r=0;
 	for (char a=3;a>=0;a--){
@@ -1459,20 +1461,31 @@ Uint32 readDWord(void *_buffer,ulong &offset){
 	return r;
 }
 
-std::string readString(char *buffer,ulong &offset){
-	std::string r(buffer+offset);
+Uint64 readQWord(const void *_buffer,ulong &offset){
+	uchar *buffer=(uchar *)_buffer;
+	Uint64 r=0;
+	for (char a=7;a>=0;a--){
+		r<<=8;
+		r|=buffer[offset+a];
+	}
+	offset+=8;
+	return r;
+}
+
+std::string readString(const void *buffer,ulong &offset){
+	std::string r(((char *)buffer)+offset);
 	offset+=r.size()+1;
 	return r;
 }
 
-void writeByte(Uint8 a,std::string &str,ulong offset){
+void writeByte(Uint8 a,std::vector<uchar> &str,ulong offset){
 	if (offset==ULONG_MAX)
 		str.push_back(a&0xFF);
 	else
 		str[offset]=a&0xFF;
 }
 
-void writeWord(Uint16 a,std::string &str,ulong offset){
+void writeWord(Uint16 a,std::vector<uchar> &str,ulong offset){
 	ulong off=(offset==ULONG_MAX)?str.size():offset;
 	for (ulong b=0;b<2;b++,off++){
 		if (str.size()>off)
@@ -1483,7 +1496,7 @@ void writeWord(Uint16 a,std::string &str,ulong offset){
 	}
 }
 
-void writeDWord(Uint32 a,std::string &str,ulong offset){
+void writeDWord(Uint32 a,std::vector<uchar> &str,ulong offset){
 	ulong off=(offset==ULONG_MAX)?str.size():offset;
 	for (ulong b=0;b<4;b++,off++){
 		if (str.size()>off)
@@ -1494,7 +1507,7 @@ void writeDWord(Uint32 a,std::string &str,ulong offset){
 	}
 }
 
-void writeWordBig(Uint16 a,std::string &str,ulong offset){
+void writeWordBig(Uint16 a,std::vector<uchar> &str,ulong offset){
 	if (offset==ULONG_MAX)
 		offset=str.size();
 	for (ulong b=0;b<2;b++,offset++){
@@ -1506,7 +1519,7 @@ void writeWordBig(Uint16 a,std::string &str,ulong offset){
 	}
 }
 
-void writeDWordBig(Uint32 a,std::string &str,ulong offset){
+void writeDWordBig(Uint32 a,std::vector<uchar> &str,ulong offset){
 	if (offset==ULONG_MAX)
 		offset=str.size();
 	for (ulong b=0;b<4;b++,offset++){
@@ -1518,47 +1531,10 @@ void writeDWordBig(Uint32 a,std::string &str,ulong offset){
 	}
 }
 
-void writeString(const std::wstring &a,std::string &str){
-	str.append(UniToUTF8(a));
+void writeString(const std::wstring &a,std::vector<uchar> &str){
+	std::string s=UniToUTF8(a);
+	str.insert(str.end(),s.begin(),s.end());
 	str.push_back(0);
-}
-
-char *compressBuffer_BZ2(char *src,size_t srcl,size_t *dstl){
-	size_t l=srcl,realsize=l;
-	char *dst=new char[l];
-	while (BZ2_bzBuffToBuffCompress(dst,(unsigned int *)&l,src,srcl,1,0,0)==BZ_OUTBUFF_FULL){
-		delete[] dst;
-		l*=2;
-		realsize=l;
-		dst=new char[l];
-	}
-	if (l!=realsize){
-		char *temp=new char[l];
-		memcpy(temp,dst,l);
-		delete[] dst;
-		dst=temp;
-	}
-	*dstl=l;
-	return dst;
-}
-
-char *decompressBuffer_BZ2(char *src,size_t srcl,size_t *dstl){
-	size_t l=srcl,realsize=l;
-	char *dst=new char[l];
-	while (BZ2_bzBuffToBuffDecompress(dst,(unsigned int *)&l,src,srcl,1,0)==BZ_OUTBUFF_FULL){
-		delete[] dst;
-		l*=2;
-		realsize=l;
-		dst=new char[l];
-	}
-	if (l!=realsize){
-		char *temp=new char[l];
-		memcpy(temp,dst,l);
-		delete[] dst;
-		dst=temp;
-	}
-	*dstl=l;
-	return dst;
 }
 
 std::wstring readline(std::wstring::const_iterator start,std::wstring::const_iterator end,std::wstring::const_iterator *out){

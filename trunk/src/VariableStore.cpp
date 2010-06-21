@@ -839,8 +839,8 @@ NONS_VariableStore::NONS_VariableStore(){
 			this->variables[stackpos]=var;
 		}
 	}else{
-		if (firstchars(std::string((char *)buffer),0,"BZh")){
-			char *temp=decompressBuffer_BZ2((char *)buffer,l,&l);
+		if (firstchars((char *)buffer,"BZh")){
+			uchar *temp=decompressBuffer_BZ2(buffer,l,l);
 			delete[] buffer;
 			buffer=(uchar *)temp;
 		}
@@ -895,7 +895,7 @@ void NONS_VariableStore::reset(){
 void NONS_VariableStore::saveData(){
 	if (!this->commitGlobals)
 		return;
-	std::string buffer;
+	std::vector<uchar> buffer;
 	variables_map_T::iterator i=this->variables.find(200);
 	if (i==this->variables.end())
 		i--;
@@ -940,7 +940,7 @@ void NONS_VariableStore::saveData(){
 		}
 	}
 	size_t l;
-	char *writebuffer=compressBuffer_BZ2((char *)buffer.c_str(),buffer.size(),&l);
+	uchar *writebuffer=compressBuffer_BZ2(&buffer[0],buffer.size(),l);
 	std::wstring dir=save_directory+L"global.sav";
 	NONS_File::write(dir.c_str(),writebuffer,l);
 	delete[] writebuffer;

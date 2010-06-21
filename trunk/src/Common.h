@@ -33,11 +33,21 @@ typedef unsigned long ulong;
 typedef unsigned short ushort;
 typedef unsigned char uchar;
 
+#ifndef NONS_SYS_WINDOWS
 #define NONS_SYS_WINDOWS (defined _WIN32 || defined _WIN64)
+#endif
+#ifndef NONS_SYS_LINUX
 #define NONS_SYS_LINUX (defined linux || defined __linux)
+#endif
+#ifndef NONS_SYS_BSD
 #define NONS_SYS_BSD (defined __bsdi__)
+#endif
+#ifndef NONS_SYS_UNIX
 #define NONS_SYS_UNIX (defined __unix__ || defined __unix)
+#endif
+#ifndef NONS_SYS_PSP
 #define NONS_SYS_PSP (defined PSP)
+#endif
 
 #if NONS_SYS_WINDOWS
 typedef void *HANDLE;
