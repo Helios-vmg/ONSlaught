@@ -1095,6 +1095,10 @@ void decode_video(void *p){
 #include "../C_play_video.cpp"
 
 namespace protocol{
+	int read(void *p,uint8_t *dst,int count){
+		file_protocol *fp=(file_protocol *)p;
+		return fp->read(fp->data,dst,count);
+	}
 	int64_t seek(void *p,int64_t pos,int whence){
 		file_protocol *fp=(file_protocol *)p;
 		if (!fp)
@@ -1113,17 +1117,7 @@ namespace protocol{
 				whence=2;
 				break;
 		}
-		return fp->seek(fp,pos,whence);
-	}
-};
-
-struct auto_protocol{
-	file_protocol &fp;
-	auto_protocol(file_protocol &fp,const char *s):fp(fp){
-		fp.open(&fp,s);
-	}
-	~auto_protocol(){
-		fp.close(&fp);
+		return fp->seek(fp->data,pos,whence);
 	}
 };
 
@@ -1163,20 +1157,19 @@ play_video_SIGNATURE{
 
 	ByteIOContext bioc;
 	std::vector<uchar> io_buffer(4096+FF_INPUT_BUFFER_PADDING_SIZE);
-	init_put_byte(&bioc,&io_buffer[0],io_buffer.size(),0,&fp,fp.read,0,protocol::seek);
+	init_put_byte(&bioc,&io_buffer[0],io_buffer.size(),0,&fp,protocol::read,0,protocol::seek);
 
 	AVInputFormat *aif;
-	auto_protocol ap(fp,input);
 	{
 		AVProbeData pd;
 		pd.filename=input;
 		std::vector<uchar> temp(pd.buf_size=1<<12);
 		pd.buf=&temp[0];
-		fp.read(&fp,pd.buf,temp.size());
+		fp.read(fp.data,pd.buf,temp.size());
 		aif=av_probe_input_format(&pd,1);
 	}
 	
-	fp.seek(&fp,0,1);
+	fp.seek(fp.data,0,1);
 	if (av_open_input_stream(&avfc,&bioc,input,aif,0)!=0){
 		exception_string="File not found.";
 		return 0;

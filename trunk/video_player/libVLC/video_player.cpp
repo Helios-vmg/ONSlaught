@@ -401,6 +401,8 @@ play_video_SIGNATURE{
 
 	libvlc_exception_t ex;
 	libvlc_exception_init(&ex);
+	//reset stream before trying to open again
+	fp.seek(fp.data,0,1);
 	libvlc_instance_t *libvlc=libvlc_new(vlc_argv.size(),&vlc_argv[0],&ex);
 	CATCH;
 	libvlc_media_t *m=libvlc_media_new(libvlc,vlc_argv.back(),&ex);
