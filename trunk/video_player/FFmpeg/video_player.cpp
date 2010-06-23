@@ -625,30 +625,34 @@ private:
 		((AudioOutput *)p)->running_thread();
 	}
 	void running_thread(){
-		if (this->expect_buffers)
+		if (this->expect_buffers){
 			while (this->incoming_queue->is_empty());
-		for (ulong a=0;a<this->n;a++){
-			this->current=a;
-			ulong t;
-			fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
-			alBufferData(
-				this->ALbuffers[this->current],
-				this->format,
-				this->buffers[this->current],
-				this->buffers_size*sizeof(int16_t),
-				this->frequency
-			);
-			alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
+			for (ulong a=0;a<this->n;a++){
+				this->current=a;
+				ulong t;
+				fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
+				alBufferData(
+					this->ALbuffers[this->current],
+					this->format,
+					this->buffers[this->current],
+					this->buffers_size*sizeof(int16_t),
+					this->frequency
+				);
+				alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
+			}
+			this->current=0;
 		}
-		this->current=0;
 
 		real_start_time=start_time=SDL_GetTicks();
-		this->play();
+		if (this->expect_buffers)
+			this->play();
 		while (!this->stop_thread){
 			SDL_Delay(10);
 			ulong now=SDL_GetTicks();
 			global_time=now-start_time;
 			real_global_time=now-real_start_time;
+			if (!this->expect_buffers)
+				continue;
 			ALint buffers_finished=0,
 				queued;
 			alGetSourcei(this->source,AL_BUFFERS_PROCESSED,&buffers_finished);
@@ -940,6 +944,9 @@ void decode_audio(void *p){
 	static int16_t audioOutputBuffer[output_s];
 
 	TSqueue<audioBuffer> *queue=params.output->startThread();
+
+	if (!params.audioCC)
+		return;
 
 	params.audioCC->get_buffer=this_player::get_buffer;
 	params.audioCC->release_buffer=this_player::release_buffer;
@@ -1285,6 +1292,8 @@ play_video_SIGNATURE{
 		stop_playback=1;
 		audio_decoder.join();
 		video_decoder.join();
+		if (!useAudio)
+			output.stopThread(0);
 		output.wait_until_stop();
 	}
 	return 1;
