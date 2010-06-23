@@ -31,9 +31,10 @@
 #include <sstream>
 #include <map>
 #include <climits>
+#include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/fstream.hpp>
 #include "Unicode.h"
+#include "File.h"
 
 typedef boost::filesystem::wpath Path;
 
@@ -86,6 +87,7 @@ public:
 		this->root.is_dir=1;
 		this->root.skip=1;
 	}
+	virtual ~Archive(){}
 	void add(const std::wstring &path,bool skip);
 	virtual void write()=0;
 	virtual void write(const Path &src,const std::wstring &dst,bool dir)=0;
@@ -107,7 +109,7 @@ inline void writeByte(void *_src,ulong src,size_t &offset){
 	((uchar *)_src)[offset++]=(uchar)src;
 }
 ulong readByte(void *src,size_t &offset);
-void writeLittleEndian(size_t size,std::string &dst,ulong src,size_t offset=ULONG_MAX);
+void writeLittleEndian(size_t size,std::string &dst,Uint64 src,size_t offset=ULONG_MAX);
 void writeLittleEndian(size_t size,void *_src,ulong src,size_t &offset);
 void writeBigEndian(size_t size,std::string &dst,ulong src,size_t offset=ULONG_MAX);
 void writeBigEndian(size_t size,void *_src,ulong src,size_t &offset);

@@ -39,7 +39,7 @@ ulong readByte(void *src,size_t &offset){
 	return ((uchar *)src)[offset++];
 }
 
-void writeLittleEndian(size_t size,std::string &dst,ulong src,size_t offset){
+void writeLittleEndian(size_t size,std::string &dst,Uint64 src,size_t offset){
 	if (offset==ULONG_MAX)
 		offset=dst.size();
 	if (offset+size>=dst.size())

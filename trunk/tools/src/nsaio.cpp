@@ -29,24 +29,25 @@
 #include <cstring>
 #include <cmath>
 #include "Archive.h"
+//#include "DataStreams.h"
+#include <zlib.h>
 #include <bzlib.h>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/bind.hpp>
-#include <boost/thread.hpp>
+#include <boost/filesystem/operations.hpp>
 
 #define NONS_SYS_WINDOWS (defined _WIN32 || defined _WIN64)
 #define NONS_SYS_UNIX (defined __unix__ || defined __unix)
-
-typedef boost::filesystem::ifstream InputFile;
-typedef boost::filesystem::ofstream OutputFile;
 
 #define COMPRESSION_NONE	0
 #define COMPRESSION_SPB		1
 #define COMPRESSION_LZSS	2
 #define COMPRESSION_BZ2		4
-#define COMPRESSION_AUTO	-1
-#define COMPRESSION_AUTO_MT	(COMPRESSION_AUTO-1)
-#define COMPRESSION_DEFAULT	COMPRESSION_AUTO_MT
+#define COMPRESSION_DEFLATE	5
+#define COMPRESSION_AUTOH	-1
+#define COMPRESSION_AUTOL	-2
+#define COMPRESSION_DEFAULT	COMPRESSION_AUTOL
+
+template <typename T> inline void zero_structure(T &s){ memset(&s,0,sizeof(s)); }
 
 struct Options{
 	bool good;
@@ -55,12 +56,13 @@ struct Options{
 	ulong compressionType;
 	std::vector<std::pair<std::wstring,bool> > inputFilenames;
 	Options(char **argv){
-		static std::pair<std::wstring,ulong> compressions[]={
+		static std::pair<const wchar_t *,ulong> compressions[]={
 			std::make_pair(L"none",COMPRESSION_NONE),
-			std::make_pair(L"lzss",COMPRESSION_LZSS),
 			std::make_pair(L"bz2",COMPRESSION_BZ2),
-			std::make_pair(L"auto",COMPRESSION_AUTO),
-			std::make_pair(L"automt",COMPRESSION_AUTO_MT)
+			std::make_pair(L"deflate",COMPRESSION_DEFLATE),
+			std::make_pair(L"autoh",COMPRESSION_AUTOH),
+			std::make_pair(L"autol",COMPRESSION_AUTOL),
+			std::make_pair((const wchar_t *)0,0)
 		};
 		static const char *options[]={
 			"-h",
@@ -127,16 +129,15 @@ struct Options{
 						nextIsOutput=0;
 					}else if (nextIsCompression){
 						std::wstring s=UniFromUTF8(*argv);
-						for (ulong a=0,b=4;b;a++,b--){
+						bool b=0;
+						for (ulong a=0;compressions[a].first && !b;a++){
 							if (s==compressions[a].first){
 								this->compressionType=compressions[a].second;
-								break;
-							}
-							if (b==1){
-								std::cerr <<"Unrecognized compression mode."<<std::endl;
-								return;
+								b=1;
 							}
 						}
+						if (!b)
+							std::cerr <<"Unrecognized compression mode."<<std::endl;
 						nextIsCompression=0;
 					}else{
 						this->inputFilenames.push_back(std::make_pair(UniFromUTF8(*argv),nextIsSkip));
@@ -204,45 +205,8 @@ char *compressBuffer_BZ2(void *src,size_t srcl,size_t &dstl){
 	return dst;
 }
 
-uchar *readfile(const std::wstring &name,ulong &len){
-	InputFile file(name,std::ios::binary|std::ios::ate);
-	if (!file)
-		return 0;
-	ulong pos=file.tellg();
-	len=pos;
-	file.seekg(0,std::ios::beg);
-	uchar *buffer=new uchar[pos];
-	file.read((char *)buffer,pos);
-	file.close();
-	return buffer;
-}
-
-uchar *readfile(InputFile &file,ulong &len,ulong offset){
-	if (!file)
-		return 0;
-	ulong originalPosition=file.tellg();
-	file.seekg(0,std::ios::end);
-	ulong size=file.tellg();
-	file.seekg(offset,std::ios::beg);
-	size=size-offset>=len?len:size-offset;
-	len=size;
-	uchar *buffer=new uchar[size];
-	file.read((char *)buffer,size);
-	file.seekg(originalPosition,std::ios::beg);
-	return buffer;
-}
-
-char writefile(const std::wstring &name,char *buffer,ulong size){
-	boost::filesystem::ofstream file(name,std::ios::binary);
-	if (!file)
-		return 1;
-	file.write(buffer,size);
-	file.close();
-	return 0;
-}
-
 struct sarExtra{
-	ulong offset,
+	size_t offset,
 		compression,
 		compressed_length,
 		uncompressed_length;
@@ -254,7 +218,7 @@ struct sarExtra{
 };
 
 class sarArchive:public Archive<sarExtra>{
-	InputFile file;
+	File file;
 	Path file_source;
 	bool constructed_for_extracting;
 	ulong total,
@@ -275,11 +239,13 @@ sarArchive::sarArchive(const std::wstring &filename,bool nsa){
 	this->good=0;
 	this->constructed_for_extracting=1;
 	this->file_source=boost::filesystem::complete(filename);
-	this->file.open(this->file_source,std::ios::binary);
+	this->file.open(this->file_source.string(),1);
 	if (!this->file)
 		return;
-	ulong l=6;
-	char *buffer=(char *)readfile(this->file,l,0);
+	size_t l=6;
+	uchar *buffer=this->file.read(l,l,0);
+	if (!buffer)
+		return;
 	if (l<6){
 		delete[] buffer;
 		return;
@@ -289,7 +255,7 @@ sarArchive::sarArchive(const std::wstring &filename,bool nsa){
 		file_data_start=readBigEndian(4,buffer,offset);
 	delete[] buffer;
 	l=file_data_start-offset;
-	buffer=(char *)readfile(this->file,l,offset);
+	buffer=this->file.read(l,l,0);
 	if (l<file_data_start-offset){
 		delete[] buffer;
 		return;
@@ -298,7 +264,7 @@ sarArchive::sarArchive(const std::wstring &filename,bool nsa){
 	for (ulong a=0;a<n;a++){
 		TreeNode<sarExtra> *new_node;
 		{
-			std::string path=buffer+offset;
+			std::string path=(char *)(buffer+offset);
 			offset+=path.size()+1;
 			new_node=this->root.get_branch(UniFromSJIS(path),1);
 		}
@@ -317,6 +283,11 @@ sarArchive::sarArchive(const std::wstring &filename,bool nsa){
 	this->good=1;
 }
 
+//LZSS compression is discontinued. This implementation is only kept for
+//future reference.
+static const ulong NN=8,
+	MAXS=4;
+#if 0
 void writeBits(uchar *buffer,ulong *byteOffset,ulong *bitOffset,ulong data,ushort s){
 	ulong byteo=*byteOffset,
 		bito=*bitOffset;
@@ -331,10 +302,6 @@ void writeBits(uchar *buffer,ulong *byteOffset,ulong *bitOffset,ulong data,ushor
 	byteo+=bito/8;
 	*byteOffset=byteo;
 }
-
-//Default:
-const ulong NN=8,
-	MAXS=4;
 
 ulong compare(void *current,void *test,ulong max){
 	uchar *A=(uchar *)current,
@@ -398,7 +365,7 @@ char *encode_LZSS(void *src,size_t srcl,size_t &dstl){
 			ulong &element=tree[buffer[a]][b];
 			//Is element outside of the sliding window?
 			if (a>=window_size && element<a-window_size){
-				//It is. Increment starts and try again
+				//It is. Increment starts and try again.
 				starts[buffer[a]]++;
 				continue;
 			}
@@ -449,20 +416,246 @@ char *encode_LZSS(void *src,size_t srcl,size_t &dstl){
 	dstl=byte;
 	return (char *)res;
 }
+#endif
 
 struct sarArchiveWrite_param{
-	OutputFile &file;
+	File *file;
 	std::string buffer;
 	ulong step,
 		total,
 		progress;
 	std::vector<ulong> compression_offsets;
 	ulong compression_used;
-	sarArchiveWrite_param(OutputFile &f):file(f),step(0),compression_used(COMPRESSION_DEFAULT){}
+	sarArchiveWrite_param(File *f):file(f),step(0),compression_used(COMPRESSION_DEFAULT){}
 };
 
 void compression_helper(char *(*f)(void *,size_t,size_t &),char **r,void *a,size_t b,size_t *c){
 	*r=f(a,b,*c);
+}
+
+ulong figure_out_compression(std::string extension,Uint64 filesize,long compression){
+	if (compression>=COMPRESSION_NONE || !filesize)
+		return compression;
+	size_t dot=extension.rfind('.');
+	if (dot!=extension.npos)
+		extension=extension.substr(dot+1);
+	else
+		extension.clear();
+	tolower(extension);
+	//files with these extensions will not be compressed
+	static const char *compressed_types[]={
+		"gif","jpeg","jpg","tga","tif","tiff","svgz",
+		"ogg","mp3","it","xm","s3m","mod","aiff","flac","669","med","voc","mka",
+		"mkv","avi","mpeg","mpg","mp4","flv",
+		0
+	};
+	for (const char **p=compressed_types;*p;p++)
+		if (extension==*p)
+			return COMPRESSION_NONE;
+	return (compression==COMPRESSION_AUTOH)?COMPRESSION_BZ2:COMPRESSION_DEFLATE;
+}
+
+namespace compression{
+	struct base_in_decompression{
+		in_func f;
+		uchar *in_buffer;
+		size_t remaining;
+		Uint64 processed;
+		base_in_decompression():in_buffer(0),processed(0),f(0){}
+		virtual ~base_in_decompression(){}
+		virtual bool eof()=0;
+	};
+	struct base_out_decompression{
+		static const ulong bits=15,
+			size=1<<bits;
+		out_func f;
+		std::vector<uchar> out;
+		Uint64 processed;
+		base_out_decompression():out(size),processed(0),f(0){}
+		virtual ~base_out_decompression(){}
+	};
+	struct decompress_from_file:public base_in_decompression{
+		File *file;
+		Uint64 offset;
+		std::vector<uchar> in;
+		decompress_from_file():base_in_decompression(),offset(0){
+			this->f=in_func;
+		}
+		virtual bool eof(){
+			return this->offset==this->file->filesize();
+		}
+		static unsigned in_func(void *p,unsigned char **buffer){
+			decompress_from_file *_this=(decompress_from_file *)p;
+			size_t l=1<<12;
+			_this->in.resize(l);
+			_this->file->read(&_this->in[0],l,l,_this->offset);
+			_this->in.resize(l);
+			if (!l){
+				_this->in_buffer=0;
+				if (buffer)
+					*buffer=0;
+				_this->remaining=0;
+				return 0;
+			}
+			_this->in_buffer=&_this->in[0];
+			if (buffer)
+				*buffer=_this->in_buffer;
+			_this->remaining=l;
+			_this->offset+=l;
+			_this->processed+=l;
+			return l;
+		}
+	};
+	struct decompress_to_file:public base_out_decompression{
+		File *file;
+		decompress_to_file():base_out_decompression(){
+			this->f=out_func;
+		}
+		static int out_func(void *p,unsigned char *buffer,unsigned size){
+			((decompress_to_file *)p)->file->write(buffer,size);
+			((decompress_to_file *)p)->processed+=size;
+			return 0;
+		}
+	};
+	bool simple_copy(base_out_decompression *dst,base_in_decompression *src){
+		in_func in=src->f;
+		out_func out=dst->f;
+		while (1){
+			unsigned a=in(src,0);
+			if (!a)
+				break;
+			out(dst,src->in_buffer,a);
+		}
+		return 1;
+	}
+	bool DecompressBZ2(base_out_decompression *dst,base_in_decompression *src){
+		bz_stream stream;
+		zero_structure(stream);
+
+		stream.next_in=0;
+		stream.avail_in=0;
+		stream.next_out=(char *)&dst->out[0];
+		stream.avail_out=dst->size;
+		if (BZ2_bzDecompressInit(&stream,0,0)!=BZ_OK)
+			return 0;
+		int res;
+		in_func in=src->f;
+		out_func out=dst->f;
+		while ((res=BZ2_bzDecompress(&stream))==BZ_OK){
+			if (!stream.avail_out){
+				out(dst,&dst->out[0],dst->size);
+				stream.next_out=(char *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+			if (!stream.avail_in && !(stream.avail_in=in(src,(uchar **)&stream.next_in))){
+				while (1){
+					BZ2_bzDecompress(&stream);
+					if (stream.avail_out<dst->size){
+						out(dst,&dst->out[0],dst->size);
+						stream.next_out=(char *)&dst->out[0];
+						stream.avail_out=dst->size;
+					}else
+						break;
+				}
+				break;
+			}
+		}
+		bool ret=1;
+		if (res!=BZ_STREAM_END)
+			ret=0;
+		else if (stream.avail_out<dst->size)
+			out(dst,&dst->out[0],dst->size-stream.avail_out);
+		BZ2_bzDecompress(&stream);
+		return ret;
+	}
+	bool CompressBZ2(base_out_decompression *dst,base_in_decompression *src){
+		bz_stream stream;
+		zero_structure(stream);
+
+		in_func in=src->f;
+		out_func out=dst->f;
+		stream.avail_in=in(src,(uchar **)&stream.next_in);
+		stream.next_out=(char *)&dst->out[0];
+		stream.avail_out=dst->size;
+		if (BZ2_bzCompressInit(&stream,4,0,0)!=BZ_OK)
+			return 0;
+		int res;
+		int action=BZ_RUN;
+		while (1){
+			res=BZ2_bzCompress(&stream,action);
+			if (res!=BZ_OK && res!=BZ_RUN_OK && res!=BZ_FINISH_OK)
+				break;
+			if (!stream.avail_out){
+				out(dst,&dst->out[0],dst->size);
+				stream.next_out=(char *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+			if (!stream.avail_in)
+				if (!(stream.avail_in=in(src,(uchar **)&stream.next_in)))
+					action=BZ_FINISH;
+		}
+		bool ret=1;
+		if (res!=BZ_STREAM_END)
+			ret=0;
+		else if (stream.avail_out<dst->size)
+			out(dst,&dst->out[0],dst->size-stream.avail_out);
+		BZ2_bzCompressEnd(&stream);
+		return ret;
+	}
+	bool DecompressDEFLATE(base_out_decompression *dst,base_in_decompression *src){
+		z_stream stream;
+		zero_structure(stream);
+
+		if (inflateBackInit(&stream,dst->bits,&dst->out[0])!=Z_OK)
+			return 0;
+		int res=inflateBack(
+			&stream,
+			src->f,
+			src,
+			dst->f,
+			dst
+		);
+		inflateBackEnd(&stream);
+		return res==Z_STREAM_END;
+	}
+	bool CompressDEFLATE(base_out_decompression *dst,base_in_decompression *src){
+		z_stream stream;
+		zero_structure(stream);
+
+		if (deflateInit2(&stream,9,Z_DEFLATED,-15,9,Z_DEFAULT_STRATEGY)!=Z_OK)
+			return 0;
+		in_func in=src->f;
+		out_func out=dst->f;
+		stream.avail_in=in(src,(uchar **)&stream.next_in);
+		stream.next_out=(Bytef *)&dst->out[0];
+		stream.avail_out=dst->size;
+		int res,
+			flush=Z_NO_FLUSH;
+		while ((res=deflate(&stream,flush))==Z_OK){
+			if (!stream.avail_out){
+				out(dst,&dst->out[0],dst->size);
+				stream.next_out=(Bytef *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+			if (!stream.avail_in)
+				stream.avail_in=in(src,(uchar **)&stream.next_in);
+			if (src->eof())
+				flush=Z_FINISH;
+		}
+		bool ret=1;
+		if (res<0)
+			ret=0;
+		else{
+			if (stream.avail_out<dst->size){
+				out(dst,&dst->out[0],dst->size-stream.avail_out);
+				stream.next_out=(Bytef *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+		}
+		deflateEnd(&stream);
+		return ret;
+	}
+	typedef bool (*compression_f)(base_out_decompression *,base_in_decompression *);
 }
 
 void sarArchiveWrite(const std::wstring &ex_path,const std::wstring &in_path,bool is_dir,const sarExtra &extraData,sarArchiveWrite_param &params){
@@ -482,94 +675,57 @@ void sarArchiveWrite(const std::wstring &ex_path,const std::wstring &in_path,boo
 		writeBigEndian(4,params.buffer,0);
 	}else{
 		(std::cout <<'(').width(2);
-		std::cout <<(params.progress++*100/params.total)<<"%) "<<UniToUTF8(in_path)<<"..."<<std::endl;
-		ulong raw_l;
-		char *raw=(char *)readfile(ex_path,raw_l);
-		ulong compression=(raw_l)?params.compression_used:COMPRESSION_NONE;
-		size_t compressed_l;
-		char *compressed;
-		switch (compression){
-			case COMPRESSION_NONE:
-				compressed=raw;
-				compressed_l=raw_l;
-				break;
-			case COMPRESSION_LZSS:
-				compressed=(char *)encode_LZSS(raw,raw_l,compressed_l);
-				delete[] raw;
-				break;
-			case COMPRESSION_BZ2:
-				compressed=compressBuffer_BZ2(raw,raw_l,compressed_l);
-				delete[] raw;
-				raw=new char[compressed_l+4];
-				{
-					std::string temp;
-					writeBigEndian(4,temp,raw_l);
-					memcpy(raw,&temp[0],4);
-				}
-				memcpy(raw+4,compressed,compressed_l);
-				delete[] compressed;
-				compressed=raw;
-				compressed_l+=4;
-				break;
-			case COMPRESSION_AUTO:
-			case COMPRESSION_AUTO_MT:
-				{
-					size_t lzss=raw_l,
-						bz2=raw_l;
-					char *bz2_buffer,
-						*lzss_buffer;
-					if (compression==COMPRESSION_AUTO_MT){
-						boost::thread thread(boost::bind(compression_helper,compressBuffer_BZ2,&bz2_buffer,raw,raw_l,&bz2));
-						lzss_buffer=encode_LZSS(raw,raw_l,lzss);
-						thread.join();
-						{
-							char *temp=new char[bz2+4];
-							size_t temp2=0;
-							writeBigEndian(4,temp,raw_l,temp2);
-							memcpy(temp+4,bz2_buffer,bz2);
-							delete[] bz2_buffer;
-							bz2_buffer=temp;
-							bz2+=4;
-						}
-					}else{
-						bz2_buffer=compressBuffer_BZ2(raw,raw_l,bz2);
-						lzss_buffer=encode_LZSS(raw,raw_l,lzss);
+		std::cout <<(params.progress++*100/params.total)<<"%) "<<UniToUTF8(in_path)<<"...\n";
+		File file(ex_path,1);
+		if (file.filesize()>0xFFFFFFFF)
+			std::cerr <<UniToUTF8(in_path)<<" is too large and cannot be contained by the archive format. Skipping.\n";
+		else{
+			size_t raw_l=(size_t)file.filesize();
+			ulong compression=figure_out_compression(UniToUTF8(ex_path),file.filesize(),params.compression_used);
+			
+			compression::decompress_from_file dff;
+			compression::decompress_to_file dtf;
+			dff.file=&file;
+			dtf.file=params.file;
+			compression::compression_f f;
+
+			size_t size_before_compression=(size_t)params.file->filesize();
+
+			switch (compression){
+				case COMPRESSION_NONE:
+					f=compression::simple_copy;
+					break;
+				case COMPRESSION_BZ2:
+					f=compression::CompressBZ2;
+					{
+						std::string temp;
+						writeBigEndian(4,temp,(ulong)file.filesize());
+						file.write(&temp[0],temp.size());
 					}
-					if (raw_l<=lzss && raw_l<=bz2){
-						compressed=raw;
-						compressed_l=raw_l;
-						delete[] lzss_buffer;
-						delete[] bz2_buffer;
-						compression=COMPRESSION_NONE;
-					}else{
-						delete[] raw;
-						if (lzss<raw_l && lzss<=bz2){
-							compressed=lzss_buffer;
-							compressed_l=lzss;
-							delete[] bz2_buffer;
-							compression=COMPRESSION_LZSS;
-						}else{
-							compressed=bz2_buffer;
-							compressed_l=bz2;
-							delete[] lzss_buffer;
-							compression=COMPRESSION_BZ2;
-						}
-					}
-				}
+					break;
+				case COMPRESSION_DEFLATE:
+					f=compression::CompressDEFLATE;
+					break;
+			}
+			f(&dtf,&dff);
+
+			file.close();
+
+			ulong offset=params.compression_offsets[params.step++-1];
+			params.buffer[offset]=(char)compression;
+			offset+=1;
+			writeBigEndian(4,params.buffer,size_before_compression-params.buffer.size(),offset);
+			offset+=4;
+			writeBigEndian(4,params.buffer,(size_t)dtf.processed,offset);
+			offset+=4;
+			writeBigEndian(4,params.buffer,(size_t)dff.processed,offset);
 		}
-		ulong offset=params.compression_offsets[params.step++-1];
-		params.buffer[offset]=(char)compression;
-		writeBigEndian(4,params.buffer,size_t(params.file.tellp())-params.buffer.size(),offset+1);
-		writeBigEndian(4,params.buffer,compressed_l,offset+5);
-		writeBigEndian(4,params.buffer,raw_l,offset+9);
-		params.file.write(compressed,compressed_l);
-		delete[] compressed;
 	}
 }
 
 void sarArchive::write(const std::wstring &outputFilename,ulong compression){
-	OutputFile file(outputFilename.size()?outputFilename:L"output.nsa",std::ios::binary);
-	sarArchiveWrite_param params(file);
+	File file(outputFilename,0);
+	sarArchiveWrite_param params(&file);
 	params.total=this->root.count(0);
 	params.progress=0;
 	params.compression_used=compression;
@@ -580,8 +736,7 @@ void sarArchive::write(const std::wstring &outputFilename,ulong compression){
 	file.write(&params.buffer[0],params.buffer.size());
 	params.step++;
 	this->root.foreach<sarArchiveWrite_param,sarArchiveWrite>(L"",L"",params);
-	file.seekp(0);
-	file.write(&params.buffer[0],params.buffer.size());
+	file.write(&params.buffer[0],params.buffer.size(),0);
 	std::cout <<"Done."<<std::endl;
 }
 
@@ -592,12 +747,15 @@ void listSARfunction(const std::wstring &ex_path,const std::wstring &in_path,boo
 		"LZSS",
 		0,
 		"BZ2",
+		"DEFLATE",
 	};
 	if (!is_dir)
-		std::cout <<UniToUTF8(in_path)<<std::endl
-			<<"\tCompressed:   "<<humanReadableSize(extraData.compressed_length)<<std::endl
-			<<"\tUncompressed: "<<humanReadableSize(extraData.uncompressed_length)<<std::endl
-			<<'\t'<<methods[extraData.compression]<<" compression."<<std::endl;
+		std::cout <<UniToUTF8(in_path)<<"\n"
+			"\tCompressed:   "<<humanReadableSize(extraData.compressed_length)<<"\n"
+			"\tUncompressed: "<<humanReadableSize(extraData.uncompressed_length)
+				<<"\tCompression ratio:"
+				<<double(extraData.compressed_length)/double(extraData.uncompressed_length)*100.0<<"%\n"
+			"\t"<<methods[extraData.compression]<<" compression."<<std::endl;
 }
 
 void sumSizes(const std::wstring &ex_path,const std::wstring &in_path,bool is_dir,const sarExtra &extraData,ulong *&sizes){
@@ -776,31 +934,9 @@ char *decode_LZSS2(char *buffer,ulong compressedSize,ulong decompressedSize){
 	return (char *)res;
 }
 
-char *decompressBuffer_BZ2(char *src,unsigned long srcl,unsigned long &dstl){
-	unsigned long l=dstl,realsize=l;
-	char *dst=new char[l];
-	while (BZ2_bzBuffToBuffDecompress(dst,(unsigned int *)&l,src,srcl,1,0)==BZ_OUTBUFF_FULL){
-		delete[] dst;
-		l*=2;
-		realsize=l;
-		dst=new char[l];
-	}
-	if (l!=realsize){
-		char *temp=new char[l];
-		memcpy(temp,dst,l);
-		delete[] dst;
-		dst=temp;
-	}
-	dstl=l;
-	return dst;
-}
-
 static uchar *decompress(uchar *src,ulong srcl,ulong dstl,ulong method){
 	uchar *ret;
 	switch (method){
-		case COMPRESSION_NONE:
-			ret=src;
-			break;
 		case COMPRESSION_SPB:
 			ret=(uchar *)decode_SPB((char *)src,srcl,dstl);
 			delete[] src;
@@ -809,17 +945,13 @@ static uchar *decompress(uchar *src,ulong srcl,ulong dstl,ulong method){
 			ret=(uchar *)decode_LZSS((char *)src,srcl,dstl);
 			delete[] src;
 			break;
-		case COMPRESSION_BZ2:
-			ret=(uchar *)decompressBuffer_BZ2((char *)src+4,srcl,dstl);
-			delete[] src;
-			break;
 	}
 	return ret;
 }
 
 struct extractSARfunction_param{
 	Path working_dir;
-	InputFile &file;
+	File *file;
 };
 
 void extractSARfunction(const std::wstring &ex_path,const std::wstring &in_path,bool is_dir,const sarExtra &extraData,extractSARfunction_param &params){
@@ -829,14 +961,36 @@ void extractSARfunction(const std::wstring &ex_path,const std::wstring &in_path,
 	if (is_dir)
 		boost::filesystem::create_directory(working_dir);
 	else{
-		ulong l=extraData.compressed_length;
-		uchar *buffer=readfile(params.file,l,extraData.offset);
-		if (extraData.compression==COMPRESSION_SPB)
-			std::cout <<"\tSPB"<<std::endl;
-		buffer=decompress(buffer,extraData.compressed_length,extraData.uncompressed_length,extraData.compression);
-		OutputFile file(working_dir,std::ios::binary);
-		file.write((char *)buffer,extraData.uncompressed_length);
-		delete[] buffer;
+		if (extraData.compression==COMPRESSION_SPB || extraData.compression==COMPRESSION_LZSS){
+			size_t l=extraData.compressed_length;
+			uchar *buffer=params.file->read(l,l,extraData.offset);
+			if (extraData.compression==COMPRESSION_SPB)
+				std::cout <<"\tSPB\n";
+			buffer=decompress(buffer,extraData.compressed_length,extraData.uncompressed_length,extraData.compression);
+			File::write(working_dir.string(),buffer,extraData.uncompressed_length);
+			delete[] buffer;
+		}else{
+			File file(working_dir.string(),0);
+			compression::decompress_from_file dff;
+			compression::decompress_to_file dtf;
+			dff.file=params.file;
+			dff.offset=extraData.offset;
+			dtf.file=&file;
+			compression::compression_f f;
+			switch (extraData.compression){
+				case COMPRESSION_NONE:
+					f=compression::simple_copy;
+					break;
+				case COMPRESSION_BZ2:
+					f=compression::DecompressBZ2;
+					break;
+				case COMPRESSION_DEFLATE:
+					f=compression::DecompressDEFLATE;
+					break;
+			}
+			if (!f(&dtf,&dff))
+				std::cout <<"\tFAILED!\n";
+		}
 	}
 }
 
@@ -845,7 +999,7 @@ void sarArchive::extract(const std::wstring &outputFilename){
 		return;
 	extractSARfunction_param params={
 		boost::filesystem::initial_path<Path>(),
-		this->file
+		&this->file
 	};
 	if (!outputFilename.size()){
 		std::wstring temp=this->file_source.leaf();
@@ -861,7 +1015,7 @@ void sarArchive::extract(const std::wstring &outputFilename){
 }
 
 void version(){
-	std::cout <<"nsaio v0.99\n\n"
+	std::cout <<"nsaio v1.1\n\n"
 		"Copyright (c) 2008-2010, Helios (helios.vmg@gmail.com)\n"
 		"All rights reserved.\n\n";
 }
@@ -913,7 +1067,7 @@ int main(int argc,char **argv){
 			version();
 			break;
 		case 'e':
-			if (options.inputFilenames.size()>1){
+			if (options.inputFilenames.size()<1){
 				std::cerr <<"No input files."<<std::endl;
 				return 1;
 			}

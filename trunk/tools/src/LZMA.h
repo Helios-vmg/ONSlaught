@@ -143,11 +143,12 @@ typedef int Bool;
 
 /* The following interfaces use first parameter as pointer to structure */
 
-typedef struct
+typedef struct ISeqInStream
 {
-  SRes (*Read)(void *p, void *buf, size_t *size);
+  SRes (*Read)(struct ISeqInStream *p, void *buf, size_t *size);
     /* if (input(*size) != 0 && output(*size) == 0) means end_of_stream.
        (output(*size) < input(*size)) is allowed */
+  void *user_data;
 } ISeqInStream;
 
 /* it can return SZ_ERROR_INPUT_EOF */
@@ -155,11 +156,12 @@ SRes SeqInStream_Read(ISeqInStream *stream, void *buf, size_t size);
 SRes SeqInStream_Read2(ISeqInStream *stream, void *buf, size_t size, SRes errorType);
 SRes SeqInStream_ReadByte(ISeqInStream *stream, Byte *buf);
 
-typedef struct
+typedef struct ISeqOutStream
 {
-  size_t (*Write)(void *p, const void *buf, size_t size);
+  size_t (*Write)(struct ISeqOutStream *p, const void *buf, size_t size);
     /* Returns: result - the number of actually written bytes.
        (result < size) means error */
+  void *user_data;
 } ISeqOutStream;
 
 typedef enum
@@ -241,6 +243,80 @@ typedef struct
 
 #define IAlloc_Alloc(p, size) (p)->Alloc((p), size)
 #define IAlloc_Free(p, a) (p)->Free((p), a)
+
+EXTERN_C_END
+
+#ifdef _WIN32
+#define USE_WINDOWS_FILE
+#endif
+
+#ifdef USE_WINDOWS_FILE
+#include <windows.h>
+#else
+#include <stdio.h>
+#endif
+
+EXTERN_C_BEGIN
+
+/* ---------- File ---------- */
+
+typedef struct
+{
+  #ifdef USE_WINDOWS_FILE
+  HANDLE handle;
+  #else
+  FILE *file;
+  #endif
+} CSzFile;
+
+void File_Construct(CSzFile *p);
+#if !defined(UNDER_CE) || !defined(USE_WINDOWS_FILE)
+WRes InFile_Open(CSzFile *p, const char *name);
+WRes OutFile_Open(CSzFile *p, const char *name);
+#endif
+#ifdef USE_WINDOWS_FILE
+WRes InFile_OpenW(CSzFile *p, const WCHAR *name);
+WRes OutFile_OpenW(CSzFile *p, const WCHAR *name);
+#endif
+WRes File_Close(CSzFile *p);
+
+/* reads max(*size, remain file's size) bytes */
+WRes File_Read(CSzFile *p, void *data, size_t *size);
+
+/* writes *size bytes */
+WRes File_Write(CSzFile *p, const void *data, size_t *size);
+
+WRes File_Seek(CSzFile *p, Int64 *pos, ESzSeek origin);
+WRes File_GetLength(CSzFile *p, UInt64 *length);
+
+
+/* ---------- FileInStream ---------- */
+
+typedef struct
+{
+  ISeqInStream s;
+  CSzFile file;
+} CFileSeqInStream;
+
+void FileSeqInStream_CreateVTable(CFileSeqInStream *p);
+
+
+typedef struct
+{
+  ISeekInStream s;
+  CSzFile file;
+} CFileInStream;
+
+void FileInStream_CreateVTable(CFileInStream *p);
+
+
+typedef struct
+{
+  ISeqOutStream s;
+  CSzFile file;
+} CFileOutStream;
+
+void FileOutStream_CreateVTable(CFileOutStream *p);
 
 EXTERN_C_END
 

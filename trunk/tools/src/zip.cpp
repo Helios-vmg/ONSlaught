@@ -26,11 +26,9 @@
 
 #include <iostream>
 #include <vector>
-#include <boost/cstdint.hpp>
+#include <zlib.h>
 #include <bzlib.h>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/bind.hpp>
-#include <boost/thread.hpp>
 #include "LZMA.h"
 #include "Archive.h"
 
@@ -38,27 +36,34 @@
 #define NONS_SYS_UNIX (defined __unix__ || defined __unix)
 
 #define COMPRESSION_NONE	0
+#define COMPRESSION_DEFLATE	8
 #define COMPRESSION_BZ2		12
 #define COMPRESSION_LZMA	14
-#define COMPRESSION_AUTO	-1
-#define COMPRESSION_AUTO_MT	(COMPRESSION_AUTO-1)
-#define COMPRESSION_DEFAULT	COMPRESSION_AUTO_MT
+#define COMPRESSION_AUTOH	-1
+#define COMPRESSION_AUTOM	-2
+#define COMPRESSION_AUTOL	-3
+#define COMPRESSION_DEFAULT	COMPRESSION_AUTOL
+
+template <typename T> inline void zero_structure(T &s){ memset(&s,0,sizeof(s)); }
+
+const Uint16 full16=0xFFFF;
+const Uint32 full31=0x7FFFFFFF;
+const Uint32 full32=0xFFFFFFFF;
 
 ulong parseSize(const std::string &s){
-	static const char *prefixes="kmg";
 	ulong multiplier=1;
 	switch (s[s.size()-1]){
 		case 'K':
 		case 'k':
-			multiplier=1024;
+			multiplier=1<<10;
 			break;
 		case 'M':
 		case 'm':
-			multiplier=1024*1024;
+			multiplier=1<<20;
 			break;
 		case 'G':
 		case 'g':
-			multiplier=1024*1024*1024;
+			multiplier=1<<30;
 			break;
 	}
 	std::stringstream stream(s);
@@ -75,12 +80,15 @@ struct Options{
 	boost::int32_t split;
 	std::vector<std::pair<std::wstring,bool> > inputFilenames;
 	Options(char **argv){
-		static std::pair<std::wstring,ulong> compressions[]={
+		static std::pair<const wchar_t *,ulong> compressions[]={
 			std::make_pair(L"none",COMPRESSION_NONE),
+			std::make_pair(L"deflate",COMPRESSION_DEFLATE),
 			std::make_pair(L"bz2",COMPRESSION_BZ2),
 			std::make_pair(L"lzma",COMPRESSION_LZMA),
-			std::make_pair(L"auto",COMPRESSION_AUTO),
-			std::make_pair(L"automt",COMPRESSION_AUTO_MT)
+			std::make_pair(L"autol",COMPRESSION_AUTOL),
+			std::make_pair(L"autom",COMPRESSION_AUTOM),
+			std::make_pair(L"autoh",COMPRESSION_AUTOH),
+			std::make_pair((const wchar_t *)0,0)
 		};
 		static const char *options[]={
 			"-h",
@@ -94,7 +102,7 @@ struct Options{
 			0
 		};
 		this->compressionType=COMPRESSION_DEFAULT;
-		this->split=2147483647; //2 GiB - 1 B
+		this->split=full31;
 		this->good=0;
 		if (!++argv)
 			return;
@@ -145,16 +153,15 @@ struct Options{
 						nextIsOutput=0;
 					}else if (nextIsCompression){
 						std::wstring s=UniFromUTF8(*argv);
-						for (ulong a=0,b=4;b;a++,b--){
+						bool b=0;
+						for (ulong a=0;compressions[a].first && !b;a++){
 							if (s==compressions[a].first){
 								this->compressionType=compressions[a].second;
-								break;
-							}
-							if (b==1){
-								std::cerr <<"Unrecognized compression mode."<<std::endl;
-								return;
+								b=1;
 							}
 						}
+						if (!b)
+							std::cerr <<"Unrecognized compression mode."<<std::endl;
 						nextIsCompression=0;
 					}else if (nextIsSplit){
 						this->split=parseSize(*argv);
@@ -229,83 +236,324 @@ boost::uint32_t CRC32::CRC32lookup[]={
 	0xB3667A2E,0xC4614AB8,0x5D681B02,0x2A6F2B94,0xB40BBE37,0xC30C8EA1,0x5A05DF1B,0x2D02EF8D
 };
 
-char *compressBuffer_BZ2(void *src,unsigned long srcl,unsigned long &dstl){
-	unsigned long l=srcl,
-		realsize=l;
-	char *dst=new char[l];
-	while (BZ2_bzBuffToBuffCompress(dst,(unsigned int *)&l,(char *)src,srcl,9,0,30)==BZ_OUTBUFF_FULL){
-		delete[] dst;
-		l*=2;
-		realsize=l;
-		dst=new char[l];
-	}
-	if (l!=realsize){
-		char *temp=new char[l];
-		memcpy(temp,dst,l);
-		delete[] dst;
-		dst=temp;
-	}
-	dstl=l;
-	return dst;
-}
-
-char *compressLZMA(void *src,ulong srcl,ulong &dstl){
-	size_t l=srcl,
-		realsize=l,
-		propsSize;
-	char *dst=new char[l];
-	uchar props[9]={0,0,5,0};
-	while (LzmaCompress((uchar *)dst,&l,(uchar *)src,srcl,props+4,&propsSize,5,0,0,0,0,0,2)==SZ_ERROR_OUTPUT_EOF){
-		delete[] dst;
-		l*=2;
-		realsize=l;
-		dst=new char[l];
-	}
-	{
-		char *temp=new char[9+l];
-		memcpy(temp,props,9);
-		memcpy(temp+9,dst,l);
-		delete[] dst;
-		dst=temp;
-	}
-	dstl=l+9;
-	return dst;
-}
-
 class ZipArchive:public Archive<char>{
 	std::vector<std::string> central_header;
-	boost::filesystem::ofstream output_file;
+	File *output_file;
 	ulong current_file;
-	void write_buffer(const char *buffer,size_t size);
-	ulong write_header(const std::string &buffer);
 	void go_to_next();
 	ulong total,
 		progress;
 public:
-	ulong split,
-		compression;
+	Uint64 split;
+	ulong compression;
 	std::wstring outputFilename;
 	ZipArchive():split(0x7FFFFFFF),compression(COMPRESSION_DEFAULT){}
-	~ZipArchive(){}
+	~ZipArchive(){
+		delete this->output_file;
+	}
 	void write();
 	void write(const Path &src,const std::wstring &dst,bool dir);
+	void write_buffer(const char *buffer,size_t size);
+	Uint64 write_header(const std::string &buffer);
+	std::wstring make_filename(ulong fileno){
+		std::wstring ret=this->outputFilename;
+		ret.append(L".z");
+		ret.append(itoa<wchar_t>(fileno+1,2));
+		return ret;
+	}
 };
+
+namespace compression{
+	struct base_in_decompression{
+		in_func f;
+		typedef SRes (*lzma_f)(ISeqInStream *,void *,size_t *);
+		lzma_f f2;
+		uchar *in_buffer;
+		size_t remaining;
+		Uint64 processed,
+			total_size;
+		CRC32 crc;
+		base_in_decompression():in_buffer(0),processed(0),f(0),f2(0),total_size(0){}
+		virtual ~base_in_decompression(){}
+		virtual bool eof()=0;
+		void process_crc(){
+			this->crc.Input(this->in_buffer,this->remaining);
+		}
+	};
+	struct base_out_decompression{
+		static const ulong bits=15,
+			size=1<<bits;
+		out_func f;
+		typedef size_t (*lzma_f)(ISeqOutStream *,const void *,size_t);
+		lzma_f f2;
+		std::vector<uchar> out;
+		Uint64 processed;
+		base_out_decompression():out(size),processed(0),f(0),f2(0){}
+		virtual ~base_out_decompression(){}
+	};
+	struct decompress_from_file:public base_in_decompression{
+		File *file;
+		Uint64 offset;
+		std::vector<uchar> in;
+		decompress_from_file():base_in_decompression(),offset(0){
+			this->f=in_func;
+			this->f2=in_func2;
+		}
+		virtual bool eof(){
+			return this->offset==this->file->filesize();
+		}
+		static unsigned in_func(void *p,unsigned char **buffer){
+			decompress_from_file *_this=(decompress_from_file *)p;
+			size_t l=1<<12;
+			_this->in.resize(l);
+			_this->file->read(&_this->in[0],l,l,_this->offset);
+			_this->in.resize(l);
+			if (!l){
+				_this->in_buffer=0;
+				if (buffer)
+					*buffer=0;
+				_this->remaining=0;
+				return 0;
+			}
+			_this->in_buffer=&_this->in[0];
+			if (buffer)
+				*buffer=_this->in_buffer;
+			_this->remaining=l;
+			_this->process_crc();
+			_this->offset+=l;
+			_this->processed+=l;
+			return l;
+		}
+		static SRes in_func2(ISeqInStream *p,void *buf,size_t *size){
+			decompress_from_file *_this=(decompress_from_file *)(p->user_data);
+			size_t l=*size;
+			_this->file->read(buf,l,l,_this->offset);
+			*size=_this->remaining=l;
+			_this->in_buffer=(uchar *)buf;
+			_this->process_crc();
+			_this->offset+=l;
+			_this->processed+=l;
+			return 0;
+		}
+	};
+	struct decompress_to_file:public base_out_decompression{
+		ZipArchive *file;
+		decompress_to_file():base_out_decompression(){
+			this->f=out_func;
+			this->f2=out_func2;
+		}
+		static int out_func(void *p,unsigned char *buffer,unsigned size){
+			decompress_to_file *_this=(decompress_to_file *)p;
+			_this->file->write_buffer((const char *)buffer,size);
+			_this->processed+=size;
+			return 0;
+		}
+		static size_t out_func2(ISeqOutStream *p,const void *buf,size_t size){
+			decompress_to_file *_this=(decompress_to_file *)(p->user_data);
+			_this->file->write_buffer((const char *)buf,size);
+			_this->processed+=size;
+			return size;
+		}
+	};
+	bool simple_copy(base_out_decompression *dst,base_in_decompression *src){
+		in_func in=src->f;
+		out_func out=dst->f;
+		while (1){
+			unsigned a=in(src,0);
+			if (!a)
+				break;
+			out(dst,src->in_buffer,a);
+		}
+		return 1;
+	}
+	bool DecompressBZ2(base_out_decompression *dst,base_in_decompression *src){
+		bz_stream stream;
+		zero_structure(stream);
+
+		stream.next_in=0;
+		stream.avail_in=0;
+		stream.next_out=(char *)&dst->out[0];
+		stream.avail_out=dst->size;
+		if (BZ2_bzDecompressInit(&stream,0,0)!=BZ_OK)
+			return 0;
+		int res;
+		in_func in=src->f;
+		out_func out=dst->f;
+		while ((res=BZ2_bzDecompress(&stream))==BZ_OK){
+			if (!stream.avail_out){
+				out(dst,&dst->out[0],dst->size);
+				stream.next_out=(char *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+			if (!stream.avail_in && !(stream.avail_in=in(src,(uchar **)&stream.next_in))){
+				while (1){
+					BZ2_bzDecompress(&stream);
+					if (stream.avail_out<dst->size){
+						out(dst,&dst->out[0],dst->size);
+						stream.next_out=(char *)&dst->out[0];
+						stream.avail_out=dst->size;
+					}else
+						break;
+				}
+				break;
+			}
+		}
+		bool ret=1;
+		if (res!=BZ_STREAM_END)
+			ret=0;
+		else if (stream.avail_out<dst->size)
+			out(dst,&dst->out[0],dst->size-stream.avail_out);
+		BZ2_bzDecompress(&stream);
+		return ret;
+	}
+	bool CompressBZ2(base_out_decompression *dst,base_in_decompression *src){
+		bz_stream stream;
+		zero_structure(stream);
+
+		in_func in=src->f;
+		out_func out=dst->f;
+		stream.avail_in=in(src,(uchar **)&stream.next_in);
+		stream.next_out=(char *)&dst->out[0];
+		stream.avail_out=dst->size;
+		if (BZ2_bzCompressInit(&stream,4,0,0)!=BZ_OK)
+			return 0;
+		int res;
+		int action=BZ_RUN;
+		while (1){
+			res=BZ2_bzCompress(&stream,action);
+			if (res!=BZ_OK && res!=BZ_RUN_OK && res!=BZ_FINISH_OK)
+				break;
+			if (!stream.avail_out){
+				out(dst,&dst->out[0],dst->size);
+				stream.next_out=(char *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+			if (!stream.avail_in)
+				if (!(stream.avail_in=in(src,(uchar **)&stream.next_in)))
+					action=BZ_FINISH;
+		}
+		bool ret=1;
+		if (res!=BZ_STREAM_END)
+			ret=0;
+		else if (stream.avail_out<dst->size)
+			out(dst,&dst->out[0],dst->size-stream.avail_out);
+		BZ2_bzCompressEnd(&stream);
+		return ret;
+	}
+	bool DecompressDEFLATE(base_out_decompression *dst,base_in_decompression *src){
+		z_stream stream;
+		zero_structure(stream);
+
+		if (inflateBackInit(&stream,dst->bits,&dst->out[0])!=Z_OK)
+			return 0;
+		int res=inflateBack(
+			&stream,
+			src->f,
+			src,
+			dst->f,
+			dst
+		);
+		inflateBackEnd(&stream);
+		return res==Z_STREAM_END;
+	}
+	bool CompressDEFLATE(base_out_decompression *dst,base_in_decompression *src){
+		z_stream stream;
+		zero_structure(stream);
+
+		if (deflateInit2(&stream,9,Z_DEFLATED,-15,9,Z_DEFAULT_STRATEGY)!=Z_OK)
+			return 0;
+		in_func in=src->f;
+		out_func out=dst->f;
+		stream.avail_in=in(src,(uchar **)&stream.next_in);
+		stream.next_out=(Bytef *)&dst->out[0];
+		stream.avail_out=dst->size;
+		int res,
+			flush=Z_NO_FLUSH;
+		while ((res=deflate(&stream,flush))==Z_OK){
+			if (!stream.avail_out){
+				out(dst,&dst->out[0],dst->size);
+				stream.next_out=(Bytef *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+			if (!stream.avail_in)
+				stream.avail_in=in(src,(uchar **)&stream.next_in);
+			if (src->eof())
+				flush=Z_FINISH;
+		}
+		bool ret=1;
+		if (res<0)
+			ret=0;
+		else{
+			if (stream.avail_out<dst->size){
+				out(dst,&dst->out[0],dst->size-stream.avail_out);
+				stream.next_out=(Bytef *)&dst->out[0];
+				stream.avail_out=dst->size;
+			}
+		}
+		deflateEnd(&stream);
+		return ret;
+	}
+
+
+	static void *SzAlloc(void *p, size_t size) { return malloc(size); }
+	static void SzFree(void *p, void *address) { free(address); }
+	bool CompressLZMA(base_out_decompression *dst,base_in_decompression *src){
+		CFileSeqInStream inStream;
+		CFileOutStream outStream;
+		inStream.s.Read=src->f2;
+		inStream.s.user_data=src;
+		outStream.s.Write=dst->f2;
+		outStream.s.user_data=dst;
+		CLzmaEncHandle enc;
+		CLzmaEncProps props;
+
+		ISzAlloc alloc={SzAlloc,SzFree};
+
+		enc=LzmaEnc_Create(&alloc);
+		if (!enc)
+			return 0;
+		LzmaEncProps_Init(&props);
+		props.dictSize=1<<23;
+		props.fb=273;
+		props.lc=8;
+		props.level=9;
+		props.lp=4;
+		props.numThreads=2;
+		props.pb=4;
+		props.writeEndMark=1;
+		SRes res=LzmaEnc_SetProps(enc, &props);
+		if (res)
+			return 0;
+		Byte header[LZMA_PROPS_SIZE+4]={0,0,5,0};
+		size_t headerSize=LZMA_PROPS_SIZE;
+		UInt64 fileSize;
+
+		res=LzmaEnc_WriteProperties(enc,header+4,&headerSize);
+		fileSize=src->total_size;
+		dst->f2(&outStream.s,header,headerSize+4);
+		res=LzmaEnc_Encode(enc,&outStream.s,&inStream.s,0,&alloc,&alloc);
+		LzmaEnc_Destroy(enc,&alloc,&alloc);
+		return 1;
+	}
+	typedef bool (*compression_f)(base_out_decompression *,base_in_decompression *);
+}
 
 void ZipArchive::write(){
 	this->current_file=0;
 	if (!this->outputFilename.size())
 		this->outputFilename=L"output";
-	this->output_file.open(this->outputFilename+L".z01",std::ios::binary);
+	this->output_file=new File(this->outputFilename+L".z01",0);
 	this->central_header.clear();
 	this->total=this->root.count(1);
 	this->progress=0;
 	this->root.write(this,L"",L"");
-	ulong central_size=0,
+	Uint64 central_size=0,
 		central_start_disk,
 		central_start_offset,
-		entries_on_this_disk=0;
+		entries_on_this_disk=0,
+		current_disk;
 	for (ulong a=0;a<this->central_header.size();a++){
-		ulong temp=this->write_header(this->central_header[a]);
+		Uint64 temp=this->write_header(this->central_header[a]);
 		if (!a){
 			central_start_disk=this->current_file;
 			central_start_offset=temp;
@@ -316,184 +564,292 @@ void ZipArchive::write(){
 			entries_on_this_disk++;
 		central_size+=this->central_header[a].size();
 	}
-
 	std::string buffer;
-	writeLittleEndian(4,buffer,0x06054b50);
-	writeLittleEndian(2,buffer,this->current_file+((this->split-this->output_file.tellp()<22)?1:0));
-	writeLittleEndian(2,buffer,central_start_disk);
-	writeLittleEndian(2,buffer,entries_on_this_disk);
-	writeLittleEndian(2,buffer,this->central_header.size());
-	this->central_header.clear();
-	writeLittleEndian(4,buffer,central_size);
-	writeLittleEndian(4,buffer,central_start_offset);
+	//write end of central directory ZIP64
+	size_t current_disk_offset,
+		size_of_eocdr64_offset;
+	writeLittleEndian(4,buffer,0x06064b50);
+	size_of_eocdr64_offset=buffer.size();
+	writeLittleEndian(8,buffer,0);
 	writeLittleEndian(2,buffer,0);
+	writeLittleEndian(2,buffer,0);
+	current_disk_offset=buffer.size();
+	writeLittleEndian(4,buffer,0);
+	writeLittleEndian(4,buffer,central_start_disk);
+	writeLittleEndian(8,buffer,entries_on_this_disk);
+	writeLittleEndian(8,buffer,this->central_header.size());
+	writeLittleEndian(8,buffer,central_size);
+	writeLittleEndian(8,buffer,central_start_offset);
+	writeLittleEndian(8,buffer,buffer.size()-(size_of_eocdr64_offset+8),size_of_eocdr64_offset);
+	current_disk=this->current_file+((this->split-this->output_file->filesize()<buffer.size())?1:0);
+	writeLittleEndian(4,buffer,current_disk,current_disk_offset);
+	Uint64 eocdr64_offset=this->write_header(buffer);
+	buffer.clear();
+	//write end of central directory ZIP64 locator
+	writeLittleEndian(4,buffer,0x07064b50);
+	writeLittleEndian(4,buffer,this->current_file);
+	writeLittleEndian(8,buffer,eocdr64_offset);
+	current_disk_offset=buffer.size();
+	writeLittleEndian(4,buffer,0);
+	//write end of central directory
+	writeLittleEndian(4,buffer,0x06054b50);
+	writeLittleEndian(2,buffer,full16);
+	writeLittleEndian(2,buffer,full16);
+	writeLittleEndian(2,buffer,full16);
+	writeLittleEndian(2,buffer,full16);
+	writeLittleEndian(4,buffer,full32);
+	writeLittleEndian(4,buffer,full32);
+	std::string comment="Archive created by zip (ONSlaught implementation) v1.1.";
+	writeLittleEndian(2,buffer,comment.size());
+	buffer.append(comment);
+	current_disk=this->current_file+((this->split-this->output_file->filesize()<22)?1:0);
+	writeLittleEndian(4,buffer,current_disk+1,current_disk_offset);
 	this->write_header(buffer);
-	this->output_file.close();
+	this->output_file->close();
 
 	{
 		std::wstring temp=this->outputFilename+L".zip";
-		if (boost::filesystem::exists(temp))
-			boost::filesystem::remove(temp);
-		boost::filesystem::rename(this->outputFilename+L".z"+itoa<wchar_t>(++this->current_file,2),temp);
+		if (File::file_exists(temp))
+			File::delete_file(temp);
+		boost::filesystem::rename(this->make_filename(this->current_file),temp);
 	}
 	std::cout <<"Done."<<std::endl;
 }
 
-void compression_helper(char *(*f)(void *,ulong,ulong &),char **r,void *a,ulong b,ulong *c){
-	*r=f(a,b,*c);
+ulong figure_out_compression(std::string extension,Uint64 filesize,long compression){
+	if (compression>=COMPRESSION_NONE || !filesize)
+		return compression;
+	size_t dot=extension.rfind('.');
+	if (dot!=extension.npos)
+		extension=extension.substr(dot+1);
+	else
+		extension.clear();
+	tolower(extension);
+	//files with these extensions will not be compressed
+	static const char *compressed_types[]={
+		"gif","jpeg","jpg","tga","tif","tiff","svgz",
+		"ogg","mp3","it","xm","s3m","mod","aiff","flac","669","med","voc","mka",
+		"mkv","avi","mpeg","mpg","mp4","flv",
+		0
+	};
+	for (const char **p=compressed_types;*p;p++)
+		if (extension==*p)
+			return COMPRESSION_NONE;
+	switch (compression){
+		case COMPRESSION_AUTOH:
+			return COMPRESSION_LZMA;
+		case COMPRESSION_AUTOM:
+			return COMPRESSION_BZ2;
+		case COMPRESSION_AUTOL:
+			return COMPRESSION_DEFLATE;
+	}
+	return COMPRESSION_NONE;
 }
 
 #define ZIP_FLAG_UTF8 0x800
 
+void write_local_header(std::string &dst,ulong compression,Uint32 crc,Uint64 compressed,Uint64 uncompressed,const std::wstring &path){
+	writeLittleEndian(4,dst,0x04034B50);
+	writeLittleEndian(2,dst,10);
+	writeLittleEndian(2,dst,ZIP_FLAG_UTF8);
+	writeLittleEndian(2,dst,compression);
+	writeLittleEndian(2,dst,0);
+	writeLittleEndian(2,dst,0);
+	writeLittleEndian(4,dst,crc);
+	std::string zip64;
+	writeLittleEndian(2,zip64,1);
+	size_t write_zip64_size=zip64.size();
+	writeLittleEndian(2,zip64,0);
+	if (uncompressed<=full31){
+		writeLittleEndian(4,dst,compressed);
+		writeLittleEndian(4,dst,uncompressed);
+	}else{
+		writeLittleEndian(4,dst,full32);
+		writeLittleEndian(8,zip64,compressed);
+		writeLittleEndian(4,dst,full32);
+		writeLittleEndian(8,zip64,uncompressed);
+	}
+	if (zip64.size()==4)
+		zip64.clear();
+	else
+		writeLittleEndian(2,zip64,zip64.size()-4,write_zip64_size);
+	std::string utf8=UniToUTF8(path);
+	writeLittleEndian(2,dst,utf8.size()&0xFFFF);
+	writeLittleEndian(2,dst,zip64.size());
+	dst.append(utf8.substr(0,0xFFFF));
+	dst.append(zip64);
+}
+
+void write_central_header(
+		std::string &dst,
+		ulong compression,
+		Uint32 crc,
+		Uint64 compressed,
+		Uint64 uncompressed,
+		const std::wstring &path,
+		ulong fileno,
+		Uint64 offset){
+	writeLittleEndian(4,dst,0x02014b50);
+	writeLittleEndian(2,dst,10);
+	writeLittleEndian(2,dst,10);
+	writeLittleEndian(2,dst,ZIP_FLAG_UTF8);
+	writeLittleEndian(2,dst,compression);
+	writeLittleEndian(2,dst,0);
+	writeLittleEndian(2,dst,0);
+	writeLittleEndian(4,dst,crc);
+	std::vector<Uint64> zip64list;
+	bool written[4]={0};
+#define WRITE_ZIP64(size,constant,step,src)\
+	if ((src)<(constant))\
+		writeLittleEndian((size),dst,(src));\
+	else{\
+		writeLittleEndian((size),dst,(constant));\
+		zip64list.push_back(src);\
+		written[step]=1;\
+	}
+	WRITE_ZIP64(4,full32,0,compressed);
+	WRITE_ZIP64(4,full32,1,uncompressed);
+	std::string utf8=UniToUTF8(path);
+	writeLittleEndian(2,dst,utf8.size()&0xFFFF);
+	size_t extra_field_offset=dst.size();
+	writeLittleEndian(2,dst,0);
+	writeLittleEndian(2,dst,0);
+	WRITE_ZIP64(2,full16,2,fileno);
+	writeLittleEndian(2,dst,0);
+	writeLittleEndian(4,dst,0);
+	WRITE_ZIP64(4,full32,3,offset);
+	dst.append(utf8.substr(0,0xFFFF));
+	if (zip64list.size()){
+		std::string zip64;
+		writeLittleEndian(2,zip64,1);
+		writeLittleEndian(2,zip64,zip64list.size()*8-(written[2]?4:0));
+		if (written[2] && written[3])
+			std::swap(zip64list.back(),zip64list[zip64list.size()-2]);
+		for (size_t a=0;a<zip64list.size()-1;a++)
+			writeLittleEndian(8,zip64,zip64list[a]);
+		writeLittleEndian(written[2]?4:8,zip64,zip64list.back());
+
+		writeLittleEndian(2,dst,zip64.size(),extra_field_offset);
+		dst.append(zip64);
+	}
+}
+
 void ZipArchive::write(const Path &src,const std::wstring &dst,bool dir){
-	if (!boost::filesystem::exists(src))
+	if (!File::file_exists(src.string()))
 		return;
 	(std::cout <<'(').width(2);
 	std::cout <<(this->progress++*100)/this->total<<"%) "<<UniToUTF8(dst)<<"..."<<std::endl;
 	std::string buffer;
-	writeLittleEndian(4,buffer,0x04034B50);
-	writeLittleEndian(2,buffer,10);
-	writeLittleEndian(2,buffer,ZIP_FLAG_UTF8);
-	long compression=COMPRESSION_NONE;
-	char *raw=0;
-	size_t raw_l=0;
-	char *compressed=0;
-	ulong compressed_l=0;
+	Uint64 uncompressed_l=0;
 	CRC32 crc;
-	if (!dir){
-		boost::filesystem::ifstream file(src,std::ios::binary|std::ios::ate);
-		raw_l=file.tellg();
-		if (raw_l)
-			compression=this->compression;
-		file.seekg(0);
-		raw=new char[raw_l];
-		file.read(raw,raw_l);
-		crc.Input(raw,raw_l);
+	Uint64 overwrite_header_offset=0,
+		local_header_start_offset=0;
+	ulong overwrite_header_file=0,
+		local_header_start_file=0;
+
+	compression::decompress_from_file dff;
+	compression::decompress_to_file dtf;
+	ulong compression;
+	if (dir){
+		compression=COMPRESSION_NONE;
+		write_local_header(buffer,0,0,0,0,dst);
+		local_header_start_file=this->current_file;
+		local_header_start_offset=this->output_file->filesize();
+		overwrite_header_offset=this->write_header(buffer);
+		overwrite_header_file=this->current_file;
+	}else{
+		File file(src.string(),1);
+		uncompressed_l=file.filesize();
+		compression=figure_out_compression(UniToUTF8(src.string()),file.filesize(),this->compression);
+		write_local_header(buffer,compression,0,0,uncompressed_l,dst);
+		local_header_start_file=this->current_file;
+		local_header_start_offset=this->output_file->filesize();
+		overwrite_header_offset=this->write_header(buffer);
+		overwrite_header_file=this->current_file;
+		
+		dff.file=&file;
+		dff.total_size=file.filesize();
+		dtf.file=this;
+		compression::compression_f f;
+
 		switch (compression){
 			case COMPRESSION_NONE:
-				compressed=raw;
-				compressed_l=raw_l;
+				f=compression::simple_copy;
+				break;
+			case COMPRESSION_DEFLATE:
+				f=compression::CompressDEFLATE;
 				break;
 			case COMPRESSION_BZ2:
-				compressed=compressBuffer_BZ2(raw,raw_l,compressed_l);
-				delete[] raw;
-				break;
-			case COMPRESSION_LZMA:
-				compressed=compressLZMA(raw,raw_l,compressed_l);
-				delete[] raw;
-				break;
-			case COMPRESSION_AUTO:
-			case COMPRESSION_AUTO_MT:
+				f=compression::CompressBZ2;
 				{
-					ulong bz2=0,
-						lzma=0;
-					char *bz2_buffer,
-						*lzma_buffer;
-					if (compression==COMPRESSION_AUTO_MT){
-						boost::thread thread(boost::bind(compression_helper,compressLZMA,&lzma_buffer,raw,raw_l,&lzma));
-						bz2_buffer=compressBuffer_BZ2(raw,raw_l,bz2);
-						thread.join();
-					}else{
-						bz2_buffer=compressBuffer_BZ2(raw,raw_l,bz2);
-						lzma_buffer=compressLZMA(raw,raw_l,lzma);
-					}
-					if (raw_l<=bz2 && raw_l<=lzma){
-						compressed=raw;
-						compressed_l=raw_l;
-						delete[] bz2_buffer;
-						delete[] lzma_buffer;
-						compression=COMPRESSION_NONE;
-					}else{
-						delete[] raw;
-						if (bz2<raw_l && bz2<=lzma){
-							compressed=bz2_buffer;
-							compressed_l=bz2;
-							delete[] lzma_buffer;
-							compression=COMPRESSION_BZ2;
-						}else{
-							compressed=lzma_buffer;
-							compressed_l=lzma;
-							delete[] bz2_buffer;
-							compression=COMPRESSION_LZMA;
-						}
-					}
+					std::string temp;
+					writeBigEndian(4,temp,(ulong)file.filesize());
+					file.write(&temp[0],temp.size());
 				}
 				break;
+			case COMPRESSION_LZMA:
+				f=compression::CompressLZMA;
 		}
+		f(&dtf,&dff);
+		file.close();
 	}
-	writeLittleEndian(2,buffer,compression);
-	writeLittleEndian(2,buffer,0);
-	writeLittleEndian(2,buffer,0);
-	writeLittleEndian(4,buffer,crc.Result());
-	writeLittleEndian(4,buffer,compressed_l);
-	writeLittleEndian(4,buffer,raw_l);
-	std::string utf8=UniToUTF8(dst);
-	writeLittleEndian(2,buffer,utf8.size());
-	writeLittleEndian(2,buffer,0);
-	buffer.append(utf8.substr(0,0x10000));
-	ulong offset=this->output_file.tellp();
-	this->write_buffer(&buffer[0],buffer.size());
+	//write local header to buffer
 	buffer.clear();
-
-	writeLittleEndian(4,buffer,0x02014b50);
-	writeLittleEndian(2,buffer,10);
-	writeLittleEndian(2,buffer,10);
-	writeLittleEndian(2,buffer,ZIP_FLAG_UTF8);
-	writeLittleEndian(2,buffer,compression);
-	writeLittleEndian(2,buffer,0);
-	writeLittleEndian(2,buffer,0);
-	writeLittleEndian(4,buffer,crc.Result());
-	writeLittleEndian(4,buffer,compressed_l);
-	writeLittleEndian(4,buffer,raw_l);
-	writeLittleEndian(2,buffer,utf8.size());
-	writeLittleEndian(2,buffer,0);
-	writeLittleEndian(2,buffer,0);
-	writeLittleEndian(2,buffer,this->current_file);
-	writeLittleEndian(2,buffer,0);
-	writeLittleEndian(4,buffer,0);
-	writeLittleEndian(4,buffer,offset);
-	buffer.append(utf8.substr(0,0x10000));
-	this->central_header.push_back(buffer);
-
-	if (compressed){
-		this->write_buffer(compressed,compressed_l);
-		delete[] compressed;
+	write_local_header(buffer,compression,dff.crc.Result(),dtf.processed,uncompressed_l,dst);
+	if (overwrite_header_file==this->current_file)
+		this->output_file->write_at_offset(&buffer[0],buffer.size(),overwrite_header_offset);
+	else{
+		File file(this->make_filename(overwrite_header_file),0,0);
+		file.write_at_offset(&buffer[0],buffer.size(),overwrite_header_offset);
 	}
+	buffer.clear();
+	write_central_header(
+		buffer,
+		compression,
+		dff.crc.Result(),
+		dtf.processed,
+		uncompressed_l,
+		dst,
+		local_header_start_file,
+		local_header_start_offset
+	);
+	this->central_header.push_back(buffer);
 }
 
 void ZipArchive::go_to_next(){
-	this->output_file.close();
-	this->output_file.open(this->outputFilename+L".z"+itoa<wchar_t>(++this->current_file+1,2),std::ios::binary);
+	this->output_file->close();
+	this->output_file->open(this->make_filename(++this->current_file),0);
 }
 
 void ZipArchive::write_buffer(const char *buffer,size_t size){
-	while (this->split-this->output_file.tellp()<size){
-		ulong diff=this->split-this->output_file.tellp();
-		this->output_file.write(buffer,diff);
+	while (this->split-this->output_file->filesize()<size){
+		size_t diff=size_t(this->split-this->output_file->filesize());
+		this->output_file->write(buffer,diff);
 		buffer+=diff;
 		size-=diff;
 		this->go_to_next();
 	}
-	this->output_file.write(buffer,size);
+	this->output_file->write(buffer,size);
 }
 
-ulong ZipArchive::write_header(const std::string &buffer){
-	ulong diff=this->split-this->output_file.tellp();
-	ulong ret;
+Uint64 ZipArchive::write_header(const std::string &buffer){
+	Uint64 diff=this->split-this->output_file->filesize();
+	Uint64 ret;
 	if (diff<buffer.size()){
-		char *temp=new char[diff];
-		memset(temp,0,diff);
-		this->output_file.write(temp,diff);
+		char *temp=new char[(size_t)diff];
+		memset(temp,0,(size_t)diff);
+		this->output_file->write(temp,(size_t)diff);
+		delete[] temp;
 		this->go_to_next();
 		ret=0;
 	}else
-		ret=this->output_file.tellp();
+		ret=this->output_file->filesize();
 	this->write_buffer(&buffer[0],buffer.size());
 	return ret;
 }
 
 void version(){
-	std::cout <<"zip v1.0\n"
+	std::cout <<"zip v1.1\n"
 		"Copyright (c) 2009, Helios (helios.vmg@gmail.com)\n"
 		"All rights reserved.\n\n";
 }
