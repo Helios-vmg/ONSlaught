@@ -38,28 +38,6 @@ template <typename T> inline void zero_structure(T &s){ memset(&s,0,sizeof(s)); 
 
 NONS_GeneralArchive general_archive;
 
-class CRC32{
-	Uint32 crc32;
-	static Uint32 CRC32lookup[];
-public:
-	CRC32(){
-		this->Reset();
-	}
-	void Reset(){
-		this->crc32^=~this->crc32;
-	}
-	void Input(const void *message_array,size_t length){
-		for (const uchar *array=(const uchar *)message_array;length;length--,array++)
-			this->Input(*array);
-	}
-	void Input(uchar message_element){
-		this->crc32=(this->crc32>>8)^CRC32lookup[message_element^(this->crc32&0xFF)];
-	}
-	Uint32 Result(){
-		return ~this->crc32;
-	}
-};
-
 Uint32 CRC32::CRC32lookup[]={
 	0x00000000,0x77073096,0xEE0E612C,0x990951BA,0x076DC419,0x706AF48F,0xE963A535,0x9E6495A3,
 	0x0EDB8832,0x79DCB8A4,0xE0D5E91E,0x97D2D988,0x09B64C2B,0x7EB17CBD,0xE7B82D07,0x90BF1D91,
@@ -109,7 +87,7 @@ inline size_t find_slash(const std::basic_string<T> &str,size_t off=0){
 
 unsigned decompress_from_regular_file::in_func(void *p,unsigned char **buffer){
 	decompress_from_regular_file *_this=(decompress_from_regular_file *)p;
-	size_t l=1<<12;
+	size_t l=_this->default_in_size;
 	_this->in.resize(l);
 	_this->file->read(&_this->in[0],l,l,_this->offset);
 	_this->in.resize(l);
@@ -130,7 +108,7 @@ unsigned decompress_from_regular_file::in_func(void *p,unsigned char **buffer){
 
 unsigned decompress_from_file::in_func(void *p,unsigned char **buffer){
 	decompress_from_file *_this=(decompress_from_file *)p;
-	size_t l=1<<12;
+	size_t l=_this->default_in_size;
 	_this->in.resize(l);
 	_this->archive->read_raw_bytes(&_this->in[0],l,l,_this->node,_this->offset);
 	_this->in.resize(l);
@@ -161,6 +139,7 @@ unsigned decompress_from_memory::in_func(void *p,unsigned char **buffer){
 
 int decompress_to_file::out_func(void *p,unsigned char *buffer,unsigned size){
 	((decompress_to_file *)p)->file->write(buffer,size);
+	((decompress_to_file *)p)->crc32.Input(buffer,size);
 	return 0;
 }
 
@@ -282,7 +261,7 @@ bool DecompressLZMA(base_out_decompression *dst,base_in_decompression *src){
 	out_func out=dst->get_f();
 	std::vector<uchar> dictionary;
 	in(src,0);
-	if (src->remaining<4+LZMA_PROPS_SIZE+8)
+	if (src->remaining<4+LZMA_PROPS_SIZE)
 		return 0;
 	CLzmaDec p;
 	LzmaDec_Construct(&p);
@@ -294,15 +273,25 @@ bool DecompressLZMA(base_out_decompression *dst,base_in_decompression *src){
 	p.dic=(Byte *)&dictionary[0];
 	p.dicBufSize=dictionary.size();
 	LzmaDec_Init(&p);
-	src->in_buffer+=4+LZMA_PROPS_SIZE+8;
-	src->remaining-=4+LZMA_PROPS_SIZE+8;
+	src->in_buffer+=4+LZMA_PROPS_SIZE;
+	src->remaining-=4+LZMA_PROPS_SIZE;
 	SizeT srcLen=src->remaining,
 		dstLen=dst->size;
 	ELzmaStatus status;
 	size_t in_pos=0,
 		out_pos=0;
-	while ((res=LzmaDec_DecodeToBuf(&p,(Byte *)&dst->out[out_pos],&dstLen,(const Byte *)src->in_buffer,&srcLen,LZMA_FINISH_ANY,&status))==SZ_OK){
-		if (status==LZMA_STATUS_FINISHED_WITH_MARK)
+	ELzmaFinishMode finish=LZMA_FINISH_ANY;
+	while (1){
+		res=LzmaDec_DecodeToBuf(
+			&p,
+			(Byte *)&dst->out[out_pos],
+			&dstLen,
+			(const Byte *)src->in_buffer+in_pos,
+			&srcLen,
+			finish,
+			&status
+		);
+		if (res!=SZ_OK || status==LZMA_STATUS_FINISHED_WITH_MARK)
 			break;
 		out_pos+=dstLen;
 		dstLen=dst->out.size()-out_pos;
@@ -315,16 +304,25 @@ bool DecompressLZMA(base_out_decompression *dst,base_in_decompression *src){
 		srcLen=src->remaining-in_pos;
 		if (!srcLen){
 			srcLen=in(src,0);
-			if (!srcLen)
-				break;
+			if (!srcLen){
+				if (finish!=LZMA_FINISH_END)
+					finish=LZMA_FINISH_END;
+				else
+					break;
+			}
 			in_pos=0;
 		}
 	}
 	bool ret=1;
-	if (status!=LZMA_STATUS_FINISHED_WITH_MARK)
-		ret=0;
-	else if (dstLen)
-		out(dst,&dst->out[out_pos],dstLen);
+	if (status!=LZMA_STATUS_FINISHED_WITH_MARK){
+		//Ugly hack ahead! Will this always work? I have no idea.
+		if (status==LZMA_STATUS_NEEDS_MORE_INPUT){
+			if (dstLen<dst->size)
+				out(dst,&dst->out[0],dst->size-dstLen);
+		}else
+			ret=0;
+	}else if (out_pos+dstLen)
+		out(dst,&dst->out[0],out_pos+dstLen);
 	LzmaDec_FreeProbs(&p,&alloc);
 	return ret;
 }
@@ -357,7 +355,7 @@ uchar *decode_LZSS(uchar *buffer,ulong compressedSize,ulong decompressedSize){
 }
 
 template <typename T>
-bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,const std::wstring &name,T compression,Uint64 offset=0){
+bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,const std::wstring &name,T compression,Uint32 &crc32,Uint64 offset=0){
 	decompression_f f=select_function(compression);
 	if (!f){
 		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
@@ -370,12 +368,15 @@ bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,con
 	dff.node=n;
 	dff.offset=offset;
 	dtf.file=&file;
+	dtf.compute_crc=!!crc32;
 	if (!f(&dtf,&dff)){
 		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
 		file.close();
 		NONS_File::delete_file(path);
 		return 0;
 	}
+	if (crc32)
+		crc32=dtf.crc32.Result();
 	return 1;
 }
 
@@ -848,7 +849,7 @@ centralHeader::centralHeader(NONS_File &file,Uint64 &offset,bool &enough_room){
 		this->uncompressed_size=	readDWord(buffer_p,offset2);
 		size_t filename_l=			 readWord(buffer_p,offset2);
 		size_t extra_field_l=		 readWord(buffer_p,offset2);
-		ulong file_comment_l=		 readWord(buffer_p,offset2);
+		size_t file_comment_l=		 readWord(buffer_p,offset2);
 		this->disk_number_start=	 readWord(buffer_p,offset2);
 									 readWord(buffer_p,offset2);
 									readDWord(buffer_p,offset2);
@@ -893,6 +894,7 @@ centralHeader::centralHeader(NONS_File &file,Uint64 &offset,bool &enough_room){
 			POP_FROM_TEMP(this->compressed_size,Uint64);
 			POP_FROM_TEMP(this->local_header_off,Uint64);
 			POP_FROM_TEMP(this->disk_number_start,ulong);
+			assert(temp.size()==0);
 		}
 		buffer.resize(file_comment_l);
 		offset_temp+=extra_field_l;
@@ -1095,7 +1097,7 @@ decompression_f select_function(NSAdata::compression_type c){
 
 bool ZIParchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,TreeNode *node,Uint64 offset){
 	const ZIPdata &zd=derefED(node->extraData);
-	Uint64 internal_size=zd.uncompressed;
+	Uint64 internal_size=zd.compressed;
 	if (offset>=internal_size)
 		read_bytes=0;
 	else if (offset+read_bytes>internal_size)
@@ -1326,7 +1328,10 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 			case NSAdata::COMPRESSION_BZ2:
 				offset=4;
 			case NSAdata::COMPRESSION_DEFLATE:
-				decompress_file_to_file(path,this->archive,node,name,data.compression,offset);
+				{
+					Uint32 a=0;
+					decompress_file_to_file(path,this->archive,node,name,data.compression,a,offset);
+				}
 				break;
 			default:
 				{
@@ -1337,7 +1342,7 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 				}
 				break;
 		}
-		NONS_DataStream *stream=filesystem.new_temporary_file(path);
+		NONS_DataStream *stream=filesystem.new_temporary_file(path,name);
 		assert(!!stream);
 		return NONS_DataSource::open(stream);
 	}
@@ -1413,28 +1418,31 @@ Uint32 crc32_from_stream(NONS_DataStream *stream){
 }
 
 NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
+	NONS_DataStream *stream;
 	NONS_zipArchiveStream *p=new NONS_zipArchiveStream(*this,name);
+	stream=p;
 	TreeNode *node=p->get_node();
 	if (!node){
 		delete p;
 		return 0;
 	}
 	ZIPdata data=ZIParchive::derefED(node->extraData);
+	bool skip_crc=data.compressed>50*1024*1024;
+	Uint32 crc32=1;
 	if (data.compression!=ZIPdata::COMPRESSION_NONE){
 		delete p;
 		std::wstring path=filesystem.new_temp_name();
-		decompress_file_to_file(path,this->archive,node,name,data.compression);
-		NONS_DataStream *stream=filesystem.new_temporary_file(path);
+		decompress_file_to_file(path,this->archive,node,name,data.compression,crc32);
+		stream=filesystem.new_temporary_file(path,name);
 		assert(!!stream);
-		Uint32 crc32=crc32_from_stream(stream);
-		if (crc32!=data.crc32){
-			delete stream;
-			o_stderr <<"File "<<name<<" did not pass CRC32 test.\n";
-			return 0;
-		}
-		return NONS_DataSource::open(stream);
+	}else if (!skip_crc)
+		crc32=crc32_from_stream(stream);
+	if (!skip_crc && crc32!=data.crc32){
+		delete stream;
+		o_stderr <<"File "<<name<<" did not pass CRC32 test.\n";
+		return 0;
 	}
-	return NONS_DataSource::open(p);
+	return NONS_DataSource::open(stream);
 }
 
 uchar *NONS_zipArchiveSource::read_all(TreeNode *node,size_t &bytes_read){

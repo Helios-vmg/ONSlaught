@@ -53,9 +53,9 @@ public:
 
 class NONS_Font{
 	FT_Face ft_font;
+	FT_Stream stream;
 	FT_Error error;
 	ulong size;
-	std::vector<uchar> *buffer;
 
 	NONS_Font(const NONS_Font &){}
 	void operator=(const NONS_Font &){}
@@ -63,8 +63,7 @@ public:
 	ulong ascent,
 		line_skip;
 
-	NONS_Font(const std::string &filename);
-	NONS_Font(std::vector<uchar> *buffer);
+	NONS_Font(const std::wstring &filename);
 	~NONS_Font();
 	bool good() const{ return !this->error; }
 	FT_Error get_error() const{ return this->error; }
@@ -183,7 +182,7 @@ public:
 	~NONS_AutoGlyph(){ this->cache.done(&this->glyph); }
 };
 
-NONS_Font *init_font(const std::string &filename);
+NONS_Font *init_font(const std::wstring &filename);
 
 struct NONS_StandardOutput;
 struct NONS_ScreenSpace;

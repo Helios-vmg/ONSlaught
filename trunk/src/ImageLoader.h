@@ -147,15 +147,16 @@ private:
 
 struct NONS_ImageLoader{
 	std::vector<NONS_Image *> imageCache;
-	NONS_LibraryLoader svg_library;
+	NONS_LibraryLoader *svg_library;
 	SVG_Functions svg_functions;
-	NONS_FileLog filelog;
+	NONS_FileLog *filelog;
 	bool fast_svg;
 	double base_scale[2];
 	NONS_DiskCache disk_cache;
 
 	NONS_ImageLoader();
 	~NONS_ImageLoader();
+	void init();
 	ulong getCacheSize();
 	bool fetchSprite(SDL_Surface *&dst,const std::wstring &string,optim_t *rects=0);
 	bool unfetchImage(SDL_Surface *which);
@@ -164,7 +165,8 @@ struct NONS_ImageLoader{
 private:
 	//1 if the image was added, 0 otherwise
 	bool addElementToCache(NONS_Image *img);
+	bool initialized;
 };
 
-extern NONS_ImageLoader *ImageLoader;
+extern NONS_ImageLoader ImageLoader;
 #endif

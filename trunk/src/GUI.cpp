@@ -92,9 +92,9 @@ bool NONS_Lookback::setUpButtons(const std::wstring &upon,const std::wstring &up
 	const std::wstring *srcs[4]={&upon,&upoff,&downon,&downoff};
 	SDL_Surface *temp[4];
 	for (int a=0;a<4;a++){
-		if (!ImageLoader->fetchSprite(temp[a],*srcs[a])){
+		if (!ImageLoader.fetchSprite(temp[a],*srcs[a])){
 			for (;a>=0;a--)
-				ImageLoader->unfetchImage(temp[a]);
+				ImageLoader.unfetchImage(temp[a]);
 			return 0;
 		}
 	}
@@ -846,7 +846,7 @@ NONS_ButtonLayer::~NONS_ButtonLayer(){
 	for (ulong a=0;a<this->buttons.size();a++)
 		if (this->buttons[a])
 			delete this->buttons[a];
-	if (this->loadedGraphic && !ImageLoader->unfetchImage(this->loadedGraphic))
+	if (this->loadedGraphic && !ImageLoader.unfetchImage(this->loadedGraphic))
 		SDL_FreeSurface(this->loadedGraphic);
 	delete this->font_cache;
 }
@@ -1310,7 +1310,7 @@ int NONS_Menu::callMenu(){
 	return this->call(this->commands[choice]);
 }
 
-std::string getDefaultFontFilename();
+std::wstring getDefaultFontFilename();
 
 void NONS_Menu::reset(){
 	delete this->buttons;
@@ -1613,26 +1613,51 @@ NONS_FreeType_Lib::~NONS_FreeType_Lib(){
 	FT_Done_FreeType(this->library);
 }
 
-NONS_Font::NONS_Font(const std::string &filename){
-	this->buffer=0;
-	this->error=FT_New_Face(NONS_FreeType_Lib::instance.get_lib(),filename.c_str(),0,&this->ft_font);
-	if (!this->good())
-		return;
-	this->size=0;
+ulong NONS_FT_Stream_IoFunc(FT_Stream s,ulong offset,uchar *buffer,ulong count){
+	NONS_DataStream *stream=(NONS_DataStream *)(s->descriptor.pointer);
+	if (!count)
+		return 0;
+	ulong o=(ulong)stream->seek(offset,1);
+	size_t a=0;
+	//if (count){
+		a=(size_t)count;
+		if (!stream->read(buffer,a,a))
+			a=0;
+		o+=a;
+	//}
+	//s->pos=o;
+	return (ulong)a;
 }
 
-NONS_Font::NONS_Font(std::vector<uchar> *buffer){
-	this->buffer=buffer;
-	this->error=FT_New_Memory_Face(NONS_FreeType_Lib::instance.get_lib(),(const FT_Byte *)&(*buffer)[0],buffer->size(),0,&this->ft_font);
-	if (!this->good())
+void NONS_FT_Stream_CloseFunc(FT_Stream s){
+	NONS_DataStream *stream=(NONS_DataStream *)(s->descriptor.pointer);
+	general_archive.close(stream);
+}
+
+NONS_Font::NONS_Font(const std::wstring &filename){
+	this->error=1;
+	NONS_DataStream *stream=general_archive.open(filename);
+	if (!stream)
 		return;
+	this->stream=new FT_StreamRec;
+	memset(this->stream,0,sizeof(*this->stream));
+	this->stream->descriptor.pointer=stream;
+	this->stream->read=NONS_FT_Stream_IoFunc;
+	this->stream->close=NONS_FT_Stream_CloseFunc;
+	this->stream->size=(size_t)stream->get_size();
+	FT_Open_Args args;
+	args.flags=FT_OPEN_STREAM;
+	args.stream=this->stream;
+	this->error=FT_Open_Face(NONS_FreeType_Lib::instance.get_lib(),&args,0,&this->ft_font);
+	if (!this->good())
+		general_archive.close(stream);
 	this->size=0;
 }
 
 NONS_Font::~NONS_Font(){
 	if (this->good())
 		FT_Done_Face(this->ft_font);
-	delete this->buffer;
+	delete this->stream;
 }
 
 void NONS_Font::set_size(ulong size){
@@ -1957,17 +1982,11 @@ void NONS_FontCache::done(NONS_Glyph *g){
 	//otherwise, the glyph doesn't belong to this cache
 }
 
-NONS_Font *init_font(const std::string &filename){
+NONS_Font *init_font(const std::wstring &filename){
 	NONS_Font *font=new NONS_Font(filename);
 	if (!font->good()){
 		delete font;
-		NONS_DataStream *stream=general_archive.open(UniFromISO88591(filename));
-		if (!stream)
-			return 0;
-		std::vector<uchar> *buffer=new std::vector<uchar>;
-		stream->read_all(*buffer);
-		general_archive.close(stream);
-		font=new NONS_Font(buffer);
+		return 0;
 	}
 	return font;
 }
@@ -1993,15 +2012,15 @@ ulong getGlyphWidth(NONS_FontCache *cache){
 
 extern ConfigFile settings;
 
-std::string getConsoleFontFilename(){
+std::wstring getConsoleFontFilename(){
 	if (!settings.exists(L"console font"))
 		settings.assignWString(L"console font",L"cour.ttf");
-	return UniToUTF8(settings.getWString(L"console font"));
+	return settings.getWString(L"console font");
 }
 
 void NONS_DebuggingConsole::init(){
 	if (!this->font){
-		std::string font=getConsoleFontFilename();
+		std::wstring font=getConsoleFontFilename();
 		this->font=init_font(font);
 		if (!this->font){
 			o_stderr <<"The font \""<<font<<"\" could not be found. The debugging console will not be available.\n";

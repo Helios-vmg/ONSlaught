@@ -656,7 +656,13 @@ NONS_DataSource::~NONS_DataSource(){
 }
 
 NONS_DataStream *NONS_DataSource::open(NONS_DataStream *p){
-	std::cout <<"Opening stream to "<<p->get_name()<<"\n";
+	const std::wstring *temp;
+	NONS_TemporaryFile *tf=dynamic_cast<NONS_TemporaryFile *>(p);
+	if (tf)
+		temp=&(tf->original_path);
+	else
+		temp=&(p->get_name());
+	std::cout <<"Opening stream to "<<*temp<<"\n";
 	this->streams.push_back(p);
 	return p;
 }
@@ -676,30 +682,22 @@ bool NONS_DataSource::close(NONS_DataStream *p){
 	);
 	if (i==this->streams.end())
 		return 0;
-	std::cout <<"Closing stream to "<<(*i)->get_name()<<"\n";
+	const std::wstring *temp;
+	NONS_TemporaryFile *tf=dynamic_cast<NONS_TemporaryFile *>(*i);
+	if (tf)
+		temp=&tf->original_path;
+	else
+		temp=&(*i)->get_name();
+	std::cout <<"Closing stream to "<<*temp<<"\n";
 	delete *i;
 	this->streams.erase(i);
 	return 1;
 }
 
-NONS_DataStream *NONS_FileSystem::new_temporary_file(const std::wstring &path){
-	return new NONS_TemporaryFile(*this,path);
-}
-
-bool NONS_FileSystem::get_size(Uint64 &size,const std::wstring &name){
-	return NONS_File::get_file_size(size,name);
-}
-
-bool NONS_FileSystem::read(void *dst,size_t &bytes_read,NONS_DataStream &stream,size_t count){
-	return 1;
-}
-
-uchar *NONS_FileSystem::read_all(const std::wstring &name,size_t &bytes_read){
-	return (uchar *)NONS_File::read(name,bytes_read);
-}
-
-bool NONS_FileSystem::exists(const std::wstring &name){
-	return NONS_File::file_exists(name);
+NONS_DataStream *NONS_FileSystem::new_temporary_file(const std::wstring &path,const std::wstring &original_path){
+	NONS_TemporaryFile *ret=new NONS_TemporaryFile(*this,path);
+	ret->original_path=original_path;
+	return ret;
 }
 
 Uint64 NONS_DataStream::seek(Sint64 offset,int direction){

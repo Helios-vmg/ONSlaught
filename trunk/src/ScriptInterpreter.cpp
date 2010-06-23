@@ -182,18 +182,19 @@ ErrorCode init_script(NONS_Script *&script,ENCODING::ENCODING encoding){
 	return NONS_SCRIPT_NOT_FOUND;
 }
 
-std::string getDefaultFontFilename(){
+std::wstring getDefaultFontFilename(){
 	if (!settings.exists(L"default font"))
 		settings.assignWString(L"default font",L"default.ttf");
-	return UniToUTF8(settings.getWString(L"default font"));
+	return settings.getWString(L"default font");
 }
 
 NONS_ScreenSpace *init_screen(NONS_FontCache &fc){
-	std::string fontfile=getDefaultFontFilename();
 	NONS_ScreenSpace *screen=new NONS_ScreenSpace(20,fc);
-	screen->output->shadeLayer->Clear();
-	screen->Background->Clear();
-	screen->BlendNoCursor(1);
+	if (!CLOptions.play.size()){
+		screen->output->shadeLayer->Clear();
+		screen->Background->Clear();
+		screen->BlendNoCursor(1);
+	}
 	std::cout <<"Screen initialized."<<std::endl;
 	return screen;
 }
@@ -593,9 +594,7 @@ NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
 	if (this->was_initialized)
 		this->uninit();
 	delete this->screen;
-	delete this->font_cache;
 	delete this->main_font;
-	delete this->audio;
 	delete this->script;
 	while (this->commandQueue.size()){
 		delete this->commandQueue.front();
@@ -607,9 +606,10 @@ void NONS_ScriptInterpreter::init(){
 	this->defaultfs=18;
 	this->base_size[0]=this->virtual_size[0]=CLOptions.virtualWidth;
 	this->base_size[1]=this->virtual_size[1]=CLOptions.virtualHeight;
-	{
-		std::string fontfile=getDefaultFontFilename();
-		this->main_font=init_font(getDefaultFontFilename());
+	if (!CLOptions.play.size()){
+		std::wstring fontfile=getDefaultFontFilename();
+		if (!this->main_font)
+			this->main_font=init_font(fontfile);
 		if (!this->main_font || !this->main_font->good()){
 			delete this->main_font;
 			if (!this->main_font)
@@ -625,14 +625,16 @@ void NONS_ScriptInterpreter::init(){
 		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,0,black FONTCACHE_DEBUG_PARAMETERS);
 	}
 	if (!CLOptions.play.size()){
-		ErrorCode error=NONS_NO_ERROR;
-		if (CLOptions.scriptPath.size())
-			error=init_script(this->script,CLOptions.scriptPath,CLOptions.scriptencoding,CLOptions.scriptEncryption);
-		else
-			error=init_script(this->script,CLOptions.scriptencoding);
-		if (error!=NONS_NO_ERROR){
-			handleErrors(error,-1,"NONS_ScriptInterpreter::NONS_ScriptInterpreter",0);
-			exit(error);
+		if (!this->script){
+			ErrorCode error=NONS_NO_ERROR;
+			if (CLOptions.scriptPath.size())
+				error=init_script(this->script,CLOptions.scriptPath,CLOptions.scriptencoding,CLOptions.scriptEncryption);
+			else
+				error=init_script(this->script,CLOptions.scriptencoding);
+			if (error!=NONS_NO_ERROR){
+				handleErrors(error,-1,"NONS_ScriptInterpreter::NONS_ScriptInterpreter",0);
+				exit(error);
+			}
 		}
 		this->thread=new NONS_ScriptThread(this->script);
 		this->saveGame=new NONS_SaveFile;
@@ -641,13 +643,14 @@ void NONS_ScriptInterpreter::init(){
 	}
 	{
 		labellog.init(L"NScrllog.dat",L"nonsllog.dat");
-		ImageLoader=new NONS_ImageLoader;
+		ImageLoader.init();
 		o_stdout <<"Global files go in \""<<config_directory<<"\".\n";
 		o_stdout <<"Local files go in \""<<save_directory<<"\".\n";
 		this->audio=new NONS_Audio(CLOptions.musicDirectory);
 		if (CLOptions.musicFormat.size())
 			this->audio->musicFormat=CLOptions.musicFormat;
-		this->screen=init_screen(*this->font_cache);
+		if (!this->screen)
+			this->screen=init_screen(*this->font_cache);
 	}
 	this->store=new NONS_VariableStore();
 	this->interpreter_mode=UNDEFINED_MODE;
@@ -696,23 +699,22 @@ void NONS_ScriptInterpreter::init(){
 }
 
 void NONS_ScriptInterpreter::uninit(){
-	if (this->store)
-		delete this->store;
+	delete this->store;
 	for (INIcacheType::iterator i=this->INIcache.begin();i!=this->INIcache.end();i++)
 		delete i->second;
-	delete this->thread;
+	delete this->font_cache;
 	this->INIcache.clear();
 	delete this->arrowCursor;
 	delete this->pageCursor;
-	if (this->menu)
-		delete this->menu;
+	delete this->menu;
 	this->selectVoiceClick.clear();
 	this->selectVoiceEntry.clear();
 	this->selectVoiceMouseOver.clear();
 	this->clickStr.clear();
-	if (this->imageButtons)
-		delete this->imageButtons;
+	delete this->imageButtons;
 	delete this->saveGame;
+	delete this->thread;
+	delete this->audio;
 
 	settings.assignInt(L"textSpeedMode",this->current_speed_setting);
 	settings.writeOut(config_directory+settings_filename);
@@ -2191,7 +2193,7 @@ bool NONS_ScriptInterpreter::save(int file){
 		}
 		//graphic
 		{
-			NONS_Image *i=ImageLoader->elementFromSurface(scr->Background->data);
+			NONS_Image *i=ImageLoader.elementFromSurface(scr->Background->data);
 			if (i){
 				this->saveGame->background=i->animation.getString();
 			}else{
@@ -2231,7 +2233,7 @@ bool NONS_ScriptInterpreter::save(int file){
 			}else{
 				if (!b){
 					NONS_SaveFile::Sprite *spr=new NONS_SaveFile::Sprite();
-					NONS_Image *i=ImageLoader->elementFromSurface(c->data);
+					NONS_Image *i=ImageLoader.elementFromSurface(c->data);
 					if (i){
 						spr->string=i->animation.getString();
 						this->saveGame->sprites[a]=spr;
@@ -2284,7 +2286,7 @@ bool NONS_ScriptInterpreter::save(int file){
 	bool ret=this->saveGame->save(save_directory+L"save"+itoaw(file)+L".dat");
 	//Also save user data
 	this->store->saveData();
-	ImageLoader->filelog.writeOut();
+	ImageLoader.filelog->writeOut();
 	return ret;
 }
 
@@ -2466,7 +2468,7 @@ ErrorCode NONS_ScriptInterpreter::command_base_resolution(NONS_Statement &stmt){
 	this->base_size[0]=w;
 	this->base_size[1]=h;
 	for (int a=0;a<2;a++)
-		ImageLoader->base_scale[a]=double(this->virtual_size[a])/double(this->base_size[a]);
+		ImageLoader.base_scale[a]=double(this->virtual_size[a])/double(this->base_size[a]);
 	ulong size=this->defaultfs*this->virtual_size[1]/this->base_size[1];
 	this->font_cache->set_size(size);
 	this->screen->output->set_size(size);
@@ -2641,8 +2643,8 @@ ErrorCode NONS_ScriptInterpreter::command_btndef(NONS_Statement &stmt){
 		return NONS_NO_ERROR;
 	}
 	SDL_Surface *img;
-	if (!ImageLoader->fetchSprite(img,filename)){
-		ImageLoader->unfetchImage(img);
+	if (!ImageLoader.fetchSprite(img,filename)){
+		ImageLoader.unfetchImage(img);
 		return NONS_FILE_NOT_FOUND;
 	}
 	this->imageButtons=new NONS_ButtonLayer(img,this->screen);
@@ -2937,7 +2939,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
 			SDL_FillRect(this->screen->screenBuffer,0,this->screen->screenBuffer->format->Amask);
 		else{
 			SDL_Surface *src=this->screen->Background->data;
-			NONS_Image *img=ImageLoader->elementFromSurface(src);
+			NONS_Image *img=ImageLoader.elementFromSurface(src);
 			bool freeSrc=0;
 
 			if (xscale<0 || yscale<0){
@@ -2960,10 +2962,10 @@ ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
 				freeSrc=1;
 			}
 			if (img->svg_source){
-				ImageLoader->svg_functions.SVG_set_scale(img->svg_source,double(xscale)/100.0,double(yscale)/100.0);
-				ImageLoader->svg_functions.SVG_set_rotation(img->svg_source,-double(angle));
-				ImageLoader->svg_functions.SVG_add_scale(img->svg_source,ImageLoader->base_scale[0],ImageLoader->base_scale[1]);
-				SDL_Surface *dst=ImageLoader->svg_functions.SVG_render(img->svg_source);
+				ImageLoader.svg_functions.SVG_set_scale(img->svg_source,double(xscale)/100.0,double(yscale)/100.0);
+				ImageLoader.svg_functions.SVG_set_rotation(img->svg_source,-double(angle));
+				ImageLoader.svg_functions.SVG_add_scale(img->svg_source,ImageLoader.base_scale[0],ImageLoader.base_scale[1]);
+				SDL_Surface *dst=ImageLoader.svg_functions.SVG_render(img->svg_source);
 				if (freeSrc)
 					SDL_FreeSurface(src);
 				src=dst;
@@ -3063,7 +3065,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 	if (!sprite || !sprite->data)
 		return NONS_NO_SPRITE_LOADED_THERE;
 	SDL_Surface *src=sprite->data;
-	NONS_Image *img=ImageLoader->elementFromSurface(src);
+	NONS_Image *img=ImageLoader.elementFromSurface(src);
 	if (cell<0 || (ulong)cell>=sprite->animation.animation_length)
 		return NONS_NO_ERROR;
 	if (functionVersion==2 && !(xscale*yscale))
@@ -3101,10 +3103,10 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 					src=dst;
 				}
 				if (img->svg_source){
-					ImageLoader->svg_functions.SVG_set_scale(img->svg_source,double(xscale)/100.0,double(yscale)/100.0);
-					ImageLoader->svg_functions.SVG_set_rotation(img->svg_source,-double(rotation));
-					ImageLoader->svg_functions.SVG_add_scale(img->svg_source,ImageLoader->base_scale[0],ImageLoader->base_scale[1]);
-					dst=ImageLoader->svg_functions.SVG_render(img->svg_source);
+					ImageLoader.svg_functions.SVG_set_scale(img->svg_source,double(xscale)/100.0,double(yscale)/100.0);
+					ImageLoader.svg_functions.SVG_set_rotation(img->svg_source,-double(rotation));
+					ImageLoader.svg_functions.SVG_add_scale(img->svg_source,ImageLoader.base_scale[0],ImageLoader.base_scale[1]);
+					dst=ImageLoader.svg_functions.SVG_render(img->svg_source);
 					SDL_FreeSurface(src);
 					src=dst;
 				}else{
@@ -3130,9 +3132,9 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 					double(matrix_10)/1000.0,
 					double(matrix_11)/1000.0
 				};
-				ImageLoader->svg_functions.SVG_set_matrix(img->svg_source,matrix_safe);
-				ImageLoader->svg_functions.SVG_set_matrix(img->svg_source,matrix);
-				SDL_Surface *dst=ImageLoader->svg_functions.SVG_render(img->svg_source);
+				ImageLoader.svg_functions.SVG_set_matrix(img->svg_source,matrix_safe);
+				ImageLoader.svg_functions.SVG_set_matrix(img->svg_source,matrix);
+				SDL_Surface *dst=ImageLoader.svg_functions.SVG_render(img->svg_source);
 				SDL_FreeSurface(src);
 				src=dst;
 			}else{
@@ -3274,7 +3276,7 @@ ErrorCode NONS_ScriptInterpreter::command_fileexist(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_filelog(NONS_Statement &stmt){
-	ImageLoader->filelog.commit=1;
+	ImageLoader.filelog->commit=1;
 	return NONS_NO_ERROR;
 }
 
@@ -4849,7 +4851,7 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 		if (frameRect.x+frameRect.w>scr->w || frameRect.y+frameRect.h>scr->h)
 			o_stderr <<"Warning: The text frame is larger than the screen\n";
 		if (this->screen->output->shadeLayer->useDataAsDefaultShade){
-			ImageLoader->unfetchImage(this->screen->output->shadeLayer->data);
+			ImageLoader.unfetchImage(this->screen->output->shadeLayer->data);
 			this->screen->output->shadeLayer->data=0;
 		}
 		{
@@ -4871,7 +4873,7 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			this->screen->output->shadeLayer->setShade(uchar((color&0xFF0000)>>16),(color&0xFF00)>>8,color&0xFF);
 			this->screen->output->shadeLayer->Clear();
 		}else{
-			ImageLoader->fetchSprite(pic,filename);
+			ImageLoader.fetchSprite(pic,filename);
 			windowRect.w=(float)pic->w;
 			windowRect.h=(float)pic->h;
 			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),*this->font_cache,shadow!=0);
@@ -5202,7 +5204,7 @@ ErrorCode NONS_ScriptInterpreter::command_use_nice_svg(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long a;
 	GET_INT_VALUE(a,0);
-	ImageLoader->fast_svg=!a;
+	ImageLoader.fast_svg=!a;
 	return NONS_NO_ERROR;
 }
 
@@ -5221,11 +5223,11 @@ ErrorCode NONS_ScriptInterpreter::command_versionstr(NONS_Statement &stmt){
 	std::wstring str1,str2;
 	GET_STR_VALUE(str1,0);
 	GET_STR_VALUE(str2,1);
-	o_stdout <<"--------------------------------------------------------------------------------\n"
+	o_stdout <<"-------------------------------------------------------------------------------\n"
 		"versionstr says:\n"
 		<<str1<<"\n"
 		<<str2<<"\n"
-		"--------------------------------------------------------------------------------\n";
+		"-------------------------------------------------------------------------------\n";
 	return NONS_NO_ERROR;
 }
 

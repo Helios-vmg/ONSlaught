@@ -71,6 +71,7 @@ public:
 	bool read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,const std::wstring &path,Uint64 offset);
 	bool get_file_size(Uint64 &size,const std::wstring &path);
 	virtual Uint64 get_size(TreeNode *tn)=0;
+	virtual Uint64 get_compressed_size(TreeNode *tn)=0;
 	virtual bool read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,TreeNode *node,Uint64 offset)=0;
 	TreeNode *find_file(const std::wstring &path);
 };
@@ -103,6 +104,9 @@ public:
 	}
 	Uint64 get_size(TreeNode *tn){
 		return derefED(tn->extraData).uncompressed;
+	}
+	Uint64 get_compressed_size(TreeNode *tn){
+		return derefED(tn->extraData).compressed;
 	}
 };
 
@@ -140,6 +144,9 @@ public:
 	}
 	Uint64 get_size(TreeNode *tn){
 		return derefED(tn->extraData).uncompressed;
+	}
+	Uint64 get_compressed_size(TreeNode *tn){
+		return derefED(tn->extraData).compressed;
 	}
 
 	enum SignatureType{
@@ -230,10 +237,12 @@ public:
 
 struct base_in_decompression{
 	uchar *in_buffer;
-	size_t remaining;
-	base_in_decompression():in_buffer(0){}
+	size_t remaining,
+		default_in_size;
+	base_in_decompression():in_buffer(0),default_in_size(1<<14){}
 	virtual ~base_in_decompression(){}
 	virtual in_func get_f()=0;
+	virtual bool eof()=0;
 };
 
 struct base_out_decompression{
@@ -252,6 +261,7 @@ struct decompress_from_regular_file:public base_in_decompression{
 	decompress_from_regular_file():base_in_decompression(),offset(0){}
 	in_func get_f(){ return in_func; }
 	static unsigned in_func(void *p,unsigned char **buffer);
+	bool eof(){ return this->offset>=this->file->filesize(); }
 };
 
 struct decompress_from_file:public base_in_decompression{
@@ -262,6 +272,7 @@ struct decompress_from_file:public base_in_decompression{
 	decompress_from_file():base_in_decompression(),offset(0){}
 	in_func get_f(){ return in_func; }
 	static unsigned in_func(void *p,unsigned char **buffer);
+	bool eof(){ return this->offset>=this->archive->get_compressed_size(this->node); }
 };
 
 struct decompress_from_memory:public base_in_decompression{
@@ -269,10 +280,36 @@ struct decompress_from_memory:public base_in_decompression{
 	decompress_from_memory():base_in_decompression(){}
 	in_func get_f(){ return in_func; }
 	static unsigned in_func(void *p,unsigned char **buffer);
+	bool eof(){ return 1; }
+};
+
+class CRC32{
+	Uint32 crc32;
+	static Uint32 CRC32lookup[];
+public:
+	CRC32(){
+		this->Reset();
+	}
+	void Reset(){
+		this->crc32^=~this->crc32;
+	}
+	void Input(const void *message_array,size_t length){
+		for (const uchar *array=(const uchar *)message_array;length;length--,array++)
+			this->Input(*array);
+	}
+	void Input(uchar message_element){
+		this->crc32=(this->crc32>>8)^CRC32lookup[message_element^(this->crc32&0xFF)];
+	}
+	Uint32 Result(){
+		return ~this->crc32;
+	}
 };
 
 struct decompress_to_file:public base_out_decompression{
 	NONS_File *file;
+	CRC32 crc32;
+	bool compute_crc;
+	decompress_to_file():file(0),compute_crc(0){}
 	out_func get_f(){ return out_func; }
 	static int out_func(void *p,unsigned char *buffer,unsigned size);
 };

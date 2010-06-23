@@ -147,7 +147,7 @@ bool NONS_Layer::load(const std::wstring *string){
 		return 1;
 	}
 	this->unload();
-	if (!ImageLoader->fetchSprite(this->data,*string,&this->optimized_updates)){
+	if (!ImageLoader.fetchSprite(this->data,*string,&this->optimized_updates)){
 		SDL_FillRect(this->data,0,this->defaultShade);
 		this->clip_rect=this->data->clip_rect;
 		return 0;
@@ -174,7 +174,7 @@ bool NONS_Layer::load(SDL_Surface *src){
 bool NONS_Layer::unload(bool youCantTouchThis){
 	if (!this || !this->data)
 		return 1;
-	if (ImageLoader->unfetchImage(this->data)){
+	if (ImageLoader.unfetchImage(this->data)){
 		this->data=0;
 		this->optimized_updates.clear();
 		return 1;
@@ -763,8 +763,13 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,CLOptions.realWidth,CLOptions.realHeight);
 	SDL_Rect size={0,0,CLOptions.virtualWidth,CLOptions.virtualHeight};
 	SDL_Rect frame={framesize,framesize,CLOptions.virtualWidth-framesize*2,CLOptions.virtualHeight-framesize*2};
-	this->output=new NONS_StandardOutput(fc,&size,&frame);
-	this->output->visible=0;
+	if (!CLOptions.play.size()){
+		this->output=new NONS_StandardOutput(fc,&size,&frame);
+		this->output->visible=0;
+	}else{
+		this->output=0;
+		this->lookback=0;
+	}
 	this->layerStack.resize(1000,0);
 	this->Background=new NONS_Layer(&size,0xFF000000);
 	this->leftChar=0;
@@ -776,8 +781,10 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 	}
 	this->gfx_store=new NONS_GFXstore();
 	this->sprite_priority=25;
-	const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
-	this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
+	if (!CLOptions.play.size()){
+		const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
+		this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
+	}
 	this->cursor=0;
 	this->char_baseline=this->screenBuffer->h-1;
 	this->blendSprites=1;
@@ -793,8 +800,13 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 
 NONS_ScreenSpace::NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow){
 	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,CLOptions.realWidth,CLOptions.realHeight);
-	this->output=new NONS_StandardOutput(fc,window,frame);
-	this->output->visible=0;
+	if (!CLOptions.play.size()){
+		this->output=new NONS_StandardOutput(fc,window,frame);
+		this->output->visible=0;
+	}else{
+		this->output=0;
+		this->lookback=0;
+	}
 	this->layerStack.resize(1000,0);
 	SDL_Rect size={0,0,CLOptions.virtualWidth,CLOptions.virtualHeight};
 	this->Background=new NONS_Layer(&size,0xFF000000);
@@ -804,8 +816,10 @@ NONS_ScreenSpace::NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_FontCac
 	this->screenBuffer=makeSurface(this->screen->screens[VIRTUAL]->w,this->screen->screens[VIRTUAL]->h,SCREENBUFFER_BITS);
 	this->gfx_store=new NONS_GFXstore();
 	this->sprite_priority=25;
-	const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
-	this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
+	if (!CLOptions.play.size()){
+		const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
+		this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
+	}
 	this->cursor=0;
 	this->char_baseline=this->screenBuffer->h-1;
 	this->blendSprites=1;

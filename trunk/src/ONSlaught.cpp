@@ -341,7 +341,6 @@ int main(int argc,char **argv){
 		SDL_Delay(10);
 	}
 	delete gScriptInterpreter;
-	delete ImageLoader;
 	return 0;
 }
 

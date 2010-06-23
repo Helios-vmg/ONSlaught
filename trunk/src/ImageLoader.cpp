@@ -623,14 +623,22 @@ SDL_Surface *NONS_DiskCache::get(const std::wstring &filename){
 #define LOG_FILENAME_OLD L"NScrflog.dat"
 #define LOG_FILENAME_NEW L"nonsflog.dat"
 
-NONS_ImageLoader *ImageLoader=0;
+NONS_ImageLoader ImageLoader;
 
-NONS_ImageLoader::NONS_ImageLoader()
-		:filelog(LOG_FILENAME_OLD,LOG_FILENAME_NEW),
-		svg_library("svg_loader",0){
+NONS_ImageLoader::NONS_ImageLoader(){
+	this->initialized=0;
+	this->filelog=0;
+	this->svg_library=0;
+}
+
+void NONS_ImageLoader::init(){
+	if (this->initialized)
+		return;
+	this->filelog=new NONS_FileLog(LOG_FILENAME_OLD,LOG_FILENAME_NEW);
+	this->svg_library=new NONS_LibraryLoader("svg_loader",0);
 	this->imageCache.reserve(50);
 	this->svg_functions.valid=1;
-#define NONS_ImageLoader_INIT_MEMBER(id) if (this->svg_functions.valid && !(this->svg_functions.id=(id##_f)this->svg_library.getFunction(#id)))\
+#define NONS_ImageLoader_INIT_MEMBER(id) if (this->svg_functions.valid && !(this->svg_functions.id=(id##_f)this->svg_library->getFunction(#id)))\
 	this->svg_functions.valid=0
 	NONS_ImageLoader_INIT_MEMBER(SVG_load);
 	NONS_ImageLoader_INIT_MEMBER(SVG_unload);
@@ -646,12 +654,15 @@ NONS_ImageLoader::NONS_ImageLoader()
 	NONS_Image::svg_functions=&this->svg_functions;
 	this->fast_svg=1;
 	this->base_scale[0]=this->base_scale[1]=1;
+	this->initialized=1;
 }
 
 NONS_ImageLoader::~NONS_ImageLoader(){
 	for (ulong a=0;a<this->imageCache.size();a++)
 		if (this->imageCache[a])
 			delete this->imageCache[a];
+	delete this->svg_library;
+	delete this->filelog;
 }
 
 bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,optim_t *rects){
@@ -699,7 +710,7 @@ bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,
 				delete primary;
 				goto fetchSprite_fail;
 			}
-			this->filelog.addString(anim.getFilename());
+			this->filelog->addString(anim.getFilename());
 			freePrimary=1;
 		}
 		NONS_Image *secondary=0;
@@ -712,7 +723,7 @@ bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,
 				goto fetchSprite_fail;
 			secondary=new NONS_Image;
 			bool result=!secondary->LoadImage(anim.getMaskFilename(),stream,(this->fast_svg)?&this->disk_cache:0,this->base_scale);
-			this->filelog.addString(anim.getFilename());
+			this->filelog->addString(anim.getFilename());
 			general_archive.close(stream);
 			freeSecondary=1;
 		}

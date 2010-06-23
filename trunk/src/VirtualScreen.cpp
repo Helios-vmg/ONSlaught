@@ -48,7 +48,7 @@ DLLexport NONS_Mutex screenMutex(1);
 pipelineElement::pipelineElement(ulong effectNo,const SDL_Color &color,const std::wstring &rule,bool loadRule)
 		:effectNo(effectNo),color(color),ruleStr(rule){
 	if (rule.size() && loadRule)
-		ImageLoader->fetchSprite(this->rule,rule);
+		ImageLoader.fetchSprite(this->rule,rule);
 	else
 		this->rule=0;
 }
@@ -66,7 +66,7 @@ void pipelineElement::operator=(const pipelineElement &o){
 
 pipelineElement::~pipelineElement(){
 	if (this->rule)
-		ImageLoader->unfetchImage(this->rule);
+		ImageLoader.unfetchImage(this->rule);
 }
 
 void _asyncEffectThread(void *param){

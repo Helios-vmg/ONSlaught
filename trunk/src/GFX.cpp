@@ -146,7 +146,7 @@ ErrorCode NONS_GFX::call(SDL_Surface *src,SDL_Surface *dst0,NONS_VirtualScreen *
 	//ulong t0=SDL_GetTicks();
 	SDL_Surface *ruleFile=0;
 	if (this->rule.size())
-		ImageLoader->fetchSprite(ruleFile,this->rule);
+		ImageLoader.fetchSprite(ruleFile,this->rule);
 	if (this->type==TRANSITION){
 		if (this->effect<=18){
 			(this->*(builtInTransitions[this->effect]))(src,ruleFile,dst);
@@ -156,7 +156,7 @@ ErrorCode NONS_GFX::call(SDL_Surface *src,SDL_Surface *dst0,NONS_VirtualScreen *
 				waitNonCancellable(NONS_GFX::effectblank);
 		}else{
 			if (ruleFile)
-				ImageLoader->unfetchImage(ruleFile);
+				ImageLoader.unfetchImage(ruleFile);
 			return NONS_NO_EFFECT;
 		}
 	}else{
@@ -164,12 +164,12 @@ ErrorCode NONS_GFX::call(SDL_Surface *src,SDL_Surface *dst0,NONS_VirtualScreen *
 			NONS_GFX::filters[this->effect](this->effect+1,this->color,src,0,dst0,0,0,src->w,src->h);
 		else{
 			if (ruleFile)
-				ImageLoader->unfetchImage(ruleFile);
+				ImageLoader.unfetchImage(ruleFile);
 			return NONS_NO_EFFECT;
 		}
 	}
 	if (ruleFile)
-		ImageLoader->unfetchImage(ruleFile);
+		ImageLoader.unfetchImage(ruleFile);
 	//Unused:
 	//ulong t1=SDL_GetTicks();
 	return NONS_NO_ERROR;
