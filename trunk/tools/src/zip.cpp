@@ -518,7 +518,7 @@ namespace compression{
 		props.lc=8;
 		props.level=9;
 		props.lp=4;
-		props.numThreads=2;
+		props.numThreads=1;
 		props.pb=4;
 		props.writeEndMark=1;
 		SRes res=LzmaEnc_SetProps(enc, &props);

@@ -61,6 +61,7 @@ class Archive{
 protected:
 	TreeNode root;
 public:
+	std::wstring path;
 	bool good;
 	Archive():root(L""),good(0){
 		this->root.is_dir=1;
@@ -91,7 +92,6 @@ struct NSAdata{
 };
 
 class NSAarchive:public Archive{
-	std::wstring path;
 	NONS_File file;
 public:
 	bool nsa;
@@ -249,9 +249,11 @@ struct base_out_decompression{
 	static const ulong bits=15,
 		size=1<<bits;
 	std::vector<uchar> out;
-	base_out_decompression():out(size){}
+	Uint64 output_limit;
+	base_out_decompression():out(size),output_limit(0){}
 	virtual ~base_out_decompression(){}
 	virtual out_func get_f()=0;
+	bool eof(){ return !this->output_limit; }
 };
 
 struct decompress_from_regular_file:public base_in_decompression{

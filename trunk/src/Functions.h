@@ -187,6 +187,46 @@ bool firstchars(const T *s1,const T *s2){
 	return 1;
 }
 
+template <typename T>
+std::basic_string<T> normalize_path(std::basic_string<T> path){
+	toforwardslash(path);
+	bool r;
+	do{
+		r=0;
+		std::basic_string<T> temp;
+		for (size_t a=0;a<path.size();){
+			T c;
+			static T string_0[]={'/','/',0};
+			static T string_1[]={'/','.','/',0};
+			static T string_2[]={'.','.','/',0};
+			if (firstchars(&path[a],string_0)){
+				c='/';
+				r=1;
+				a+=2;
+			}else if (firstchars(&path[a],string_1)){
+				c='/';
+				r=1;
+				a+=3;
+			}else if (firstchars(&path[a],string_2)){
+				c=0;
+				if (temp.size()){
+					temp.erase(temp.end()-1);
+					while (temp.size() && temp[temp.size()-1]!='/')
+						temp.erase(temp.end()-1);
+				}
+				r=1;
+				a+=3;
+			}else
+				c=path[a++];
+			if (!c)
+				continue;
+			temp.push_back(c);
+		}
+		path=temp;
+	}while (r);
+	return path;
+}
+
 //1 if the s1 begins with s2 at off
 template <typename T>
 bool firstchars(const std::basic_string<T> &s1,size_t off,const std::basic_string<T> &s2){

@@ -2216,8 +2216,12 @@ bool NONS_ScriptInterpreter::save(int file){
 			}else
 				this->saveGame->characters[a].string.clear();
 		}
-		std::copy(scr->charactersBlendOrder.begin(),scr->charactersBlendOrder.end(),this->saveGame->charactersBlendOrder);
-		std::fill(this->saveGame->charactersBlendOrder+scr->charactersBlendOrder.size(),this->saveGame->charactersBlendOrder+3,255);
+		//std::copy(scr->charactersBlendOrder.begin(),scr->charactersBlendOrder.end(),this->saveGame->charactersBlendOrder);
+		for (size_t a=0;a<scr->charactersBlendOrder.size();a++)
+			this->saveGame->charactersBlendOrder[a]=(uchar)scr->charactersBlendOrder[a];
+		//std::fill(this->saveGame->charactersBlendOrder+scr->charactersBlendOrder.size(),this->saveGame->charactersBlendOrder+3,255);
+		for (size_t a=scr->charactersBlendOrder.size();a<3;a++)
+			this->saveGame->charactersBlendOrder[a]=255;
 		//update sprite record
 		this->saveGame->blendSprites=scr->blendSprites;
 		for (ulong a=0;a<scr->layerStack.size();a++){

@@ -456,7 +456,10 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 	SHA1 hash;
 	for (ulong a=0;a<this->blocksByLine.size();a++){
 		std::wstring &b=this->blocksByLine[a]->name;
-		std::vector<char> temp2(b.begin(),b.end());
+		std::vector<char> temp2;
+		temp2.resize(b.size());
+		for (size_t c=0;c<b.size();c++)
+			temp2[c]=(char)b[c];
 		hash.Input(&temp2[0],temp2.size());
 	}
 	hash.Result(this->hash);

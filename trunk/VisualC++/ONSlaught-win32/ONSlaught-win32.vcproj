@@ -212,7 +212,6 @@
 <File RelativePath="..\..\src\ThreadManager.cpp"></File>
 <File RelativePath="..\..\src\VariableStore.cpp"></File>
 <File RelativePath="..\..\src\VirtualScreen.cpp"></File>
-<File RelativePath="..\..\src\puff.c"></File>
 <File RelativePath="..\..\src\sha1.cpp"></File>
 <File RelativePath="..\..\src\Archive.h"></File>
 <File RelativePath="..\..\src\Audio.h"></File>
@@ -241,7 +240,6 @@
 <File RelativePath="..\..\src\VariableStore.h"></File>
 <File RelativePath="..\..\src\VirtualScreen.h"></File>
 <File RelativePath="..\..\src\enums.h"></File>
-<File RelativePath="..\..\src\puff.h"></File>
 <File RelativePath="..\..\src\sha1.h"></File>
 <File RelativePath="..\..\src\version.h"></File>
 <File RelativePath="..\..\src\Plugin\LibraryLoader.cpp"></File>

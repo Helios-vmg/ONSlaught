@@ -138,13 +138,22 @@ unsigned decompress_from_memory::in_func(void *p,unsigned char **buffer){
 }
 
 int decompress_to_file::out_func(void *p,unsigned char *buffer,unsigned size){
+	Uint64 &limit=((decompress_to_file *)p)->output_limit;
+	assert(limit!=0);
+	if (size>limit)
+		size=(unsigned)limit;
 	((decompress_to_file *)p)->file->write(buffer,size);
 	((decompress_to_file *)p)->crc32.Input(buffer,size);
+	limit-=size;
 	return 0;
 }
 
 int decompress_to_memory::out_func(void *p,unsigned char *buffer,unsigned size){
+	Uint64 &limit=((decompress_to_file *)p)->output_limit;
+	if (size>limit)
+		size=(unsigned)limit;
 	memcpy(((decompress_to_memory *)p)->buffer,buffer,size);
+	limit-=size;
 	return 0;
 }
 
@@ -224,7 +233,7 @@ bool CompressBZ2(base_out_decompression *dst,base_in_decompression *src){
 	stream.avail_in=in(src,(uchar **)&stream.next_in);
 	stream.next_out=(char *)&dst->out[0];
 	stream.avail_out=dst->size;
-	if (BZ2_bzCompressInit(&stream,4,0,0)!=BZ_OK)
+	if (BZ2_bzCompressInit(&stream,1,0,0)!=BZ_OK)
 		return 0;
 	int res;
 	int action=BZ_RUN;
@@ -314,15 +323,17 @@ bool DecompressLZMA(base_out_decompression *dst,base_in_decompression *src){
 		}
 	}
 	bool ret=1;
+	size_t write_size=0;
 	if (status!=LZMA_STATUS_FINISHED_WITH_MARK){
-		//Ugly hack ahead! Will this always work? I have no idea.
 		if (status==LZMA_STATUS_NEEDS_MORE_INPUT){
 			if (dstLen<dst->size)
-				out(dst,&dst->out[0],dst->size-dstLen);
+				write_size=dst->size-dstLen;
 		}else
 			ret=0;
 	}else if (out_pos+dstLen)
-		out(dst,&dst->out[0],out_pos+dstLen);
+		write_size=out_pos+dstLen;
+	if (write_size)
+		out(dst,&dst->out[0],write_size);
 	LzmaDec_FreeProbs(&p,&alloc);
 	return ret;
 }
@@ -354,9 +365,16 @@ uchar *decode_LZSS(uchar *buffer,ulong compressedSize,ulong decompressedSize){
 	return res;
 }
 
-template <typename T>
-bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,const std::wstring &name,T compression,Uint32 &crc32,Uint64 offset=0){
-	decompression_f f=select_function(compression);
+template <typename T1>
+bool decompress_file_to_file(
+		const std::wstring &path,
+		Archive *a,
+		TreeNode *n,
+		const T1 &data,
+		const std::wstring &name,
+		Uint32 &crc32,
+		Uint64 offset=0){
+	decompression_f f=select_function(data.compression);
 	if (!f){
 		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
 		return 0;
@@ -369,6 +387,7 @@ bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,con
 	dff.offset=offset;
 	dtf.file=&file;
 	dtf.compute_crc=!!crc32;
+	dtf.output_limit=data.uncompressed;
 	if (!f(&dtf,&dff)){
 		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
 		file.close();
@@ -381,8 +400,8 @@ bool decompress_file_to_file(const std::wstring &path,Archive *a,TreeNode *n,con
 }
 
 template <typename T>
-bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const std::wstring &name,T compression){
-	decompression_f f=select_function(compression);
+bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const T &data,const std::wstring &name){
+	decompression_f f=select_function(data.compression);
 	if (!f){
 		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
 		return 0;
@@ -392,6 +411,7 @@ bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const std::wstri
 	dff.archive=a;
 	dff.node=n;
 	dtm.buffer=dst;
+	dtm.output_limit=data.uncompressed;
 	if (!f(&dtm,&dff)){
 		o_stderr <<"File "<<name<<" failed to decompress for some reason.\n";
 		return 0;
@@ -410,6 +430,8 @@ uchar *decompress_memory_to_new_memory(size_t &dst_l,void *src,size_t src_l,T co
 	decompress_to_unknown_size dtus;
 	std::list<std::vector<uchar> > temp;
 	dtus.dst=&temp;
+	//turn on all bits (no output limit)
+	dtus.output_limit^=~dtus.output_limit;
 	if (!f(&dtus,&dfm))
 		return 0;
 	uchar *ret=new uchar[dtus.final_size];
@@ -544,8 +566,8 @@ void writeLittleEndian(size_t size,void *_src,ulong src,size_t &offset){
 NSAarchive::NSAarchive(const std::wstring &path,bool nsa)
 		:Archive(),
 		file(path,1),
-		path(path),
 		nsa(nsa){
+	this->path=path;
 	this->root.freeExtraData=NSAarchive::freeExtraData;
 	if (!this->file)
 		return;
@@ -987,6 +1009,7 @@ localHeader::localHeader(NONS_File &file,Uint64 offset){
 
 ZIParchive::ZIParchive(const std::wstring &path)
 		:Archive(){
+	this->path=path;
 	this->root.freeExtraData=ZIParchive::freeExtraData;
 	endOfCDR eocdr;
 	NONS_File file;
@@ -1330,7 +1353,7 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 			case NSAdata::COMPRESSION_DEFLATE:
 				{
 					Uint32 a=0;
-					decompress_file_to_file(path,this->archive,node,name,data.compression,a,offset);
+					decompress_file_to_file(path,this->archive,node,data,name,a,offset);
 				}
 				break;
 			default:
@@ -1342,11 +1365,11 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 				}
 				break;
 		}
-		NONS_DataStream *stream=filesystem.new_temporary_file(path,name);
+		NONS_DataStream *stream=filesystem.new_temporary_file(path);
 		assert(!!stream);
-		return NONS_DataSource::open(stream);
+		return NONS_DataSource::open(stream,normalize_path(this->archive->path+L"/"+name));
 	}
-	return NONS_DataSource::open(p);
+	return NONS_DataSource::open(p,normalize_path(this->archive->path+L"/"+name));
 }
 
 NONS_nsaArchiveSource::NONS_nsaArchiveSource(const std::wstring &name,bool nsa){
@@ -1369,7 +1392,7 @@ uchar *NONS_nsaArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
 		std::wstring path=filesystem.new_temp_name();
 		if (data.compression==NSAdata::COMPRESSION_BZ2){
 			ret=new uchar[(size_t)data.uncompressed];
-			if (!decompress_file_to_memory(ret,this->archive,node,node->name,data.compression)){
+			if (!decompress_file_to_memory(ret,this->archive,node,data,node->name)){
 				delete[] ret;
 				return 0;
 			}
@@ -1432,8 +1455,8 @@ NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
 	if (data.compression!=ZIPdata::COMPRESSION_NONE){
 		delete p;
 		std::wstring path=filesystem.new_temp_name();
-		decompress_file_to_file(path,this->archive,node,name,data.compression,crc32);
-		stream=filesystem.new_temporary_file(path,name);
+		decompress_file_to_file(path,this->archive,node,data,name,crc32);
+		stream=filesystem.new_temporary_file(path);
 		assert(!!stream);
 	}else if (!skip_crc)
 		crc32=crc32_from_stream(stream);
@@ -1442,7 +1465,7 @@ NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
 		o_stderr <<"File "<<name<<" did not pass CRC32 test.\n";
 		return 0;
 	}
-	return NONS_DataSource::open(stream);
+	return NONS_DataSource::open(stream,normalize_path(this->archive->path+L"/"+name));
 }
 
 uchar *NONS_zipArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
@@ -1452,7 +1475,7 @@ uchar *NONS_zipArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
 		size_t l=(size_t)data.compressed;
 		this->archive->read_raw_bytes(ret,l,l,node,0);
 	}else{
-		if (!decompress_file_to_memory(ret,this->archive,node,node->name,data.compression)){
+		if (!decompress_file_to_memory(ret,this->archive,node,data,node->name)){
 			delete[] ret;
 			return 0;
 		}

@@ -655,14 +655,9 @@ NONS_DataSource::~NONS_DataSource(){
 	}
 }
 
-NONS_DataStream *NONS_DataSource::open(NONS_DataStream *p){
-	const std::wstring *temp;
-	NONS_TemporaryFile *tf=dynamic_cast<NONS_TemporaryFile *>(p);
-	if (tf)
-		temp=&(tf->original_path);
-	else
-		temp=&(p->get_name());
-	std::cout <<"Opening stream to "<<*temp<<"\n";
+NONS_DataStream *NONS_DataSource::open(NONS_DataStream *p,const std::wstring &path){
+	p->original_path=path;
+	std::cout <<"Opening stream to "<<p->original_path<<"\n";
 	this->streams.push_back(p);
 	return p;
 }
@@ -671,7 +666,7 @@ NONS_DataStream *NONS_FileSystem::open(const std::wstring &name){
 	if (!NONS_File::file_exists(name))
 		return 0;
 	NONS_InputFile *p=new NONS_InputFile(*this,name);
-	return NONS_DataSource::open(p);
+	return NONS_DataSource::open(p,normalize_path(p->get_name()));
 }
 
 bool NONS_DataSource::close(NONS_DataStream *p){
@@ -682,22 +677,14 @@ bool NONS_DataSource::close(NONS_DataStream *p){
 	);
 	if (i==this->streams.end())
 		return 0;
-	const std::wstring *temp;
-	NONS_TemporaryFile *tf=dynamic_cast<NONS_TemporaryFile *>(*i);
-	if (tf)
-		temp=&tf->original_path;
-	else
-		temp=&(*i)->get_name();
-	std::cout <<"Closing stream to "<<*temp<<"\n";
+	std::cout <<"Closing stream to "<<p->original_path<<"\n";
 	delete *i;
 	this->streams.erase(i);
 	return 1;
 }
 
-NONS_DataStream *NONS_FileSystem::new_temporary_file(const std::wstring &path,const std::wstring &original_path){
-	NONS_TemporaryFile *ret=new NONS_TemporaryFile(*this,path);
-	ret->original_path=original_path;
-	return ret;
+NONS_DataStream *NONS_FileSystem::new_temporary_file(const std::wstring &path){
+	return new NONS_TemporaryFile(*this,path);
 }
 
 Uint64 NONS_DataStream::seek(Sint64 offset,int direction){

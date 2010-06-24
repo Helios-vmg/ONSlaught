@@ -15,6 +15,7 @@ set(LIBS
 	bz2
 	freetype
 	dl
+	z
 )
 
 add_executable(ONSlaught
@@ -45,7 +46,6 @@ add_executable(ONSlaught
 	src/ThreadManager.cpp
 	src/VariableStore.cpp
 	src/VirtualScreen.cpp
-	src/puff.c
 	src/sha1.cpp
 	src/Plugin/LibraryLoader.cpp
 )

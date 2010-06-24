@@ -165,7 +165,7 @@ class NONS_DataSource{
 public:
 	virtual ~NONS_DataSource();
 	virtual NONS_DataStream *open(const std::wstring &name)=0;
-	NONS_DataStream *open(NONS_DataStream *p);
+	NONS_DataStream *open(NONS_DataStream *p,const std::wstring &path);
 	virtual bool close(NONS_DataStream *stream);
 	virtual bool get_size(Uint64 &size,const std::wstring &name)=0;
 	virtual bool read(void *dst,size_t &bytes_read,NONS_DataStream &stream,size_t count)=0;
@@ -179,7 +179,7 @@ class NONS_FileSystem:public NONS_DataSource{
 public:
 	NONS_FileSystem():temp_id(0){}
 	NONS_DataStream *open(const std::wstring &name);
-	NONS_DataStream *new_temporary_file(const std::wstring &path,const std::wstring &original_path);
+	NONS_DataStream *new_temporary_file(const std::wstring &path);
 	bool get_size(Uint64 &size,const std::wstring &name){
 		return NONS_File::get_file_size(size,name);
 	}
@@ -209,6 +209,7 @@ protected:
 	Uint64 offset,
 		size;
 public:
+	std::wstring original_path;
 	NONS_DataStream(NONS_DataSource &ds,const std::wstring &name):source(&ds),offset(0),name(name){}
 	virtual ~NONS_DataStream(){}
 	virtual bool read(void *dst,size_t &bytes_read,size_t count)=0;
@@ -242,7 +243,6 @@ public:
 
 class NONS_TemporaryFile:public NONS_InputFile{
 public:
-	std::wstring original_path;
 	NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name);
 	~NONS_TemporaryFile();
 };
