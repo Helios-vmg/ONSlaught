@@ -80,7 +80,7 @@ contribute, please refer to CONTACT INFORMATION in this document.
 
 CONTACT INFORMATION
 
-You may contact me at helios@gmail.com.
+You may contact me at helios.vmg@gmail.com.
 
 
 LICENCE
