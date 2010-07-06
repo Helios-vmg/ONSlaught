@@ -34,7 +34,7 @@
 #include "CommandLineOptions.h"
 #include <iostream>
 #include <freetype/ftoutln.h>
-#include FT_STROKER_H
+#include <freetype/ftstroke.h>
 
 NONS_DebuggingConsole console;
 

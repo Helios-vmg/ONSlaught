@@ -39,7 +39,7 @@
 #include <string>
 #include <set>
 #include <ft2build.h>
-#include FT_FREETYPE_H
+#include <freetype/freetype.h>
 
 class NONS_FreeType_Lib{
 	FT_Library library;

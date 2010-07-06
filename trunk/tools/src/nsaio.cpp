@@ -479,12 +479,12 @@ namespace compression{
 		Uint64 offset;
 		std::vector<uchar> in;
 		decompress_from_file():base_in_decompression(),offset(0){
-			this->f=in_func;
+			this->f=in_f;
 		}
 		virtual bool eof(){
 			return this->offset==this->file->filesize();
 		}
-		static unsigned in_func(void *p,unsigned char **buffer){
+		static unsigned in_f(void *p,unsigned char **buffer){
 			decompress_from_file *_this=(decompress_from_file *)p;
 			size_t l=1<<12;
 			_this->in.resize(l);
@@ -509,9 +509,9 @@ namespace compression{
 	struct decompress_to_file:public base_out_decompression{
 		File *file;
 		decompress_to_file():base_out_decompression(){
-			this->f=out_func;
+			this->f=out_f;
 		}
-		static int out_func(void *p,unsigned char *buffer,unsigned size){
+		static int out_f(void *p,unsigned char *buffer,unsigned size){
 			((decompress_to_file *)p)->file->write(buffer,size);
 			((decompress_to_file *)p)->processed+=size;
 			return 0;

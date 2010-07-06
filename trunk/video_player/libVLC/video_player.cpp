@@ -45,6 +45,8 @@ typedef unsigned long ulong;
 #include <windows.h>
 #elif NONS_SYS_UNIX
 #include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
 #elif NONS_SYS_PSP
 #undef NONS_PARALLELIZE
 #endif
@@ -415,7 +417,7 @@ play_video_SIGNATURE{
 	libvlc_media_player_play(mp, &ex);
 	CATCH;
 	ctx.t0=SDL_GetTicks();
-	ctx.debug=print_debug;
+	ctx.debug=!!print_debug;
 
 	for (ulong i=0;!*stop;i++){
 		bool a=libvlc_media_player_get_state(mp,&ex)==libvlc_Ended;

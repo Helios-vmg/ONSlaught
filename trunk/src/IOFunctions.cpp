@@ -81,24 +81,28 @@ void NONS_File::open(const std::wstring &path,bool open_for_read){
 			0
 		);
 	}
+	this->is_open=this->file!=INVALID_HANDLE_VALUE;
 #elif NONS_SYS_UNIX
-	this->file=open(
+	this->file=::open(
 		UniToUTF8(path).c_str(),
 		(open_for_read?O_RDONLY:O_WRONLY|O_TRUNC)|O_LARGEFILE
 	);
-	if (this->file<0)
-		this->file=open(
+	if (this->file<0){
+		this->file=::open(
 			UniToUTF8(path).c_str(),
 			(open_for_read?O_RDONLY:O_WRONLY|O_CREAT)|O_LARGEFILE
 		);
+	}
+	this->is_open=this->file>=0;
 #else
 	this->file.open(UniToUTF8(path).c_str(),std::ios::binary|(open_for_read?std::ios::in:std::ios::out));
+	this->is_open=this->file.is_open();
 #endif
 	this->_filesize=this->reload_filesize();
 }
 
 Uint64 NONS_File::reload_filesize(){
-	if (this->is_open=!!*this){
+	if (this->is_open==!!*this){
 #if NONS_SYS_WINDOWS
 		LARGE_INTEGER li;
 		return (GetFileSizeEx(this->file,&li))?li.QuadPart:0;
@@ -125,7 +129,7 @@ void NONS_File::close(){
 		CloseHandle(this->file);
 #elif NONS_SYS_UNIX
 	if (!!*this)
-		close(this->file);
+		::close(this->file);
 #else
 	this->file.close();
 #endif
@@ -137,7 +141,7 @@ bool NONS_File::operator!(){
 #if NONS_SYS_WINDOWS
 		this->file==INVALID_HANDLE_VALUE;
 #elif NONS_SYS_UNIX
-		this->file>=0;
+		this->file<0;
 #else
 		!this->file;
 #endif
@@ -170,7 +174,7 @@ bool NONS_File::read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offse
 		DWORD rb=read_bytes,br=0;
 		ReadFile(this->file,dst,rb,&br,0);
 #elif NONS_SYS_UNIX
-		read(this->file,dst,read_bytes);
+		::read(this->file,dst,read_bytes);
 #else
 		this->file.read((char *)dst,read_bytes);
 #endif
@@ -180,10 +184,12 @@ bool NONS_File::read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offse
 }
 
 NONS_File::type *NONS_File::read(size_t read_bytes,size_t &bytes_read,Uint64 offset){
-	if (!this->read(0,read_bytes,bytes_read,offset)){
+	bool a;
+	if (!(a=this->read(0,read_bytes,bytes_read,offset)) || !bytes_read){
 		bytes_read=0;
 		return 0;
 	}
+	assert(bytes_read>0);
 	NONS_File::type *buffer=new NONS_File::type[bytes_read];
 	this->read(buffer,read_bytes,bytes_read,offset);
 	return buffer;
@@ -204,7 +210,7 @@ bool NONS_File::write(void *buffer,size_t size,bool write_at_end){
 		lseek64(this->file,0,SEEK_SET);
 	else
 		lseek64(this->file,0,SEEK_END);
-	write(this->file,buffer,size);
+	::write(this->file,buffer,size);
 #else
 	if (!write_at_end)
 		this->file.seekp(0);

@@ -1122,7 +1122,12 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from
 			generic_play_loop(this->audio->music->is_playing());
 			return 1;
 		case 3:
-			return !CHECK_FLAG(this->play_video(filename,1),NONS_NO_ERROR_FLAG);
+			return !CHECK_FLAG(handleErrors(
+					this->play_video(filename,1),
+					ULONG_MAX,
+					"NONS_ScriptInterpreter::generic_play",
+					0
+				),NONS_NO_ERROR_FLAG);
 	}
 	return 0;
 }
@@ -2635,7 +2640,7 @@ ErrorCode NONS_ScriptInterpreter::command_btndef(NONS_Statement &stmt){
 	if (!filename.size()){
 		SDL_Surface *tmpSrf;
 		{
-			NONS_MutexLocker ml=screenMutex;
+			NONS_MutexLocker ml(screenMutex);
 			tmpSrf=makeSurface(
 				this->screen->screen->screens[VIRTUAL]->w,
 				this->screen->screen->screens[VIRTUAL]->h,

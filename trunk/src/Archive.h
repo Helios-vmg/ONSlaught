@@ -158,7 +158,7 @@ public:
 		EOCDR64,
 	};
 	static SignatureType getSignatureType(void *buffer);
-	static const Uint64   local_signature=0x04034B50,
+	static const Uint32   local_signature=0x04034B50,
 	                    central_signature=0x02014B50,
 	                      EOCDR_signature=0x06054b50,
 	            EOCDR64_locator_signature=0x07064b50,
@@ -261,8 +261,8 @@ struct decompress_from_regular_file:public base_in_decompression{
 	Uint64 offset;
 	std::vector<uchar> in;
 	decompress_from_regular_file():base_in_decompression(),offset(0){}
-	in_func get_f(){ return in_func; }
-	static unsigned in_func(void *p,unsigned char **buffer);
+	in_func get_f(){ return in_f; }
+	static unsigned in_f(void *p,unsigned char **buffer);
 	bool eof(){ return this->offset>=this->file->filesize(); }
 };
 
@@ -272,16 +272,16 @@ struct decompress_from_file:public base_in_decompression{
 	Uint64 offset;
 	std::vector<uchar> in;
 	decompress_from_file():base_in_decompression(),offset(0){}
-	in_func get_f(){ return in_func; }
-	static unsigned in_func(void *p,unsigned char **buffer);
+	in_func get_f(){ return in_f; }
+	static unsigned in_f(void *p,unsigned char **buffer);
 	bool eof(){ return this->offset>=this->archive->get_compressed_size(this->node); }
 };
 
 struct decompress_from_memory:public base_in_decompression{
 	uchar *src;
 	decompress_from_memory():base_in_decompression(){}
-	in_func get_f(){ return in_func; }
-	static unsigned in_func(void *p,unsigned char **buffer);
+	in_func get_f(){ return in_f; }
+	static unsigned in_f(void *p,unsigned char **buffer);
 	bool eof(){ return 1; }
 };
 
@@ -312,21 +312,21 @@ struct decompress_to_file:public base_out_decompression{
 	CRC32 crc32;
 	bool compute_crc;
 	decompress_to_file():file(0),compute_crc(0){}
-	out_func get_f(){ return out_func; }
-	static int out_func(void *p,unsigned char *buffer,unsigned size);
+	out_func get_f(){ return out_f; }
+	static int out_f(void *p,unsigned char *buffer,unsigned size);
 };
 
 struct decompress_to_memory:public base_out_decompression{
 	void *buffer;
-	out_func get_f(){ return out_func; }
-	static int out_func(void *p,unsigned char *buffer,unsigned size);
+	out_func get_f(){ return out_f; }
+	static int out_f(void *p,unsigned char *buffer,unsigned size);
 };
 
 struct decompress_to_unknown_size:public base_out_decompression{
 	std::list<std::vector<uchar> > *dst;
 	size_t final_size;
 	decompress_to_unknown_size():base_out_decompression(),final_size(0){}
-	out_func get_f(){ return out_func; }
-	static int out_func(void *p,unsigned char *buffer,unsigned size);
+	out_func get_f(){ return out_f; }
+	static int out_f(void *p,unsigned char *buffer,unsigned size);
 };
 #endif

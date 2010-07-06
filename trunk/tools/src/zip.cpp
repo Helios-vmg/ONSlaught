@@ -296,13 +296,13 @@ namespace compression{
 		Uint64 offset;
 		std::vector<uchar> in;
 		decompress_from_file():base_in_decompression(),offset(0){
-			this->f=in_func;
-			this->f2=in_func2;
+			this->f=in_f;
+			this->f2=in_f2;
 		}
 		virtual bool eof(){
 			return this->offset==this->file->filesize();
 		}
-		static unsigned in_func(void *p,unsigned char **buffer){
+		static unsigned in_f(void *p,unsigned char **buffer){
 			decompress_from_file *_this=(decompress_from_file *)p;
 			size_t l=1<<12;
 			_this->in.resize(l);
@@ -324,7 +324,7 @@ namespace compression{
 			_this->processed+=l;
 			return l;
 		}
-		static SRes in_func2(ISeqInStream *p,void *buf,size_t *size){
+		static SRes in_f2(ISeqInStream *p,void *buf,size_t *size){
 			decompress_from_file *_this=(decompress_from_file *)(p->user_data);
 			size_t l=*size;
 			_this->file->read(buf,l,l,_this->offset);
@@ -339,16 +339,16 @@ namespace compression{
 	struct decompress_to_file:public base_out_decompression{
 		ZipArchive *file;
 		decompress_to_file():base_out_decompression(){
-			this->f=out_func;
-			this->f2=out_func2;
+			this->f=out_f;
+			this->f2=out_f2;
 		}
-		static int out_func(void *p,unsigned char *buffer,unsigned size){
+		static int out_f(void *p,unsigned char *buffer,unsigned size){
 			decompress_to_file *_this=(decompress_to_file *)p;
 			_this->file->write_buffer((const char *)buffer,size);
 			_this->processed+=size;
 			return 0;
 		}
-		static size_t out_func2(ISeqOutStream *p,const void *buf,size_t size){
+		static size_t out_f2(ISeqOutStream *p,const void *buf,size_t size){
 			decompress_to_file *_this=(decompress_to_file *)(p->user_data);
 			_this->file->write_buffer((const char *)buf,size);
 			_this->processed+=size;
