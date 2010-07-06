@@ -28,6 +28,7 @@
 
 #ifndef VIDEO_PLAYER_H
 #define VIDEO_PLAYER_H
+#ifndef __PLUGIN__
 #include <SDL/SDL.h>
 
 #define NONS_SYS_WINDOWS (defined _WIN32 || defined _WIN64)
@@ -52,16 +53,17 @@
 
 typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *,void *);
 typedef unsigned long ulong;
+#endif
 
 typedef struct{
 	void *data;
 	int (*open)(void *,const char *);
 	int (*close)(void *);
 	int (*read)(void *,uint8_t *,int);
-	/* We can safely assume 64-bit integer support at this point. */
 	int64_t (*seek)(void *,int64_t,int);
 } file_protocol;
 
+#ifndef __PLUGIN__
 typedef struct{
 /*versionless section*/
 	ulong version;
@@ -206,4 +208,5 @@ PLAYER_TYPE_FUNCTION_SIGNATURE;
  */
 typedef ulong (*player_version_fp)(PLAYER_VERSION_FUNCTION_PARAMETERS);
 PLAYER_VERSION_FUNCTION_SIGNATURE;
+#endif
 #endif
