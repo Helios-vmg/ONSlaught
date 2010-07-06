@@ -28,6 +28,7 @@
 #include "../common.h"
 #include <SDL/SDL_gfxPrimitives.h>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <vector>
 #include <set>
@@ -835,6 +836,44 @@ public:
 		);
 		sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoStream->codec->height,pict.data,pict.linesize);
 		sws_freeContext(sc);
+		{
+			//apply color correction
+			const int min=16,
+				max=235;
+#if 0
+			Uint8 *row=this->overlay->pixels[0],
+				*end=row+this->overlay->w*this->overlay->h;
+			ulong w=this->overlay->w,
+				h=this->overlay->h;
+			for (ulong y=0;y<h;y++){
+				Uint8 *pixel=row;
+				for (ulong x=w-y*w/h;x<w;x++){
+					int a=pixel[x];
+					if (a<min)
+						a=0;
+					else if (a>max)
+						a=255;
+					else
+						a=(a-min)*255/(max-min);
+					pixel[x]=(Uint8)a;
+				}
+				row+=w;
+			}
+#else
+			Uint8 *pixels=this->overlay->pixels[0],
+				*end=pixels+this->overlay->w*this->overlay->h;
+			for (;pixels!=end;pixels++){
+				int a=*pixels;
+				if (a<min)
+					a=0;
+				else if (a>max)
+					a=255;
+				else
+					a=(a-min)*255/(max-min);
+				*pixels=(Uint8)a;
+			}
+#endif
+		}
 		SDL_UnlockYUVOverlay(this->overlay);
 		this->old_screen=(SDL_Surface *)screen;
 		this->pts=pts;
