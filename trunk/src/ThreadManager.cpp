@@ -30,6 +30,9 @@
 #include "ThreadManager.h"
 #include "IOFunctions.h"
 #include "CommandLineOptions.h"
+#include <iostream>
+#include <cassert>
+#include <cerrno>
 
 #define NONS_PARALLELIZE
 
@@ -87,7 +90,7 @@ void NONS_Event::wait(){
 #if NONS_SYS_WINDOWS
 	WaitForSingleObject(this->event,INFINITE);
 #elif NONS_SYS_UNIX
-	sem_wait(&this->sem);
+	while (sem_wait(&this->sem)<0 && errno==EINTR);
 #elif NONS_SYS_PSP
 	SDL_SemWait(this->sem);
 #endif
@@ -155,6 +158,7 @@ void NONS_ManagedThread::runningThread(void *p){
 		t->startCallEvent.wait();
 		if (t->destroy)
 			break;
+		assert(t->function!=0);
 		t->function(t->parameter);
 		t->parameter=0;
 		t->function=0;
