@@ -29,15 +29,15 @@
 #include <vlc_input.h>
 #include <vlc_access.h>
 #include <vlc_dialog.h>
-
-#include <assert.h>
-#include <errno.h>
-
 #include <vlc_charset.h>
+#include <cstdio>
+#include <cctype>
+#include <cassert>
+#include <cerrno>
+#include "../../video_player.h"
 
 int Open(vlc_object_t *);
 void Close(vlc_object_t *);
-
 
 #define CACHING_TEXT N_("")
 #define CACHING_LONGTEXT N_("")
@@ -63,24 +63,12 @@ int Seek( access_t *, int64_t );
 ssize_t Read( access_t *, uint8_t *, size_t );
 int Control( access_t *, int, va_list );
 
-typedef struct{
-	void *data;
-	int (*open)(void *,const char *);
-	int (*close)(void *);
-	int (*read)(void *,uint8_t *,int);
-	int64_t (*seek)(void *,int64_t,int);
-} file_protocol;
+typedef unsigned long ulong;
 
-#include <iostream>
-#include <string>
-#include <sstream>
-
-template <typename T1,typename T2>
-T1 hextoi(const std::basic_string<T2> &str){
-	std::basic_stringstream<T2> stream;
-	stream <<std::hex<<str;
-	T1 res;
-	return !(stream >>res)?0:res;
+ulong hextoi(const char *s){
+	ulong ret=0;
+	sscanf(s,"%x",&ret);
+	return ret;
 }
 
 int Open(vlc_object_t *p_this){
@@ -90,15 +78,19 @@ int Open(vlc_object_t *p_this){
 	ACCESS_SET_CALLBACKS(Read,0,Control,Seek);
 	p_access->p_sys=(access_sys_t *)calloc(1,sizeof(file_protocol));
 	file_protocol *p_sys=(file_protocol *)p_access->p_sys;
-	if(!p_sys)
+	if (!p_sys)
 		return VLC_ENOMEM;
-	std::string s=p_access->psz_path;
-	size_t slash=s.rfind('/');
-	if (slash==s.npos){
+	const char *s=p_access->psz_path;
+	size_t a,
+		slash=(size_t)-1;
+	for (a=0;s[a];a++)
+		if (s[a]=='/')
+			slash=a;
+	file_protocol *p=(file_protocol *)hextoi(s+slash+1);
+	if (slash==(size_t)-1){
 		free(p_sys);
 		return VLC_EGENERIC;
 	}
-	file_protocol *p=(file_protocol *)hextoi<void *>(s.substr(slash+1));
 	memcpy(p_sys,p,sizeof(*p_sys));
 	return VLC_SUCCESS;
 }
@@ -139,7 +131,7 @@ int Control( access_t *p_access, int i_query, va_list args ){
 		case ACCESS_CAN_SEEK:
 		case ACCESS_CAN_FASTSEEK:
 			pb_bool=(bool*)va_arg(args,bool *);
-			*pb_bool=1;//(p_access->pf_seek != NoSeek);
+			*pb_bool=1;
 			break;
 		case ACCESS_CAN_PAUSE:
 		case ACCESS_CAN_CONTROL_PACE:
@@ -148,7 +140,7 @@ int Control( access_t *p_access, int i_query, va_list args ){
 			break;
 		case ACCESS_GET_PTS_DELAY:
 			pi_64=(int64_t*)va_arg(args,int64_t *);
-			*pi_64=var_GetInteger(p_access,"file-caching")*uint64_t(1000);
+			*pi_64=var_GetInteger(p_access,"file-caching")*(uint64_t)1000;
 		case ACCESS_SET_PAUSE_STATE:
 			break;
 		default:
@@ -156,4 +148,3 @@ int Control( access_t *p_access, int i_query, va_list args ){
 	}
 	return VLC_SUCCESS;
 }
-
