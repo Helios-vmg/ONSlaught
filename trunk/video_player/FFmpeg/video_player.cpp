@@ -421,7 +421,6 @@ std::basic_string<T> itoa(T2 n,unsigned w=0){
 
 extern "C"{
 #include <libavcodec/avcodec.h>
-#include <libavcodec/imgconvert.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 }
