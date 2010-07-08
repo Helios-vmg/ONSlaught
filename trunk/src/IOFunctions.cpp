@@ -103,11 +103,12 @@ void NONS_File::open(const std::wstring &path,bool open_for_read){
 }
 
 Uint64 NONS_File::reload_filesize(){
-	if (this->is_open==!!*this){
+	if (this->is_open){
 #if NONS_SYS_WINDOWS
 		LARGE_INTEGER li;
 		return (GetFileSizeEx(this->file,&li))?li.QuadPart:0;
 #elif NONS_SYS_UNIX
+		assert(this->file>=0);
 		return (Uint64)lseek64(this->file,0,SEEK_END);
 #else
 		if (this->opened_for_read){
