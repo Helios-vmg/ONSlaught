@@ -1160,7 +1160,7 @@ bool ZIParchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,T
 
 void ZIParchive::freeExtraData(void *p){
 	if (p)
-		delete[] &derefED(p);
+		delete &derefED(p);
 }
 
 ZIParchive::SignatureType ZIParchive::getSignatureType(void *buffer){
