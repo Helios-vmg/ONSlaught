@@ -111,8 +111,9 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
 	std::fill(this->screens,this->screens+REAL+1,(SDL_Surface *)0);
 	this->screens[REAL]=SDL_SetVideoMode(w,h,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((CLOptions.startFullscreen)?SDL_FULLSCREEN:0));
 	if (!this->screens[REAL]){
-		std::cerr <<"FATAL ERROR: Could not allocate screen!"<<std::endl
-			<<"Terminating."<<std::endl;
+		std::cerr <<"FATAL ERROR: Could not allocate screen!\n"
+			"Did you forget to install libx11-dev before building?\n"
+			"Terminating.\n";
 		exit(0);
 	}
 	this->screens[VIRTUAL]=this->screens[REAL];
