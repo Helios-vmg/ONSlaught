@@ -90,7 +90,8 @@ void NONS_File::open(const std::wstring &path,bool open_for_read){
 	if (this->file<0){
 		this->file=::open(
 			UniToUTF8(path).c_str(),
-			(open_for_read?O_RDONLY:O_WRONLY|O_CREAT)|O_LARGEFILE
+			(open_for_read?O_RDONLY:O_WRONLY|O_CREAT)|O_LARGEFILE,
+			S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH
 		);
 	}
 	this->is_open=this->file>=0;
