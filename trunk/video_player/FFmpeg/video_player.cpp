@@ -439,30 +439,23 @@ typedef unsigned long ulong;
 typedef unsigned char uchar;
 
 struct Packet{
-	uint8_t *data;
-	size_t size;
+	bool free_packet;
+	AVPacket packet;
     int64_t dts,
 		pts;
 	Packet(AVPacket *packet){
-		if (packet){
-			this->size=packet->size;
-			/*
-			Allocate twice as many bytes as needed. Not the best way to prevent
-			a buffer overflow, I know.
-			*/
-			this->data=(uint8_t *)av_malloc(this->size*2);
-			memcpy(this->data,packet->data,this->size);
-			memset(this->data+this->size,0,this->size);
-			this->dts=packet->dts;
-			this->pts=packet->pts;
-		}else{
-			this->data=0;
-			this->size=0;
-		}
+		this->free_packet=!!packet;
+		if (this->free_packet){
+			this->packet=*packet;
+			this->dts=this->packet.dts;
+			this->pts=this->packet.pts;
+		}else
+			memset(&this->packet,0,sizeof(this->packet));
 	}
 	~Packet(){
-		if (this->data)
-			av_free(this->data);
+		if (this->free_packet)
+			av_free_packet(&this->packet);
+
 	}
 	double compute_time(AVStream *stream,AVFrame *frame){
 		double ret;
@@ -784,12 +777,14 @@ class CompleteVideoFrame{
 	SDL_Overlay *overlay;
 	SDL_Surface *old_screen;
 	SDL_Rect frameRect;
-	CompleteVideoFrame(const CompleteVideoFrame &){}
+	CompleteVideoFrame(const CompleteVideoFrame &):mutex(*new NONS_Mutex){}
 	const CompleteVideoFrame &operator=(const CompleteVideoFrame &){ return *this; }
+	NONS_Mutex &mutex;
 public:
 	uint64_t repeat;
 	double pts;
-	CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts){
+	CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts,NONS_Mutex &mutex)
+			:mutex(mutex){
 		this->overlay=0;
 		ulong width,height;
 		float screenRatio=float(screen->w)/float(screen->h),
@@ -814,7 +809,9 @@ public:
 			width=screen->w;
 			height=screen->h;
 		}
+		this->mutex.lock();
 		this->overlay=SDL_CreateYUVOverlay(width,height,SDL_YV12_OVERLAY,(SDL_Surface *)screen);
+		this->mutex.unlock();
 		this->frameRect.x=Sint16((screen->w-width)/2);
 		this->frameRect.y=Sint16((screen->h-height)/2);
 		this->frameRect.w=(Uint16)width;
@@ -835,6 +832,8 @@ public:
 		);
 		sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoStream->codec->height,pict.data,pict.linesize);
 		sws_freeContext(sc);
+//The UNIX build of FFmpeg already performs color correction.
+#if !NONS_SYS_UNIX
 		{
 			//apply color correction
 			const int min=16,
@@ -873,14 +872,18 @@ public:
 			}
 #endif
 		}
+#endif
 		SDL_UnlockYUVOverlay(this->overlay);
 		this->old_screen=(SDL_Surface *)screen;
 		this->pts=pts;
 		this->repeat=videoFrame->repeat_pict;
 	}
 	~CompleteVideoFrame(){
-		if (!!this->overlay)
+		if (!!this->overlay){
+			this->mutex.lock();
 			SDL_FreeYUVOverlay(this->overlay);
+			this->mutex.unlock();
+		}
 	}
 	void blit(volatile SDL_Surface *currentScreen){
 		if (this->old_screen==currentScreen){
@@ -891,7 +894,9 @@ public:
 				//s.append(" "+itoa<char>(real_global_time-this->pts*1000.0,4));
 				blit_font(this->overlay,s.c_str(),0,0);
 			}
+			this->mutex.lock();
 			SDL_DisplayYUVOverlay(this->overlay,&this->frameRect);
+			this->mutex.unlock();
 		}
 	}
 	const SDL_Rect &frame(){ return this->frameRect; }
@@ -1003,8 +1008,8 @@ void decode_audio(void *p){
 #endif
 		packet=params.packet_queue->pop();
 
-		uint8_t *packet_data=packet->data;
-		size_t packet_data_s=packet->size,
+		uint8_t *packet_data=packet->packet.data;
+		size_t packet_data_s=packet->packet.size,
 			write_at=0,
 			buffer_size=0;
 #if NONS_SYS_WINDOWS
@@ -1013,7 +1018,7 @@ void decode_audio(void *p){
 		while (packet_data_s){
 			int bytes_decoded=output_s,
 				bytes_extracted;
-			bytes_extracted=avcodec_decode_audio2(params.audioCC,audioOutputBuffer+write_at,&bytes_decoded,packet_data,packet_data_s);
+			bytes_extracted=avcodec_decode_audio3(params.audioCC,audioOutputBuffer+write_at,&bytes_decoded,&packet->packet);
 			if (bytes_extracted<0)
 				break;
 			packet_data+=bytes_extracted;
@@ -1062,6 +1067,7 @@ void decode_video(void *p){
 	TSqueue<CompleteVideoFrame *> frameQueue;
 	frameQueue.max_size=FRAME_QUEUE_MAX_SIZE;
 	NONS_Thread display;
+	NONS_Mutex overlay_mutex;
 	{
 		video_display_thread_params *temp=new video_display_thread_params;
 		temp->queue=&frameQueue;
@@ -1099,10 +1105,11 @@ void decode_video(void *p){
 #if NONS_SYS_WINDOWS
 		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Decoding packet.\n");
 #endif
-		avcodec_decode_video(params.videoCC,videoFrame,&frameFinished,packet->data,packet->size);
+		//avcodec_decode_video(params.videoCC,videoFrame,&frameFinished,packet->data,packet->size);
+		avcodec_decode_video2(params.videoCC,videoFrame,&frameFinished,&packet->packet);
 		double pts=packet->compute_time(params.videoS,videoFrame);
 		if (frameFinished){
-			CompleteVideoFrame *new_frame=new CompleteVideoFrame(global_screen,params.videoS,videoFrame,pts);
+			CompleteVideoFrame *new_frame=new CompleteVideoFrame(global_screen,params.videoS,videoFrame,pts,overlay_mutex);
 			if (new_frame->pts>max_pts){
 				max_pts=new_frame->pts;
 				while (!preQueue.empty()){
@@ -1320,12 +1327,12 @@ play_video_SIGNATURE{
 				av_free_packet(&packet);
 				break;
 			}
-			if (packet.stream_index==videoStream){
+			if (packet.stream_index==videoStream)
 				video_packets.push(new Packet(&packet));
-			}else if (packet.stream_index==audioStream){
+			else if (packet.stream_index==audioStream)
 				audio_packets.push(new Packet(&packet));
-			}
-			av_free_packet(&packet);
+			else
+				av_free_packet(&packet);
 		}
 		stop_playback=1;
 		audio_decoder.join();
