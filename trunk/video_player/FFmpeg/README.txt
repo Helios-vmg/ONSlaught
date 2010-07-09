@@ -22,8 +22,10 @@ pre-built Windows binaries.
 The DLL should be placed in the same directory as the executable.
 The pre-built binaries, including the DLL and the MinGW import libraries, don't
 include the non-free modules.
-You can get newer Windows nightly builds from
+You can get new FFmpeg Windows nightly builds from
 http://ffmpeg.arrozcru.org/autobuilds/
+and new OpenAL Windows builds from
+http://connect.creativelabs.com/openal/Downloads/Forms/AllItems.aspx
 But you might need to recompile the plugin.
 
 

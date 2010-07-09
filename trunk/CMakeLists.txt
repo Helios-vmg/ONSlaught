@@ -5,7 +5,8 @@ include_directories(include)
 
 set(EXECUTABLE_OUTPUT_PATH .)
 set(CMAKE_BUILD_TYPE Release)
-add_definitions(-DNONS_SVN)
+add_definitions(-DNONS_SVN -DHAVE_INTTYPES_H -DSDL_HAS_64BIT_TYPE -w)
+set(EXECUTABLE_OUTPUT_PATH bin)
 
 set(LIBS
 	${LIBS}

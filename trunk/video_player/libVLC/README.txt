@@ -27,13 +27,9 @@ definitely need MinGW.
    D. Z\sdk\lib\ to Y\video_player\libVLC\.
    E. Y\lib-win32\SDL.* to Y\video_player\libVLC\lib-win32\
 3. Rename Y\video_player\libVLC\lib to lib-win32.
-4. Rename libvlccore.dll.a to libvlccore.a
-   If you're compiling with VC++:
-     Rename the files inside Y\video_player\libVLC\lib-win32
-     libvlc.dll.a -> libvlc.lib
-   If you're compiling with MinGW:
-     Rename the files inside Y\video_player\libVLC\lib-win32
-     libvlc.dll.a -> libvlc.a
+4. Rename the files inside Y\video_player\libVLC\lib-win32
+     libvlccore.dll.a -> libvlccore.lib
+     libvlc.dll.a     -> libvlc.lib
    You may delete the rest of the files in lib-win32 if you want.
 5. Using the console, navigate to Y\video_player\libVLC\
 6. Make sure g++ (the MinGW C++ compiler) is available from the command line.
