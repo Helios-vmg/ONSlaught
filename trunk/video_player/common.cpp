@@ -26,6 +26,7 @@
 
 #include "common.h"
 #include "font.h"
+#include <cstdio>
 
 void blit_font(SDL_Surface *dst,const char *string,ulong x,ulong y){
 	if (dst->format->BitsPerPixel!=24 && dst->format->BitsPerPixel!=32)
@@ -163,6 +164,6 @@ const char *seconds_to_time_format(double seconds){
 	char temp[10];
 	static char res[1000];
 	sprintf(temp,"%#.3f",seconds);
-	sprintf(res,"%02d:%02d:%02d%s",hours,minutes,seconds_int,temp+1);
+	sprintf(res,"%02u:%02u:%02u%s",hours,minutes,seconds_int,temp+1);
 	return res;
 }
