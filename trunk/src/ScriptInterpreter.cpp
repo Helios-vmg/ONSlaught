@@ -1015,7 +1015,18 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			exception_string.size(),
 			fp
 		};
+#if NONS_SYS_UNIX
+		//If the audio isn't stopped under UNIX, C_play_video() will fail
+		//because it won't be able to open the audio device.
+		delete this->audio;
+#endif
 		success=!!C_play_video(&parameters);
+#if NONS_SYS_UNIX
+		//Restore audio.
+		this->audio=new NONS_Audio(CLOptions.musicDirectory);
+		if (CLOptions.musicFormat.size())
+			this->audio->musicFormat=CLOptions.musicFormat;
+#endif
 		exception_string.resize(strlen(exception_string.c_str()));
 		stop=1;
 		file.close(&file);
