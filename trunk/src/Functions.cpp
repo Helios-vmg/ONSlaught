@@ -1420,7 +1420,7 @@ Uint8 readByte(const void *buffer,ulong &offset){
 Sint16 readSignedWord(const void *_buffer,ulong &offset){
 	uchar *buffer=(uchar *)_buffer;
 	Sint16 r=0;
-	for (char a=2;a>=0;a--){
+	for (char a=1;a>=0;a--){
 		r<<=8;
 		r|=buffer[offset+a];
 	}
@@ -1431,7 +1431,7 @@ Sint16 readSignedWord(const void *_buffer,ulong &offset){
 Uint16 readWord(const void *_buffer,ulong &offset){
 	uchar *buffer=(uchar *)_buffer;
 	Uint16 r=0;
-	for (char a=2;a>=0;a--){
+	for (char a=1;a>=0;a--){
 		r<<=8;
 		r|=buffer[offset+a];
 	}
