@@ -17,6 +17,8 @@ set(LIBS
 
 add_library(video_player SHARED
 	video_player.cpp
+	../common.cpp
+	../font.cpp
 )
 
 target_link_libraries(video_player ${LIBS})
