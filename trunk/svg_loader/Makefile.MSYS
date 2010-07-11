@@ -1,0 +1,18 @@
+CXX = g++
+#TODO: add include directory for Qt
+CXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 -DBUILD_SVG -W -O3 -I../include -c
+LDFLAGS = -Llib-win32 -L../lib-win32 -static-libgcc -s -lmingw32 -lSDL -lQtCore4 -lQtGui4 -lQtSvg4 -shared
+
+all: objs bin-win32/svg_loader.dll
+
+clean:
+	rm -rf objs
+
+objs:
+	mkdir objs
+
+bin-win32/svg_loader.dll: objs/svg_loader.o
+	$(CXX) $^ $(LDFLAGS) -o bin-win32/svg_loader.dll
+
+objs/svg_loader.o: svg_loader.cpp
+	$(CXX) $(CXXFLAGS) $< -o $@

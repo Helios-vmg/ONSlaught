@@ -1,0 +1,21 @@
+CXX = g++
+CXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 -D_inline -DBUILD_VIDEO_PLAYER -D__STDC_CONSTANT_MACROS -W -O3 -Iinclude -I../../include -c
+LDFLAGS = -Llib-win32 -L../../lib-win32 -static-libgcc -s -lmingw32 -lavformat -lavcodec -lavutil -lswscale -lSDL -lOpenAL32 -shared
+
+all: objs bin-win32/video_player.dll
+
+clean:
+	rm -rf objs
+
+objs:
+	mkdir bin-win32 || mkdir objs
+
+bin-win32/video_player.dll: objs/video_player.o objs/common.o objs/font.o
+	$(CXX) $^ $(LDFLAGS) -o bin-win32/video_player.dll
+
+objs/video_player.o: video_player.cpp
+	$(CXX) $(CXXFLAGS) $< -o $@
+objs/common.o: ../common.cpp
+	$(CXX) $(CXXFLAGS) $< -o $@
+objs/font.o: ../font.cpp
+	$(CXX) $(CXXFLAGS) $< -o $@
