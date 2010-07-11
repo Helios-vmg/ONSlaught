@@ -149,10 +149,12 @@ void usage(){
 		"      Disables threading for blit operations.\n"
 		"  -play [a] <filename>\n"
 		"      Play the file and quit. The file can be a graphics, audio or video file.\n"
-		"      This option can be used to test whether the engine can read the file.\n"
-		"      See the documentation for more information.\n"
+		"      This option can be used to test whether the engine can find and read the\n"
+		"      file.\n"
 		"  -replace <replacement string>\n"
-		"      Sets characters to be replaced in the printing mechanism.\n";
+		"      Sets characters to be replaced in the printing mechanism.\n"
+		"      See the documentation for more information.\n"
+	;
 	exit(0);
 }
 

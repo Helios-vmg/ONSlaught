@@ -42,13 +42,17 @@
 #endif
 
 #if NONS_SYS_WINDOWS
-#ifdef _USRDLL
-#define EXPORT_DEF __declspec(dllexport)
+#ifdef BUILD_VIDEO_PLAYER
+#define VIDEO_DECLSPEC __declspec(dllexport)
 #else
-#define EXPORT_DEF __declspec(dllimport)
+#define VIDEO_DECLSPEC __declspec(dllimport)
 #endif
+#define VIDEO_DLLexport __declspec(dllexport)
+#define VIDEO_DLLimport __declspec(dllimport)
 #else
-#define EXPORT_DEF
+#define VIDEO_DECLSPEC
+#define VIDEO_DLLexport
+#define VIDEO_DLLimport
 #endif
 
 typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *,void *);
@@ -90,7 +94,7 @@ typedef struct{
 #define PLAYBACK_FUNCTION_NAME C_play_video
 #define PLAYBACK_FUNCTION_NAME_STRING "C_play_video"
 #define PLAYBACK_FUNCTION_SIGNATURE \
-	EXTERN_C EXPORT_DEF int PLAYBACK_FUNCTION_NAME(PLAYBACK_FUNCTION_PARAMETERS)
+	EXTERN_C VIDEO_DECLSPEC int PLAYBACK_FUNCTION_NAME(PLAYBACK_FUNCTION_PARAMETERS)
 
 /*
  * video_playback_fp:
@@ -177,7 +181,7 @@ PLAYBACK_FUNCTION_SIGNATURE;
 #define PLAYER_TYPE_FUNCTION_NAME get_player_type
 #define PLAYER_TYPE_FUNCTION_NAME_STRING "get_player_type"
 #define PLAYER_TYPE_FUNCTION_SIGNATURE \
-	EXTERN_C EXPORT_DEF const char *PLAYER_TYPE_FUNCTION_NAME \
+	EXTERN_C VIDEO_DECLSPEC const char *PLAYER_TYPE_FUNCTION_NAME \
 	(PLAYER_TYPE_FUNCTION_PARAMETERS)
 
 /*
@@ -195,7 +199,7 @@ PLAYER_TYPE_FUNCTION_SIGNATURE;
 #define PLAYER_VERSION_FUNCTION_NAME get_player_version
 #define PLAYER_VERSION_FUNCTION_NAME_STRING "get_player_version"
 #define PLAYER_VERSION_FUNCTION_SIGNATURE \
-	EXTERN_C EXPORT_DEF ulong PLAYER_VERSION_FUNCTION_NAME \
+	EXTERN_C VIDEO_DECLSPEC ulong PLAYER_VERSION_FUNCTION_NAME \
 	(PLAYER_VERSION_FUNCTION_PARAMETERS)
 
 /*

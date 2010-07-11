@@ -788,9 +788,17 @@ struct surfaceData{
 
 struct NONS_Rect{
 	float x,y,w,h;
-	SDL_Rect to_SDL_Rect(){
-		SDL_Rect ret={(Sint16)x,(Sint16)y,(Uint16)w,(Uint16)h};
-		return ret;
+	SDL_Rect *sdl;
+	NONS_Rect(float x=0,float y=0,float w=0,float h=0):x(x),y(y),w(w),h(h),sdl(0){}
+	~NONS_Rect(){ delete this->sdl; }
+	SDL_Rect &to_SDL_Rect(){
+		if (!this->sdl)
+			this->sdl=new SDL_Rect;
+		this->sdl->x=(Sint16)this->x;
+		this->sdl->y=(Sint16)this->y;
+		this->sdl->w=(Uint16)this->w;
+		this->sdl->h=(Uint16)this->h;
+		return *this->sdl;
 	}
 	NONS_Rect &operator=(const SDL_Rect &s){
 		this->x=(float)s.x;

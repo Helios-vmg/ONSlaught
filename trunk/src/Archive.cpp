@@ -1200,7 +1200,7 @@ void NONS_GeneralArchive::init(){
 	this->archives.push_back(&filesystem);
 	for (ulong a=ULONG_MAX;;a++){
 		std::wstring full_name;
-		ulong format;
+		ulong format=0;
 		if (a!=ULONG_MAX){
 			std::wstring name=base;
 			if (a)
@@ -1224,7 +1224,7 @@ void NONS_GeneralArchive::init(){
 				continue;
 			format=0;
 		}
-		NONS_ArchiveSource *ds;
+		NONS_ArchiveSource *ds=0;
 		switch (format){
 			case 0:
 				ds=new NONS_nsaArchiveSource(full_name,0);
@@ -1385,7 +1385,7 @@ NONS_nsaArchiveSource::~NONS_nsaArchiveSource(){
 
 uchar *NONS_nsaArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
 	NSAdata data=NSAarchive::derefED(node->extraData);
-	uchar *ret;
+	uchar *ret=0;
 	bytes_read=data.uncompressed;
 	if (data.compression==NSAdata::COMPRESSION_NONE){
 		ret=new uchar[(size_t)data.uncompressed];

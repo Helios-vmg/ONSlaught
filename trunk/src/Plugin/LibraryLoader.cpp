@@ -38,6 +38,10 @@
 #include <dlfcn.h>
 #endif
 
+#ifdef NO_ERROR
+#undef NO_ERROR
+#endif
+
 NONS_LibraryLoader::NONS_LibraryLoader(const char *libName,bool append_debug){
 #if NONS_SYS_WINDOWS
 	std::string filename=libName;

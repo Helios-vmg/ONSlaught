@@ -32,7 +32,7 @@
 #include <sstream>
 #include <vector>
 #include <set>
-#include <sstream>
+#include <memory>
 #include <al.h>
 #include <alc.h>
 

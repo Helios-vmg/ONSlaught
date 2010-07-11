@@ -36,7 +36,7 @@
 #include <SDL/SDL.h>
 #include <string>
 
-DLLexport extern NONS_Mutex screenMutex;
+NONS_DECLSPEC extern NONS_Mutex screenMutex;
 
 struct surfaceData;
 typedef void(*filterFX_f)(ulong,SDL_Color,SDL_Surface *,SDL_Surface *,SDL_Surface *,ulong,ulong,ulong,ulong);

@@ -107,15 +107,15 @@ public:
 	NONS_ThreadManager(){}
 	NONS_ThreadManager(ulong CPUs);
 	void init(ulong CPUs);
-	DLLexport ulong call(ulong onThread,NONS_ThreadedFunctionPointer f,void *p);
-	DLLexport void wait(ulong index);
-	DLLexport void waitAll();
+	NONS_DECLSPEC ulong call(ulong onThread,NONS_ThreadedFunctionPointer f,void *p);
+	NONS_DECLSPEC void wait(ulong index);
+	NONS_DECLSPEC void waitAll();
 	static void setCPUcount();
 };
 
-extern DLLexport NONS_ThreadManager threadManager;
+extern NONS_DECLSPEC NONS_ThreadManager threadManager;
 
-class DLLexport NONS_Mutex{
+class NONS_DECLSPEC NONS_Mutex{
 #if NONS_SYS_WINDOWS
 	//pointer to CRITICAL_SECTION
 	void *mutex;

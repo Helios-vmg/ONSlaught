@@ -492,46 +492,46 @@ bool SVG_Manager::render(ulong index,SDL_Surface *dst,double offset_x,double off
 
 
 
-DECLSPEC ulong SVG_load(void *buffer,size_t size){
+SVG_DLLexport ulong SVG_load(void *buffer,size_t size){
 	return manager.load(buffer,size);
 }
 
-DECLSPEC bool SVG_unload(ulong index){
+SVG_DLLexport int SVG_unload(ulong index){
 	return manager.unload(index);
 }
 
-DECLSPEC bool SVG_get_dimensions(ulong index,double *w,double *h){
+SVG_DLLexport int SVG_get_dimensions(ulong index,double *w,double *h){
 	return manager.get_dim(index,w,h);
 }
 
-DECLSPEC bool SVG_set_scale(ulong index,double scale_x,double scale_y){
+SVG_DLLexport int SVG_set_scale(ulong index,double scale_x,double scale_y){
 	return manager.scale(index,scale_x,scale_y);
 }
 
-DECLSPEC bool SVG_best_fit(ulong index,ulong max_x,ulong max_y){
+SVG_DLLexport int SVG_best_fit(ulong index,ulong max_x,ulong max_y){
 	return manager.best_fit(index,max_x,max_y);
 }
 
-DECLSPEC bool SVG_set_rotation(ulong index,double angle){
+SVG_DLLexport int SVG_set_rotation(ulong index,double angle){
 	return manager.rotate(index,angle);
 }
 
-DECLSPEC bool SVG_set_matrix(ulong index,double matrix[4]){
+SVG_DLLexport int SVG_set_matrix(ulong index,double matrix[4]){
 	return manager.set_matrix(index,matrix);
 }
 
-DECLSPEC bool SVG_transform_coordinates(ulong index,double x,double y,double *dst_x,double *dst_y){
+SVG_DLLexport int SVG_transform_coordinates(ulong index,double x,double y,double *dst_x,double *dst_y){
 	return manager.transform_coordinates(index,x,y,dst_x,dst_y);
 }
 
-DECLSPEC bool SVG_add_scale(ulong index,double scale_x,double scale_y){
+SVG_DLLexport int SVG_add_scale(ulong index,double scale_x,double scale_y){
 	return manager.add_scale(index,scale_x,scale_y);
 }
 
-DECLSPEC SDL_Surface *SVG_render(ulong index){
+SVG_DLLexport SDL_Surface *SVG_render(ulong index){
 	return manager.render(index);
 }
 
-DECLSPEC bool SVG_render2(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha){
+SVG_DLLexport int SVG_render2(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha){
 	return manager.render(index,dst,offset_x,offset_y,alpha);
 }

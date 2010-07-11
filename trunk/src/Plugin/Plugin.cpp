@@ -161,7 +161,7 @@ void *getAsyncEffectFunctions(){
 	return &ret;
 }
 
-extern "C" DECLSPEC void *getFunctionPointers(void *param){
+extern "C" PLUGIN_DLLexport void *getFunctionPointers(void *param){
 	switch ((ulong)param){
 		case 0:
 			return getTransitionEffectFunctions();

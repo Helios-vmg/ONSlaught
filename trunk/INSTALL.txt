@@ -4,29 +4,26 @@ platforms.
 Windows:
 Compilation:
 Compiling for Windows is pretty much straightforward. The src package includes
-projects for Code::Blocks and Visual C++ 2008, plus binary static and dynamic
-dependencies. The only thing noteworthy is that ONSlaught doesn't compile with
-MinGW 3.x and below; only with MinGW 4.x and above. This is because 3.x has an
-incomplete implementation of the C++ standard library.
+projects for Visual C++ 2008, plus static dependencies. The
+only thing noteworthy is that ONSlaught doesn't compile with MinGW 3.x and
+below; only with MinGW 4.x and above. This is because 3.x has an incomplete
+implementation of the C++ standard library.
+
+To compile using MinGW, you'll also need MSYS. Run
+  make -f Makefile.MSYS
+This will build both the engine and the plugin.
+
 
 Unices:
 Compilation:
-cmake .
-make
-In order for the compilation process to succeed, the following files/symlinks
-should be in the system's libraries directory (usually /usr/lib):
-
-libSDL.so                              │    libSDL.a            (Alternatively)
-libSDL_image.so                        │    libSDL_image.a      (Alternatively)
-libSDL_mixer.so                        │    libSDL_mixer.a      (Alternatively)
-libbz2.so                              │    libbz2.a            (Alternatively)
-libfreetype.so                         │    libfreetype.a       (Alternatively)
+  cmake .
+  make
 
 After a successful build, the binary will be put in ./ONSlaught.
 
-There's also a separate package (fulldep) that includes all the dependecies with
-their sources, in case the target system doesn't have them. This package is
-almost guaranteed to produce a correct executable.
+There's also a separate package (fulldep) that includes all the dependecies
+with their sources, in case the target system doesn't have them. This package
+is almost guaranteed to produce a correct executable.
 
 Installation:
 The best way to install is to move this file to /usr/bin/ (most likely will

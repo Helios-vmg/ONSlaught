@@ -33,5 +33,19 @@
 #include "../Functions.h"
 #include "../GFX.h"
 
-extern "C" DECLSPEC void *getFunctionPointers(void *param);
+#if NONS_SYS_WINDOWS
+#ifdef BUILD_PLUGIN
+#define PLUGIN_DECLSPEC __declspec(dllexport)
+#else
+#define PLUGIN_DECLSPEC __declspec(dllimport)
+#endif
+#define PLUGIN_DLLexport __declspec(dllexport)
+#define PLUGIN_DLLimport __declspec(dllimport)
+#else
+#define PLUGIN_DECLSPEC
+#define PLUGIN_DLLexport
+#define PLUGIN_DLLimport
+#endif
+
+extern "C" PLUGIN_DECLSPEC void *getFunctionPointers(void *param);
 #endif

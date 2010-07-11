@@ -404,7 +404,7 @@ namespace NONS_Expression{
 			freePointerVector(evaluation_stack);
 			return 0;
 		}
-		Sint32 arrayNo;
+		Sint32 arrayNo=0;
 		std::vector<Sint32> v(indices);
 		for (ulong a=base;a<base+indices+1;a++){
 			if (evaluation_stack[a]->type!=Value::INTEGER){

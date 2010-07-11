@@ -49,7 +49,9 @@ Sets the level of verbosity. Defaults to 0.
 Levels:
 Level 0: No logging.
 Level 1: Log line numbers being interpreted.
-Level 2: Log results and details for expressions.
+Level 2: Log file streams being closed and opened.
+Level 3: Log results and details for expressions.
+Level >4: Log all commands being executed and their parameters.
 Level 255: Reserved for engine debugging.
 
 
@@ -166,17 +168,18 @@ Preprocesses the script and quits. Only makes sense when used with -pp-output.
 Disables threading for blit operations.
 
 
--play [a] <filename>
-Play a file and quit.
-The file can be a graphics, audio, or video file. This option can be used to
-test whether the engine can read the file.
-The optional a is ignored when reading image files. If the a is not present, the
-engine will not try to read from the archives, only from the file system. This
-is important when attempting to play videos, as reading from the archives loads
-entire files to memory.
-In other words, there are five possible ways of using this option:
--play graphics.file
--play a graphics.file (a is ignored)
--play audio.file
--play a audio.file (a is not ignored)
--play video.file (no a)
+-play <filename>
+Play a file and quit. The file can be a graphics, audio, or video file.
+      This option can be used to test whether the engine can find and read the file.
+
+
+-replace <replacement string>
+Sets characters to be replaced in the printing mechanism.
+Odd characters in the string are characters to be replaced, and even characters
+are the characters that will replace them.
+For example:
+-replace "aABb"
+This example replaces lower case 'a's with upper case 'A's, and upper case 'B's
+with lower case 'b's.
+(The string only needs to be quoted if it contains spaces or other special
+characters.)

@@ -40,8 +40,8 @@
 HWND mainWindow=0;
 #endif
 
-DECLSPEC volatile bool ctrlIsPressed=0;
-DECLSPEC volatile bool forceSkip=0;
+NONS_DLLexport volatile bool ctrlIsPressed=0;
+NONS_DLLexport volatile bool forceSkip=0;
 NONS_ScriptInterpreter *gScriptInterpreter=0;
 
 #undef ABS
@@ -1238,8 +1238,8 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 	ulong current_line=stmt->lineOfOrigin->lineNumber;
 	if (CLOptions.verbosity>=1 && CLOptions.verbosity<255)
 		o_stderr <<"Interpreting line "<<current_line<<"\n";
-	if (CLOptions.verbosity>=3 && CLOptions.verbosity<255 && stmt->type==StatementType::COMMAND)
-		print_command(o_stderr,0,stmt->commandName,stmt->parameters,0);
+	if (CLOptions.verbosity>=4 && CLOptions.verbosity<255 && stmt->type==StatementType::COMMAND)
+		print_command(o_stderr,current_line,stmt->commandName,stmt->parameters,0);
 	this->saveGame->textX=this->screen->output->x;
 	this->saveGame->textY=this->screen->output->y;
 	this->saveGame->italic=this->screen->output->get_italic();
@@ -1372,7 +1372,7 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 	stmt.parse(this->script);
 	stmt.lineOfOrigin=line;
 	stmt.fileOffset=offset;
-	if (CLOptions.verbosity>=3 && CLOptions.verbosity<255 && stmt.type==StatementType::COMMAND){
+	if (CLOptions.verbosity>=4 && CLOptions.verbosity<255 && stmt.type==StatementType::COMMAND){
 		o_stderr <<"String: ";
 		print_command(o_stderr,0,stmt.commandName,stmt.parameters,0);
 	}
@@ -2557,18 +2557,8 @@ ErrorCode NONS_ScriptInterpreter::command_blt(NONS_Statement &stmt){
 	GET_COORDINATE(imgY,1,5);
 	GET_COORDINATE(imgW,0,6);
 	GET_COORDINATE(imgH,1,7);
-	NONS_Rect dstRect={
-			screenX,
-			screenY,
-			screenW,
-			screenH
-		},
-		srcRect={
-			imgX,
-			imgY,
-			imgW,
-			imgH
-	};
+	NONS_Rect dstRect(screenX,screenY,screenW,screenH),
+		srcRect(imgX,imgY,imgW,imgH);
 	void (*interpolationFunction)(SDL_Surface *,SDL_Rect *,SDL_Surface *,SDL_Rect *,ulong,ulong)=&nearestNeighborInterpolation;
 	ulong x_multiplier=1,y_multiplier=1;
 	if (imgW==screenW && imgH==screenH){
@@ -4853,18 +4843,8 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			fontsize<1){
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
 	}
-	NONS_Rect windowRect={
-		windowXstart,
-		windowYstart,
-		windowXend-windowXstart+1,
-		windowYend-windowYstart+1
-	},
-	frameRect={
-		frameXstart,
-		frameYstart,
-		frameXend-frameXstart,
-		frameYend-frameYstart
-	};
+	NONS_Rect windowRect(windowXstart,windowYstart,windowXend-windowXstart+1,windowYend-windowYstart+1),
+		frameRect(frameXstart,frameYstart,frameXend-frameXstart,frameYend-frameYstart);
 	{
 		NONS_MutexLocker ml(screenMutex);
 		SDL_Surface *scr=this->screen->screen->screens[VIRTUAL];

@@ -45,21 +45,36 @@ typedef unsigned char uchar;
 
 EXTERN_C_BLOCK_O
 #if defined __WIN32__ && defined _USRDLL
-#define SVG_DECLARE_FUNCTION(return,name,parameters) typedef DECLSPEC return (*name##_f)parameters;\
+#define SVG_DECLARE_FUNCTION(return,name,parameters) typedef SVG_DECLSPEC return (*name##_f)parameters;\
 DECLSPEC return name parameters
 #else
 #define SVG_DECLARE_FUNCTION(return,name,parameters) typedef return(*name##_f)parameters;
 #endif
+
+#if NONS_SYS_WINDOWS
+#ifdef BUILD_SVG
+#define SVG_DECLSPEC __declspec(dllexport)
+#else
+#define SVG_DECLSPEC __declspec(dllimport)
+#endif
+#define SVG_DLLexport __declspec(dllexport)
+#define SVG_DLLimport __declspec(dllimport)
+#else
+#define SVG_DECLSPEC
+#define SVG_DLLexport
+#define SVG_DLLimport
+#endif
+
 SVG_DECLARE_FUNCTION(ulong,SVG_load,(void *buffer,size_t size));
-SVG_DECLARE_FUNCTION(bool,SVG_unload,(ulong index));
-SVG_DECLARE_FUNCTION(bool,SVG_get_dimensions,(ulong index,double *w,double *h));
-SVG_DECLARE_FUNCTION(bool,SVG_set_scale,(ulong index,double scale_x,double scale_y));
-SVG_DECLARE_FUNCTION(bool,SVG_best_fit,(ulong index,ulong max_x,ulong max_y));
-SVG_DECLARE_FUNCTION(bool,SVG_set_rotation,(ulong index,double angle));
-SVG_DECLARE_FUNCTION(bool,SVG_set_matrix,(ulong index,double matrix[4]));
-SVG_DECLARE_FUNCTION(bool,SVG_transform_coordinates,(ulong index,double x,double y,double *dst_x,double *dst_y));
-SVG_DECLARE_FUNCTION(bool,SVG_add_scale,(ulong index,double scale_x,double scale_y));
+SVG_DECLARE_FUNCTION(int,SVG_unload,(ulong index));
+SVG_DECLARE_FUNCTION(int,SVG_get_dimensions,(ulong index,double *w,double *h));
+SVG_DECLARE_FUNCTION(int,SVG_set_scale,(ulong index,double scale_x,double scale_y));
+SVG_DECLARE_FUNCTION(int,SVG_best_fit,(ulong index,ulong max_x,ulong max_y));
+SVG_DECLARE_FUNCTION(int,SVG_set_rotation,(ulong index,double angle));
+SVG_DECLARE_FUNCTION(int,SVG_set_matrix,(ulong index,double matrix[4]));
+SVG_DECLARE_FUNCTION(int,SVG_transform_coordinates,(ulong index,double x,double y,double *dst_x,double *dst_y));
+SVG_DECLARE_FUNCTION(int,SVG_add_scale,(ulong index,double scale_x,double scale_y));
 SVG_DECLARE_FUNCTION(SDL_Surface *,SVG_render,(ulong index));
-SVG_DECLARE_FUNCTION(bool,SVG_render2,(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha));
+SVG_DECLARE_FUNCTION(int,SVG_render2,(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha));
 EXTERN_C_BLOCK_C
 #endif

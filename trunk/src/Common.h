@@ -51,11 +51,13 @@ typedef unsigned char uchar;
 
 #if NONS_SYS_WINDOWS
 typedef void *HANDLE;
-#ifndef _USRDLL
-#define DLLexport __declspec(dllexport)
+#ifdef BUILD_ONSLAUGHT
+#define NONS_DECLSPEC __declspec(dllexport)
 #else
-#define DLLexport __declspec(dllimport)
+#define NONS_DECLSPEC __declspec(dllimport)
 #endif
+#define NONS_DLLexport __declspec(dllexport)
+#define NONS_DLLimport __declspec(dllimport)
 
 #ifndef _WIN64
 typedef ulong DWORD;
@@ -63,7 +65,9 @@ typedef ulong DWORD;
 typedef ushort DWORD;
 #endif
 #else
-#define DLLexport
+#define PLUGIN_DECLSPEC
+#define PLUGIN_DLLexport
+#define PLUGIN_DLLimport
 #endif
 
 #ifdef _MSC_VER
@@ -95,10 +99,10 @@ extern const int bshift;
 extern const int ashift;
 extern int lastClickX;
 extern int lastClickY;
-extern DLLexport ulong cpu_count;
+extern NONS_DECLSPEC ulong cpu_count;
 
-extern DLLexport volatile bool ctrlIsPressed;
-extern DLLexport volatile bool forceSkip;
+extern NONS_DECLSPEC volatile bool ctrlIsPressed;
+extern NONS_DECLSPEC volatile bool forceSkip;
 
 #define CURRENTLYSKIPPING (ctrlIsPressed || forceSkip)
 

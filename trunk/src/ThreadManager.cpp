@@ -44,8 +44,8 @@
 #undef NONS_PARALLELIZE
 #endif
 
-DLLexport ulong cpu_count=1;
-DLLexport NONS_ThreadManager threadManager;
+NONS_DLLexport ulong cpu_count=1;
+NONS_DLLexport NONS_ThreadManager threadManager;
 
 void NONS_Event::init(){
 #if NONS_SYS_WINDOWS

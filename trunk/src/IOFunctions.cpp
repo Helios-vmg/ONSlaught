@@ -665,7 +665,8 @@ NONS_DataSource::~NONS_DataSource(){
 
 NONS_DataStream *NONS_DataSource::open(NONS_DataStream *p,const std::wstring &path){
 	p->original_path=path;
-	std::cout <<"Opening stream to "<<p->original_path<<"\n";
+	if (CLOptions.verbosity>=2)
+		o_stderr <<"Opening stream to "<<p->original_path<<"\n";
 	this->streams.push_back(p);
 	return p;
 }
@@ -685,7 +686,8 @@ bool NONS_DataSource::close(NONS_DataStream *p){
 	);
 	if (i==this->streams.end())
 		return 0;
-	std::cout <<"Closing stream to "<<p->original_path<<"\n";
+	if (CLOptions.verbosity>=2)
+		o_stderr <<"Closing stream to "<<p->original_path<<"\n";
 	delete *i;
 	this->streams.erase(i);
 	return 1;
