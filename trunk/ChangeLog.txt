@@ -20,7 +20,7 @@ Minor changes:
   * Discontinued UCS-2 support.
   * Implemented reduced memory consumption builds for low memory environments.
     Note: Macros are disabled in this state.
-  * Added libVLC-based video player module.
+  * Implemented color correction in video player.
 
 Bug fixes:
   * Fixed bug in division operator (!).
@@ -38,6 +38,15 @@ Bug fixes:
     systems.
   * Fixed minor bug in FFmpeg video player that caused crash when playing
     videos with no audio stream.
+  * Fixed threading bugs related to sem_wait() calls.
+  * Fixed open(2) call compliance problem.
+  * Fixed memory management bug.
+  * Fixed file handling bugs.
+  * Fixed minor bug in TreeNode::get_branch().
+  * Fixed very old minor bug in readWord().
+  * Fixed sound problem when playing video under UNIX.
+  * Fixed race conditions under X11.
+
 
 20091212
     * Implemented: avi, mpegplay.
