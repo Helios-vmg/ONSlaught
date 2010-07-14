@@ -48,7 +48,8 @@ SDL,
 SDL_image (should have been compiled at least with jpeg and png support),
 SDL_mixer (ogg support heavily recommended),
 FreeType 2,
-bz2lib.
+bz2lib,
+zlib.
 
 
 ABOUT MIDI
@@ -71,11 +72,11 @@ The engine was primarily written in Visual C++ 9.0 (2008), but it can also be
 compiled with MinGW and GCC. GCC compilation has only been tested on versions 3
 and above. Visual C++ 6.0 is not able to compile it. MinGW versions below 4.x
 are not able to compile it.
-Theoretically, any compiler older than 2005 should be able to build ONSlaught.
 
-At the moment, I'm looking for programmers with knowledge of PSP, and/or iPod
-for porting the engine. If you possess any of these skills and are interested to
-contribute, please refer to CONTACT INFORMATION in this document.
+At the moment, I'm looking for programmers with knowledge of iPod to port the
+engine. If you possess any of these skills and are interested to contribute,
+please refer to CONTACT INFORMATION in this document.
+I'm also looking for PSP testers.
 
 
 CONTACT INFORMATION

@@ -100,15 +100,16 @@ OPTIONS:
                                       zip
 
 It has basically the same interface as nsaio, but instead it just creates ZIP
-files. It supports BZ2 and LZMA compression, and can generate split archives. An
-archive will be forcibly split if it needs 2 GiB or more.
+files. It supports DEFLATE (the most common ZIP compression algorithm), BZ2,
+and LZMA compression, and can generate split archives. An archive will be
+forcibly split if it needs 2 GiB or more.
 
 ZIP tools and features:
-            Split archive      BZ2      LZMA
-WinZip           Yes           Yes      Yes
-WinRAR            ?            No**     No**
-7-Zip            No*           Yes      Yes
-GNU zip          No*           No       No
+            Split archive      DEFLATE      BZ2      LZMA
+WinZip           Yes           Yes          Yes      Yes
+WinRAR            ?            Yes          No**     No**
+7-Zip            No*           Yes          Yes      Yes
+GNU zip          No*            ?           No       No
 
 (*)These don't support true split ZIP archives. They implement splitting by
 generating a single ZIP archive axed into parts of varying size. The engine

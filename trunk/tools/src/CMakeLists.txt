@@ -15,6 +15,7 @@ add_executable(nsaio
 	nsaio.cpp
 	Archive.cpp
 	Unicode.cpp
+	File.cpp
 )
 
 add_executable(zip
@@ -22,6 +23,7 @@ add_executable(zip
 	LZMA.c
 	Archive.cpp
 	Unicode.cpp
+	File.cpp
 )
 
 target_link_libraries(nsaio

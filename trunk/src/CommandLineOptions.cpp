@@ -174,7 +174,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 		L"-redirect",               //9
 		L"--version",               //10
 		L"-implementation",         //11
-		L"-no-console",             //12
+		L"",                        //12
 		L"-dump-text",              //13
 		L"-f",                      //14
 		L"-r",                      //15
@@ -293,13 +293,6 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					NONS_ScriptInterpreter(0);
 				}
 				exit(0);
-			case 12: //-no-console
-#if NONS_SYS_WINDOWS
-				this->noconsole=1;
-				this->debugMode=0;
-				this->override_stdout=1;
-#endif
-				break;
 			case 13: //-dump-text
 				{
 					if (a+1>=size){
@@ -403,7 +396,8 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				}
 				break;
 			case 7: //-image-cache-size
-			case 17://-sdebug
+			case 12: //-no-console
+			case 17: //-sdebug
 			default:
 				std::cerr <<"Unrecognized command line option: \""<<arguments[a]<<"\""<<std::endl;
 		}

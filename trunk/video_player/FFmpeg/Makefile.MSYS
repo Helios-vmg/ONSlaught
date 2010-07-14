@@ -1,17 +1,24 @@
 CXX = g++
 CXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 -D_inline -DBUILD_VIDEO_PLAYER -D__STDC_CONSTANT_MACROS -W -O3 -Iinclude -I../../include -c
-LDFLAGS = -Llib-win32 -L../../lib-win32 -static-libgcc -s -lmingw32 -lavformat -lavcodec -lavutil -lswscale -lSDL -lOpenAL32 -shared
+LDFLAGS = -Llib-win32 -L../../bin-win32 -static-libgcc -s -lmingw32 -lavformat -lavcodec -lavutil -lswscale -lONSlaught -lOpenAL32 -shared
 
-all: objs bin-win32/video_player.dll
+all: objs removed_includes bin-win32/video_player.dll
 
 clean:
 	rm -rf objs
 
-objs:
-	mkdir bin-win32 || mkdir objs
+removed_includes:
+	rm include/inttypes.h include/stdint.h
+	touch removed_includes
 
-bin-win32/video_player.dll: objs/video_player.o objs/common.o objs/font.o
+objs:
+	mkdir objs
+
+bin-win32/video_player.dll: objs/video_player.o objs/common.o objs/font.o ../../bin-win32/libONSlaught.a
 	$(CXX) $^ $(LDFLAGS) -o bin-win32/video_player.dll
+
+../../bin-win32/libONSlaught.a:
+	$(error You must build ONSlaught first!)
 
 objs/video_player.o: video_player.cpp
 	$(CXX) $(CXXFLAGS) $< -o $@

@@ -444,8 +444,8 @@ ulong figure_out_compression(std::string extension,Uint64 filesize,long compress
 	tolower(extension);
 	//files with these extensions will not be compressed
 	static const char *compressed_types[]={
-		"gif","jpeg","jpg","tga","tif","tiff","svgz",
-		"ogg","mp3","it","xm","s3m","mod","aiff","flac","669","med","voc","mka",
+		"gif","jpeg","jpg","tga","tif","tiff","svgz","png",
+		"ogg","mp3","it","xm","s3m","aiff","flac","669","med","voc","mka",
 		"mkv","avi","mpeg","mpg","mp4","flv",
 		0
 	};

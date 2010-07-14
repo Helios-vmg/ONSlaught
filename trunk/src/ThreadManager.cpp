@@ -167,36 +167,30 @@ void NONS_ManagedThread::runningThread(void *p){
 }
 
 void NONS_ThreadManager::setCPUcount(){
-	if (!CLOptions.noThreads){
+	if (CLOptions.noThreads)
+		cpu_count=1;
+	else{
 #ifdef NONS_PARALLELIZE
 		//get CPU count
-		{
 #if NONS_SYS_WINDOWS
-			SYSTEM_INFO si;
-			GetSystemInfo(&si);
-			cpu_count=si.dwNumberOfProcessors;
-/*#elif NONS_SYS_LINUX
-			FILE * fp;
-			char res[128];
-			fp = popen("/bin/cat /proc/cpuinfo |grep -c '^processor'","r");
-			fread(res, 1, sizeof(res)-1, fp);
-			fclose(fp);
-			cpu_count=atoi(res);*/
+		SYSTEM_INFO si;
+		GetSystemInfo(&si);
+		cpu_count=si.dwNumberOfProcessors;
 #elif NONS_SYS_UNIX
-			cpu_count=sysconf(_SC_NPROCESSORS_ONLN);
-			if (cpu_count<1)
-				cpu_count=1;
-#endif
-		}
-		o_stdout <<"Using "<<cpu_count<<" CPU"<<(cpu_count!=1?"s":"")<<".\n";
+		cpu_count=sysconf(_SC_NPROCESSORS_ONLN);
+		if (cpu_count<1)
+			cpu_count=1;
 #else
-		o_stdout <<"Parallelization disabled.\n";
 		cpu_count=1;
 #endif
-	}else{
-		o_stdout <<"Parallelization disabled.\n";
+#else
 		cpu_count=1;
+#endif
 	}
+	if (cpu_count==1)
+		o_stdout <<"Parallelization disabled.\n";
+	else
+		o_stdout <<"Using "<<cpu_count<<" CPUs.\n";
 }
 
 NONS_Thread::NONS_Thread(NONS_ThreadedFunctionPointer function,void *data){

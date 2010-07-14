@@ -1,5 +1,6 @@
-????????
+20100714
     * Added zip tool.
+    * Added support for arbitrarily-sized files to archive tools.
 
 20090407
     * Added -l option to crypt for backwards compatibility with NSDEC.exe.

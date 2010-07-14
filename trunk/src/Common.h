@@ -65,9 +65,9 @@ typedef ulong DWORD;
 typedef ushort DWORD;
 #endif
 #else
-#define PLUGIN_DECLSPEC
-#define PLUGIN_DLLexport
-#define PLUGIN_DLLimport
+#define NONS_DECLSPEC
+#define NONS_DLLexport
+#define NONS_DLLimport
 #endif
 
 #ifdef _MSC_VER

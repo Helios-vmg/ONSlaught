@@ -13,6 +13,13 @@ To compile using MinGW, you'll also need MSYS. Run
   make -f Makefile.MSYS
 This will build both the engine and the plugin.
 
+Runtime:
+A binary built with the static libraries and built scripts provided has no
+external dependencies. Compiling with MinGW automatically generates a
+DLL (plugin.dll). This DLL is also included in the Windows binary package. It
+is a purely optional component provided as an example of what can be done with
+the plugin interface.
+
 
 Unices:
 Compilation:

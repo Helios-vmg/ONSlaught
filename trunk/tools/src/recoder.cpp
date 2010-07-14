@@ -177,7 +177,7 @@ switchOutputEncoding:
 		case ENCODINGS::AUTO_ENCODING:
 			{
 				bool canbeISO=1;
-				for (long a=0;a<l && canbeISO;a++)
+				for (ulong a=0;a<l && canbeISO;a++)
 					if (WmiddleBuffer[a]>0xFF)
 						canbeISO=0;
 				long UTF8size=getUTF8size(&WmiddleBuffer[0],WmiddleBuffer.size());

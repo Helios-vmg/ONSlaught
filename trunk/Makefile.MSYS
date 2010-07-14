@@ -1,88 +1,85 @@
 CXX = g++
-AR = ar
 NONSCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 -DNONS_SVN -DBUILD_ONSLAUGHT -W -O3 -Iinclude -c
 PLUGINCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 -DNONS_SVN -DBUILD_PLUGIN -W -O3 -Iinclude
-NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 -lSDL_mixer -ltimidity -lSDL_image -lsmpeg -lSDLmain -lSDL -lvorbisfile -lvorbis -ltiff -lpng -lmikmod -logg -ljpeg -lfreetype -lbz2 -lz -mwindows
-LIBLDFLAGS = $(NONSLDFLAGS) -shared -Wl,--out-implib=bin-win32/libONSlaught.a -Wl,--dll
+NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 -lSDL_mixer -ltimidity -lSDL_image -lsmpeg -lSDLmain -lSDL -lvorbisfile -lvorbis -ltiff -lpng -lmikmod -logg -ljpeg -lfreetype -lbz2 -lz -mwindows -Wl,--out-implib=bin-win32/libONSlaught.a
 PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static-libgcc -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
 RC = windres
 RCFLAGS = -J rc -O coff
-INPUTS = objs/Archive.o objs/Audio.o objs/CommandLineOptions.o objs/ConfigFile.o objs/ErrorCodes.o objs/ExpressionParser.tab.o objs/FileLog.o objs/Functions.o objs/GFX.o objs/GUI.o objs/INIParser.tab.o objs/INIfile.o objs/IOFunctions.o objs/ImageLoader.o objs/LZMA.o objs/MacroParser.o objs/MacroParser.tab.o objs/ONSlaught.o objs/SDL_bilinear.o objs/SJIS.table.o objs/SaveFile.o objs/ScreenSpace.o objs/Script.o objs/ScriptInterpreter.o objs/ThreadManager.o objs/VariableStore.o objs/VirtualScreen.o objs/sha1.o objs/LibraryLoader.o 
+INPUTS = objs/SJIS.table.o objs/ScriptInterpreter.o objs/MacroParser.tab.o objs/GUI.o objs/ExpressionParser.tab.o objs/Functions.o objs/INIParser.tab.o objs/Archive.o objs/VirtualScreen.o objs/GFX.o objs/ScreenSpace.o objs/MacroParser.o objs/LZMA.o objs/VariableStore.o objs/Script.o objs/SaveFile.o objs/ImageLoader.o objs/IOFunctions.o objs/CommandLineOptions.o objs/Audio.o objs/SDL_bilinear.o objs/sha1.o objs/ONSlaught.o objs/ThreadManager.o objs/ErrorCodes.o objs/ConfigFile.o objs/FileLog.o objs/INIfile.o objs/LibraryLoader.o 
 
 all: objs bin-win32/ONSlaught.exe bin-win32/plugin.dll
 
-objs:
-	mkdir bin-win32 || mkdir objs
+clean:
+	rm -rf objs
 
-bin-win32/ONSlaught.exe: $(INPUTS) onslaught.res
+objs:
+	(mkdir bin-win32 || mkdir objs) && mkdir objs
+
+bin-win32/ONSlaught.exe: $(INPUTS) objs/onslaught.res
 	$(CXX) $^ $(NONSLDFLAGS) -o bin-win32/ONSlaught.exe
 
 bin-win32/plugin.dll: bin-win32/libONSlaught.a
 	$(CXX) $(PLUGINCXXFLAGS) src/Plugin/Plugin.cpp $(PLUGINLDFLAGS) -o bin-win32/plugin.dll
 
-bin-win32/libONSlaught.a: $(INPUTS)
-	$(CXX) $^ $(LIBLDFLAGS) -o bin-win32/ONSlaught.dll
+bin-win32/libONSlaught.a: bin-win32/ONSlaught.exe
 
 objs/onslaught.res: onslaught.rc
 	$(RC) $(RCFLAGS) $< -o $@
-objs/Archive.o: src/Archive.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/Audio.o: src/Audio.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/CommandLineOptions.o: src/CommandLineOptions.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ConfigFile.o: src/ConfigFile.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ErrorCodes.o: src/ErrorCodes.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ExpressionParser.tab.o: src/ExpressionParser.tab.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/FileLog.o: src/FileLog.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/Functions.o: src/Functions.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/GFX.o: src/GFX.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/GUI.o: src/GUI.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/INIParser.tab.o: src/INIParser.tab.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/INIfile.o: src/INIfile.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/IOFunctions.o: src/IOFunctions.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ImageLoader.o: src/ImageLoader.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/LZMA.o: src/LZMA.c
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/MacroParser.o: src/MacroParser.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/MacroParser.tab.o: src/MacroParser.tab.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ONSlaught.o: src/ONSlaught.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/SDL_bilinear.o: src/SDL_bilinear.c
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/SJIS.table.o: src/SJIS.table.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/SaveFile.o: src/SaveFile.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ScreenSpace.o: src/ScreenSpace.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/Script.o: src/Script.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ScriptInterpreter.o: src/ScriptInterpreter.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ThreadManager.o: src/ThreadManager.cpp
+objs/MacroParser.tab.o: src/MacroParser.tab.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/VariableStore.o: src/VariableStore.cpp
+objs/GUI.o: src/GUI.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/ExpressionParser.tab.o: src/ExpressionParser.tab.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/Functions.o: src/Functions.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/INIParser.tab.o: src/INIParser.tab.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/Archive.o: src/Archive.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/VirtualScreen.o: src/VirtualScreen.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/GFX.o: src/GFX.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/ScreenSpace.o: src/ScreenSpace.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/MacroParser.o: src/MacroParser.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/LZMA.o: src/LZMA.c
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/VariableStore.o: src/VariableStore.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/Script.o: src/Script.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/SaveFile.o: src/SaveFile.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/ImageLoader.o: src/ImageLoader.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/IOFunctions.o: src/IOFunctions.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/CommandLineOptions.o: src/CommandLineOptions.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/Audio.o: src/Audio.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/SDL_bilinear.o: src/SDL_bilinear.c
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/sha1.o: src/sha1.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/ONSlaught.o: src/ONSlaught.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/ThreadManager.o: src/ThreadManager.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/ErrorCodes.o: src/ErrorCodes.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/ConfigFile.o: src/ConfigFile.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/FileLog.o: src/FileLog.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/INIfile.o: src/INIfile.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/LibraryLoader.o: src/Plugin/LibraryLoader.cpp 
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-
-clean:
-	rm -rf objs

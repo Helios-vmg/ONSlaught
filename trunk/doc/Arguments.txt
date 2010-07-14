@@ -145,11 +145,6 @@ At the time of writing, some commands cause the engine to crash. A queueing
 system is being worked out.
 
 
--no-console
-Hides the console (only for Windows).
-Since the console can't be used, it also disables -debug.
-
-
 -stop-on-first-error
 Stops executing the script when the first error occurs. "Unimplemented command"
 (when the command will not be implemented) errors don't count.

@@ -46,50 +46,20 @@
 
 void mainThread(void *);
 
-bool useArgumentsFile(const char *filename,const std::vector<std::wstring> &argc){
+void useArgumentsFile(const char *filename,std::vector<std::wstring> &argv){
 	std::ifstream file(filename);
 	if (!file)
-		return 0;
+		return;
 	std::string str;
 	std::getline(file,str);
 	std::wstring copy=UniFromUTF8(str);
 	std::vector<std::wstring> vec=getParameterList(copy,0);
-	vec.insert(vec.end(),argc.begin(),argc.end());
-	CLOptions.parse(vec);
-	return 1;
+	argv.insert(argv.end(),vec.begin(),vec.end());
 }
 
 void enditall(bool stop_thread){
 	if (stop_thread)
 		gScriptInterpreter->stop();
-#if 0
-	if (!!dbgThread)
-		SDL_KillThread(dbgThread);
-	if (gScriptInterpreter)
-		delete gScriptInterpreter;
-#if NONS_SYS_LINUX
-	/*
-	This deserves some explanation.
-	There's a segmentation fault I haven't been able to fix that occurs only on
-	Linux. It occurs when trying to free the audio. Most likely, the error comes
-	from much deeper, which is why I'm unable to fix it.
-	All user data was written to disk when the script interpreter was deleted,
-	so exitting now is perfectly safe.
-	*/
-	exit(0);
-#endif
-	if (ImageLoader)
-		delete ImageLoader;
-#if NONS_SYS_WINDOWS && defined _CONSOLE
-	if (CLOptions.noconsole){
-		HWND console=GetConsoleWindow();
-		if (!!console){
-			ShowWindow(console,SW_SHOW);
-		}
-	}
-#endif
-	exit(0);
-#endif
 }
 
 void handle_SIGTERM(int){
@@ -274,20 +244,8 @@ PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 
 extern ConfigFile settings;
 
-int main(int argc,char **argv){
+void initialize(int argc,char **argv){
 	srand((unsigned int)time(0));
-	std::cout <<"ONSlaught: An ONScripter clone with Unicode support."<<std::endl;
-#if ONSLAUGHT_BUILD_VERSION<99999999
-		std::cout <<"Build "<<ONSLAUGHT_BUILD_VERSION<<", ";
-#endif
-	std::cout <<ONSLAUGHT_BUILD_VERSION_STR"\n"
-#ifdef NONS_LOW_MEMORY_ENVIRONMENT
-		"Low memory usage build.\n"
-#endif
-		"\n"
-		"Copyright (c) "ONSLAUGHT_COPYRIGHT_YEAR_STR", Helios (helios.vmg@gmail.com)\n"
-		"All rights reserved.\n\n"<<std::endl;
-
 	signal(SIGTERM,handle_SIGTERM);
 	signal(SIGINT,handle_SIGINT);
 	initialize_conversion_tables();
@@ -300,47 +258,65 @@ int main(int argc,char **argv){
 	config_directory=getConfigLocation();
 
 	std::vector<std::wstring> cmdl_arg=getArgumentsVector(argv);
-	if (!useArgumentsFile("arguments.txt",cmdl_arg))
-		CLOptions.parse(cmdl_arg);
+	useArgumentsFile("arguments.txt",cmdl_arg);
+	CLOptions.parse(cmdl_arg);
+
+	SDL_Init(SDL_INIT_EVERYTHING);
+	SDL_EnableUNICODE(1);
+	SDL_EnableKeyRepeat(250,20);
 
 	general_archive.init();
 
 	if (CLOptions.override_stdout){
 		o_stdout.redirect();
 		o_stderr.redirect();
-		std::cout <<"Redirecting."<<std::endl;
+		std::cout <<"Redirecting.\n";
 	}
+
 	threadManager.setCPUcount();
 #ifdef USE_THREAD_MANAGER
 	threadManager.init(cpu_count);
 #endif
-	SDL_Init(SDL_INIT_EVERYTHING);
-	SDL_EnableUNICODE(1);
-	SDL_EnableKeyRepeat(250,20);
+
 	settings.init(config_directory+settings_filename,ENCODING::UTF8);
-
 	
-#if NONS_SYS_WINDOWS && defined _CONSOLE
-	if (CLOptions.noconsole)
-		FreeConsole();
-#endif
-
-	NONS_ScriptInterpreter *interpreter=gScriptInterpreter=new NONS_ScriptInterpreter;
-	if (CLOptions.debugMode)
-		console.init();
 	SDL_WM_SetCaption("ONSlaught ("ONSLAUGHT_BUILD_VERSION_STR")",0);
 #if NONS_SYS_WINDOWS
 	findMainWindow(L"ONSlaught ("ONSLAUGHT_BUILD_VERSION_WSTR L")");
 #endif
-	NONS_Thread thread(mainThread,0);
+}
 
-	SDL_Event event;
-	while (!stopEventHandling){
-		while (SDL_PollEvent(&event) && !stopEventHandling)
-			handleInputEvent(event);
-		SDL_Delay(10);
+void print_version_string(){
+	std::cout <<"ONSlaught: An ONScripter clone with Unicode support.\n";
+#if ONSLAUGHT_BUILD_VERSION<99999999
+	std::cout <<"Build "<<ONSLAUGHT_BUILD_VERSION<<", ";
+#endif
+	std::cout <<ONSLAUGHT_BUILD_VERSION_STR"\n"
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+		"Low memory usage build.\n"
+#endif
+		"\n"
+		"Copyright (c) "ONSLAUGHT_COPYRIGHT_YEAR_STR", Helios (helios.vmg@gmail.com)\n"
+		"All rights reserved.\n\n\n";
+}
+
+int main(int argc,char **argv){
+	print_version_string();
+	initialize(argc,argv);
+
+	NONS_ScriptInterpreter interpreter;
+	gScriptInterpreter=&interpreter;
+	if (CLOptions.debugMode)
+		console.init();
+	{
+		NONS_Thread thread(mainThread,0);
+		SDL_Event event;
+		while (!stopEventHandling){
+			while (SDL_PollEvent(&event) && !stopEventHandling)
+				handleInputEvent(event);
+			SDL_Delay(10);
+		}
 	}
-	delete gScriptInterpreter;
 	return 0;
 }
 
