@@ -41,7 +41,10 @@ public:
 		LIBRARY_NOT_FOUND,
 		FUNCTION_NOT_FOUND
 	} error;
-	NONS_LibraryLoader(const char *libName,bool append_debug=1);
+	NONS_LibraryLoader(const char *libName,bool append_debug);
+#if NONS_SYS_WINDOWS
+	NONS_LibraryLoader(const char *directory,const char *libName,bool append_debug);
+#endif
 	~NONS_LibraryLoader();
 	void *getFunction(const char *functionName);
 };

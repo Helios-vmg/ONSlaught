@@ -635,7 +635,11 @@ void NONS_ImageLoader::init(){
 	if (this->initialized)
 		return;
 	this->filelog=new NONS_FileLog(LOG_FILENAME_OLD,LOG_FILENAME_NEW);
+#ifndef NONS_SYS_WINDOWS
 	this->svg_library=new NONS_LibraryLoader("svg_loader",0);
+#else
+	this->svg_library=new NONS_LibraryLoader("svg_loader","svg_loader",0);
+#endif
 	this->imageCache.reserve(50);
 	this->svg_functions.valid=1;
 #define NONS_ImageLoader_INIT_MEMBER(id) if (this->svg_functions.valid && !(this->svg_functions.id=(id##_f)this->svg_library->getFunction(#id)))\
@@ -651,6 +655,7 @@ void NONS_ImageLoader::init(){
 	NONS_ImageLoader_INIT_MEMBER(SVG_add_scale);
 	NONS_ImageLoader_INIT_MEMBER(SVG_render);
 	NONS_ImageLoader_INIT_MEMBER(SVG_render2);
+	NONS_ImageLoader_INIT_MEMBER(SVG_have_linear_transformations);
 	NONS_Image::svg_functions=&this->svg_functions;
 	this->fast_svg=1;
 	this->base_scale[0]=this->base_scale[1]=1;
@@ -730,7 +735,7 @@ bool NONS_ImageLoader::fetchSprite(SDL_Surface *&dst,const std::wstring &string,
 		NONS_Image *image=new NONS_Image(&anim,primary,secondary,this->base_scale,rects);
 		image->refCount++;
 		this->addElementToCache(image);
-		if (image->svg_source && this->fast_svg){
+		if (image->svg_source && (this->fast_svg || !this->svg_functions.SVG_have_linear_transformations())){
 			this->disk_cache.add(image->animation.getFilename(),image->image);
 			this->svg_functions.SVG_unload(image->svg_source);
 			image->svg_source=0;

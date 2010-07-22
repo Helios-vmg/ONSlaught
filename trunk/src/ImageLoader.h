@@ -106,6 +106,7 @@ struct SVG_Functions{
 	SVG_Functions_DECLARE_MEMBER(SVG_add_scale);
 	SVG_Functions_DECLARE_MEMBER(SVG_render);
 	SVG_Functions_DECLARE_MEMBER(SVG_render2);
+	SVG_Functions_DECLARE_MEMBER(SVG_have_linear_transformations);
 	bool valid;
 };
 

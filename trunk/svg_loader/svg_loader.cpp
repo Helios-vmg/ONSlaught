@@ -25,8 +25,12 @@
 */
 
 #include "../svg_loader.h"
-#include <QtSvg/QtSvg>
+#include "../src/Functions.h"
+#include <librsvg/rsvg.h>
+#include <librsvg/rsvg-cairo.h>
+#include <cairo.h>
 #include <vector>
+#include <cmath>
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
 const int rmask=0xFF000000;
@@ -40,52 +44,26 @@ const int bmask=0x00FF0000;
 const int amask=0xFF000000;
 #endif
 
-struct surfaceData{
-	uchar *pixels;
-	uchar Roffset,
-		Goffset,
-		Boffset,
-		Aoffset;
-	ulong advance,
-		pitch,
-		w,h;
-	bool alpha;
-	surfaceData(){}
-	surfaceData(const SDL_Surface *surface){
-		*this=surface;
-	}
-	const surfaceData &operator=(const SDL_Surface *surface){
-		this->pixels=(uchar *)surface->pixels;
-		this->Roffset=(surface->format->Rshift)>>3;
-		this->Goffset=(surface->format->Gshift)>>3;
-		this->Boffset=(surface->format->Bshift)>>3;
-		this->Aoffset=(surface->format->Ashift)>>3;
-		this->advance=surface->format->BytesPerPixel;
-		this->pitch=surface->pitch;
-		this->w=surface->w;
-		this->h=surface->h;
-		this->alpha=(this->Aoffset!=this->Roffset && this->Aoffset!=this->Goffset && this->Aoffset!=this->Boffset);
-		return *this;
-	}
-};
-
 struct point{
 	double x,y;
 };
 
 struct SVG{
-	QSvgRenderer renderer;
+	bool good;
+	RsvgHandle *svg;
+	point original_size;
 	double scale_x,
 		scale_y,
 		rotation;
 	bool use_matrix;
 	double matrix[4];
 	SVG(void *buffer,size_t size);
+	~SVG();
 	void get_dim(double *w,double *h);
 	bool scale(double x,double y);
 	void best_fit(ulong x,ulong y);
-	void rotate(double alpha);
-	bool set_matrix(double matrix[4]);
+	void rotate(double alpha){}
+	bool set_matrix(double matrix[4]){ return 0; }
 	void transform_coordinates(double x,double y,double *dst_x,double *dst_y);
 	bool add_scale(double x,double y);
 	SDL_Surface *render();
@@ -95,39 +73,56 @@ private:
 };
 
 static struct SVG_Manager{
-	int temp;
-	QApplication a; //We need this to render fonts.
 	std::vector<SVG *> array;
-	SVG_Manager():temp(0),a(temp,0){
+	SVG_Manager(){
+		g_type_init();
+		rsvg_init();
 		this->array.push_back(0);
 	}
 	~SVG_Manager(){
 		for (ulong a=1;a<this->array.size();a++)
 			if (this->array[a])
 				delete this->array[a];
+		rsvg_term();
 	}
 	ulong load(void *buffer,size_t size);
 	bool unload(ulong index);
 	bool get_dim(ulong index,double *w,double *h);
 	bool scale(ulong index,double scale_x,double scale_y);
 	bool best_fit(ulong index,ulong max_x,ulong max_y);
-	bool rotate(ulong index,double alpha);
-	bool set_matrix(ulong index,double matrix[4]);
-	bool transform_coordinates(ulong index,double x,double y,double *dst_x,double *dst_y);
+	bool rotate(ulong index,double alpha){ return 0; }
+	bool set_matrix(ulong index,double matrix[4]){ return 0; }
+	bool transform_coordinates(ulong index,double x,double y,double *dst_x,double *dst_y){ return 0; }
 	bool add_scale(ulong index,double scale_x,double scale_y);
 	SDL_Surface *render(ulong index);
-	bool render(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha);
+	SDL_Surface *render(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha);
 } manager;
 
-SVG::SVG(void *buffer,size_t size):renderer(QByteArray((const char *)buffer,size),0){
+SVG::SVG(void *buffer,size_t size){
+	this->good=0;
+	this->svg=rsvg_handle_new_from_data((const guint8 *)buffer,(gsize)size,0);
+	if (!this->svg)
+		return;
+	RsvgDimensionData dimensions;
+	rsvg_handle_get_dimensions(this->svg,&dimensions);
+	this->original_size.x=dimensions.width;
+	this->original_size.y=dimensions.height;
 	this->scale_x=this->scale_y=1;
 	this->rotation=0;
 	this->use_matrix=0;
+	this->good=1;
+}
+
+SVG::~SVG(){
+	if (this->svg)
+		g_object_unref(this->svg);
 }
 
 void SVG::get_dim(double *w,double *h){
-	*w=this->renderer.defaultSize().width();
-	*h=this->renderer.defaultSize().height();
+	RsvgDimensionData dimensions;
+	rsvg_handle_get_dimensions(this->svg,&dimensions);
+	*w=this->original_size.x;
+	*h=this->original_size.y;
 	point bounding_box[2],
 		rect[4]={
 			{0,0},
@@ -153,8 +148,8 @@ void SVG::best_fit(ulong x,ulong y){
 	if (!x && !y)
 		return;
 	this->use_matrix=0;
-	double w=this->renderer.defaultSize().width(),
-		h=this->renderer.defaultSize().height();
+	double w=this->original_size.x,
+		h=this->original_size.y;
 	if (x && y){
 		double new_ratio=double(x)/double(y),
 			old_ratio=w/h;
@@ -169,6 +164,7 @@ void SVG::best_fit(ulong x,ulong y){
 	this->scale_y=this->scale_x;
 }
 
+#if 0
 void SVG::rotate(double alpha){
 	this->use_matrix=0;
 	if (alpha>=0)
@@ -197,6 +193,7 @@ bool SVG::set_matrix(double matrix[4]){
 	//invert_matrix(this->matrix);
 	return 1;
 }
+#endif
 
 inline void transform_coord(double &x,double &y,double *matrix){
 	double temp_x=x,
@@ -211,8 +208,6 @@ void SVG::compute_coordinates(point bounding_box[2],point *rect,size_t size){
 	if (!this->use_matrix){
 		for (size_t a=0;a<size;a++){
 			double angle,radius;
-			//rect[a].x=rect[a].x;
-			//rect[a].y=rect[a].y;
 			if (rect[a].x)
 				angle=atan(rect[a].y/rect[a].x);
 			else if (rect[a].y>0)
@@ -252,8 +247,8 @@ void SVG::compute_coordinates(point bounding_box[2],point *rect,size_t size){
 }
 
 void SVG::transform_coordinates(double x,double y,double *dst_x,double *dst_y){
-	double w=this->renderer.defaultSize().width(),
-		h=this->renderer.defaultSize().height();
+	double w=this->original_size.x,
+		h=this->original_size.y;
 	point rect[]={
 		{0,0},
 		{w,0},
@@ -263,12 +258,8 @@ void SVG::transform_coordinates(double x,double y,double *dst_x,double *dst_y){
 	};
 	point bounding_box[2];
 	if (!this->use_matrix){
-		{
-			QSize size=this->renderer.defaultSize();
-			w=size.width()*this->scale_x;
-			h=size.height()*this->scale_y;
-		}
-		//this->get_dim(&w,&h);
+		w*=this->scale_x;
+		h*=this->scale_y;
 		if (!this->rotation);
 		else if (this->rotation==90){
 			rect[4].x=h-y;
@@ -310,8 +301,8 @@ SDL_Surface *SVG::render(){
 }
 
 SDL_Surface *SVG::render(SDL_Surface *dst,double offset_x,double offset_y,uchar alpha){
-	double w=this->renderer.defaultSize().width(),
-		h=this->renderer.defaultSize().height();
+	double w=this->original_size.x,
+		h=this->original_size.y;
 	point bounding_box[2]={
 		{0,0},
 		{w,h}
@@ -322,7 +313,6 @@ SDL_Surface *SVG::render(SDL_Surface *dst,double offset_x,double offset_y,uchar 
 		{0,h},
 		{w,h}
 	};
-	QImage *img=0;
 	if (!this->use_matrix){
 		if (!this->rotation);
 		else if (this->rotation==90){
@@ -340,77 +330,42 @@ SDL_Surface *SVG::render(SDL_Surface *dst,double offset_x,double offset_y,uchar 
 			bounding_box[1].y=w;
 		}else
 			this->compute_coordinates(bounding_box,rect,4);
-		img=new QImage(bounding_box[1].x*this->scale_x,bounding_box[1].y*this->scale_y,QImage::Format_ARGB32);
-		img->fill(0);
-		QPainter painter(img);
-		painter.scale(this->scale_x,this->scale_y);
-		painter.translate(rect[0].x,rect[0].y);
-		painter.rotate(this->rotation);
-		painter.scale(w/bounding_box[1].x/this->scale_x,h/bounding_box[1].y/this->scale_y);
-		this->renderer.render(&painter);
-	}else{
+	}else
 		this->compute_coordinates(bounding_box,rect,4);
-		img=new QImage(bounding_box[1].x,bounding_box[1].y,QImage::Format_ARGB32);
-		img->fill(0);
-		QPainter painter(img);
-		painter.translate(rect[0].x,rect[0].y);
-		painter.setWorldMatrix(QMatrix(this->matrix[0],this->matrix[2],this->matrix[1],this->matrix[3],0,0),1);
-		painter.scale(w/bounding_box[1].x,h/bounding_box[1].y);
-		this->renderer.render(&painter);
-	}
+	SDL_Surface *temp=SDL_CreateRGBSurface(
+		0,(int)bounding_box[1].x,(int)bounding_box[1].y,
+		32,0x00FF0000,0x0000FF00,0x000000FF,0xFF000000
+	);
+	SDL_LockSurface(temp);
+	cairo_surface_t *cs=cairo_image_surface_create_for_data(
+		(uchar *)temp->pixels,
+		CAIRO_FORMAT_ARGB32,
+		temp->w,
+		temp->h,
+		temp->pitch
+	);
+	cairo_t *cairo=cairo_create(cs);
+	cairo_surface_destroy(cs);
+	/**/
+	rsvg_handle_render_cairo(this->svg,cairo);
+	/**/
+	cairo_destroy(cairo);
+	SDL_UnlockSurface(temp);
 	if (!dst)
-		dst=SDL_CreateRGBSurface(SDL_SRCALPHA,img->width(),img->height(),32,rmask,gmask,bmask,amask);
-	
-	{
-		SDL_LockSurface(dst);
-		surfaceData sd=dst;
-		long ox=offset_x,
-			oy=offset_y;
-		uchar *pix=sd.pixels+oy*sd.pitch+ox*sd.advance;
-		for (long y=oy,src_y=0,h=img->height();y<(long)sd.h && src_y<h;y++,src_y++){
-			QRgb *scanline=(QRgb *)img->scanLine(src_y);
-			uchar *pix0=pix;
-			if (y>=0){
-				for (long x=ox,src_x=0,w=img->width();x<(long)sd.w && src_x<w;x++,src_x++){
-					if (x>=0){
-						ulong
-							r0=qRed(scanline[src_x]),
-							g0=qGreen(scanline[src_x]),
-							b0=qBlue(scanline[src_x]),
-							a0=qAlpha(scanline[src_x]);
-						uchar
-							*r1=pix+sd.Roffset,
-							*g1=pix+sd.Goffset,
-							*b1=pix+sd.Boffset,
-							*a1=pix+sd.Aoffset;
-#define INTEGER_MULTIPLICATION(a,b) (((a)*(b))/255)
-#define APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
-						if (alpha<255)
-							a0=INTEGER_MULTIPLICATION(a0,alpha);
-						{
-							ulong el;
-							ulong previous=*a1;
-							*a1=(uchar)INTEGER_MULTIPLICATION(a0^0xFF,*a1^0xFF)^0xFF;
-							el=(!a0 && !previous)?0:(a0*255)/(*a1);
-							*r1=(uchar)APPLY_ALPHA(r0,*r1,el);
-							*g1=(uchar)APPLY_ALPHA(g0,*g1,el);
-							*b1=(uchar)APPLY_ALPHA(b0,*b1,el);
-						}
-					}
-					pix+=sd.advance;
-				}
-			}
-			pix=pix0+sd.pitch;
-		}
-		SDL_UnlockSurface(dst);
+		dst=temp;
+	else{
+		SDL_Rect rect;
+		rect.x=(Sint16)offset_x;
+		rect.y=(Sint16)offset_y;
+		manualBlit(temp,0,dst,&rect,alpha);
+		SDL_FreeSurface(temp);
 	}
-	delete img;
 	return dst;
 }
 
 ulong SVG_Manager::load(void *buffer,size_t size){
 	SVG *s=new SVG(buffer,size);
-	if (!s->renderer.isValid()){
+	if (!s->good){
 		delete s;
 		return 0;
 	}
@@ -452,6 +407,7 @@ bool SVG_Manager::best_fit(ulong index,ulong max_x,ulong max_y){
 	return 1;
 }
 
+#if 0
 bool SVG_Manager::rotate(ulong index,double alpha){
 	if (index>=this->array.size() || !this->array[index])
 		return 0;
@@ -471,6 +427,7 @@ bool SVG_Manager::transform_coordinates(ulong index,double x,double y,double *ds
 	this->array[index]->transform_coordinates(x,y,dst_x,dst_y);
 	return 1;
 }
+#endif
 
 bool SVG_Manager::add_scale(ulong index,double scale_x,double scale_y){
 	if (index>=this->array.size() || !this->array[index])
@@ -484,13 +441,13 @@ SDL_Surface *SVG_Manager::render(ulong index){
 	return this->array[index]->render();
 }
 
-bool SVG_Manager::render(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha){
+SDL_Surface *SVG_Manager::render(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha){
 	if (index>=this->array.size() || !this->array[index])
 		return 0;
 	return this->array[index]->render(dst,offset_x,offset_y,alpha);
 }
 
-
+extern "C"{
 
 SVG_DLLexport ulong SVG_load(void *buffer,size_t size){
 	return manager.load(buffer,size);
@@ -533,5 +490,11 @@ SVG_DLLexport SDL_Surface *SVG_render(ulong index){
 }
 
 SVG_DLLexport int SVG_render2(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha){
-	return manager.render(index,dst,offset_x,offset_y,alpha);
+	return !!manager.render(index,dst,offset_x,offset_y,alpha);
+}
+
+SVG_DLLexport int SVG_have_linear_transformations(){
+	return 0;
+}
+
 }

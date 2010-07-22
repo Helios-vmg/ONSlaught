@@ -264,12 +264,13 @@ void manualBlit_threaded(void *parameters){
 
 uchar integer_division_lookup[0x10000];
 
-//#define APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
-#ifdef _DEBUG
-#define APPLY_ALPHA(c0,c1,a) ((((a)^0xFF)*(c1)+(a)*(c0))/255)
+//#define _APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
+#define _APPLY_ALPHA(c0,c1,a) ((((a)^0xFF)*(c1)+(a)*(c0))/255)
+#if defined _DEBUG
+#define APPLY_ALPHA _APPLY_ALPHA
 #else
 inline uchar APPLY_ALPHA(ulong c0,ulong c1,ulong a){
-	return uchar(((a^0xFF)*c1+a*c0)/255);
+	return (uchar)_APPLY_ALPHA(c0,c1,a);
 }
 #endif
 
@@ -369,9 +370,11 @@ void manualBlit_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL
 }
 #define manualBlit_threaded_SINGLE_ALPHA_SOURCE(alpha_source)	\
 	ulong as=(alpha_source);									\
-	*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],as);		\
-	*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],as);		\
-	*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],as);
+	if (as){													\
+		*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],as);	\
+		*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],as);	\
+		*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],as);	\
+	}
 #define manualBlit_threaded_DOUBLE_ALPHA_SOURCE(alpha_source)			\
 	ulong as=(alpha_source);											\
 	ulong bottom_alpha=													\
@@ -382,7 +385,6 @@ void manualBlit_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL
 		*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],composite);		\
 		*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],composite);		\
 	}
-#if 1
 	if (alpha==255){
 		if (!sd[0].alpha){
 			manualBlit_threaded_DO_ALPHA(
@@ -428,228 +430,6 @@ void manualBlit_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL
 			}
 		}
 	}
-#else
-	if (alpha==255) {
-        if (!sd[0].alpha) {
-            {
-                for (int y0=0; y0<h0; y0++) {
-                    uchar *pos[]= { sd[0].pixels, sd[1].pixels };
-                    for (int x0=0; x0<w0; x0++) {
-                        long rgba0[4];
-                        uchar *rgba1[4];
-                        for (int a=0; a<4; a++) {
-                            rgba0[a]=pos[0][sd[0].offsets[a]];
-                            rgba1[a]=pos[1]+sd[1].offsets[a];
-                        } {
-                            *rgba1[0]=(uchar)rgba0[0];
-                            *rgba1[1]=(uchar)rgba0[1];
-                            *rgba1[2]=(uchar)rgba0[2];
-                            if (sd[1].alpha) *rgba1[3]=0xFF;
-                        }
-                        if (!(negate && rgba0[3])) {
-                            pos[0]+=sd[0].advance;
-                            pos[1]+=sd[1].advance;
-                            continue;
-                        }
-                        for (int a=0; a<3; a++) *rgba1[a]=~*rgba1[a];
-                    }
-                    sd[0].pixels+=sd[0].pitch;
-                    sd[1].pixels+=sd[1].pitch;
-                }
-            }
-        } else {
-            if (!sd[1].alpha) {
-                {
-                    for (int y0=0; y0<h0; y0++) {
-                        uchar *pos[]= { sd[0].pixels, sd[1].pixels };
-                        for (int x0=0; x0<w0; x0++) {
-                            long rgba0[4];
-                            uchar *rgba1[4];
-                            for (int a=0; a<4; a++) {
-                                rgba0[a]=pos[0][sd[0].offsets[a]];
-                                rgba1[a]=pos[1]+sd[1].offsets[a];
-                            } {
-                                ulong as=(rgba0[3]);
-                                *rgba1[0]=(uchar)((((as)*((rgba0[0])-(*rgba1[0])))/255)+(*rgba1[0]));
-                                *rgba1[1]=(uchar)((((as)*((rgba0[1])-(*rgba1[1])))/255)+(*rgba1[1]));
-                                ulong temp=((((as)*((rgba0[2])-(*rgba1[2])))/255)+(*rgba1[2]));
-                                (void)( (!!(temp<0x100)) || (_wassert(L"temp<0x100", L"f:\\onslaught\\sourceforge-svn\\trunk\\src\\functions.cpp", 403), 0) );
-                                *rgba1[2]=(uchar)temp;;
-                            }
-                            if (!(negate && rgba0[3])) {
-                                pos[0]+=sd[0].advance;
-                                pos[1]+=sd[1].advance;
-                                continue;
-                            }
-                            for (int a=0; a<3; a++) *rgba1[a]=~*rgba1[a];
-                        }
-                        sd[0].pixels+=sd[0].pitch;
-                        sd[1].pixels+=sd[1].pitch;
-                    }
-                }
-            } else {
-                {
-                    for (int y0=0; y0<h0; y0++) {
-                        uchar *pos[]= { sd[0].pixels, sd[1].pixels };
-                        for (int x0=0; x0<w0; x0++) {
-                            long rgba0[4];
-                            uchar *rgba1[4];
-                            for (int a=0; a<4; a++) {
-                                rgba0[a]=pos[0][sd[0].offsets[a]];
-                                rgba1[a]=pos[1]+sd[1].offsets[a];
-                            } {
-                                ulong as=(rgba0[3]);
-                                ulong bottom_alpha= *rgba1[3]=~(uchar)(((as^0xFF)*(*rgba1[3]^0xFF))/255);
-                                ulong composite=integer_division_lookup[as+bottom_alpha*256];
-                                if (composite) {
-                                    *rgba1[0]=(uchar)((((composite)*((rgba0[0])-(*rgba1[0])))/255)+(*rgba1[0]));
-                                    *rgba1[1]=(uchar)((((composite)*((rgba0[1])-(*rgba1[1])))/255)+(*rgba1[1]));
-                                    *rgba1[2]=(uchar)((((composite)*((rgba0[2])-(*rgba1[2])))/255)+(*rgba1[2]));
-                                };
-                            }
-                            if (!(negate && rgba0[3])) {
-                                pos[0]+=sd[0].advance;
-                                pos[1]+=sd[1].advance;
-                                continue;
-                            }
-                            for (int a=0; a<3; a++) *rgba1[a]=~*rgba1[a];
-                        }
-                        sd[0].pixels+=sd[0].pitch;
-                        sd[1].pixels+=sd[1].pitch;
-                    }
-                }
-            }
-        }
-    } else {
-        if (!sd[0].alpha) {
-            if (!sd[1].alpha) {
-                {
-                    for (int y0=0; y0<h0; y0++) {
-                        uchar *pos[]= { sd[0].pixels, sd[1].pixels };
-                        for (int x0=0; x0<w0; x0++) {
-                            long rgba0[4];
-                            uchar *rgba1[4];
-                            for (int a=0; a<4; a++) {
-                                rgba0[a]=pos[0][sd[0].offsets[a]];
-                                rgba1[a]=pos[1]+sd[1].offsets[a];
-                            } {
-                                ulong as=(alpha);
-                                *rgba1[0]=(uchar)((((as)*((rgba0[0])-(*rgba1[0])))/255)+(*rgba1[0]));
-                                *rgba1[1]=(uchar)((((as)*((rgba0[1])-(*rgba1[1])))/255)+(*rgba1[1]));
-                                ulong temp=((((as)*((rgba0[2])-(*rgba1[2])))/255)+(*rgba1[2]));
-                                (void)( (!!(temp<0x100)) || (_wassert(L"temp<0x100", L"f:\\onslaught\\sourceforge-svn\\trunk\\src\\functions.cpp", 415), 0) );
-                                *rgba1[2]=(uchar)temp;;
-                            }
-                            if (!(negate && rgba0[3])) {
-                                pos[0]+=sd[0].advance;
-                                pos[1]+=sd[1].advance;
-                                continue;
-                            }
-                            for (int a=0; a<3; a++) *rgba1[a]=~*rgba1[a];
-                        }
-                        sd[0].pixels+=sd[0].pitch;
-                        sd[1].pixels+=sd[1].pitch;
-                    }
-                }
-            } else {
-                {
-                    for (int y0=0; y0<h0; y0++) {
-                        uchar *pos[]= { sd[0].pixels, sd[1].pixels };
-                        for (int x0=0; x0<w0; x0++) {
-                            long rgba0[4];
-                            uchar *rgba1[4];
-                            for (int a=0; a<4; a++) {
-                                rgba0[a]=pos[0][sd[0].offsets[a]];
-                                rgba1[a]=pos[1]+sd[1].offsets[a];
-                            } {
-                                ulong as=(alpha);
-                                ulong bottom_alpha= *rgba1[3]=~(uchar)(((as^0xFF)*(*rgba1[3]^0xFF))/255);
-                                ulong composite=integer_division_lookup[as+bottom_alpha*256];
-                                if (composite) {
-                                    *rgba1[0]=(uchar)((((composite)*((rgba0[0])-(*rgba1[0])))/255)+(*rgba1[0]));
-                                    *rgba1[1]=(uchar)((((composite)*((rgba0[1])-(*rgba1[1])))/255)+(*rgba1[1]));
-                                    *rgba1[2]=(uchar)((((composite)*((rgba0[2])-(*rgba1[2])))/255)+(*rgba1[2]));
-                                };
-                            }
-                            if (!(negate && rgba0[3])) {
-                                pos[0]+=sd[0].advance;
-                                pos[1]+=sd[1].advance;
-                                continue;
-                            }
-                            for (int a=0; a<3; a++) *rgba1[a]=~*rgba1[a];
-                        }
-                        sd[0].pixels+=sd[0].pitch;
-                        sd[1].pixels+=sd[1].pitch;
-                    }
-                }
-            }
-        } else {
-            if (!sd[1].alpha) {
-                {
-                    for (int y0=0; y0<h0; y0++) {
-                        uchar *pos[]= { sd[0].pixels, sd[1].pixels };
-                        for (int x0=0; x0<w0; x0++) {
-                            long rgba0[4];
-                            uchar *rgba1[4];
-                            for (int a=0; a<4; a++) {
-                                rgba0[a]=pos[0][sd[0].offsets[a]];
-                                rgba1[a]=pos[1]+sd[1].offsets[a];
-                            } {
-                                rgba0[3]=(((rgba0[3])*(alpha))/255);
-                                ulong as=(rgba0[3]);
-                                *rgba1[0]=(uchar)((((as)*((rgba0[0])-(*rgba1[0])))/255)+(*rgba1[0]));
-                                *rgba1[1]=(uchar)((((as)*((rgba0[1])-(*rgba1[1])))/255)+(*rgba1[1]));
-                                ulong temp=((((as)*((rgba0[2])-(*rgba1[2])))/255)+(*rgba1[2]));
-                                (void)( (!!(temp<0x100)) || (_wassert(L"temp<0x100", L"f:\\onslaught\\sourceforge-svn\\trunk\\src\\functions.cpp", 426), 0) );
-                                *rgba1[2]=(uchar)temp;;
-                            }
-                            if (!(negate && rgba0[3])) {
-                                pos[0]+=sd[0].advance;
-                                pos[1]+=sd[1].advance;
-                                continue;
-                            }
-                            for (int a=0; a<3; a++) *rgba1[a]=~*rgba1[a];
-                        }
-                        sd[0].pixels+=sd[0].pitch;
-                        sd[1].pixels+=sd[1].pitch;
-                    }
-                }
-            } else {
-                {
-                    for (int y0=0; y0<h0; y0++) {
-                        uchar *pos[]= { sd[0].pixels, sd[1].pixels };
-                        for (int x0=0; x0<w0; x0++) {
-                            long rgba0[4];
-                            uchar *rgba1[4];
-                            for (int a=0; a<4; a++) {
-                                rgba0[a]=pos[0][sd[0].offsets[a]];
-                                rgba1[a]=pos[1]+sd[1].offsets[a];
-                            } {
-                                rgba0[3]=(((rgba0[3])*(alpha))/255);
-                                ulong as=(rgba0[3]);
-                                ulong bottom_alpha= *rgba1[3]=~(uchar)(((as^0xFF)*(*rgba1[3]^0xFF))/255);
-                                ulong composite=integer_division_lookup[as+bottom_alpha*256];
-                                if (composite) {
-                                    *rgba1[0]=(uchar)((((composite)*((rgba0[0])-(*rgba1[0])))/255)+(*rgba1[0]));
-                                    *rgba1[1]=(uchar)((((composite)*((rgba0[1])-(*rgba1[1])))/255)+(*rgba1[1]));
-                                    *rgba1[2]=(uchar)((((composite)*((rgba0[2])-(*rgba1[2])))/255)+(*rgba1[2]));
-                                };
-                            }
-                            if (!(negate && rgba0[3])) {
-                                pos[0]+=sd[0].advance;
-                                pos[1]+=sd[1].advance;
-                                continue;
-                            }
-                            for (int a=0; a<3; a++) *rgba1[a]=~*rgba1[a];
-                        }
-                        sd[0].pixels+=sd[0].pitch;
-                        sd[1].pixels+=sd[1].pitch;
-                    }
-                }
-            }
-        }
-    }
-#endif
 }
 
 void multiplyBlend_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect);

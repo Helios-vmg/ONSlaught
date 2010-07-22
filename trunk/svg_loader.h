@@ -30,6 +30,22 @@
 #define SVG_LOADER_H
 #include <SDL/SDL.h>
 
+#ifndef NONS_SYS_WINDOWS
+#define NONS_SYS_WINDOWS (defined _WIN32 || defined _WIN64)
+#endif
+#ifndef NONS_SYS_LINUX
+#define NONS_SYS_LINUX (defined linux || defined __linux)
+#endif
+#ifndef NONS_SYS_BSD
+#define NONS_SYS_BSD (defined __bsdi__)
+#endif
+#ifndef NONS_SYS_UNIX
+#define NONS_SYS_UNIX (defined __unix__ || defined __unix)
+#endif
+#ifndef NONS_SYS_PSP
+#define NONS_SYS_PSP (defined PSP)
+#endif
+
 #ifdef __cplusplus
 #define EXTERN_C extern "C"
 #define EXTERN_C_BLOCK_O extern "C"{
@@ -44,9 +60,9 @@ typedef unsigned long ulong;
 typedef unsigned char uchar;
 
 EXTERN_C_BLOCK_O
-#if defined __WIN32__ && defined _USRDLL
+#ifndef BUILD_SVG
 #define SVG_DECLARE_FUNCTION(return,name,parameters) typedef SVG_DECLSPEC return (*name##_f)parameters;\
-DECLSPEC return name parameters
+SVG_DECLSPEC return name parameters
 #else
 #define SVG_DECLARE_FUNCTION(return,name,parameters) typedef return(*name##_f)parameters;
 #endif
@@ -76,5 +92,6 @@ SVG_DECLARE_FUNCTION(int,SVG_transform_coordinates,(ulong index,double x,double 
 SVG_DECLARE_FUNCTION(int,SVG_add_scale,(ulong index,double scale_x,double scale_y));
 SVG_DECLARE_FUNCTION(SDL_Surface *,SVG_render,(ulong index));
 SVG_DECLARE_FUNCTION(int,SVG_render2,(ulong index,SDL_Surface *dst,double offset_x,double offset_y,uchar alpha));
+SVG_DECLARE_FUNCTION(int,SVG_have_linear_transformations,());
 EXTERN_C_BLOCK_C
 #endif

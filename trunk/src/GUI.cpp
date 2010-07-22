@@ -620,6 +620,8 @@ SDL_Rect NONS_Button::GetBoundingBox(const std::wstring &str,NONS_FontCache *cac
 	return res;
 }
 
+#define CHECK_POINTER_AND_CALL(p,c) if (p) p->c
+
 void NONS_Button::write(const std::wstring &str,int offsetX,int offsetY,float center){
 	/*SDL_FillRect(this->onLayer->data,0,gmask|amask);
 	SDL_FillRect(this->offLayer->data,0,gmask|amask);
@@ -649,7 +651,7 @@ void NONS_Button::write(const std::wstring &str,int offsetX,int offsetY,float ce
 				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
 					outputBuffer[lastSpace]->done();
 					outputBuffer2[lastSpace]->done();
-					outputBuffer3[lastSpace]->done();
+					CHECK_POINTER_AND_CALL(outputBuffer3[lastSpace],done());
 					outputBuffer[lastSpace]=0;
 					outputBuffer2[lastSpace]=0;
 					outputBuffer3[lastSpace]=0;
@@ -670,7 +672,7 @@ void NONS_Button::write(const std::wstring &str,int offsetX,int offsetY,float ce
 				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
 					outputBuffer[lastSpace]->done();
 					outputBuffer2[lastSpace]->done();
-					outputBuffer3[lastSpace]->done();
+					CHECK_POINTER_AND_CALL(outputBuffer3[lastSpace],done());
 					outputBuffer[lastSpace]=0;
 					outputBuffer2[lastSpace]=0;
 					outputBuffer3[lastSpace]=0;
@@ -699,7 +701,7 @@ void NONS_Button::write(const std::wstring &str,int offsetX,int offsetY,float ce
 	if (x0+wordL>=screenFrame.w && lastSpace>=0){
 		outputBuffer[lastSpace]->done();
 		outputBuffer2[lastSpace]->done();
-		outputBuffer3[lastSpace]->done();
+		CHECK_POINTER_AND_CALL(outputBuffer3[lastSpace],done());
 		outputBuffer[lastSpace]=0;
 		outputBuffer2[lastSpace]=0;
 		outputBuffer3[lastSpace]=0;
@@ -1804,9 +1806,9 @@ NONS_Glyph::NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL
 
 	if (outline_size && !this->outline_base_bitmap){
 		this->outline_bounding_box=this->bounding_box;
-		size_t size=this->outline_bounding_box.w*this->outline_bounding_box.h+1;
-		this->outline_base_bitmap=new uchar[size];
-		memset(this->outline_base_bitmap,0,size);
+		size_t buffer_size=this->outline_bounding_box.w*this->outline_bounding_box.h+1;
+		this->outline_base_bitmap=new uchar[buffer_size];
+		memset(this->outline_base_bitmap,0,buffer_size);
 	}
 }
 
@@ -1848,19 +1850,19 @@ void put_glyph(SDL_Surface *dst,int x,int y,uchar alpha,uchar *src,const SDL_Rec
 		g0=color.g,
 		b0=color.b;
 	for (ulong src_y=y0,dst_y=y;src_y<box.h && dst_y<sd.h;src_y++,dst_y++){
-		uchar *dst=sd.pixels+dst_y*sd.pitch+x*sd.advance;
+		uchar *dst_p=sd.pixels+dst_y*sd.pitch+x*sd.advance;
 		src+=x0;
 		for (ulong src_x=x0,dst_x=x;src_x<box.w && dst_x<sd.w;src_x++,dst_x++){
 			uchar a0=*src,
-				*r1=dst+sd.Roffset,
-				*g1=dst+sd.Goffset,
-				*b1=dst+sd.Boffset,
-				*a1=dst+sd.Aoffset;
+				*r1=dst_p+sd.Roffset,
+				*g1=dst_p+sd.Goffset,
+				*b1=dst_p+sd.Boffset,
+				*a1=dst_p+sd.Aoffset;
 
 			do_alpha_blend(r1,g1,b1,a1,r0,g0,b0,a0,sd.alpha,1,alpha);
 
 			src++;
-			dst+=sd.advance;
+			dst_p+=sd.advance;
 		}
 	}
 	SDL_UnlockSurface(dst);
@@ -1874,8 +1876,7 @@ void NONS_Glyph::put(SDL_Surface *dst,int x,int y,uchar alpha){
 }
 
 void NONS_Glyph::done(){
-	if (this)
-		this->fc.done(this);
+	this->fc.done(this);
 }
 
 #ifndef _DEBUG

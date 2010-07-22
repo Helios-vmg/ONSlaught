@@ -60,6 +60,26 @@ NONS_LibraryLoader::NONS_LibraryLoader(const char *libName,bool append_debug){
 	this->error=reason((!this->lib)?LIBRARY_NOT_FOUND:NO_ERROR);
 }
 
+#if NONS_SYS_WINDOWS
+NONS_LibraryLoader::NONS_LibraryLoader(const char *directory,const char *libName,bool append_debug){
+	std::string filename(MAX_PATH,0);
+	GetCurrentDirectoryA(filename.size(),&filename[0]);
+	filename.resize(strlen(filename.c_str()));
+	filename.append("\\");
+	filename.append(directory);
+	filename.append("\\");
+	filename.append(libName);
+#ifdef _DEBUG
+	if (append_debug)
+		filename.append("_d");
+#endif
+	filename.append(".dll");
+	tobackslash(filename);
+	this->lib=LoadLibraryExA(filename.c_str(),0,LOAD_WITH_ALTERED_SEARCH_PATH);
+	this->error=reason((!this->lib)?LIBRARY_NOT_FOUND:NO_ERROR);
+}
+#endif
+
 NONS_LibraryLoader::~NONS_LibraryLoader(){
 	if (!this->lib)
 		return;
@@ -85,4 +105,4 @@ void *NONS_LibraryLoader::getFunction(const char *functionName){
 	return ret;
 }
 
-NONS_LibraryLoader pluginLibrary("plugin");
+NONS_LibraryLoader pluginLibrary("plugin",1);

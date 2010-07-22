@@ -25,9 +25,9 @@ src/ScriptInterpreter.cpp
 src/MacroParser.tab.cpp
 src/GUI.cpp
 src/ExpressionParser.tab.cpp
-src/Functions.cpp
 src/INIParser.tab.cpp
 src/Archive.cpp
+src/Functions.cpp
 src/VirtualScreen.cpp
 src/GFX.cpp
 src/ScreenSpace.cpp

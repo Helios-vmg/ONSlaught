@@ -65,7 +65,7 @@ namespace NONS_Expression{
 		Value(const std::wstring &s);
 		Value(NONS_VariableMember *member);
 		void negate(bool invert_terms){
-			if (!this->type==INTEGER || this->negated || !invert_terms)
+			if (this->type!=INTEGER || this->negated || !invert_terms)
 				return;
 			this->integer=!this->integer;
 			this->negated=1;

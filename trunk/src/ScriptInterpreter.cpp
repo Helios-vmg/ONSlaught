@@ -722,6 +722,10 @@ void NONS_ScriptInterpreter::uninit(){
 	this->textgosub.clear();
 	if (!!this->screenshot)
 		SDL_FreeSurface(this->screenshot);
+	while (this->callStack.size()){
+		delete this->callStack.back();
+		this->callStack.pop_back();
+	}
 }
 
 void NONS_ScriptInterpreter::listImplementation(){
@@ -1120,10 +1124,12 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from
 			return 0;
 		case 1:
 			if (scr->Background->load(&filename)){
-				NONS_MutexLocker ml(screenMutex);
-				scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
-				scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
-				scr->BlendOnlyBG(1);
+				{
+					NONS_MutexLocker ml(screenMutex);
+					scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
+					scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
+					scr->BlendOnlyBG(1);
+				}
 				generic_play_loop(1);
 			}
 			return 1;
@@ -1623,9 +1629,9 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 						takeOut.first=temp2.stops[stop].first+1;
 						takeOut.second=temp2.stops[stop].second+1;
 						temp2.stops.erase(temp2.stops.begin(),temp2.stops.begin()+stop+1);
-						for (std::vector<std::pair<ulong,ulong> >::iterator i2=temp2.stops.begin();i2<temp2.stops.end();++i2){
-							i2->first-=takeOut.first;
-							i2->second-=takeOut.second;
+						for (std::vector<std::pair<ulong,ulong> >::iterator i3=temp2.stops.begin();i3<temp2.stops.end();++i3){
+							i3->first-=takeOut.first;
+							i3->second-=takeOut.second;
 						}
 						temp.push_back(temp2);
 						for (i2++;i2!=pages.end();i2++)
@@ -1659,12 +1665,12 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 						takeOut.first=temp2.stops[stop].first;
 						takeOut.second=temp2.stops[stop].second+1;
 						temp2.stops.erase(temp2.stops.begin(),temp2.stops.begin()+stop+1);
-						for (std::vector<std::pair<ulong,ulong> >::iterator i2=temp2.stops.begin();i2<temp2.stops.end();++i2){
-							i2->first-=takeOut.first;
-							i2->second-=takeOut.second;
+						for (std::vector<std::pair<ulong,ulong> >::iterator i3=temp2.stops.begin();i3<temp2.stops.end();++i3){
+							i3->first-=takeOut.first;
+							i3->second-=takeOut.second;
 						}
 						temp.push_back(temp2);
-						for (i2++;i2!=pages.end();i2++)
+						for (++i2;i2!=pages.end();++i2)
 							temp.push_back(*i2);
 						NONS_StackElement *pusher=new NONS_StackElement(temp,'@',this->insideTextgosub()+1);
 						this->callStack.push_back(pusher);
@@ -1862,9 +1868,8 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 			return NONS_HASH_DOES_NOT_MATCH;
 	//stack
 	//flush
-	while (!this->callStack.empty()){
-		NONS_StackElement *p=this->callStack.back();
-		delete p;
+	while (this->callStack.size()){
+		delete this->callStack.back();
 		this->callStack.pop_back();
 	}
 	for (ulong a=0;a<save.stack.size();a++){
@@ -2920,21 +2925,31 @@ ErrorCode NONS_ScriptInterpreter::command_dim(NONS_Statement &stmt){
 	return NONS_NO_ERROR;
 }
 
+#define DRAW_TO_SCREEN
+#ifndef DRAW_TO_SCREEN
+#define DRAW_BUFFER (this->screen->screenBuffer)
+#else
+#define DRAW_BUFFER (this->screen->screen->screens[VIRTUAL])
+#endif
+
 ErrorCode NONS_ScriptInterpreter::command_draw(NONS_Statement &stmt){
-	this->screen->screen->blitToScreen(this->screen->screenBuffer,0,0);
+#ifndef DRAW_TO_SCREEN
+	this->screen->screen->blitToScreen(DRAW_BUFFER,0,0);
+#endif
 	NONS_MutexLocker ml(screenMutex);
 	this->screen->screen->updateWithoutLock();
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
+	SDL_Surface *dst=DRAW_BUFFER;
 	if (!this->screen->Background || !this->screen->Background->data)
-		SDL_FillRect(this->screen->screenBuffer,0,this->screen->screenBuffer->format->Amask);
+		SDL_FillRect(dst,0,dst->format->Amask);
 	else if (!stdStrCmpCI(stmt.commandName,L"drawbg"))
 		manualBlit(
 			this->screen->Background->data,
 			0,
-			this->screen->screenBuffer,
+			dst,
 			&this->screen->Background->position.to_SDL_Rect());
 	else{
 		MINIMUM_PARAMETERS(5);
@@ -2946,50 +2961,55 @@ ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
 		GET_INT_VALUE(yscale,3);
 		GET_INT_VALUE(angle,4);
 		if (!(xscale*yscale))
-			SDL_FillRect(this->screen->screenBuffer,0,this->screen->screenBuffer->format->Amask);
+			SDL_FillRect(DRAW_BUFFER,0,DRAW_BUFFER->format->Amask);
 		else{
 			SDL_Surface *src=this->screen->Background->data;
 			NONS_Image *img=ImageLoader.elementFromSurface(src);
 			bool freeSrc=0;
 
 			if (xscale<0 || yscale<0){
-				SDL_Surface *dst=makeSurface(src->w,src->h,32);
+				SDL_Surface *temp=makeSurface(src->w,src->h,32);
 				if (yscale>0)
-					FlipSurfaceH(src,dst);
+					FlipSurfaceH(src,temp);
 				else if (xscale>0)
-					FlipSurfaceV(src,dst);
+					FlipSurfaceV(src,temp);
 				else
-					FlipSurfaceHV(src,dst);
+					FlipSurfaceHV(src,temp);
 				xscale=ABS(xscale);
 				yscale=ABS(yscale);
-				src=dst;
+				src=temp;
 				freeSrc=1;
 			}
 
 			if (src->format->BitsPerPixel!=32){
-				SDL_Surface *dst=makeSurface(src->w,src->h,32);
-				manualBlit(src,0,dst,0);
+				SDL_Surface *temp=makeSurface(src->w,src->h,32);
+				manualBlit(src,0,temp,0);
 				freeSrc=1;
+				src=temp;
 			}
 			if (img->svg_source){
 				ImageLoader.svg_functions.SVG_set_scale(img->svg_source,double(xscale)/100.0,double(yscale)/100.0);
 				ImageLoader.svg_functions.SVG_set_rotation(img->svg_source,-double(angle));
 				ImageLoader.svg_functions.SVG_add_scale(img->svg_source,ImageLoader.base_scale[0],ImageLoader.base_scale[1]);
-				SDL_Surface *dst=ImageLoader.svg_functions.SVG_render(img->svg_source);
+				SDL_Surface *temp=ImageLoader.svg_functions.SVG_render(img->svg_source);
 				if (freeSrc)
 					SDL_FreeSurface(src);
-				src=dst;
+				freeSrc=1;
+				src=temp;
 			}else{
 				if (xscale!=100 || yscale!=100){
-					SDL_Surface *dst=resizeFunction(src,src->w*xscale/100,src->h*yscale/100);
+					SDL_Surface *temp=resizeFunction(src,src->w*xscale/100,src->h*yscale/100);
 					if (freeSrc)
 						SDL_FreeSurface(src);
-					src=dst;
+					freeSrc=1;
+					src=temp;
 				}
 				if (angle!=0){
-					SDL_Surface *dst=rotationFunction(src,double(angle)/180*M_PI);
-					SDL_FreeSurface(src);
-					src=dst;
+					SDL_Surface *temp=rotationFunction(src,double(angle)/180*M_PI);
+					if (freeSrc)
+						SDL_FreeSurface(src);
+					freeSrc=1;
+					src=temp;
 				}
 			}
 			SDL_Rect dstR={
@@ -2997,22 +3017,24 @@ ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
 				Sint16(-long(src->clip_rect.h/2)+y),
 				0,0
 			};
-			manualBlit(src,0,this->screen->screenBuffer,&dstR);
-			SDL_FreeSurface(src);
+			manualBlit(src,0,dst,&dstR);
+			if (freeSrc)
+				SDL_FreeSurface(src);
 		}
 	}
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_drawclear(NONS_Statement &stmt){
-	SDL_LockSurface(this->screen->screenBuffer);
-	surfaceData sd=this->screen->screenBuffer;
+	SDL_Surface *dst=DRAW_BUFFER;
+	SDL_LockSurface(dst);
+	surfaceData sd=dst;
 	Uint32 *p=(Uint32 *)sd.pixels;
-	Uint32 mask=this->screen->screenBuffer->format->Amask;
+	Uint32 mask=dst->format->Amask;
 	for (ulong n=sd.w*sd.h;n;n--)
 		*p++=mask;
-	SDL_UnlockSurface(this->screen->screenBuffer);
-	//SDL_FillRect(this->screen->screenBuffer,0,this->screen->screenBuffer->format->Amask);
+	SDL_UnlockSurface(dst);
+	//SDL_FillRect(dst,0,dst->format->Amask);
 	return NONS_NO_ERROR;
 }
 
@@ -3025,7 +3047,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawfill(NONS_Statement &stmt){
 	r=ulong(r)&0xFF;
 	g=ulong(g)&0xFF;
 	b=ulong(b)&0xFF;
-	SDL_Surface *dst=this->screen->screenBuffer;
+	SDL_Surface *dst=DRAW_BUFFER;
 	surfaceData sd(dst);
 	SDL_FillRect(dst,0,r<<sd.Roffset|g<<sd.Goffset|b<<sd.Boffset|0xFF<<sd.Aoffset);
 	return NONS_NO_ERROR;
@@ -3167,12 +3189,12 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 		srcRect.y=0;
 		srcRect.w=src->w;
 		srcRect.h=src->h;
-		dstRect.x-=srcRect.w/2;
-		dstRect.y-=srcRect.h/2;
+		dstRect.x-=(Sint16)floor(float(srcRect.w)/2.f+.5f);
+		dstRect.y-=(Sint16)floor(float(srcRect.h)/2.f+.5f);
 	}
 
 
-	manualBlit(src,&srcRect,this->screen->screenBuffer,&dstRect,(alpha<-0xFF)?-0xFF:((alpha>0xFF)?0xFF:alpha));
+	manualBlit(src,&srcRect,DRAW_BUFFER,&dstRect,(alpha<-0xFF)?-0xFF:((alpha>0xFF)?0xFF:alpha));
 
 
 	if (freeSrc)
@@ -3182,25 +3204,26 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 
 ErrorCode NONS_ScriptInterpreter::command_drawtext(NONS_Statement &stmt){
 	NONS_ScreenSpace *scr=this->screen;
+	SDL_Surface *dst=DRAW_BUFFER;
 	if (!scr->output->shadeLayer->useDataAsDefaultShade)
 		multiplyBlend(
 			scr->output->shadeLayer->data,0,
-			scr->screenBuffer,
+			dst,
 			&scr->output->shadeLayer->clip_rect.to_SDL_Rect());
 	else
 		manualBlit(
 			scr->output->shadeLayer->data,0,
-			scr->screenBuffer,
+			dst,
 			&scr->output->shadeLayer->clip_rect.to_SDL_Rect());
 	if (scr->output->shadowLayer)
 		manualBlit(
 			scr->output->shadowLayer->data,0,
-			scr->screenBuffer,
+			dst,
 			&scr->output->shadowLayer->clip_rect.to_SDL_Rect(),
 			scr->output->shadowLayer->alpha);
 	manualBlit(
 		scr->output->foregroundLayer->data,0,
-		scr->screenBuffer,
+		dst,
 		&scr->output->foregroundLayer->clip_rect.to_SDL_Rect(),
 		scr->output->foregroundLayer->alpha);
 	return NONS_NO_ERROR;
@@ -3365,17 +3388,19 @@ ErrorCode NONS_ScriptInterpreter::command_getini(NONS_Statement &stmt){
 	GET_STR_VALUE(filename,0);
 	GET_STR_VALUE(section,1);
 	GET_STR_VALUE(key,2);
-	INIcacheType::iterator i=this->INIcache.find(filename);
 	INIfile *file=0;
-	if (i==this->INIcache.end()){
-		NONS_DataStream *stream=general_archive.open(filename);
-		if (!stream)
-			return NONS_FILE_NOT_FOUND;
-		std::vector<uchar> buffer;
-		stream->read_all(buffer);
-		this->INIcache[filename]=new INIfile(buffer,CLOptions.scriptencoding);
-	}else
-		file=i->second;
+	{
+		INIcacheType::iterator i=this->INIcache.find(filename);
+		if (i==this->INIcache.end()){
+			NONS_DataStream *stream=general_archive.open(filename);
+			if (!stream)
+				return NONS_FILE_NOT_FOUND;
+			std::vector<uchar> buffer;
+			stream->read_all(buffer);
+			file=this->INIcache[filename]=new INIfile(buffer,CLOptions.scriptencoding);
+		}else
+			file=i->second;
+	}
 	INIsection *sec=file->getSection(section);
 	if (!sec)
 		return NONS_INI_SECTION_NOT_FOUND;
@@ -4417,8 +4442,9 @@ ErrorCode NONS_ScriptInterpreter::command_resettimer(NONS_Statement &stmt){
 ErrorCode NONS_ScriptInterpreter::command_return(NONS_Statement &stmt){
 	if (this->callStack.empty())
 		return NONS_EMPTY_CALL_STACK;
-	NONS_StackElement *popped;
+	NONS_StackElement *popped=0;
 	do{
+		delete popped;
 		popped=this->callStack.back();
 		this->callStack.pop_back();
 	}while (

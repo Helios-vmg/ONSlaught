@@ -160,10 +160,10 @@ struct NONS_VirtualScreen{
 	NONS_VirtualScreen(ulong w,ulong h);
 	NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh);
 	~NONS_VirtualScreen();
-	DECLSPEC void blitToScreen(SDL_Surface *src,SDL_Rect *srcrect,SDL_Rect *dstrect);
+	NONS_DECLSPEC void blitToScreen(SDL_Surface *src,SDL_Rect *srcrect,SDL_Rect *dstrect);
 	//Note: Call with the screen unlocked or you'll enter a deadlock.
-	DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
-	DECLSPEC void updateWholeScreen(bool fast=0);
+	NONS_DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
+	NONS_DECLSPEC void updateWholeScreen(bool fast=0);
 	//If 0, to window; if 1, to fullscreen; if 2, toggle.
 	bool toggleFullscreen(uchar mode=2);
 	SDL_Surface *toggleFullscreenFromVideo();
@@ -173,7 +173,7 @@ struct NONS_VirtualScreen{
 	long unconvertY(long y);
 	ulong convertW(ulong w);
 	ulong convertH(ulong h);
-	DECLSPEC void updateWithoutLock(bool fast=0);
+	NONS_DECLSPEC void updateWithoutLock(bool fast=0);
 	std::string takeScreenshot(const std::string &filename="");
 	void takeScreenshotFromVideo();
 	void initEffectList();

@@ -391,8 +391,8 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					std::wstring str=arguments[++a];
 					if (str.size()%2)
 						str.resize(str.size()-1);
-					for (size_t a=0;a<str.size();a+=2)
-						CLOptions.replaceArray[str[a]]=str[a+1];
+					for (size_t b=0;b<str.size();b+=2)
+						CLOptions.replaceArray[str[b]]=str[b+1];
 				}
 				break;
 			case 7: //-image-cache-size

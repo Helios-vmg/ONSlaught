@@ -1297,7 +1297,7 @@ NONS_GFXstore::NONS_GFXstore(){
 }
 
 NONS_GFXstore::~NONS_GFXstore(){
-	for (std::map<ulong,NONS_GFX *>::iterator i=this->effects.begin();i!=this->effects.begin();i++)
+	for (std::map<ulong,NONS_GFX *>::iterator i=this->effects.begin();i!=this->effects.end();i++)
 		delete i->second;
 }
 

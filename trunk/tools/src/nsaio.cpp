@@ -565,7 +565,7 @@ namespace compression{
 			ret=0;
 		else if (stream.avail_out<dst->size)
 			out(dst,&dst->out[0],dst->size-stream.avail_out);
-		BZ2_bzDecompress(&stream);
+		BZ2_bzDecompressEnd(&stream);
 		return ret;
 	}
 	bool CompressBZ2(base_out_decompression *dst,base_in_decompression *src){

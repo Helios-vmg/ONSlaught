@@ -30,6 +30,7 @@
 #include "ScreenSpace.h"
 #include "IOFunctions.h"
 #include "CommandLineOptions.h"
+#include <cassert>
 
 #define SCREENBUFFER_BITS 32
 
@@ -368,6 +369,8 @@ void NONS_StandardOutput::set_size(ulong size){
 		this->shadowLayer->fontCache->set_size(size);
 }
 
+#define CHECK_POINTER_AND_CALL(p,c) if (p) p->c
+
 bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ulong *printedChars){
 	if (start>=this->cachedText.size())
 		return 0;
@@ -440,7 +443,7 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 				this->prebufferedText.clear();
 				this->indent_next=1;
 				glyph->done();
-				glyph2->done();
+				CHECK_POINTER_AND_CALL(glyph2,done());
 				return 1;
 			}else{
 				x0=this->setLineStart(&this->cachedText,a,&frame,this->horizontalCenterPolicy);
@@ -597,19 +600,17 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 				glyph->put(this->foregroundLayer->data,x,y);
 				if (!!dst){
 					NONS_MutexLocker ml(screenMutex);
-					if (glyph2)
-						glyph2->put(dst->screens[VIRTUAL],x+1,y+1,0);
+					CHECK_POINTER_AND_CALL(glyph2,put(dst->screens[VIRTUAL],x+1,y+1,0));
 					glyph->put(dst->screens[VIRTUAL],x,y,0);
 				}
 			}else if (dst){
 				NONS_MutexLocker ml(screenMutex);
-				if (glyph2)
-					glyph2->put(dst->screens[VIRTUAL],x+1,y+1);
+				CHECK_POINTER_AND_CALL(glyph2,put(dst->screens[VIRTUAL],x+1,y+1));
 				glyph->put(dst->screens[VIRTUAL],x,y);
 			}
 			x+=glyph->get_advance();
 			glyph->done();
-			glyph2->done();
+			CHECK_POINTER_AND_CALL(glyph2,done());
 		}
 	}
 	if (shadow)
@@ -633,7 +634,7 @@ int NONS_StandardOutput::predictLineLength(std::wstring *arr,long start,int widt
 	for (ulong a=start;a<arr->size() && (*arr)[a];a++){
 		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph((*arr)[a]);
 		if (!glyph || res+glyph->get_advance()+this->extraAdvance>=width){
-			glyph->done();
+			CHECK_POINTER_AND_CALL(glyph,done());
 			break;
 		}
 		res+=glyph->get_advance()+this->extraAdvance;
@@ -782,6 +783,7 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 	this->gfx_store=new NONS_GFXstore();
 	this->sprite_priority=25;
 	if (!CLOptions.play.size()){
+		assert(!!this->output);
 		const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
 		this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
 	}
@@ -817,6 +819,7 @@ NONS_ScreenSpace::NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_FontCac
 	this->gfx_store=new NONS_GFXstore();
 	this->sprite_priority=25;
 	if (!CLOptions.play.size()){
+		assert(!!this->output);
 		const SDL_Color *temp=&this->output->foregroundLayer->fontCache->get_color();
 		this->lookback=new NONS_Lookback(this->output,temp->r,temp->g,temp->b);
 	}

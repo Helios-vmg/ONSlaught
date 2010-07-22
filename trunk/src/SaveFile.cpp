@@ -179,31 +179,27 @@ std::wstring getConfigLocation(){
 	if (getWindowsVersion()<WINDOWS_VERSION::V2K)
 		return L"./";
 	HKEY k;
-	if (RegOpenKeyEx(HKEY_CURRENT_USER,TEXT("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders"),0,KEY_READ,&k)!=ERROR_SUCCESS)
+	if (RegOpenKeyEx(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders",0,KEY_READ,&k)!=ERROR_SUCCESS)
 		return L"./";
 	DWORD type,size;
-	if (RegQueryValueEx(k,TEXT("Personal"),0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ){
+	if (RegQueryValueEx(k,L"Personal",0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ){
 		RegCloseKey(k);
 		return L"./";
 	}
-	TCHAR *path=new TCHAR[size/sizeof(TCHAR)];
-	RegQueryValueEx(k,TEXT("Personal"),0,&type,(LPBYTE)path,&size);
+	std::wstring path(size/sizeof(TCHAR),0);
+	RegQueryValueEx(k,L"Personal",0,&type,(LPBYTE)&path[0],&size);
 	RegCloseKey(k);
-	size/=sizeof(TCHAR);
-	size--;
-	std::wstring pathStr;
-	pathStr.assign(path,path+size);
-	toforwardslash(pathStr);
-	if (pathStr[pathStr.size()-1]!='/')
-		pathStr.append(L"/.ONSlaught");
+	path.resize(wcslen(path.c_str()));
+	toforwardslash(path);
+	if (path[path.size()-1]!='/')
+		path.append(L"/.ONSlaught");
 	else
-		pathStr.append(L".ONSlaught");
-	if (!CreateDirectory((LPCTSTR)pathStr.c_str(),0) && GetLastError()!=ERROR_ALREADY_EXISTS){
-		delete[] path;
+		path.append(L".ONSlaught");
+	if (!CreateDirectory((LPCTSTR)path.c_str(),0) && GetLastError()!=ERROR_ALREADY_EXISTS){
 		return L"./";
 	}
-	pathStr.push_back('/');
-	return pathStr;
+	path.push_back('/');
+	return path;
 #elif NONS_SYS_UNIX
 	passwd* pwd=getpwuid(getuid());
 	if (!pwd)
