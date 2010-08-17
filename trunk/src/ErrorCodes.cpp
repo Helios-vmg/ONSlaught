@@ -135,9 +135,9 @@ const char *errorMessages[]={
 	//NONS_NO_BUTTON_IMAGE
 	"There is no source image for the button.",
 	//NONS_NO_BUTTONS_DEFINED
-	"There are not defined buttons at the moment.",
+	"There are no defined buttons at the moment.",
 	//NONS_SELECT_TOO_BIG
-	"The button layer is too big for the screen.",
+	"The button layer doesn't fit on the screen.",
 	//NONS_NO_START_LABEL
 	"The *start block was not found.",
 	//NONS_GOSUB

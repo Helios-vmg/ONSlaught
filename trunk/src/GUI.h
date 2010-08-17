@@ -191,30 +191,95 @@ struct NONS_Menu;
 struct NONS_Layer;
 class NONS_EventQueue;
 
-struct NONS_Button{
-	NONS_Layer *offLayer;
-	NONS_Layer *onLayer;
-	NONS_Layer *shadowLayer;
-	SDL_Rect box;
-	NONS_ScreenSpace *screen;
-	NONS_FontCache *font_cache;
+class NONS_Button{
+	//friend struct NONS_ButtonLayer;
+	//friend struct NONS_Lookback;
+protected:
 	bool status;
-	int posx,posy;
-	int limitX,limitY;
-	NONS_Button();
-	NONS_Button(const NONS_FontCache &fc);
-	~NONS_Button();
-	void makeTextButton(const std::wstring &text,const NONS_FontCache &fc,float center,const SDL_Color &on,const SDL_Color &off,bool shadow,int limitX,int limitY);
-	void makeGraphicButton(SDL_Surface *src,int posx,int posy,int width,int height,int originX,int originY);
-	void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
-	void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
+public:
+	NONS_Button():status(0){}
+	virtual ~NONS_Button(){}
+	virtual void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0)=0;
+	virtual void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0)=0;
 	bool MouseOver(SDL_Event *event);
-	bool MouseOver(int x,int y);
+	virtual bool MouseOver(int x,int y)=0;
+	virtual NONS_Rect get_dimensions()=0;
+protected:
+	void merge(NONS_VirtualScreen *dst,NONS_Rect &rect,int posx,int posy,SDL_Surface *original,bool status,bool force=0);
+	void mergeWithoutUpdate(NONS_VirtualScreen *dst,NONS_Rect &rect,int posx,int posy,SDL_Surface *original,bool status,bool force=0);
+	virtual void mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect)=0;
+};
+
+#define MOUSE_OVER(x,y,posx,posy,w,h) ((x)>=(posx) && (x)<=(posx)+(w) && (y)>=(posy) && (y)<=(posy)+(h))
+
+class NONS_SurfaceButton:public NONS_Button{
+protected:
+	NONS_Layer *offLayer,
+		*onLayer;
+	NONS_Rect box;
+	int posx,posy,
+		limitX,limitY;
+public:
+	NONS_SurfaceButton():NONS_Button(),offLayer(0),onLayer(0),posx(0),posy(0){}
+	~NONS_SurfaceButton();
+	void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
+	void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
+	bool MouseOver(int x,int y){
+		float posx=this->posx+this->box.x,
+			posy=this->posy+this->box.y;
+		return MOUSE_OVER(x,y,posx,posy,this->box.w,this->box.h);
+	}
+	virtual void dummy()=0;
+	const NONS_Layer *getOffLayer() const{ return this->offLayer; }
+	const NONS_Layer *getOnLayer() const{ return this->onLayer; }
+	NONS_Layer *&setOffLayer(){ return this->offLayer; }
+	NONS_Layer *&setOnLayer(){ return this->onLayer; }
+	const NONS_Rect &getBox() const{ return this->box; }
+	int getPosx(){ return this->posx; }
+	int getPosy(){ return this->posy; }
+	int &setPosx(){ return this->posx; }
+	int &setPosy(){ return this->posy; }
+	NONS_Rect get_dimensions();
+protected:
+	void mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect);
+};
+
+class NONS_GraphicButton:public NONS_SurfaceButton{
+public:
+	NONS_GraphicButton(SDL_Surface *src,int posx,int posy,int width,int height,int originX,int originY);
+	void allocateLayer(NONS_Layer *&layer,SDL_Surface *src,int posx,int posy,int width,int height,int originX,int originY);
+	void dummy(){}
+};
+
+class NONS_TextButton:public NONS_SurfaceButton{
+protected:
+	NONS_Layer *shadowLayer;
+	NONS_FontCache font_cache;
+public:
+	NONS_TextButton(const std::wstring &text,const NONS_FontCache &fc,float center,const SDL_Color &on,const SDL_Color &off,bool shadow,int limitX,int limitY);
+	~NONS_TextButton();
+	const NONS_Layer *getShadowLayer() const{ return this->shadowLayer; }
+	NONS_Layer *&setShadowLayer(){ return this->shadowLayer; }
+	void dummy(){}
 private:
 	SDL_Rect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY);
 	void write(const std::wstring &str,int offsetX,int offsetY,float center=0);
 	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center,int offsetX);
 	int predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width,int offsetX);
+};
+
+struct NONS_SpriteButton:public NONS_Button{
+protected:
+	ulong sprite;
+	NONS_ScreenSpace *screen;
+public:
+	NONS_SpriteButton(ulong sprite,NONS_ScreenSpace *screen):sprite(sprite),screen(screen){}
+	void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
+	void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
+	bool MouseOver(int x,int y);
+	NONS_Rect get_dimensions();
+protected:
+	void mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect);
 };
 
 struct NONS_ButtonLayer{
@@ -241,6 +306,7 @@ struct NONS_ButtonLayer{
 			Insert,
 			ZXC;
 	} inputOptions;
+	bool return_on_down;
 	NONS_ButtonLayer(SDL_Surface *img,NONS_ScreenSpace *screen);
 	NONS_ButtonLayer(const NONS_FontCache &fc,NONS_ScreenSpace *screen,bool exitable,NONS_Menu *menu);
 	~NONS_ButtonLayer();
@@ -255,6 +321,7 @@ struct NONS_ButtonLayer{
 		int width,
 		int height);
 	void addImageButton(ulong index,int posx,int posy,int width,int height,int originX,int originY);
+	void addSpriteButton(ulong index,ulong sprite);
 	/*
 	returns:
 		if >=0, the index of the button pressed
@@ -329,17 +396,23 @@ struct NONS_Lookback{
 	NONS_StandardOutput *output;
 	NONS_Button *up,
 		*down;
-	SDL_Surface *sUpon;
-	SDL_Surface *sUpoff;
-	SDL_Surface *sDownon;
-	SDL_Surface *sDownoff;
+	//surfaces<2: up button
+	//surfaces>=2: down button
+	//surfaces%2!=0: on state
+	//surfaces%2==0: off state
+	SDL_Surface *surfaces[4];
+	//bool use_sprites;
+	//ulong up,down;
 	NONS_Lookback(NONS_StandardOutput *output,uchar r,uchar g,uchar b);
 	~NONS_Lookback();
 	bool setUpButtons(const std::wstring &upon,const std::wstring &upoff,const std::wstring &downon,const std::wstring &downoff);
+	bool setUpButtons(ulong up,ulong down,NONS_ScreenSpace *screen);
 	int display(NONS_VirtualScreen *dst);
 	void reset(NONS_StandardOutput *output);
 private:
 	bool changePage(int dir,long &currentPage,SDL_Surface *copyDst,NONS_VirtualScreen *dst,SDL_Surface *preBlit,uchar &visibility,int &mouseOver);
+	void resetButtons();
+	void setUpButtons();
 };
 
 struct NONS_Cursor{

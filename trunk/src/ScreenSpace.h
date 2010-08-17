@@ -98,7 +98,7 @@ struct NONS_StandardOutput{
 		shadowPosY;
 	ulong display_speed;
 	int extraAdvance;
-	bool visible;
+	bool visible,text_visible;
 	NONS_GFX *transition;
 	std::vector<std::wstring> log;
 	std::wstring currentBuffer;
@@ -144,6 +144,13 @@ private:
 
 std::wstring removeTags(const std::wstring &str);
 
+struct NONS_GraphicBar{
+	ulong current_value,
+		total_value;
+	NONS_Rect rect;
+	SDL_Color color;
+};
+
 struct NONS_ScreenSpace{
 	std::vector<NONS_Layer *> layerStack;
 	NONS_Layer *Background,
@@ -163,6 +170,7 @@ struct NONS_ScreenSpace{
 	ulong char_baseline;
 	bool blendSprites;
 	std::vector<ulong> charactersBlendOrder;
+	std::map<long,NONS_GraphicBar> bars;
 
 	NONS_ScreenSpace(int framesize,NONS_FontCache &fc);
 	NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow);
@@ -177,12 +185,18 @@ struct NONS_ScreenSpace{
 	ErrorCode BlendNoText(ulong effect,long timing,const std::wstring *rule);
 	ErrorCode BlendOnlyBG(ulong effect);
 	ErrorCode BlendOnlyBG(ulong effect,long timing,const std::wstring *rule);
+	void copyBufferToScreenWithoutUpdating();
 	void clearText();
 	void hideText();
 	void showText();
+	void hideTextWindow();
+	void showTextWindow();
 	void resetParameters(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow);
 	void clear();
 	ErrorCode loadSprite(ulong n,const std::wstring &string,long x,long y,uchar alpha,bool visibility);
 	bool advanceAnimations(ulong msecs,std::vector<SDL_Rect> &rects);
+
+	void addBar(long barNo,ulong current_value,long x,long y,ulong w,ulong h,ulong total_value,SDL_Color &color);
+	void clearBars();
 };
 #endif

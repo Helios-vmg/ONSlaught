@@ -219,6 +219,7 @@ NONS_StandardOutput::NONS_StandardOutput(NONS_Layer *fgLayer,NONS_Layer *shadowL
 	this->display_speed=0;
 	this->extraAdvance=0;
 	this->visible=0;
+	this->text_visible=1;
 	this->transition=new NONS_GFX(1,0,0);
 	this->log.reserve(50);
 	this->horizontalCenterPolicy=0;
@@ -250,6 +251,7 @@ NONS_StandardOutput::NONS_StandardOutput(NONS_FontCache &fc,SDL_Rect *size,SDL_R
 	this->display_speed=0;
 	this->extraAdvance=0;
 	this->visible=0;
+	this->text_visible=1;
 	this->transition=new NONS_GFX(1,0,0);
 	this->log.reserve(50);
 	this->horizontalCenterPolicy=0;
@@ -1047,6 +1049,26 @@ ErrorCode NONS_ScreenSpace::BlendNoText(ulong effect){
 		pipelineElement &el=this->filterPipeline[a];
 		NONS_GFX::callFilter(el.effectNo,el.color,el.ruleStr,this->screenBuffer,this->screenBuffer);
 	}
+	for (std::map<long,NONS_GraphicBar>::iterator i=this->bars.begin(),e=this->bars.end();i!=e;++i){
+		NONS_GraphicBar &bar=i->second;
+		NONS_Rect rect=bar.rect;
+		rect.w*=float(bar.current_value)/float(bar.total_value);
+		ulong shifts[4]={
+			this->screenBuffer->format->Rshift,
+			this->screenBuffer->format->Gshift,
+			this->screenBuffer->format->Bshift,
+			this->screenBuffer->format->Ashift
+		};
+		SDL_Color color=bar.color;
+		SDL_FillRect(
+			this->screenBuffer,
+			&rect.to_SDL_Rect(),
+			(color.r<<shifts[0])|
+			(color.g<<shifts[1])|
+			(color.b<<shifts[2])|
+			(0x000FF<<shifts[3])
+		);
+	}
 	if (effect){
 		NONS_GFX *e=this->gfx_store->retrieve(effect);
 		if (!e)
@@ -1084,6 +1106,10 @@ ErrorCode NONS_ScreenSpace::BlendOnlyBG(ulong effect,long timing,const std::wstr
 	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,0,this->screen);
 }
 
+void NONS_ScreenSpace::copyBufferToScreenWithoutUpdating(){
+	this->screen->blitToScreen(this->screenBuffer,0,0);
+}
+
 void NONS_ScreenSpace::clearText(){
 	this->output->Clear();
 	this->BlendNoCursor(1);
@@ -1091,6 +1117,22 @@ void NONS_ScreenSpace::clearText(){
 }
 
 void NONS_ScreenSpace::hideText(){
+	if (!this->output->text_visible)
+		return;
+	this->output->text_visible=0;
+	this->BlendNoCursor(0);
+	this->output->transition->call(this->screenBuffer,0,this->screen);
+}
+
+void NONS_ScreenSpace::showText(){
+	if (this->output->text_visible)
+		return;
+	this->output->text_visible=1;
+	this->BlendNoCursor(0);
+	this->output->transition->call(this->screenBuffer,0,this->screen);
+}
+
+void NONS_ScreenSpace::hideTextWindow(){
 	if (!this->output->visible)
 		return;
 	this->output->visible=0;
@@ -1098,7 +1140,7 @@ void NONS_ScreenSpace::hideText(){
 	this->output->transition->call(this->screenBuffer,0,this->screen);
 }
 
-void NONS_ScreenSpace::showText(){
+void NONS_ScreenSpace::showTextWindow(){
 	if (this->output->visible)
 		return;
 	this->output->visible=1;
@@ -1181,4 +1223,20 @@ bool NONS_ScreenSpace::advanceAnimations(ulong msecs,std::vector<SDL_Rect> &rect
 		}
 	}
 	return requireRefresh;
+}
+
+void NONS_ScreenSpace::addBar(long barNo,ulong current_value,long x,long y,ulong w,ulong h,ulong total_value,SDL_Color &color){
+	NONS_GraphicBar bar;
+	bar.current_value=current_value;
+	bar.total_value=total_value;
+	bar.rect.x=(float)x;
+	bar.rect.y=(float)y;
+	bar.rect.w=(float)w;
+	bar.rect.h=(float)h;
+	bar.color=color;
+	this->bars[barNo]=bar;
+}
+
+void NONS_ScreenSpace::clearBars(){
+	this->bars.clear();
 }

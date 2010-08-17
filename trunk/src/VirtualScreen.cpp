@@ -138,8 +138,8 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
 	std::fill(this->screens,this->screens+REAL+1,(SDL_Surface *)0);
 	this->screens[REAL]=SDL_SetVideoMode(ow,oh,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((CLOptions.startFullscreen)?SDL_FULLSCREEN:0));
 	if (!this->screens[REAL]){
-		std::cerr <<"FATAL ERROR: Could not allocate screen!"<<std::endl
-			<<"Terminating."<<std::endl;
+		std::cerr <<"FATAL ERROR: Could not allocate screen!\n"
+			"Terminating.\n";
 		exit(0);
 	}
 	this->screens[VIRTUAL]=this->screens[REAL];

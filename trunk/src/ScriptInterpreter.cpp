@@ -230,8 +230,8 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"automode_time"]=           0                                                     |ALLOW_IN_DEFINE             ;
 	this->commandList[L"automode"]=                0                                                     |ALLOW_IN_DEFINE             ;
 	this->commandList[L"avi"]=                     &NONS_ScriptInterpreter::command_avi                                  |ALLOW_IN_RUN;
-	this->commandList[L"bar"]=                     0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"barclear"]=                0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"bar"]=                     &NONS_ScriptInterpreter::command_bar                                  |ALLOW_IN_RUN;
+	this->commandList[L"barclear"]=                &NONS_ScriptInterpreter::command_barclear                             |ALLOW_IN_RUN;
 	this->commandList[L"bg"]=                      &NONS_ScriptInterpreter::command_bg                                   |ALLOW_IN_RUN;
 	this->commandList[L"bgcopy"]=                  &NONS_ScriptInterpreter::command_bgcopy                               |ALLOW_IN_RUN;
 	this->commandList[L"bgcpy"]=                   &NONS_ScriptInterpreter::command_bgcopy                               |ALLOW_IN_RUN;
@@ -244,7 +244,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"break"]=                   &NONS_ScriptInterpreter::command_break                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"btn"]=                     &NONS_ScriptInterpreter::command_btn                                  |ALLOW_IN_RUN;
 	this->commandList[L"btndef"]=                  &NONS_ScriptInterpreter::command_btndef                               |ALLOW_IN_RUN;
-	this->commandList[L"btndown"]=                 0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"btndown"]=                 &NONS_ScriptInterpreter::command_btndown                              |ALLOW_IN_RUN;
 	this->commandList[L"btntime"]=                 &NONS_ScriptInterpreter::command_btntime                              |ALLOW_IN_RUN;
 	this->commandList[L"btntime2"]=                &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"btnwait"]=                 &NONS_ScriptInterpreter::command_btnwait                              |ALLOW_IN_RUN;
@@ -290,9 +290,9 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"dwave"]=                   &NONS_ScriptInterpreter::command_dwave                                |ALLOW_IN_RUN;
 	this->commandList[L"dwaveload"]=               &NONS_ScriptInterpreter::command_dwaveload                            |ALLOW_IN_RUN;
 	this->commandList[L"dwaveloop"]=               &NONS_ScriptInterpreter::command_dwave                                |ALLOW_IN_RUN;
-	this->commandList[L"dwaveplay"]=               0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"dwaveplayloop"]=           0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"dwavestop"]=               0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"dwaveplay"]=               &NONS_ScriptInterpreter::command_dwaveplay                            |ALLOW_IN_RUN;
+	this->commandList[L"dwaveplayloop"]=           &NONS_ScriptInterpreter::command_dwaveplay                            |ALLOW_IN_RUN;
+	this->commandList[L"dwavestop"]=               &NONS_ScriptInterpreter::command_dwavestop                            |ALLOW_IN_RUN;
 	this->commandList[L"effect"]=                  &NONS_ScriptInterpreter::command_effect               |ALLOW_IN_DEFINE             ;
 	this->commandList[L"effectblank"]=             &NONS_ScriptInterpreter::command_effectblank          |ALLOW_IN_DEFINE             ;
 	this->commandList[L"effectcut"]=               &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
@@ -369,7 +369,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"lookbackbutton"]=          &NONS_ScriptInterpreter::command_lookbackbutton       |ALLOW_IN_DEFINE             ;
 	this->commandList[L"lookbackcolor"]=           &NONS_ScriptInterpreter::command_lookbackcolor        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"lookbackflush"]=           &NONS_ScriptInterpreter::command_lookbackflush                        |ALLOW_IN_RUN;
-	this->commandList[L"lookbacksp"]=              0                                                     |ALLOW_IN_DEFINE             ;
+	this->commandList[L"lookbacksp"]=              &NONS_ScriptInterpreter::command_lookbacksp           |ALLOW_IN_DEFINE             ;
 	this->commandList[L"loopbgm"]=                 &NONS_ScriptInterpreter::command_play                                 |ALLOW_IN_RUN;
 	this->commandList[L"loopbgmstop"]=             &NONS_ScriptInterpreter::command_playstop                             |ALLOW_IN_RUN;
 	this->commandList[L"lr_trap"]=                 &NONS_ScriptInterpreter::command_trap                                 |ALLOW_IN_RUN;
@@ -398,7 +398,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"mov8"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"mov9"]=                    &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"mov10"]=                   &NONS_ScriptInterpreter::command_movN                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
-	this->commandList[L"movemousecursor"]=         0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"movemousecursor"]=         &NONS_ScriptInterpreter::command_movemousecursor                      |ALLOW_IN_RUN;
 	this->commandList[L"movl"]=                    &NONS_ScriptInterpreter::command_movl                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"mp3"]=                     &NONS_ScriptInterpreter::command_play                                 |ALLOW_IN_RUN;
 	this->commandList[L"mp3fadeout"]=              &NONS_ScriptInterpreter::command_mp3fadeout           |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -462,7 +462,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"setcursor"]=               &NONS_ScriptInterpreter::command_setcursor                            |ALLOW_IN_RUN;
 	this->commandList[L"setlayer"]=                &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"setwindow"]=               &NONS_ScriptInterpreter::command_setwindow                            |ALLOW_IN_RUN;
-	this->commandList[L"setwindow2"]=              0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"setwindow2"]=              &NONS_ScriptInterpreter::command_setwindow2                           |ALLOW_IN_RUN;
 	this->commandList[L"setwindow3"]=              0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"sevol"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"shadedistance"]=           &NONS_ScriptInterpreter::command_shadedistance        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -471,11 +471,11 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"skipoff"]=                 &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"soundpressplgin"]=         &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"sp_rgb_gradation"]=        &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
-	this->commandList[L"spbtn"]=                   0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"spbtn"]=                   &NONS_ScriptInterpreter::command_spbtn                                |ALLOW_IN_RUN;
 	this->commandList[L"spclclk"]=                 0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"spi"]=                     &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"split"]=                   &NONS_ScriptInterpreter::command_split                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
-	this->commandList[L"splitstring"]=             0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"splitstring"]=             &NONS_ScriptInterpreter::command_split                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"spreload"]=                0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"spstr"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"stop"]=                    &NONS_ScriptInterpreter::command_stop                                 |ALLOW_IN_RUN;
@@ -491,10 +491,10 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"textbtnwait"]=             0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"textclear"]=               &NONS_ScriptInterpreter::command_textclear                            |ALLOW_IN_RUN;
 	this->commandList[L"textgosub"]=               &NONS_ScriptInterpreter::command_textgosub            |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
-	this->commandList[L"texthide"]=                0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"texthide"]=                &NONS_ScriptInterpreter::command_textshowhide                         |ALLOW_IN_RUN;
 	this->commandList[L"textoff"]=                 &NONS_ScriptInterpreter::command_textonoff                            |ALLOW_IN_RUN;
 	this->commandList[L"texton"]=                  &NONS_ScriptInterpreter::command_textonoff                            |ALLOW_IN_RUN;
-	this->commandList[L"textshow"]=                0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"textshow"]=                &NONS_ScriptInterpreter::command_textshowhide                         |ALLOW_IN_RUN;
 	this->commandList[L"textspeed"]=               &NONS_ScriptInterpreter::command_textspeed                            |ALLOW_IN_RUN;
 	this->commandList[L"time"]=                    &NONS_ScriptInterpreter::command_time                                 |ALLOW_IN_RUN;
 	this->commandList[L"transmode"]=               &NONS_ScriptInterpreter::command_transmode            |ALLOW_IN_DEFINE             ;
@@ -1458,6 +1458,20 @@ std::wstring getInlineExpression(const std::wstring &string,ulong off,ulong *len
 	return std::wstring(string,off,l-off);
 }
 
+ErrorCode NONS_ScriptInterpreter::GET_INT_OR_STR_VALUE_helper(long &i,std::wstring &s,yytokentype &type,const std::wstring &src){
+	type=INTEGER;
+	ErrorCode error=this->store->getIntValue(src,i,0);
+	if (CHECK_FLAG(error,NONS_NO_ERROR_FLAG))
+		return NONS_NO_ERROR;
+	if (error!=NONS_EXPECTED_INTEGRAL_VALUE)
+		return error;
+	error=this->store->getWcsValue(src,s,0);
+	if (!CHECK_FLAG(error,NONS_NO_ERROR_FLAG))
+		return error;
+	type=STRING;
+	return NONS_NO_ERROR;
+}
+
 void NONS_ScriptInterpreter::reduceString(
 		const std::wstring &src,
 		std::wstring &dst,
@@ -1584,7 +1598,7 @@ void findStops(const std::wstring &src,std::vector<std::pair<ulong,ulong> > &sto
 
 bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ulong *totalprintedchars,bool *justTurnedPage,ErrorCode *error){
 	NONS_StandardOutput *out=this->screen->output;
-	this->screen->showText();
+	this->screen->showTextWindow();
 	std::wstring *str;
 	bool justClicked;
 	for (std::vector<printingPage>::iterator i=pages.begin();i!=pages.end();i++){
@@ -2073,7 +2087,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	this->screen->screen->stopEffect();
 	if (save.asyncEffect_no)
 		this->screen->screen->callEffect(save.asyncEffect_no,save.asyncEffect_freq);
-	scr->showText();
+	scr->showTextWindow();
 	//audio
 	if (save.musicTrack>=0){
 		std::wstring temp=L"track";
@@ -2485,6 +2499,36 @@ ErrorCode NONS_ScriptInterpreter::command_avi(NONS_Statement &stmt){
 	return this->play_video(filename,!!skippable);
 }
 
+ErrorCode NONS_ScriptInterpreter::command_bar(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(8);
+	long barNo,x,y,current_value,w,h,total_value,rgb_color;
+	GET_INT_VALUE(barNo,0);
+	GET_INT_VALUE(current_value,1);
+	if (current_value<0)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	GET_INT_VALUE(x,2);
+	GET_INT_VALUE(y,3);
+	GET_INT_VALUE(w,4);
+	if (w<0)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	GET_INT_VALUE(h,5);
+	if (h<0)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	GET_INT_VALUE(total_value,6);
+	if (total_value<0)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	GET_INT_VALUE(rgb_color,7);
+	SDL_Color color=rgb2SDLcolor(rgb_color);
+	this->screen->addBar(barNo,current_value,x,y,w,h,total_value,color);
+	this->screen->hideTextWindow();
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_barclear(NONS_Statement &stmt){
+	this->screen->clearBars();
+	return NONS_NO_ERROR;
+}
+
 ErrorCode NONS_ScriptInterpreter::command_base_resolution(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	long w,h;
@@ -2504,7 +2548,7 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	NONS_ScreenSpace *scr=this->screen;
 	long color=0;
-	scr->hideText();
+	scr->hideTextWindow();
 	if (!stdStrCmpCI(stmt.parameters[0],L"white")){
 		scr->Background->setShade(-1,-1,-1);
 		scr->Background->Clear();
@@ -2629,8 +2673,7 @@ ErrorCode NONS_ScriptInterpreter::command_btn(NONS_Statement &stmt){
 	GET_COORDINATE(srcY,1,6);
 	if (index<=0)
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
-	index--;
-	this->imageButtons->addImageButton(index,(int)butX,(int)butY,(int)width,(int)height,(int)srcX,(int)srcY);
+	this->imageButtons->addImageButton(--index,(int)butX,(int)butY,(int)width,(int)height,(int)srcX,(int)srcY);
 	return NONS_NO_ERROR;
 }
 
@@ -2669,6 +2712,16 @@ ErrorCode NONS_ScriptInterpreter::command_btndef(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_btntime(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	if (!this->imageButtons)
+		return NONS_NO_BUTTON_IMAGE;
+	long a;
+	GET_INT_VALUE(a,0);
+	this->imageButtons->return_on_down=!!a;
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_btndown(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long time;
 	GET_INT_VALUE(time,0);
@@ -2767,22 +2820,22 @@ ErrorCode NONS_ScriptInterpreter::command_cl(NONS_Statement &stmt){
 	switch (NONS_tolower(stmt.parameters[0][0])){
 		case 'l':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->leftChar->unload();
 			break;
 		case 'r':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->rightChar->unload();
 			break;
 		case 'c':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->centerChar->unload();
 			break;
 		case 'a':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->leftChar->unload();
 			this->screen->rightChar->unload();
 			this->screen->centerChar->unload();
@@ -3233,7 +3286,7 @@ ErrorCode NONS_ScriptInterpreter::command_dwave(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>7)
+	if (channel<0 || channel>49)
 		return NONS_INVALID_CHANNEL_INDEX;
 	std::wstring name;
 	GET_STR_VALUE(name,1);
@@ -3247,7 +3300,7 @@ ErrorCode NONS_ScriptInterpreter::command_dwaveload(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0)
+	if (channel<0 || channel>49)
 		return NONS_INVALID_CHANNEL_INDEX;
 	std::wstring name;
 	GET_STR_VALUE(name,1);
@@ -3257,6 +3310,25 @@ ErrorCode NONS_ScriptInterpreter::command_dwaveload(NONS_Statement &stmt){
 	if (!this->audio->bufferIsLoaded(name))
 		this->audio->loadAsyncBuffer(name,channel);
 	return error;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_dwaveplay(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	long channel;
+	GET_INT_VALUE(channel,0);
+	if (channel<0 || channel>49)
+		return NONS_INVALID_CHANNEL_INDEX;
+	long loop=!stdStrCmpCI(stmt.commandName,L"dwaveplay")?0:-1;
+	return this->audio->playSoundAsync(0,channel,loop);
+}
+
+ErrorCode NONS_ScriptInterpreter::command_dwavestop(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	long channel;
+	GET_INT_VALUE(channel,0);
+	if (channel<0 || channel>49)
+		return NONS_INVALID_CHANNEL_INDEX;
+	return this->audio->stopSoundAsync(channel);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_effect(NONS_Statement &stmt){
@@ -3657,11 +3729,11 @@ ErrorCode NONS_ScriptInterpreter::command_humanorder(NONS_Statement &stmt){
 		std::wstring rule;
 		if (stmt.parameters.size()>3)
 			GET_STR_VALUE(rule,3);
-		this->screen->hideText();
+		this->screen->hideTextWindow();
 		this->screen->charactersBlendOrder=porder;
 		ret=this->screen->BlendNoCursor(number,duration,&rule);
 	}else{
-		this->screen->hideText();
+		this->screen->hideTextWindow();
 		this->screen->charactersBlendOrder=porder;
 		ret=this->screen->BlendNoCursor(number);
 	}
@@ -3833,7 +3905,7 @@ ErrorCode NONS_ScriptInterpreter::command_ld(NONS_Statement &stmt){
 			return NONS_INVALID_PARAMETER;
 	}
 	if (this->hideTextDuringEffect)
-		this->screen->hideText();
+		this->screen->hideTextWindow();
 	if (!*l)
 		*l=new NONS_Layer(&name);
 	else if (!(*l)->load(&name))
@@ -3870,7 +3942,7 @@ ErrorCode NONS_ScriptInterpreter::command_literal_print(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	std::wstring string=this->convertParametersToString(stmt);
 	if (string.size()){
-		this->screen->showText();
+		this->screen->showTextWindow();
 		if (this->screen->output->prepareForPrinting(string.c_str())){
 			if (this->pageCursor->animate(this->menu,this->autoclick)<0)
 				return NONS_NO_ERROR;
@@ -3940,6 +4012,7 @@ ErrorCode NONS_ScriptInterpreter::command_lookbackbutton(NONS_Statement &stmt){
 	anim.parse(D);
 	D=L":l;";
 	D.append(anim.getFilename());
+	this->screen->lookback->reset(this->screen->output);
 	bool ret=this->screen->lookback->setUpButtons(A,B,C,D);
 	return ret?NONS_NO_ERROR:NONS_FILE_NOT_FOUND;
 }
@@ -3955,6 +4028,19 @@ ErrorCode NONS_ScriptInterpreter::command_lookbackcolor(NONS_Statement &stmt){
 
 ErrorCode NONS_ScriptInterpreter::command_lookbackflush(NONS_Statement &stmt){
 	this->screen->output->log.clear();
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_lookbacksp(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(2);
+	long up,down;
+	GET_INT_VALUE(up,0);
+	if (up<0 || up>=1000)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	GET_INT_VALUE(down,1);
+	if (down<0 || down>=1000)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	this->screen->lookback->setUpButtons(up,down,this->screen);
 	return NONS_NO_ERROR;
 }
 
@@ -4118,6 +4204,17 @@ ErrorCode NONS_ScriptInterpreter::command_mov(NONS_Statement &stmt){
 		GET_STR_VALUE(val,1);
 		var->set(val);
 	}
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_movemousecursor(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(2);
+	long x,y;
+	GET_INT_VALUE(x,0);
+	GET_INT_VALUE(y,1);
+	if (x<0 || y<0)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	SDL_WarpMouse((Uint16)x,(Uint16)y);
 	return NONS_NO_ERROR;
 }
 
@@ -4371,10 +4468,10 @@ ErrorCode NONS_ScriptInterpreter::command_print(NONS_Statement &stmt){
 		std::wstring rule;
 		if (stmt.parameters.size()>2)
 			GET_STR_VALUE(rule,2);
-		this->screen->hideText();
+		this->screen->hideTextWindow();
 		ret=this->screen->BlendNoCursor(number,duration,&rule);
 	}else{
-		this->screen->hideText();
+		this->screen->hideTextWindow();
 		ret=this->screen->BlendNoCursor(number);
 	}
 	return ret;
@@ -4696,7 +4793,7 @@ ErrorCode NONS_ScriptInterpreter::command_select(NONS_Statement &stmt){
 		this->screen->output->h);
 	ctrlIsPressed=0;
 	//softwareCtrlIsPressed=0;
-	this->screen->showText();
+	this->screen->showTextWindow();
 	int choice=layer.getUserInput(this->screen->output->x,this->screen->output->y);
 	if (choice==-2){
 		this->screen->clearText();
@@ -4893,12 +4990,12 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 					fc[a]->line_skip=forceLineSkip;
 			}
 		}
-		SDL_Surface *pic;
 		if (!syntax){
 			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),*this->font_cache,shadow!=0);
 			this->screen->output->shadeLayer->setShade(uchar((color&0xFF0000)>>16),(color&0xFF00)>>8,color&0xFF);
 			this->screen->output->shadeLayer->Clear();
 		}else{
+			SDL_Surface *pic;
 			ImageLoader.fetchSprite(pic,filename);
 			windowRect.w=(float)pic->w;
 			windowRect.h=(float)pic->h;
@@ -4923,6 +5020,25 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			break;
 	}
 	this->screen->output->display_speed=this->default_speed;
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_setwindow2(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	long color;
+	std::wstring string;
+	yytokentype type;
+	GET_INT_OR_STR_VALUE(color,string,type,0);
+	NONS_Layer *layer=this->screen->output->shadeLayer;
+	if (type==INTEGER){
+		layer->setShade(uchar((color&0xFF0000)>>16),(color&0xFF00)>>8,color&0xFF);
+		layer->Clear();
+	}else{
+		SDL_Surface *pic;
+		ImageLoader.fetchSprite(pic,string);
+		layer->usePicAsDefaultShade(pic);
+	}
+	this->screen->BlendNoCursor(1);
 	return NONS_NO_ERROR;
 }
 
@@ -4987,6 +5103,19 @@ ErrorCode NONS_ScriptInterpreter::command_skip(NONS_Statement &stmt){
 	if (!this->thread->skip(count))
 		return NONS_NOT_ENOUGH_LINES_TO_SKIP;
 	return NONS_NO_ERROR_BUT_BREAK;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_spbtn(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(2);
+	if (!this->imageButtons)
+		return NONS_NO_BUTTON_IMAGE;
+	long sprite,button_index;
+	GET_INT_VALUE(sprite,0);
+	if (sprite<0 || sprite>999)
+		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+	GET_INT_VALUE(button_index,1);
+	this->imageButtons->addSpriteButton(--button_index,sprite);
+	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_split(NONS_Statement &stmt){
@@ -5067,22 +5196,22 @@ ErrorCode NONS_ScriptInterpreter::command_tal(NONS_Statement &stmt){
 	switch (stmt.parameters[0][0]){
 		case 'l':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->leftChar->alpha=(uchar)newalpha;
 			break;
 		case 'r':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->rightChar->alpha=(uchar)newalpha;
 			break;
 		case 'c':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->centerChar->alpha=(uchar)newalpha;
 			break;
 		case 'a':
 			if (this->hideTextDuringEffect)
-				this->screen->hideText();
+				this->screen->hideTextWindow();
 			this->screen->leftChar->alpha=(uchar)newalpha;
 			this->screen->rightChar->alpha=(uchar)newalpha;
 			this->screen->centerChar->alpha=(uchar)newalpha;
@@ -5119,6 +5248,14 @@ ErrorCode NONS_ScriptInterpreter::command_textgosub(NONS_Statement &stmt){
 
 ErrorCode NONS_ScriptInterpreter::command_textonoff(NONS_Statement &stmt){
 	if (!stdStrCmpCI(stmt.commandName,L"texton"))
+		this->screen->showTextWindow();
+	else
+		this->screen->hideTextWindow();
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_textshowhide(NONS_Statement &stmt){
+	if (!stdStrCmpCI(stmt.commandName,L"textshow"))
 		this->screen->showText();
 	else
 		this->screen->hideText();

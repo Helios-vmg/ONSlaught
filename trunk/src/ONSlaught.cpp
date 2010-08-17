@@ -262,6 +262,7 @@ void initialize(int argc,char **argv){
 	CLOptions.parse(cmdl_arg);
 
 	SDL_Init(SDL_INIT_EVERYTHING);
+	atexit(SDL_Quit);
 	SDL_EnableUNICODE(1);
 	SDL_EnableKeyRepeat(250,20);
 
@@ -303,12 +304,12 @@ void print_version_string(){
 int main(int argc,char **argv){
 	print_version_string();
 	initialize(argc,argv);
-
-	NONS_ScriptInterpreter interpreter;
-	gScriptInterpreter=&interpreter;
-	if (CLOptions.debugMode)
-		console.init();
 	{
+		NONS_ScriptInterpreter interpreter;
+		gScriptInterpreter=&interpreter;
+		if (CLOptions.debugMode)
+			console.init();
+
 		NONS_Thread thread(mainThread,0);
 		SDL_Event event;
 		while (!stopEventHandling){

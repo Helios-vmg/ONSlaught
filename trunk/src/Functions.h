@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <map>
 #include <ctime>
+#include <cassert>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -790,6 +791,7 @@ struct NONS_Rect{
 	float x,y,w,h;
 	SDL_Rect *sdl;
 	NONS_Rect(float x=0,float y=0,float w=0,float h=0):x(x),y(y),w(w),h(h),sdl(0){}
+	NONS_Rect(const NONS_Rect &s):x(s.x),y(s.y),w(s.w),h(s.h),sdl(0){}
 	~NONS_Rect(){ delete this->sdl; }
 	SDL_Rect &to_SDL_Rect(){
 		if (!this->sdl)
@@ -800,12 +802,16 @@ struct NONS_Rect{
 		this->sdl->h=(Uint16)this->h;
 		return *this->sdl;
 	}
-	NONS_Rect &operator=(const SDL_Rect &s){
+	template <typename T>
+	NONS_Rect &operator=(const T &s){
 		this->x=(float)s.x;
 		this->y=(float)s.y;
 		this->w=(float)s.w;
 		this->h=(float)s.h;
 		return *this;
+	}
+	NONS_Rect &operator=(const NONS_Rect &s){
+		return this->operator=<NONS_Rect>(s);
 	}
 };
 

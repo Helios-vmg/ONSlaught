@@ -635,7 +635,7 @@ void NONS_ImageLoader::init(){
 	if (this->initialized)
 		return;
 	this->filelog=new NONS_FileLog(LOG_FILENAME_OLD,LOG_FILENAME_NEW);
-#ifndef NONS_SYS_WINDOWS
+#if !NONS_SYS_WINDOWS
 	this->svg_library=new NONS_LibraryLoader("svg_loader",0);
 #else
 	this->svg_library=new NONS_LibraryLoader("svg_loader","svg_loader",0);

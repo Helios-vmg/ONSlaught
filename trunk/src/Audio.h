@@ -77,7 +77,7 @@ struct NONS_SoundCache{
 	NONS_CachedSound *getSound(const std::wstring &filename);
 	NONS_CachedSound *checkSound(const std::wstring &filename);
 	NONS_CachedSound *newSound(const std::wstring &filename);
-	static void GarbageCollector(NONS_SoundCache *dis);
+	void GarbageCollector();
 	NONS_Mutex mutex;
 private:
 	NONS_Thread thread;

@@ -75,6 +75,7 @@ extern SDL_Surface *(*resizeFunction)(SDL_Surface *,int,int);
 	(dst)=(long)GET_COORDINATE_temp_f;\
 }
 #define GET_STR_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getWcsValue(stmt.parameters[(src)],(dst),0))
+#define GET_INT_OR_STR_VALUE(i,s,type,src) HANDLE_POSSIBLE_ERRORS(this->GET_INT_OR_STR_VALUE_helper((i),(s),(type),stmt.parameters[(src)]))
 #define GET_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getVar((varName),stmt.parameters[(src)],this->store))
 #define GET_INT_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getIntVar((varName),stmt.parameters[(src)],this->store))
 #define GET_STR_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getStrVar((varName),stmt.parameters[(src)],this->store))
@@ -173,6 +174,7 @@ class NONS_ScriptInterpreter{
 	bool Printer_support(std::vector<printingPage> &pages,ulong *totalprintedchars,bool *justTurnedPage,ErrorCode *error);
 	ErrorCode Printer(const std::wstring &line);
 	void reduceString(const std::wstring &src,std::wstring &dst,std::set<NONS_VariableMember *> *visited=0,std::vector<std::pair<std::wstring,NONS_VariableMember *> > *stack=0);
+	ErrorCode GET_INT_OR_STR_VALUE_helper(long &i,std::wstring &s,yytokentype &type,const std::wstring &src);
 	void handleKeys(SDL_Event &event);
 	bool was_initialized;
 	void uninit();
@@ -403,6 +405,16 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_use_nice_svg(NONS_Statement &stmt);
 	ErrorCode command_transmode(NONS_Statement &stmt);
 	ErrorCode command_clock(NONS_Statement &stmt);
+	ErrorCode command_bar(NONS_Statement &stmt);
+	ErrorCode command_barclear(NONS_Statement &stmt);
+	ErrorCode command_dwaveplay(NONS_Statement &stmt);
+	ErrorCode command_textshowhide(NONS_Statement &stmt);
+	ErrorCode command_dwavestop(NONS_Statement &stmt);
+	ErrorCode command_setwindow2(NONS_Statement &stmt);
+	ErrorCode command_movemousecursor(NONS_Statement &stmt);
+	ErrorCode command_btndown(NONS_Statement &stmt);
+	ErrorCode command_lookbacksp(NONS_Statement &stmt);
+	ErrorCode command_spbtn(NONS_Statement &stmt);
 	/*
 	ErrorCode command_(NONS_Statement &stmt);
 	*/

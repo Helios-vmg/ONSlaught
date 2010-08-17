@@ -50,7 +50,7 @@ class NONS_VariableMember;
 
 namespace NONS_Expression{
 	struct Value{
-		enum{
+		enum ValueType{
 			INVALID,
 			INTEGER,
 			STRING

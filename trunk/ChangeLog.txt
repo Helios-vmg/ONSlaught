@@ -1,4 +1,8 @@
 ????????
+Newly implemented commands:
+  bar, barclear, btndown, dwaveplay, dwaveplayloop, dwavestop, lookbacksp,
+  movemousecursor, setwindow2, spbtn, splitstring, texthide, textshow
+
 Bug fixes:
   * Plugged memory leak in various routines.
 
