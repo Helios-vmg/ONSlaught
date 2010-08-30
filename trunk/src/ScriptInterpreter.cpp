@@ -4941,9 +4941,9 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			GET_COORDINATE(temp,1,3);
 			frameYend=(long)temp;
 		}
-		GET_COORDINATE(fontsize		,0,4);
-		GET_COORDINATE(spacingX		,0,5);
-		GET_COORDINATE(spacingY		,1,6);
+		GET_COORDINATE(fontsize,0,4);
+		GET_COORDINATE(spacingX,0,5);
+		GET_COORDINATE(spacingY,1,6);
 		GET_INT_VALUE(speed,7);
 		GET_INT_VALUE(bold,8);
 		GET_INT_VALUE(shadow,9);

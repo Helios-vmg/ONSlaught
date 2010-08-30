@@ -262,8 +262,6 @@ void manualBlit_threaded(void *parameters){
 	manualBlit_threaded(p->src,p->srcRect,p->dst,p->dstRect,p->alpha);
 }
 
-uchar integer_division_lookup[0x10000];
-
 //#define _APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
 #define _APPLY_ALPHA(c0,c1,a) ((((a)^0xFF)*(c1)+(a)*(c0))/255)
 #if defined _DEBUG

@@ -33,17 +33,20 @@
 #include "Common.h"
 #include "ThreadManager.h"
 #include "ErrorCodes.h"
+#include "Functions.h"
+#include "Image.h"
 #include <SDL/SDL.h>
 #include <string>
+#include <set>
 
-NONS_DECLSPEC extern NONS_Mutex screenMutex;
+//NONS_DECLSPEC extern NONS_Mutex screenMutex;
 
 struct surfaceData;
-typedef void(*filterFX_f)(ulong,SDL_Color,SDL_Surface *,SDL_Surface *,SDL_Surface *,ulong,ulong,ulong,ulong);
+typedef void(*filterFX_f)(ulong,SDL_Color,NONS_Surface *,NONS_Surface *,NONS_Surface *,ulong,ulong,ulong,ulong);
 typedef void *(*asyncInit_f)(ulong);
 typedef bool(*asyncEffect_f)(ulong,surfaceData,surfaceData,void *);
 typedef void(*asyncUninit_f)(ulong,void *);
-#define FILTER_EFFECT_F(name) void name(ulong effectNo,SDL_Color color,SDL_Surface *src,SDL_Surface *rule,SDL_Surface *dst,ulong x,ulong y,ulong w,ulong h)
+#define FILTER_EFFECT_F(name) void name(ulong effectNo,SDL_Color color,NONS_Surface *src,NONS_Surface *rule,NONS_Surface *dst,ulong x,ulong y,ulong w,ulong h)
 #define ASYNC_EFFECT_INIT_F(name) void *name(ulong effectNo)
 #define ASYNC_EFFECT_F(name) bool name(ulong effectNo,surfaceData srcData,surfaceData dstData,void *userData)
 #define ASYNC_EFFECT_UNINIT_F(name) void name(ulong effectNo,void *userData)
@@ -126,25 +129,26 @@ x -(y)-> z = x is processed by y onto z
 0*-(filter)-> 1*-(interpolation)-> 2*-(async effect)-> 3
 */
 
-struct NONS_VirtualScreen{
+class NONS_VirtualScreen{
 	static const size_t screens_s=4;
-	static const size_t usingFeature_s=3;
+	static const size_t usingFeature_s=screens_s-1;
 #ifndef DEBUG_SCREEN_MUTEX
-	SDL_Surface *screens[screens_s];
+	NONS_CrippledSurface screens[screens_s];
 #else
 	DEBUG_SCREEN_MUTEX_SDL_Surface screens[screens_s];
 #endif
+public:
 	ulong post_filter,
 		pre_inter,
 		post_inter;
 	bool usingFeature[usingFeature_s];
-	SDL_Rect inRect;
-	SDL_Rect outRect;
-	ulong x_multiplier;
-	ulong y_multiplier;
-	ulong x_divisor;
-	ulong y_divisor;
-	void(*normalInterpolation)(SDL_Surface *,SDL_Rect *,SDL_Surface *,SDL_Rect *,ulong,ulong);
+	NONS_Rect inRect,
+		outRect;
+	float x_multiplier,
+		y_multiplier,
+		x_divisor,
+		y_divisor;
+	void(*normalInterpolation)(NONS_Surface *,NONS_Rect *,NONS_Surface *,NONS_Rect *,ulong,ulong);
 	bool fullscreen;
 
 	NONS_Thread asyncEffectThread;
@@ -160,19 +164,40 @@ struct NONS_VirtualScreen{
 	NONS_VirtualScreen(ulong w,ulong h);
 	NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh);
 	~NONS_VirtualScreen();
-	NONS_DECLSPEC void blitToScreen(SDL_Surface *src,SDL_Rect *srcrect,SDL_Rect *dstrect);
-	//Note: Call with the screen unlocked or you'll enter a deadlock.
+	NONS_DECLSPEC void blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect);
 	NONS_DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
 	NONS_DECLSPEC void updateWholeScreen(bool fast=0);
 	//If 0, to window; if 1, to fullscreen; if 2, toggle.
 	bool toggleFullscreen(uchar mode=2);
 	SDL_Surface *toggleFullscreenFromVideo();
-	long convertX(long x);
-	long convertY(long y);
-	long unconvertX(long x);
-	long unconvertY(long y);
-	ulong convertW(ulong w);
-	ulong convertH(ulong h);
+	float convertX(float x){
+		return this->convertW(x)+this->outRect.x;
+	}
+	float convertY(float y){
+		return this->convertH(y)+this->outRect.y;
+	}
+	float unconvertX(float x){
+		return (x-this->outRect.x)/this->x_multiplier;
+	}
+	float unconvertY(float y){
+		return (y-this->outRect.y)/this->y_multiplier;
+	}
+	float convertW(float w){
+		ulong r=ulong((w*256.f)*this->x_multiplier);
+		if ((r&0xFFFF)>0)
+			r=(r>>16)+1;
+		else
+			r>>=16;
+		return (float)r;
+	}
+	float convertH(float h){
+		ulong r=ulong((h*256.f)*this->y_multiplier);
+		if ((r&0xFFFF)>0)
+			r=(r>>16)+1;
+		else
+			r>>=16;
+		return (float)r;
+	}
 	NONS_DECLSPEC void updateWithoutLock(bool fast=0);
 	std::string takeScreenshot(const std::string &filename="");
 	void takeScreenshotFromVideo();
@@ -184,9 +209,9 @@ struct NONS_VirtualScreen{
 	void printCurrentState();
 };
 
-void nearestNeighborInterpolation(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,ulong x_factor,ulong y_factor);
-void bilinearInterpolation(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,ulong x_factor,ulong y_factor);
-void bilinearInterpolation2(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,ulong x_factor,ulong y_factor);
+void nearestNeighborInterpolation(NONS_Surface *src,NONS_Rect *srcRect,NONS_Surface *dst,NONS_Rect *dstRect,ulong x_factor,ulong y_factor);
+void bilinearInterpolation(NONS_Surface *src,NONS_Rect *srcRect,NONS_Surface *dst,NONS_Rect *dstRect,ulong x_factor,ulong y_factor);
+void bilinearInterpolation2(NONS_Surface *src,NONS_Rect *srcRect,NONS_Surface *dst,NONS_Rect *dstRect,ulong x_factor,ulong y_factor);
 
 FILTER_EFFECT_F(effectMonochrome);
 FILTER_EFFECT_F(effectNegative);

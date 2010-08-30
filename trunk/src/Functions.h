@@ -369,13 +369,6 @@ extern const int gmask;
 extern const int bmask;
 extern const int amask;
 
-//#define USE_HARDWARE_SURFACES SDL_HWSURFACE
-#define USE_HARDWARE_SURFACES 0
-
-inline SDL_Surface *makeSurface(ulong w,ulong h,ulong bits,Uint32 r=rmask,Uint32 g=gmask,Uint32 b=bmask,Uint32 a=amask){
-	return SDL_CreateRGBSurface(USE_HARDWARE_SURFACES|SDL_SRCALPHA,(int)w,(int)h,bits,r,g,b,a);
-}
-
 //bitmap processing functions
 inline ulong SDLcolor2rgb(const SDL_Color &color){
 	return (color.r<<16)|(color.g<<8)|color.b;
@@ -384,27 +377,6 @@ inline ulong SDLcolor2rgb(const SDL_Color &color){
 inline SDL_Color rgb2SDLcolor(ulong rgb){
 	SDL_Color c={(rgb>>16)&0xFF,(rgb>>8)&0xFF,rgb&0xFF,0};
 	return c;
-}
-
-typedef long manualBlitAlpha_t;
-NONS_DECLSPEC void manualBlit(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,manualBlitAlpha_t alpha=255);
-NONS_DECLSPEC void manualBlit_unthreaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,manualBlitAlpha_t alpha=255);
-void multiplyBlend(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect);
-void FlipSurfaceH(SDL_Surface *src,SDL_Surface *dst);
-void FlipSurfaceV(SDL_Surface *src,SDL_Surface *dst);
-void FlipSurfaceHV(SDL_Surface *src,SDL_Surface *dst);
-SDL_Surface *horizontalShear(SDL_Surface *src,float amount);
-SDL_Surface *verticalShear(SDL_Surface *src,float amount);
-SDL_Surface *applyTransformationMatrix(SDL_Surface *src,float matrix[4]);
-
-inline SDL_Surface *copySurface(SDL_Surface *src,bool fast=1){
-	SDL_Surface *res=makeSurface(src->w,src->h,src->format->BitsPerPixel,src->format->Rmask,src->format->Gmask,src->format->Bmask,src->format->Amask);
-	if (fast)
-		manualBlit(src,0,res,0);
-	else
-		SDL_BlitSurface(src,0,res,0);
-	res->clip_rect=src->clip_rect;
-	return res;
 }
 
 //other functions
@@ -764,35 +736,17 @@ struct surfaceData{
 		pitch,
 		w,h;
 	bool alpha;
-	surfaceData(){}
-	surfaceData(const SDL_Surface *surface){
-		*this=surface;
-	}
-	const surfaceData &operator=(const SDL_Surface *surface){
-		this->pixels=(uchar *)surface->pixels;
-		this->Roffset=(surface->format->Rshift)>>3;
-		this->Goffset=(surface->format->Gshift)>>3;
-		this->Boffset=(surface->format->Bshift)>>3;
-		this->Aoffset=(surface->format->Ashift)>>3;
-		this->advance=surface->format->BytesPerPixel;
-		this->pitch=surface->pitch;
-		this->w=surface->w;
-		this->h=surface->h;
-		this->alpha=(this->Aoffset!=this->Roffset && this->Aoffset!=this->Goffset && this->Aoffset!=this->Boffset);
-		this->offsets[0]=this->Roffset;
-		this->offsets[1]=this->Goffset;
-		this->offsets[2]=this->Boffset;
-		this->offsets[3]=this->Aoffset;
-		return *this;
-	}
 };
 
-struct NONS_Rect{
-	float x,y,w,h;
+template <typename T>
+struct NONS_BasicRect{
+	T x,y,w,h;
 	SDL_Rect *sdl;
-	NONS_Rect(float x=0,float y=0,float w=0,float h=0):x(x),y(y),w(w),h(h),sdl(0){}
-	NONS_Rect(const NONS_Rect &s):x(s.x),y(s.y),w(s.w),h(s.h),sdl(0){}
-	~NONS_Rect(){ delete this->sdl; }
+	NONS_BasicRect<T>(T x=0,T y=0,T w=0,T h=0):x(x),y(y),w(w),h(h),sdl(0){}
+	NONS_BasicRect<T>(const NONS_BasicRect<T> &s):x(s.x),y(s.y),w(s.w),h(s.h),sdl(0){}
+	template <typename T2>
+	explicit NONS_BasicRect<T>(const T2 &s):x((T)s.x),y((T)s.y),w((T)s.w),h((T)s.h),sdl(0){}
+	~NONS_BasicRect(){ delete this->sdl; }
 	SDL_Rect &to_SDL_Rect(){
 		if (!this->sdl)
 			this->sdl=new SDL_Rect;
@@ -800,20 +754,39 @@ struct NONS_Rect{
 		this->sdl->y=(Sint16)this->y;
 		this->sdl->w=(Uint16)this->w;
 		this->sdl->h=(Uint16)this->h;
-		return *this->sdl;
+		return *(this->sdl);
 	}
-	template <typename T>
-	NONS_Rect &operator=(const T &s){
-		this->x=(float)s.x;
-		this->y=(float)s.y;
-		this->w=(float)s.w;
-		this->h=(float)s.h;
+	template <typename T2>
+	NONS_BasicRect<T> &operator=(const T2 &s){
+		this->x=(T)s.x;
+		this->y=(T)s.y;
+		this->w=(T)s.w;
+		this->h=(T)s.h;
 		return *this;
 	}
-	NONS_Rect &operator=(const NONS_Rect &s){
-		return this->operator=<NONS_Rect>(s);
+	NONS_BasicRect<T> &operator=(const NONS_BasicRect<T> &s){
+		return this->operator=<NONS_BasicRect<T> >(s);
+	}
+	NONS_BasicRect<T> intersect(const NONS_BasicRect<T> &b){
+		NONS_BasicRect<T> r(
+			std::max(this->x,b.x),
+			std::max(this->y,b.y),
+			std::min(this->x+this->w,b.x+b.w),
+			std::min(this->y+this->h,b.y+b.h)
+		);
+		r.w-=r.x;
+		r.h-=r.y;
+		return r;
+	}
+	bool point_is_inside(T x,T y){
+		return (x>=this->x && y>=this->y && x<this->x+this->w && y<this->y+this->h);
+	}
+	bool point_is_inside(const NONS_BasicRect<T> &b){
+		return (b.x>=this->x && b.y>=this->y && b.x<this->x+this->w && b.y<this->y+this->h)
 	}
 };
+typedef NONS_BasicRect<float> NONS_Rect;
+typedef NONS_BasicRect<long> NONS_LongRect;
 
 template <typename T>
 void freePointerVector(std::vector<T *> &v){

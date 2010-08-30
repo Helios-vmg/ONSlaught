@@ -34,16 +34,16 @@
 #include "Plugin/LibraryLoader.h"
 #include "ImageLoader.h"
 #include <iostream>
+#include <cmath>
 
-#ifndef DEBUG_SCREEN_MUTEX
+/*#ifndef DEBUG_SCREEN_MUTEX
 NONS_DECLSPEC NONS_Mutex screenMutex;
 #else
 NONS_DECLSPEC NONS_Mutex screenMutex(1);
-#endif
+#endif*/
 
 //#define ONLY_NEAREST_NEIGHBOR
 //#define BENCHMARK_INTERPOLATION
-#define DEFAULT_SCREEN_COLOR_DEPTH 32
 
 pipelineElement::pipelineElement(ulong effectNo,const SDL_Color &color,const std::wstring &rule,bool loadRule)
 		:effectNo(effectNo),color(color),ruleStr(rule){
@@ -70,6 +70,8 @@ pipelineElement::~pipelineElement(){
 }
 
 void _asyncEffectThread(void *param){
+	//TODO:
+#if 0
 	NONS_VirtualScreen *vs=(NONS_VirtualScreen *)param;
 	ulong effectNo=vs->aeffect_no;
 	ulong freq=vs->aeffect_freq;
@@ -105,24 +107,31 @@ void _asyncEffectThread(void *param){
 	}
 	if (vs->uninitializers[effectNo])
 		vs->uninitializers[effectNo](effectNo,userData);
+#endif
 }
 
-NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
-	std::fill(this->screens,this->screens+REAL+1,(SDL_Surface *)0);
-	this->screens[REAL]=SDL_SetVideoMode(w,h,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((CLOptions.startFullscreen)?SDL_FULLSCREEN:0));
-	if (!this->screens[REAL]){
+SDL_Surface *allocate_screen(ulong w,ulong h,bool fullscreen){
+	SDL_Surface *r=SDL_SetVideoMode(w,h,32,SDL_DOUBLEBUF|(fullscreen?SDL_FULLSCREEN:0));
+	if (!r){
 		std::cerr <<"FATAL ERROR: Could not allocate screen!\n"
 			"Did you forget to install libx11-dev before building?\n"
 			"Terminating.\n";
 		exit(0);
 	}
-	this->screens[VIRTUAL]=this->screens[REAL];
+	return r;
+}
+
+NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
+	std::fill(this->screens,this->screens+REAL+1,(SDL_Surface *)0);
+	std::fill(this->usingFeature,this->usingFeature+usingFeature_s,(bool)0);
+	this->screens[VIRTUAL]=
+		this->screens[REAL]=NONS_Surface::assign_screen(allocate_screen(w,h,CLOptions.startFullscreen));
 	this->x_multiplier=0x100;
 	this->y_multiplier=0x100;
 	this->x_divisor=this->x_multiplier;
 	this->y_divisor=this->y_multiplier;
-	this->inRect=this->screens[REAL]->clip_rect;
-	this->outRect=this->inRect;
+	this->outRect=
+		this->inRect=this->screens[REAL].get_dimensions<float>();
 	this->normalInterpolation=0;
 	this->fullscreen=CLOptions.startFullscreen;
 	this->killAsyncEffect=0;
@@ -135,65 +144,60 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
 }
 
 NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
-	std::fill(this->screens,this->screens+REAL+1,(SDL_Surface *)0);
-	this->screens[REAL]=SDL_SetVideoMode(ow,oh,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((CLOptions.startFullscreen)?SDL_FULLSCREEN:0));
-	if (!this->screens[REAL]){
-		std::cerr <<"FATAL ERROR: Could not allocate screen!\n"
-			"Terminating.\n";
-		exit(0);
-	}
-	this->screens[VIRTUAL]=this->screens[REAL];
-	memset(this->usingFeature,0,this->usingFeature_s*sizeof(bool));
+	std::fill(this->screens,this->screens+screens_s,(SDL_Surface *)0);
+	std::fill(this->usingFeature,this->usingFeature+usingFeature_s,(bool)0);
+	this->screens[VIRTUAL]=
+		this->screens[REAL]=NONS_Surface::assign_screen(allocate_screen(ow,oh,CLOptions.startFullscreen));
 	if (iw==ow && ih==oh){
-		this->x_multiplier=0x100;
-		this->y_multiplier=0x100;
-		this->inRect=this->screens[REAL]->clip_rect;
-		this->outRect=this->inRect;
+		this->x_multiplier=1.f;
+		this->y_multiplier=1.f;
+		this->outRect=
+			this->inRect=this->screens[REAL].get_dimensions<float>();
 		this->normalInterpolation=0;
 	}else{
 		this->usingFeature[INTERPOLATION]=1;
 		this->pre_inter=VIRTUAL;
 		this->post_inter=REAL;
-		this->screens[VIRTUAL]=makeSurface(iw,ih,32);
+		{
+			NONS_Surface surface(iw,ih);
+			this->screens[VIRTUAL]=surface;
+			this->screens[VIRTUAL].strong_bind();
+		}
 		float ratio0=float(iw)/float(ih),
 			ratio1=float(ow)/float(oh);
 		this->normalInterpolation=&bilinearInterpolation;
-		this->inRect=this->screens[VIRTUAL]->clip_rect;
-		if (ABS(ratio0-ratio1)<.00001){
-			this->x_multiplier=(ow<<8)/iw;
-			this->y_multiplier=(oh<<8)/ih;
-			this->x_divisor=(iw<<8)/ow;
-			this->y_divisor=(ih<<8)/oh;
-			if (x_multiplier<0x100 || y_multiplier<0x100)
+		this->inRect=this->screens[VIRTUAL].get_dimensions<float>();
+		if (fabs(ratio0-ratio1)<.00001f){
+			this->x_multiplier=float(ow)/float(iw);
+			this->y_multiplier=float(oh)/float(ih);
+			if (x_multiplier<1.f || y_multiplier<1.f)
 				this->normalInterpolation=&bilinearInterpolation2;
-			this->outRect=this->screens[REAL]->clip_rect;
+			this->outRect=this->screens[REAL].get_dimensions<float>();
 		}else if (ratio0>ratio1){
 			float h=float(ow)/float(ratio0);
 			this->outRect.x=0;
-			this->outRect.y=Sint16((oh-h)/2.0f);
-			this->outRect.w=Sint16(ow);
-			this->outRect.h=(Uint16)h;
-			this->x_multiplier=(ow<<8)/iw;
-			this->y_multiplier=ulong(h*256.0f/float(ih));
-			this->x_divisor=(iw<<8)/ow;
-			this->y_divisor=ulong((ih<<8)/h);
-			if (x_multiplier<0x100 || h/float(ih)<1)
+			this->outRect.y=(oh-h)/2.f;
+			this->outRect.w=(float)ow;
+			this->outRect.h=(float)h;
+			this->x_multiplier=float(ow)/float(iw);
+			this->y_multiplier=h/float(ih);
+			if (this->x_multiplier<1.f || h/float(ih)<1.f)
 				this->normalInterpolation=&bilinearInterpolation2;
 		}else{
 			float w=float(oh)*float(ratio0);
-			this->outRect.x=Sint16((ow-w)/2.0f);
+			this->outRect.x=(ow-w)/2.0f;
 			this->outRect.y=0;
-			this->outRect.w=(Uint16)w;
-			this->outRect.h=(Uint16)oh;
-			this->x_multiplier=ulong(w*256.0f/float(iw));
-			this->y_multiplier=(oh<<8)/ih;
-			this->x_divisor=ulong((iw<<8)/w);
-			this->y_divisor=(ih<<8)/oh;
-			if (w/float(iw)<1 || y_multiplier<=0x100)
+			this->outRect.w=w;
+			this->outRect.h=(float)oh;
+			this->x_multiplier=w/float(iw);
+			this->y_multiplier=float(oh)/float(ih);
+			if (this->y_multiplier<1.f || w/float(iw)<1.f)
 				this->normalInterpolation=&bilinearInterpolation2;
 		}
+		this->x_divisor=1.f/this->x_multiplier;
+		this->y_divisor=1.f/this->y_multiplier;
 		//this->normalInterpolation=&nearestNeighborInterpolation;
-		this->screens[REAL]->clip_rect=this->outRect;
+		//this->screens[REAL]->clip_rect=this->outRect.to_SDL_Rect();
 	}
 	this->fullscreen=CLOptions.startFullscreen;
 	this->killAsyncEffect=0;
@@ -207,24 +211,20 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
 NONS_VirtualScreen::~NONS_VirtualScreen(){
 	this->stopEffect();
 	this->applyFilter(0,SDL_Color(),L"");
-	SDL_FreeSurface(this->screens[REAL]);
-	if (this->usingFeature[INTERPOLATION])
-		SDL_FreeSurface(this->screens[VIRTUAL]);
 }
 
-NONS_DLLexport void NONS_VirtualScreen::blitToScreen(SDL_Surface *src,SDL_Rect *srcrect,SDL_Rect *dstrect){
-	NONS_MutexLocker ml(screenMutex);
-	if (!!src && src->format->BitsPerPixel<24)
-		SDL_BlitSurface(src,srcrect,this->screens[VIRTUAL],dstrect);
-	else
-		manualBlit(src,srcrect,this->screens[VIRTUAL],dstrect);
+NONS_DLLexport void NONS_VirtualScreen::blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect){
+	NONS_Surface screen=this->screens[VIRTUAL];
+	screen.over(src,dstrect,srcrect);
 }
 
 void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast){
-	NONS_MutexLocker ml(screenMutex);
+	//NONS_MutexLocker ml(screenMutex);
+	//TODO:
+#if 0
 	if (this->usingFeature[OVERALL_FILTER]){
-		SDL_Surface *src=this->screens[VIRTUAL],
-			*dst=this->screens[this->post_filter];
+		NONS_Surface src=*this->screens[VIRTUAL],
+			dst=this->screens[this->post_filter];
 		SDL_LockSurface(src);
 		SDL_LockSurface(dst);
 		for (ulong a=0;a<this->filterPipeline.size();a++){
@@ -282,8 +282,12 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 			SDL_UpdateRect(this->screens[REAL],d.x,d.y,d.w,d.h);
 	}else if (!this->usingFeature[ASYNC_EFFECT])
 		SDL_UpdateRect(this->screens[REAL],x,y,w,h);
+#endif
+	NONS_Surface screen=this->screens[REAL];
+	screen.update();
 }
 
+#if 0
 NONS_DLLexport void NONS_VirtualScreen::updateWholeScreen(bool fast){
 	NONS_MutexLocker ml(screenMutex);
 	this->updateWithoutLock(fast);
@@ -320,90 +324,59 @@ NONS_DLLexport void NONS_VirtualScreen::updateWithoutLock(bool fast){
 	}else if (!this->usingFeature[ASYNC_EFFECT])
 		SDL_UpdateRect(this->screens[REAL],0,0,0,0);
 }
-
-long NONS_VirtualScreen::convertX(long x){
-	return this->convertW(x)+this->outRect.x;
-}
-
-long NONS_VirtualScreen::convertY(long y){
-	return this->convertH(y)+this->outRect.y;
-}
-
-long NONS_VirtualScreen::unconvertX(long x){
-	return (((x-this->outRect.x)<<8)/this->x_multiplier);
-}
-
-long NONS_VirtualScreen::unconvertY(long y){
-	return (((y-this->outRect.y)<<8)/this->y_multiplier);
-}
-
-ulong NONS_VirtualScreen::convertW(ulong w){
-	ulong r=(w<<8)*this->x_multiplier;
-	if ((r&0xFFFF)>0)
-		r=(r>>16)+1;
-	else
-		r>>=16;
-	return r;
-}
-
-ulong NONS_VirtualScreen::convertH(ulong h){
-	ulong r=(h<<8)*this->y_multiplier;
-	if ((r&0xFFFF)>0)
-		r=(r>>16)+1;
-	else
-		r>>=16;
-	return r;
-}
+#endif
 
 bool NONS_VirtualScreen::toggleFullscreen(uchar mode){
-	NONS_MutexLocker ml(screenMutex);
+	NONS_Surface screen=this->screens[REAL];
 	if (mode==2)
 		this->fullscreen=!this->fullscreen;
 	else
 		this->fullscreen=mode&1;
-	ushort w=this->screens[REAL]->w,
-		h=this->screens[REAL]->h;
-	SDL_Surface *tempCopy=0;
+	NONS_SurfaceProperties sp;
+	screen.get_properties(sp);
+	NONS_Surface tempCopy;
 	if (!this->usingFeature[INTERPOLATION] && !this->usingFeature[ASYNC_EFFECT])
-		tempCopy=copySurface(this->screens[REAL],0);
-	this->screens[REAL]=SDL_SetVideoMode(w,h,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((this->fullscreen)?SDL_FULLSCREEN:0));
-	if (tempCopy){
+		tempCopy=screen.clone();
+	this->screens[REAL]=
+		screen=NONS_Surface::assign_screen(allocate_screen(sp.w,sp.h,this->fullscreen));
+	if (tempCopy.good()){
 		if (!this->usingFeature[OVERALL_FILTER])
 			this->screens[VIRTUAL]=this->screens[REAL];
-		manualBlit_unthreaded(tempCopy,0,this->screens[REAL],0);
-		SDL_FreeSurface(tempCopy);
-	}else if (this->usingFeature[INTERPOLATION])
-		this->screens[REAL]->clip_rect=this->outRect;
+		screen.copy_pixels(tempCopy);
+	}/*else if (this->usingFeature[INTERPOLATION])
+		this->screens[REAL]->clip_rect=this->outRect;*/
 	this->updateWithoutLock();
 	return this->fullscreen;
 }
 
 SDL_Surface *NONS_VirtualScreen::toggleFullscreenFromVideo(){
 	this->fullscreen=!this->fullscreen;
-	ushort w=this->screens[REAL]->w,
-		h=this->screens[REAL]->h;
+	ulong w,h;
+	this->screens[REAL].get_dimensions(w,h);
 	bool tempCopy=0;
 	if (!this->usingFeature[INTERPOLATION] && !this->usingFeature[ASYNC_EFFECT])
 		tempCopy=1;
-	this->screens[REAL]=SDL_SetVideoMode(w,h,DEFAULT_SCREEN_COLOR_DEPTH,USE_HARDWARE_SURFACES|SDL_DOUBLEBUF|((this->fullscreen)?SDL_FULLSCREEN:0));
+	NONS_Surface screen=NONS_Surface::assign_screen(allocate_screen(w,h,this->fullscreen));
+	this->screens[REAL]=NONS_CrippledSurface(screen);
 	if (tempCopy){
 		if (!this->usingFeature[OVERALL_FILTER])
 			this->screens[VIRTUAL]=this->screens[REAL];
-	}else if (this->usingFeature[INTERPOLATION])
-		this->screens[REAL]->clip_rect=this->outRect;
-	return this->screens[REAL];
+	}/*else if (this->usingFeature[INTERPOLATION])
+		this->screens[REAL]->clip_rect=this->outRect;*/
+	return screen.get_SDL_screen();
 }
 
 std::string NONS_VirtualScreen::takeScreenshot(const std::string &name){
 	std::string filename=(!name.size())?getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp":name;
-	NONS_MutexLocker ml(screenMutex);
-	SDL_SaveBMP(this->screens[REAL],filename.c_str());
+	NONS_Surface screen=this->screens[REAL];
+	SDL_SaveBMP(screen.get_SDL_screen(),filename.c_str());
 	return filename;
 }
 
 void NONS_VirtualScreen::takeScreenshotFromVideo(void){
 	//NONS_MutexLocker ml(screenMutex);
-	SDL_SaveBMP(this->screens[REAL],(getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp").c_str());
+	NONS_Surface screen=this->screens[REAL];
+	SDL_SaveBMP(screen.get_SDL_screen(),(getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp").c_str());
 }
 
 void NONS_VirtualScreen::initEffectList(){
@@ -494,33 +467,30 @@ void NONS_VirtualScreen::changeState(bool switchAsyncState,bool switchFilterStat
 				this->screens[this->pre_inter]=this->screens[VIRTUAL];
 			}else
 				this->post_filter=3;
-			this->screens[VIRTUAL]=copySurface(this->screens[VIRTUAL]);
+			NONS_CrippledSurface::copy_surface(this->screens[VIRTUAL],this->screens[VIRTUAL]);
 			break;
 		case 2: //turn effect on, filter remains off
-			this->screens[PRE_ASYNC]=copySurface(this->screens[REAL]);
+			NONS_CrippledSurface::copy_surface(this->screens[PRE_ASYNC],this->screens[REAL]);
 			if (interpolation)
 				this->post_inter=2;
 			else
 				this->screens[VIRTUAL]=this->screens[PRE_ASYNC];
 			break;
 		case 4: //turn filter off, effect remains off
-			if (interpolation){
-				SDL_FreeSurface(this->screens[this->pre_inter]);
-				this->pre_inter=0;
-			}else{
-				SDL_FreeSurface(this->screens[VIRTUAL]);
+			if (interpolation)
+				this->screens[this->pre_inter].unbind();
+			else
 				this->screens[VIRTUAL]=this->screens[REAL];
-			}
 			break;
 		case 7: //turn effect on, filter remains on
 			if (interpolation)
 				this->post_inter=2;
 			else
 				this->post_filter=2;
-			this->screens[PRE_ASYNC]=copySurface(this->screens[REAL]);
+			NONS_CrippledSurface::copy_surface(this->screens[PRE_ASYNC],this->screens[REAL]);
 			break;
 		case 8: //turn effect off, filter remains off
-			SDL_FreeSurface(this->screens[PRE_ASYNC]);
+			this->screens[PRE_ASYNC].unbind();
 			if (interpolation)
 				this->post_inter=3;
 			else
@@ -530,14 +500,14 @@ void NONS_VirtualScreen::changeState(bool switchAsyncState,bool switchFilterStat
 			if (interpolation){
 				this->post_filter=1;
 				this->pre_inter=1;
-				this->screens[this->pre_inter]=copySurface(this->screens[VIRTUAL]);
+				NONS_CrippledSurface::copy_surface(this->screens[this->pre_inter],this->screens[VIRTUAL]);
 			}else{
 				this->post_filter=2;
-				this->screens[VIRTUAL]=copySurface(this->screens[VIRTUAL]);
+				NONS_CrippledSurface::copy_surface(this->screens[VIRTUAL],this->screens[VIRTUAL]);
 			}
 			break;
 		case 13: //turn effect off, filter remains on
-			SDL_FreeSurface(this->screens[PRE_ASYNC]);
+			this->screens[PRE_ASYNC].unbind();
 			if (interpolation)
 				this->post_inter=3;
 			else
@@ -545,10 +515,10 @@ void NONS_VirtualScreen::changeState(bool switchAsyncState,bool switchFilterStat
 			break;
 		case 14: //turn filter off, effect remains on
 			if (interpolation){
-				SDL_FreeSurface(this->screens[this->pre_inter]);
+				this->screens[this->pre_inter].unbind();
 				this->pre_inter=0;
 			}else{
-				SDL_FreeSurface(this->screens[VIRTUAL]);
+				this->screens[VIRTUAL].unbind();
 				this->screens[VIRTUAL]=this->screens[PRE_ASYNC];
 			}
 			break;
@@ -590,52 +560,50 @@ void NONS_VirtualScreen::printCurrentState(){
 struct filterParameters{
 	ulong effectNo;
 	SDL_Color color;
-	SDL_Surface *src,
-		*dst;
-	SDL_Rect *rect;
+	NONS_Surface src,
+		dst;
+	NONS_Rect rect;
 };
 
 #define RED_MONOCHROME(x) ((x)*3/10)
 #define GREEN_MONOCHROME(x) ((x)*59/100)
 #define BLUE_MONOCHROME(x) ((x)*11/100)
 
-void effectMonochrome_threaded(SDL_Surface *src,SDL_Surface *dst,SDL_Rect *rect,SDL_Color &color){
-	surfaceData srcData=src,
-		dstData=dst;
-	long x=rect->x,
-		y=rect->y,
-		w=rect->w,
-		h=rect->h;
-	uchar *pos0=srcData.pixels+x*srcData.advance+y*srcData.pitch,
-		*pos1=dstData.pixels+x*dstData.advance+y*dstData.pitch;
-	for (long y0=0;y0<h;y0++){
-		uchar *pos00=pos0,
-			*pos10=pos1;
+void effectMonochrome_threaded(NONS_Surface &src,NONS_Surface &dst,NONS_Rect &rect,SDL_Color &color){
+	NONS_SurfaceProperties src_p,
+		dst_p;
+	src.get_properties(src_p);
+	dst.get_properties(dst_p);
+	long w=(long)rect.w,
+		h=(long)rect.h;
+	src_p.pixels+=long(rect.x)*4+long(rect.y)*src_p.pitch;
+	dst_p.pixels+=long(rect.x)*4+long(rect.y)*dst_p.pitch;
+	ulong col[]={
+		color.r,
+		color.g,
+		color.b
+	};
+	for (long y=0;y<h;y++){
+		uchar *pix0=src_p.pixels,
+			*pix1=dst_p.pixels;
 		for (long x0=0;x0<w;x0++){
-			ulong r0=RED_MONOCHROME(ulong(pos0[srcData.Roffset])),
-				g0=GREEN_MONOCHROME(ulong(pos0[srcData.Goffset])),
-				b0=BLUE_MONOCHROME(ulong(pos0[srcData.Boffset])),
-				r1,g1,b1;
-			r1=r0*ulong(color.r)+
-				g0*ulong(color.r)+
-				b0*ulong(color.r);
-			r1/=255;
-			g1=r0*ulong(color.g)+
-				g0*ulong(color.g)+
-				b0*ulong(color.g);
-			g1/=255;
-			b1=r0*ulong(color.b)+
-				b0*ulong(color.b)+
-				g0*ulong(color.b);
-			b1/=255;
-			pos1[dstData.Roffset]=(uchar)r1;
-			pos1[dstData.Goffset]=(uchar)g1;
-			pos1[dstData.Boffset]=(uchar)b1;
-			pos0+=srcData.advance;
-			pos1+=dstData.advance;
+			ulong c0[]={
+				RED_MONOCHROME(ulong(pix0[0])),
+				GREEN_MONOCHROME(ulong(pix0[1])),
+				BLUE_MONOCHROME(ulong(pix0[2]))
+			};
+			for (int a=0;a<3;a++){
+				ulong b=c0[0]*col[a]
+				       +c0[1]*col[a]
+				       +c0[2]*col[a];
+				b/=255;
+				pix1[a]=(uchar)b;
+			}
+			pix0+=4;
+			pix1+=4;
 		}
-		pos0=pos00+srcData.pitch;
-		pos1=pos10+dstData.pitch;
+		src_p.pixels+=src_p.pitch;
+		dst_p.pixels+=dst_p.pitch;
 	}
 }
 
@@ -645,78 +613,61 @@ void effectMonochrome_threaded(void *parameters){
 }
 
 FILTER_EFFECT_F(effectMonochrome){
-	if (!dst || dst->format->BitsPerPixel<24)
+	if (!dst)
 		return;
-	SDL_LockSurface(src);
-	SDL_LockSurface(dst);
-	SDL_Rect dstRect={(Sint16)x,(Sint16)y,(Uint16)w,(Uint16)h};
+	NONS_Rect dstRect((float)x,(float)y,(float)w,(float)h);
 	if (cpu_count==1){
-		effectMonochrome_threaded(src,dst,&dstRect,color);
-		SDL_UnlockSurface(src);
-		SDL_UnlockSurface(dst);
+		effectMonochrome_threaded(*src,*dst,dstRect,color);
 		return;
 	}
 #ifndef USE_THREAD_MANAGER
-	NONS_Thread *threads=new NONS_Thread[cpu_count];
+	std::vector<NONS_Thread> threads(cpu_count);
 #endif
-	SDL_Rect *rects=new SDL_Rect[cpu_count];
-	filterParameters *parameters=new filterParameters[cpu_count];
-	ulong division=ulong(float(dstRect.h)/float(cpu_count));
-	ulong total=0;
+	std::vector<filterParameters> parameters(cpu_count);
+	ulong division=ulong(float(dstRect.h)/float(cpu_count)),
+		total=0;
 	for (ushort a=0;a<cpu_count;a++){
-		rects[a]=dstRect;
-		rects[a].y+=Sint16(a*division);
-		rects[a].h=Sint16(division);
-		total+=rects[a].h;
-		parameters[a].src=src;
-		parameters[a].dst=dst;
-		parameters[a].rect=rects+a;
-		parameters[a].color=color;
+		filterParameters &p=parameters[a];
+		p.rect=dstRect;
+		p.rect.y+=a*division;
+		p.rect.h=(float)division;
+		total+=division;
+		p.src=*src;
+		p.dst=*dst;
+		p.color=color;
 	}
-	rects[cpu_count-1].h+=Uint16(dstRect.h-total);
+	parameters.back().rect.h+=dstRect.h-total;
 	for (ushort a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(effectMonochrome_threaded,parameters+a);
+		threads[a].call(effectMonochrome_threaded,&parameters[a]);
 #else
-		threadManager.call(a-1,effectMonochrome_threaded,parameters+a);
+		threadManager.call(a-1,effectMonochrome_threaded,&parameters[a]);
 #endif
-	effectMonochrome_threaded(parameters);
+	effectMonochrome_threaded(&parameters[0]);
 #ifndef USE_THREAD_MANAGER
 	for (ushort a=1;a<cpu_count;a++)
 		threads[a].join();
 #else
 	threadManager.waitAll();
 #endif
-	SDL_UnlockSurface(src);
-	SDL_UnlockSurface(dst);
-#ifndef USE_THREAD_MANAGER
-	delete[] threads;
-#endif
-	delete[] rects;
-	delete[] parameters;
 }
-
-void effectNegative_threaded(SDL_Surface *src,SDL_Surface *dst,SDL_Rect *rect){
-	surfaceData srcData=src,
-		dstData=dst;
-	long x=rect->x,
-		y=rect->y,
-		w=rect->w,
-		h=rect->h;
-	uchar *pos0=srcData.pixels+x*srcData.advance+y*srcData.pitch,
-		*pos1=dstData.pixels+x*dstData.advance+y*dstData.pitch;
-	for (long y0=0;y0<h;y0++){
-		uchar *pos00=pos0,
-			*pos10=pos1;
-		for (long x0=0;x0<w;x0++){
-			pos1[dstData.Roffset]=~pos0[srcData.Roffset];
-			pos1[dstData.Goffset]=~pos0[srcData.Goffset];
-			pos1[dstData.Boffset]=~pos0[srcData.Boffset];
-			pos0+=srcData.advance;
-			pos1+=dstData.advance;
-		}
-		pos0=pos00+srcData.pitch;
-		pos1=pos10+dstData.pitch;
+                            
+void effectNegative_threaded(NONS_Surface &src,NONS_Surface &dst,NONS_Rect &rect){
+	NONS_SurfaceProperties src_p,
+		dst_p;
+	src.get_properties(src_p);
+	dst.get_properties(dst_p);
+	long w=(long)rect.w,
+		h=(long)rect.h;
+	src_p.pixels+=long(rect.x)*4+long(rect.y)*src_p.pitch;
+	dst_p.pixels+=long(rect.x)*4+long(rect.y)*dst_p.pitch;
+	for (long y=0;y<h;y++){
+		Uint32 *pix0=(Uint32 *)src_p.pixels,
+			*pix1=(Uint32 *)dst_p.pixels;
+		for (long x0=0;x0<w;x0++)
+			*pix1++=(*pix0++)^(~amask);
+		src_p.pixels+=src_p.pitch;
+		dst_p.pixels+=dst_p.pitch;
 	}
 }
 
@@ -726,54 +677,43 @@ void effectNegative_threaded(void *parameters){
 }
 
 FILTER_EFFECT_F(effectNegative){
-	if (!dst || dst->format->BitsPerPixel<24)
+	if (!dst)
 		return;
-	SDL_LockSurface(src);
-	SDL_LockSurface(dst);
-	SDL_Rect dstRect={(Sint32)x,(Sint32)y,(Uint32)w,(Uint32)h};
+	NONS_Rect dstRect((float)x,(float)y,(float)w,(float)h);
 	if (cpu_count==1){
-		effectNegative_threaded(src,dst,&dstRect);
-		SDL_UnlockSurface(src);
-		SDL_UnlockSurface(dst);
+		effectNegative_threaded(*src,*dst,dstRect);
 		return;
 	}
 #ifndef USE_THREAD_MANAGER
-	NONS_Thread *threads=new NONS_Thread[cpu_count];
+	std::vector<NONS_Thread> threads(cpu_count);
 #endif
-	SDL_Rect *rects=new SDL_Rect[cpu_count];
-	filterParameters *parameters=new filterParameters[cpu_count];
-	ulong division=ulong(float(dstRect.h)/float(cpu_count));
-	ulong total=0;
+	std::vector<filterParameters> parameters(cpu_count);
+	ulong division=ulong(float(dstRect.h)/float(cpu_count)),
+		total=0;
 	for (ushort a=0;a<cpu_count;a++){
-		rects[a]=dstRect;
-		rects[a].y+=Sint16(a*division);
-		rects[a].h=Sint16(division);
-		total+=rects[a].h;
-		parameters[a].src=src;
-		parameters[a].dst=dst;
-		parameters[a].rect=rects+a;
+		filterParameters &p=parameters[a];
+		p.rect=dstRect;
+		p.rect.y+=a*division;
+		p.rect.h=(float)division;
+		total+=division;
+		p.src=*src;
+		p.dst=*dst;
+		p.color=color;
 	}
-	rects[cpu_count-1].h+=Uint16(dstRect.h-total);
+	parameters.back().rect.h+=dstRect.h-total;
 	for (ushort a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(effectNegative_threaded,parameters+a);
+		threads[a].call(effectMonochrome_threaded,&parameters[a]);
 #else
-		threadManager.call(a-1,effectNegative_threaded,parameters+a);
+		threadManager.call(a-1,effectMonochrome_threaded,&parameters[a]);
 #endif
-	effectNegative_threaded(parameters);
+	effectMonochrome_threaded(&parameters[0]);
 #ifndef USE_THREAD_MANAGER
 	for (ushort a=1;a<cpu_count;a++)
 		threads[a].join();
 #else
 	threadManager.waitAll();
 #endif
-	SDL_UnlockSurface(src);
-	SDL_UnlockSurface(dst);
-#ifndef USE_THREAD_MANAGER
-	delete[] threads;
-#endif
-	delete[] rects;
-	delete[] parameters;
 }
 
 //(Interpolation Function)
@@ -789,7 +729,7 @@ struct IF_parameters{
 void nearestNeighborInterpolation_threaded(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,ulong x_factor,ulong y_factor);
 void nearestNeighborInterpolation_threaded(void *parameters);
 
-void nearestNeighborInterpolation(SDL_Surface *src,SDL_Rect *srcRect,SDL_Surface *dst,SDL_Rect *dstRect,ulong x_factor,ulong y_factor){
+void nearestNeighborInterpolation(NONS_Surface *src,NONS_Rect *srcRect,NONS_Surface *dst,NONS_Rect *dstRect,ulong x_factor,ulong y_factor){
 	if (!src || !dst)
 		return;
 	SDL_Rect srcRect0,dstRect0;
