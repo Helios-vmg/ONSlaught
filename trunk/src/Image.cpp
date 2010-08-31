@@ -544,6 +544,7 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 			}
 			for (int a=0;a<4;a++)
 				dst_pix[a]=uchar(color[a]>>16);
+
 			X+=unit;
 			dst_pix+=4;
 		}
