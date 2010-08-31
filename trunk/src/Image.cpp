@@ -496,25 +496,59 @@ DECLARE_INTERPOLATION_F(bilinear_interpolation_threaded)
 NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation,bilinear_interpolation_threaded)
 
 INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
-	long X=0,
-		Y=0;
+	const ulong unit=1<<16;
 	ulong advance_x=(src.w<<16)/dst.w,
 		advance_y=(src.h<<16)/dst.h;
 	src_rect.w+=src_rect.x;
 	src_rect.h+=src_rect.y;
 	dst_rect.w+=dst_rect.x;
 	dst_rect.h+=dst_rect.y;
+	long X=(advance_x>>2)+dst_rect.x*advance_x,
+		Y=(advance_y>>2)+dst_rect.y*advance_y;
+	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
 	for (long y=dst_rect.y;y<dst_rect.h;y++){
-		bool skipY=0;
-		Y=(advance_y>>2)+y*advance_y;
 		long y0=Y>>16;
 		if ((ulong)y0+1>=src.h)
 			break;
-		uchar *src_pix=src.pixels+src.pitch*y0;
-		ulong fraction_y=Y&0xFFFF,
-			ifraction_y=fractionY^0xFFFF;
+		const uchar *src_pix=src.pixels+src.pitch*y0;
+#define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
+		ulong fraction_y=GET_FRACTION(Y),
+			ifraction_y=unit-fraction_y;
+		uchar *dst_pix0=dst_pix;
 		for (long x=dst_rect.x;x<dst_rect.w;x++){
+			long x0=X>>16;
+			if ((ulong)x0+1>=src.w)
+				break;
+			ulong fraction_x=GET_FRACTION(X),
+				ifraction_x=unit-fraction_x;
+
+			const uchar *pixel[4];
+			ulong weight[4];
+			pixel[0]=src_pix+x0*4;
+			pixel[1]=pixel[0]+4;
+			pixel[2]=pixel[0]+src.pitch;
+			pixel[3]=pixel[2]+4;
+#define BILINEAR_FIXED16_MULTIPLICATION(x,y) ((((x)>>1)*((y)>>1))>>14)
+			weight[0]=BILINEAR_FIXED16_MULTIPLICATION(ifraction_x,ifraction_y);
+			weight[1]=BILINEAR_FIXED16_MULTIPLICATION( fraction_x,ifraction_y);
+			weight[2]=BILINEAR_FIXED16_MULTIPLICATION(ifraction_x, fraction_y);
+			weight[3]=BILINEAR_FIXED16_MULTIPLICATION( fraction_x, fraction_y);
+			ulong color[4]={0};
+			for (int a=0;a<4;a++){
+				if (!weight[a])
+					continue;
+				for (int b=0;b<4;b++)
+					color[b]+=pixel[a][b]*weight[a];
+				if (weight[a]==unit)
+					break;
+			}
+			for (int a=0;a<4;a++)
+				dst_pix[a]=uchar(color[a]>>16);
+			X+=unit;
+			dst_pix+=4;
 		}
+		dst_pix=dst_pix0+dst.pitch;
+		Y+=unit;
 	}
 }
 
