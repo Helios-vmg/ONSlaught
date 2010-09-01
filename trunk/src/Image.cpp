@@ -508,18 +508,18 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
 	for (long y=dst_rect.y;y<dst_rect.h;y++){
 		long y0=Y>>16;
-		if ((ulong)y0+1>=src.h)
+		if ((ulong)y0+1>src.h)
 			break;
 		const uchar *src_pix=src.pixels+src.pitch*y0;
 #define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
-		ulong fraction_y=GET_FRACTION(Y),
+		ulong fraction_y=((ulong)y0+1==src.h)?0:GET_FRACTION(Y),
 			ifraction_y=unit-fraction_y;
 		uchar *dst_pix0=dst_pix;
 		for (long x=dst_rect.x;x<dst_rect.w;x++){
 			long x0=X>>16;
-			if ((ulong)x0+1>=src.w)
+			if ((ulong)x0+1>src.w)
 				break;
-			ulong fraction_x=GET_FRACTION(X),
+			ulong fraction_x=((ulong)x0+1==src.w)?0:GET_FRACTION(X),
 				ifraction_x=unit-fraction_x;
 
 			const uchar *pixel[4];
