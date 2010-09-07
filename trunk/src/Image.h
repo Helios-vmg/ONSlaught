@@ -110,8 +110,8 @@ public:
 		const NONS_LongRect *src_rect                          \
 	)
 	typedef void(*interpolation_f)(void*);
-	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(,bilinear_interpolation);
+	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation2);
 	static NONS_Surface assign_screen(SDL_Surface *);
 	static NONS_Surface get_screen();

@@ -91,6 +91,7 @@ public:
 	void ref(const index_t &);
 	bool deref(const index_t &);
 	index_t scale(const index_t &src,double scalex,double scaley);
+	index_t resize(const index_t &src,ulong w,ulong h);
 	index_t rotate(const index_t &src,double rotate);
 	index_t transform(const index_t &src,double matrix[4]);
 	void assign_screen(SDL_Surface *);
@@ -111,6 +112,157 @@ private:
 
 ulong NONS_SurfaceManager::Surface::obj_count=0;
 NONS_Mutex NONS_SurfaceManager::Surface::mutex;
+
+const ulong unit=1<<16;
+
+void assign_SDL_Rect(SDL_Rect &dst,SDL_Surface *s){
+	dst.x=0;
+	dst.y=0;
+	dst.w=s->w;
+	dst.h=s->h;
+}
+
+#define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
+
+//Fast.
+//Scales [1;+Inf.): works
+//Scales (0;1): works with decreasing precision as the scale approaches 0
+void linear_interpolation1(
+		uchar *dst,
+		ulong w,
+		ulong h,
+		ulong dst_advance,
+		ulong dst_pitch,
+		const uchar *src,
+		ulong src_advance,
+		ulong src_pitch,
+		ulong fractional_advance){
+	ulong X=0;
+	for (ulong x=0;x<w;x++){
+		uchar *dst0=dst;
+		const uchar *pixel[2];
+		pixel[0]=src+(X>>16)*src_advance;
+		pixel[1]=pixel[0]+src_advance;
+		ulong weight[2];
+		weight[1]=GET_FRACTION(X);
+		weight[0]=unit-weight[1];
+		for (ulong y=0;y<h;y++){
+			dst[0]=uchar((pixel[0][0]*weight[0]+pixel[1][0]*weight[1])>>16);
+			dst[1]=uchar((pixel[0][1]*weight[0]+pixel[1][1]*weight[1])>>16);
+			dst[2]=uchar((pixel[0][2]*weight[0]+pixel[1][2]*weight[1])>>16);
+			dst[3]=uchar((pixel[0][3]*weight[0]+pixel[1][3]*weight[1])>>16);
+			pixel[0]+=src_pitch;
+			pixel[1]+=src_pitch;
+			dst+=dst_pitch;
+		}
+		X+=fractional_advance;
+		dst=dst0+dst_advance;
+	}
+}
+
+#define FLOOR(x) ((x)&(~(unit-1)))
+#define CEIL(x) FLOOR((x)+(unit-1))
+
+//Slow.
+//Scales [1;+Inf.): doesn't work
+//Scales (0;1): works
+void linear_interpolation2(
+		uchar *dst,
+		ulong w,
+		ulong h,
+		ulong dst_advance,
+		ulong dst_pitch,
+		const uchar *src,
+		ulong src_advance,
+		ulong src_pitch,
+		ulong fractional_advance){
+	for (ulong y=0;y<h;y++){
+		uchar *dst0=dst;
+		ulong X0=0,
+			X1=fractional_advance;
+		for (ulong x=0;x<w;x++){
+			const uchar *pixel=src+(X0>>16)*src_advance;
+			ulong color[3]={0};
+			for (ulong x0=X0;x0<X1;){
+				ulong multiplier;
+				if (X1-x0<unit)
+					multiplier=X1-x0;
+				else if (x0==X0)
+					multiplier=FLOOR(X0)+unit-X0;
+				else
+					multiplier=unit;
+				color[0]+=pixel[0]*multiplier;
+				color[1]+=pixel[1]*multiplier;
+				color[2]+=pixel[2]*multiplier;
+				pixel+=src_advance;
+				x0=FLOOR(x0)+unit;
+			}
+			dst[0]=uchar(color[0]/fractional_advance);
+			dst[1]=uchar(color[1]/fractional_advance);
+			dst[2]=uchar(color[2]/fractional_advance);
+			dst+=dst_advance;
+			X0=X1;
+			X1+=fractional_advance;
+		}
+		dst=dst0+dst_pitch;
+		src+=src_pitch;
+	}
+}
+
+typedef void (*linear_interpolation_f)(uchar *,ulong,ulong,ulong,ulong,const uchar *,ulong,ulong,ulong);
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
+	return this->resize(src,ulong(src->w*floor(scale_x+.5)),ulong(src->h*floor(scale_x+.5)));
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,ulong w,ulong h){
+	index_t src=_src;
+	ulong w0=src->w,
+		h0=src->h,
+		minus;
+	index_t dst=this->allocate(w,h0);
+	linear_interpolation_f f;
+	if (w>=w0){
+		f=linear_interpolation1;
+		minus=1;
+	}else{
+		f=linear_interpolation2;
+		minus=0;
+	}
+	f(
+		(uchar *)dst->data,
+		dst->w,
+		dst->h,
+		4,
+		dst->w*4,
+		(uchar *)src->data,
+		4,
+		src->w*4,
+		((w0-minus)<<16)/(w-minus)
+	);
+	src=dst;
+	dst=this->allocate(w,h);
+	if (h>=h0){
+		f=linear_interpolation1;
+		minus=1;
+	}else{
+		f=linear_interpolation2;
+		minus=0;
+	}
+	f(
+		(uchar *)dst->data,
+		dst->h,
+		dst->w,
+		dst->w*4,
+		4,
+		(uchar *)src->data,
+		src->w*4,
+		4,
+		((h0-minus)<<16)/(h-minus)
+	);
+	this->deref(src);
+	return dst;
+}
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::rotate(const index_t &src,double angle){
 	double dcos=cos(angle),
@@ -497,29 +649,25 @@ NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation,bilinear_interpolatio
 
 INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 	const ulong unit=1<<16;
-	ulong advance_x=(src.w<<16)/dst.w,
-		advance_y=(src.h<<16)/dst.h;
+	ulong advance_x=((src.w-1)<<16)/(dst.w-1),
+		advance_y=((src.h-1)<<16)/(dst.h-1);
 	src_rect.w+=src_rect.x;
 	src_rect.h+=src_rect.y;
 	dst_rect.w+=dst_rect.x;
 	dst_rect.h+=dst_rect.y;
-	long X=(advance_x>>2)+dst_rect.x*advance_x,
-		Y=(advance_y>>2)+dst_rect.y*advance_y;
+	long Y=dst_rect.y*advance_y;
 	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
 	for (long y=dst_rect.y;y<dst_rect.h;y++){
 		long y0=Y>>16;
-		if ((ulong)y0+1>src.h)
-			break;
 		const uchar *src_pix=src.pixels+src.pitch*y0;
 #define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
-		ulong fraction_y=((ulong)y0+1==src.h)?0:GET_FRACTION(Y),
+		ulong fraction_y=GET_FRACTION(Y),
 			ifraction_y=unit-fraction_y;
+		long X=dst_rect.x*advance_x;
 		uchar *dst_pix0=dst_pix;
 		for (long x=dst_rect.x;x<dst_rect.w;x++){
 			long x0=X>>16;
-			if ((ulong)x0+1>src.w)
-				break;
-			ulong fraction_x=((ulong)x0+1==src.w)?0:GET_FRACTION(X),
+			ulong fraction_x=GET_FRACTION(X),
 				ifraction_x=unit-fraction_x;
 
 			const uchar *pixel[4];
@@ -533,23 +681,86 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 			weight[1]=BILINEAR_FIXED16_MULTIPLICATION( fraction_x,ifraction_y);
 			weight[2]=BILINEAR_FIXED16_MULTIPLICATION(ifraction_x, fraction_y);
 			weight[3]=BILINEAR_FIXED16_MULTIPLICATION( fraction_x, fraction_y);
-			ulong color[4]={0};
-			for (int a=0;a<4;a++){
-				if (!weight[a])
-					continue;
-				for (int b=0;b<4;b++)
-					color[b]+=pixel[a][b]*weight[a];
-				if (weight[a]==unit)
-					break;
-			}
-			for (int a=0;a<4;a++)
-				dst_pix[a]=uchar(color[a]>>16);
+#define BILINEAR_SET_PIXEL(x)\
+			dst_pix[x]=uchar((pixel[0][x]*weight[0]+\
+			                  pixel[1][x]*weight[1]+\
+			                  pixel[2][x]*weight[2]+\
+			                  pixel[3][x]*weight[3])>>16)
+			BILINEAR_SET_PIXEL(0);
+			BILINEAR_SET_PIXEL(1);
+			BILINEAR_SET_PIXEL(2);
+			BILINEAR_SET_PIXEL(3);
 
 			X+=unit;
 			dst_pix+=4;
 		}
 		dst_pix=dst_pix0+dst.pitch;
 		Y+=unit;
+	}
+}
+
+DECLARE_INTERPOLATION_F(bilinear_interpolation2_threaded)
+
+INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
+	const ulong unit=1<<16;
+	ulong advance_x=((src.w-1)<<16)/(dst.w-1),
+		advance_y=((src.h-1)<<16)/(dst.h-1);
+	ulong area=((advance_x>>8)*advance_y)>>8;
+	src_rect.w+=src_rect.x;
+	src_rect.h+=src_rect.y;
+	dst_rect.w+=dst_rect.x;
+	dst_rect.h+=dst_rect.y;
+	ulong Y0=dst_rect.y*advance_y,
+		Y1=Y0+advance_y,
+		X0,X1;
+	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
+	for (long y=dst_rect.y;y<dst_rect.h;y++){
+		X0=dst_rect.x*advance_x;
+		X1=X0+advance_x;
+		const uchar *src_pix=src.pixels+src.pitch*(Y0>>16);
+		uchar *dst_pix0=dst_pix;
+		for (long x=dst_rect.x;x<dst_rect.w;x++){
+			const uchar *pixel=src_pix+(X0>>16)*4;
+			ulong color[4]={0};
+			for (ulong y2=Y0;y2<Y1;){
+				ulong y_multiplier;
+				const uchar *pixel0=pixel;
+				if (Y1-y2<unit)
+					y_multiplier=Y1-y2;
+				else if (y2==Y0)
+					y_multiplier=FLOOR(Y0)+unit-Y0;
+				else
+					y_multiplier=unit;
+				for (ulong x2=X0;x2<X1;){
+					ulong x_multiplier;
+					if (X1-x2<unit)
+						x_multiplier=X1-x2;
+					else if (x2==X0)
+						x_multiplier=FLOOR(X0)+unit-X0;
+					else
+						x_multiplier=unit;
+					ulong compound_multiplier=((y_multiplier>>8)*x_multiplier)>>8;
+					color[0]+=ulong(pixel[0])*compound_multiplier;
+					color[1]+=ulong(pixel[1])*compound_multiplier;
+					color[2]+=ulong(pixel[2])*compound_multiplier;
+					color[3]+=ulong(pixel[3])*compound_multiplier;
+					pixel+=4;
+					x2=FLOOR(x2)+unit;
+				}
+				pixel=pixel0+src.pitch;
+				y2=FLOOR(y2)+unit;
+			}
+			dst_pix[0]=uchar(color[0]/area);
+			dst_pix[1]=uchar(color[1]/area);
+			dst_pix[2]=uchar(color[2]/area);
+			dst_pix[3]=uchar(color[3]/area);
+			dst_pix+=4;
+			X0=X1;
+			X1+=advance_x;
+		}
+		dst_pix=dst_pix0+dst.pitch;
+		Y0=Y1;
+		Y1+=advance_y;
 	}
 }
 
