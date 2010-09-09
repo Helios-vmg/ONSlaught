@@ -42,11 +42,11 @@
 //NONS_DECLSPEC extern NONS_Mutex screenMutex;
 
 struct surfaceData;
-typedef void(*filterFX_f)(ulong,SDL_Color,NONS_Surface *,NONS_Surface *,NONS_Surface *,ulong,ulong,ulong,ulong);
+typedef void(*filterFX_f)(ulong,NONS_Color,const NONS_ConstSurface &,const NONS_ConstSurface &,const NONS_Surface &,NONS_LongRect);
 typedef void *(*asyncInit_f)(ulong);
 typedef bool(*asyncEffect_f)(ulong,surfaceData,surfaceData,void *);
 typedef void(*asyncUninit_f)(ulong,void *);
-#define FILTER_EFFECT_F(name) void name(ulong effectNo,SDL_Color color,NONS_Surface *src,NONS_Surface *rule,NONS_Surface *dst,ulong x,ulong y,ulong w,ulong h)
+#define FILTER_EFFECT_F(name) void name(ulong effectNo,NONS_Color color,const NONS_ConstSurface &src,const NONS_ConstSurface &rule,const NONS_Surface &dst,NONS_LongRect area)
 #define ASYNC_EFFECT_INIT_F(name) void *name(ulong effectNo)
 #define ASYNC_EFFECT_F(name) bool name(ulong effectNo,surfaceData srcData,surfaceData dstData,void *userData)
 #define ASYNC_EFFECT_UNINIT_F(name) void name(ulong effectNo,void *userData)
@@ -65,14 +65,13 @@ struct pipelineElement{
 		NEGATIVE=1
 	};
 	ulong effectNo;
-	SDL_Color color;
-	SDL_Surface *rule;
+	NONS_Color color;
+	NONS_Surface rule;
 	std::wstring ruleStr;
-	pipelineElement():rule(0){}
-	pipelineElement(ulong effectNo,const SDL_Color &color,const std::wstring &rule,bool loadRule);
-	pipelineElement(const pipelineElement &);
+	pipelineElement(){}
+	pipelineElement(ulong effectNo,const NONS_Color &color,const std::wstring &rule,bool loadRule);
+	pipelineElement(const pipelineElement &o){ *this=o; }
 	void operator=(const pipelineElement &);
-	~pipelineElement();
 };
 
 #define VIRTUAL 0
@@ -137,18 +136,19 @@ class NONS_VirtualScreen{
 #else
 	DEBUG_SCREEN_MUTEX_SDL_Surface screens[screens_s];
 #endif
+	NONS_Mutex mutex;
+	NONS_Rect outRect;
 public:
 	ulong post_filter,
 		pre_inter,
 		post_inter;
 	bool usingFeature[usingFeature_s];
-	NONS_Rect inRect,
-		outRect;
+	NONS_Rect inRect;
 	float x_multiplier,
 		y_multiplier,
 		x_divisor,
 		y_divisor;
-	void(*normalInterpolation)(NONS_Surface *,NONS_Rect *,NONS_Surface *,NONS_Rect *,ulong,ulong);
+	NONS_Surface::public_interpolation_f normalInterpolation;
 	bool fullscreen;
 
 	NONS_Thread asyncEffectThread;
@@ -167,6 +167,7 @@ public:
 	NONS_DECLSPEC void blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect);
 	NONS_DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
 	NONS_DECLSPEC void updateWholeScreen(bool fast=0);
+	NONS_Surface get_screen();
 	//If 0, to window; if 1, to fullscreen; if 2, toggle.
 	bool toggleFullscreen(uchar mode=2);
 	SDL_Surface *toggleFullscreenFromVideo();
@@ -204,14 +205,10 @@ public:
 	void initEffectList();
 	ErrorCode callEffect(ulong effectNo,ulong frequency);
 	void stopEffect();
-	ErrorCode applyFilter(ulong effectNo,const SDL_Color &color,const std::wstring &rule);
+	ErrorCode applyFilter(ulong effectNo,const NONS_Color &color,const std::wstring &rule);
 	void changeState(bool switchAsyncState,bool switchFilterState);
 	void printCurrentState();
 };
-
-void nearestNeighborInterpolation(NONS_Surface *src,NONS_Rect *srcRect,NONS_Surface *dst,NONS_Rect *dstRect,ulong x_factor,ulong y_factor);
-void bilinearInterpolation(NONS_Surface *src,NONS_Rect *srcRect,NONS_Surface *dst,NONS_Rect *dstRect,ulong x_factor,ulong y_factor);
-void bilinearInterpolation2(NONS_Surface *src,NONS_Rect *srcRect,NONS_Surface *dst,NONS_Rect *dstRect,ulong x_factor,ulong y_factor);
 
 FILTER_EFFECT_F(effectMonochrome);
 FILTER_EFFECT_F(effectNegative);

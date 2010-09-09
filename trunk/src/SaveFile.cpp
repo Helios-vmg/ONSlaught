@@ -530,17 +530,14 @@ void NONS_SaveFile::load(std::wstring filename){
 			this->pipelines[1].clear();
 			if (this->version<4){
 				bool monochrome=!!readByte(buffer,offset);
-				SDL_Color monochromeColor={
-					readByte(buffer,offset),
-					readByte(buffer,offset),
-					readByte(buffer,offset),
-					0
-				};
+				NONS_Color monochromeColor;
+				for (int a=0;a<3;a++)
+					monochromeColor.rgba[a]=readByte(buffer,offset);
 				bool negative=!!readByte(buffer,offset);
 				if (monochrome)
 					this->pipelines->push_back(pipelineElement(0,monochromeColor,L"",0));
 				if (negative)
-					this->pipelines->push_back(pipelineElement(1,SDL_Color(),L"",0));
+					this->pipelines->push_back(pipelineElement(1,NONS_Color(),L"",0));
 			}else{
 				this->nega_parameter=!!readByte(buffer,offset);
 
@@ -548,9 +545,8 @@ void NONS_SaveFile::load(std::wstring filename){
 				for (ulong a=0;a<this->pipelines->size();a++){
 					pipelineElement &el=this->pipelines[0][a];
 					el.effectNo=readDWord(buffer,offset);
-					el.color.r=readByte(buffer,offset);
-					el.color.g=readByte(buffer,offset);
-					el.color.b=readByte(buffer,offset);
+					for (int a=0;a<3;a++)
+						el.color.rgba[a]=readByte(buffer,offset);
 					el.ruleStr=UniFromUTF8(readString(buffer,offset));
 				}
 
@@ -561,9 +557,8 @@ void NONS_SaveFile::load(std::wstring filename){
 				for (ulong a=0;a<this->pipelines[1].size();a++){
 					pipelineElement &el=this->pipelines[1][a];
 					el.effectNo=readDWord(buffer,offset);
-					el.color.r=readByte(buffer,offset);
-					el.color.g=readByte(buffer,offset);
-					el.color.b=readByte(buffer,offset);
+					for (int a=0;a<3;a++)
+						el.color.rgba[a]=readByte(buffer,offset);
 					el.ruleStr=UniFromUTF8(readString(buffer,offset));
 				}
 			}
@@ -850,9 +845,8 @@ bool NONS_SaveFile::save(std::wstring filename){
 		for (ulong a=0;a<this->pipelines->size();a++){
 			pipelineElement &el=this->pipelines[0][a];
 			writeDWord(el.effectNo,buffer);
-			writeByte(el.color.r,buffer);
-			writeByte(el.color.g,buffer);
-			writeByte(el.color.b,buffer);
+			for (int a=0;a<3;a++)
+				writeByte(el.color.rgba[a],buffer);
 			writeString(el.ruleStr,buffer);
 		}
 
@@ -863,9 +857,8 @@ bool NONS_SaveFile::save(std::wstring filename){
 		for (ulong a=0;a<this->pipelines[1].size();a++){
 			pipelineElement &el=this->pipelines[1][a];
 			writeDWord(el.effectNo,buffer);
-			writeByte(el.color.r,buffer);
-			writeByte(el.color.g,buffer);
-			writeByte(el.color.b,buffer);
+			for (int a=0;a<3;a++)
+				writeByte(el.color.rgba[a],buffer);
 			writeString(el.ruleStr,buffer);
 		}
 	}

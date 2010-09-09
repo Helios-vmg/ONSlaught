@@ -49,11 +49,9 @@ inline T FT_CEIL(T x){
 	return ((x+63)&-64)/64;
 }
 
-NONS_Lookback::NONS_Lookback(NONS_StandardOutput *output,uchar r,uchar g,uchar b){
+NONS_Lookback::NONS_Lookback(NONS_StandardOutput *output,const NONS_Color &color)
+		:foreground(color){
 	this->output=output;
-	this->foreground.r=r;
-	this->foreground.g=g;
-	this->foreground.b=b;
 	this->up=0;
 	this->down=0;
 	this->resetButtons();
@@ -61,12 +59,12 @@ NONS_Lookback::NONS_Lookback(NONS_StandardOutput *output,uchar r,uchar g,uchar b
 }
 
 void NONS_Lookback::resetButtons(){
-	NONS_Rect temp=this->output->foregroundLayer->clip_rect;
+	NONS_LongRect temp=this->output->foregroundLayer->clip_rect;
 	temp.y=temp.h;
 	temp.h/=3.f;
 	temp.y-=temp.h;
-	NONS_GraphicButton *up=new NONS_GraphicButton(0,0,0,(int)temp.w,(int)temp.h,0,0),
-		*down=new NONS_GraphicButton(0,0,(int)temp.y,(int)temp.w,(int)temp.h,0,0);
+	NONS_GraphicButton *up=new NONS_GraphicButton(NONS_ConstSurface(),0,0,(int)temp.w,(int)temp.h,0,0),
+		*down=new NONS_GraphicButton(NONS_ConstSurface(),0,(int)temp.y,(int)temp.w,(int)temp.h,0,0);
 	delete this->up;
 	delete this->down;
 	this->up=up;
@@ -76,18 +74,15 @@ void NONS_Lookback::resetButtons(){
 NONS_Lookback::~NONS_Lookback(){
 	delete this->up;
 	delete this->down;
-	for (int a=0;a<4;a++)
-		ImageLoader.unfetchImage(this->surfaces[a]);
 }
 
 bool NONS_Lookback::setUpButtons(const std::wstring &upon,const std::wstring &upoff,const std::wstring &downon,const std::wstring &downoff){
 	const std::wstring *srcs[4]={&upon,&upoff,&downon,&downoff};
 	for (int a=0;a<4;a++){
-		if (!ImageLoader.fetchSprite(this->surfaces[a],*srcs[a])){
-			for (;a>=0;a--){
-				ImageLoader.unfetchImage(this->surfaces[a]);
-				this->surfaces[a]=0;
-			}
+		this->surfaces[a]=*srcs[a];
+		if (!this->surfaces[a]){
+			for (;a>=0;a--)
+				this->surfaces[a].unbind();
 			return 0;
 		}
 	}
@@ -107,9 +102,9 @@ void NONS_Lookback::setUpButtons(){
 	NONS_GraphicButton *up=dynamic_cast<NONS_GraphicButton *>(this->up),
 		*down=dynamic_cast<NONS_GraphicButton *>(this->down);
 	assert(up!=0);
-	up->allocateLayer(up->setOffLayer(),0,0,0,(int)up->getBox().w,(int)up->getBox().h,0,0);
-	down->allocateLayer(down->setOffLayer(),0,0,0,(int)down->getBox().w,(int)down->getBox().h,0,0);
-	NONS_Rect srcRect(0,0,(float)this->surfaces[0]->w,(float)this->surfaces[0]->h),
+	up->allocateLayer(up->setOffLayer(),NONS_ConstSurface(),0,0,(int)up->getBox().w,(int)up->getBox().h,0,0);
+	down->allocateLayer(down->setOffLayer(),NONS_ConstSurface(),0,0,(int)down->getBox().w,(int)down->getBox().h,0,0);
+	NONS_LongRect srcRect=this->surfaces[0].clip_rect(),
 		dstRect[4];
 	NONS_Layer *dst[]={
 		up->setOnLayer(),
@@ -118,13 +113,14 @@ void NONS_Lookback::setUpButtons(){
 		down->setOffLayer()
 	};
 	for (int a=0;a<4;a++){
-		dstRect[a].x=dst[a]->clip_rect.w-this->surfaces[a]->w;
+		NONS_LongRect temp=this->surfaces[a].clip_rect();
+		dstRect[a].x=dst[a]->clip_rect.w-temp.w;
 		if (a<2)
 			continue;
-		dstRect[a].y=dst[a]->clip_rect.h-this->surfaces[a]->h;
+		dstRect[a].y=dst[a]->clip_rect.h-temp.h;
 	}
 	for (int a=0;a<4;a++)
-		manualBlit(this->surfaces[a],&srcRect.to_SDL_Rect(),dst[a]->data,&dstRect[a].to_SDL_Rect());
+		dst[a]->data.over(this->surfaces[a],dstRect+a,&srcRect);
 }
 
 void NONS_Lookback::reset(NONS_StandardOutput *output){
@@ -142,24 +138,11 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 	if (!this->output->log.size())
 		return ret;
 	NONS_EventQueue queue;
-	SDL_Surface *copyDst,
-		*preBlit;
-	{
-		NONS_MutexLocker ml(screenMutex);
-		SDL_Surface *screen=dst->screens[VIRTUAL];
-		int w=screen->w,
-			h=screen->h;
-		copyDst=makeSurface(w,h,32);
-		preBlit=makeSurface(w,h,32);
-		manualBlit(screen,0,copyDst,0);
-	}
+	NONS_Surface dst_copy=dst->get_screen().clone();
 	long end=this->output->log.size(),
 		currentPage=end-1;
 	this->output->ephemeralOut(&this->output->log[currentPage],dst,0,0,&this->foreground);
-	{
-		NONS_MutexLocker ml(screenMutex);
-		manualBlit(dst->screens[VIRTUAL],0,preBlit,0);
-	}
+	NONS_Surface before_blit=dst->get_screen().clone();
 	int mouseOver=-1;
 	int x,y;
 	uchar visibility=(!!currentPage)<<1;
@@ -167,10 +150,10 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 		getCorrectedMousePosition(dst,&x,&y);
 		if (this->up->MouseOver(x,y)){
 			mouseOver=0;
-			this->up->mergeWithoutUpdate(dst,preBlit,1,1);
+			this->up->mergeWithoutUpdate(dst,before_blit,1,1);
 		}else{
 			mouseOver=-1;
-			this->up->mergeWithoutUpdate(dst,preBlit,0,1);
+			this->up->mergeWithoutUpdate(dst,before_blit,0,1);
 		}
 	}else
 		mouseOver=-1;
@@ -188,19 +171,19 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 						if (visibility){
 							if (visibility&2 && this->up->MouseOver(&event)){
 								if (visibility&1)
-									this->down->merge(dst,preBlit,0);
+									this->down->merge(dst,before_blit,0);
 								mouseOver=0;
-								this->up->merge(dst,preBlit,1);
+								this->up->merge(dst,before_blit,1);
 							}else{
 								if (visibility&2)
-									this->up->merge(dst,preBlit,0);
+									this->up->merge(dst,before_blit,0);
 								if (visibility&1 && this->down->MouseOver(&event)){
 									mouseOver=1;
-									this->down->merge(dst,preBlit,1);
+									this->down->merge(dst,before_blit,1);
 								}else{
 									mouseOver=-1;
 									if (visibility&1)
-										this->down->merge(dst,preBlit,0);
+										this->down->merge(dst,before_blit,0);
 								}
 							}
 						}
@@ -211,16 +194,14 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 						if (event.button.button==SDL_BUTTON_LEFT){
 							if (mouseOver<0 || !visibility)
 								break;
-							{
-								NONS_MutexLocker ml(screenMutex);
-								manualBlit(copyDst,0,dst->screens[VIRTUAL],0);
-							}
+							//TODO: call copy_pixels()?
+							dst->get_screen().over(dst_copy);
 							int dir;
 							if (!mouseOver)
 								dir=-1;
 							else
 								dir=1;
-							if (!this->changePage(dir,currentPage,copyDst,dst,preBlit,visibility,mouseOver))
+							if (!this->changePage(dir,currentPage,dst_copy,dst,before_blit,visibility,mouseOver))
 								goto callLookback_000;
 						}else if (event.button.button==SDL_BUTTON_WHEELUP || event.button.button==SDL_BUTTON_WHEELDOWN){
 							int dir;
@@ -228,7 +209,7 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 								dir=-1;
 							else
 								dir=1;
-							if (!this->changePage(dir,currentPage,copyDst,dst,preBlit,visibility,mouseOver))
+							if (!this->changePage(dir,currentPage,dst_copy,dst,before_blit,visibility,mouseOver))
 								goto callLookback_000;
 						}
 					}
@@ -250,7 +231,7 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 							default:
 								break;
 						}
-						if (!this->changePage(dir,currentPage,copyDst,dst,preBlit,visibility,mouseOver))
+						if (!this->changePage(dir,currentPage,dst_copy,dst,before_blit,visibility,mouseOver))
 							goto callLookback_000;
 					}
 					break;
@@ -259,27 +240,26 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 		SDL_Delay(10);
 	}
 callLookback_000:
-	SDL_FreeSurface(copyDst);
-	SDL_FreeSurface(preBlit);
 	return ret;
 }
 
-bool NONS_Lookback::changePage(int dir,long &currentPage,SDL_Surface *copyDst,NONS_VirtualScreen *dst,SDL_Surface *preBlit,uchar &visibility,int &mouseOver){
+bool NONS_Lookback::changePage(
+		int dir,
+		long &currentPage,
+		const NONS_ConstSurface &copyDst,
+		NONS_VirtualScreen *dst,
+		const NONS_ConstSurface &preBlit,
+		uchar &visibility,
+		int &mouseOver){
 	long end=this->output->log.size();
 	if (!dir || -dir>currentPage)
 		return 1;
-	{
-		NONS_MutexLocker ml(screenMutex);
-		manualBlit(copyDst,0,dst->screens[VIRTUAL],0);
-	}
+	dst->get_screen().over(copyDst);
 	currentPage+=dir;
 	if (currentPage==end)
 		return 0;
 	this->output->ephemeralOut(&this->output->log[currentPage],dst,0,0,&this->foreground);
-	{
-		NONS_MutexLocker ml(screenMutex);
-		manualBlit(dst->screens[VIRTUAL],0,preBlit,0);
-	}
+	dst->get_screen().over(preBlit);
 	bool visibilitya[]={
 		!!currentPage,
 		currentPage!=end-1
@@ -431,14 +411,9 @@ bool NONS_Cursor::callMenu(NONS_Menu *menu,NONS_EventQueue *queue){
 bool NONS_Cursor::callLookback(NONS_EventQueue *queue){
 	this->screen->BlendNoText(0);
 	{
-		NONS_MutexLocker ml(screenMutex);
-		manualBlit(this->screen->screenBuffer,0,this->screen->screen->screens[VIRTUAL],0);
-		multiplyBlend(
-			this->screen->output->shadeLayer->data,
-			0,
-			this->screen->screen->screens[VIRTUAL],
-			&this->screen->output->shadeLayer->clip_rect.to_SDL_Rect()
-		);
+		NONS_Surface screen=this->screen->screen->get_screen();
+		screen.over(this->screen->screenBuffer);
+		screen.multiply(this->screen->output->shadeLayer->data,&this->screen->output->shadeLayer->clip_rect);
 	}
 	if (this->screen->lookback->display(this->screen->screen)==INT_MIN || queue->emptify())
 		return 0;
@@ -449,18 +424,18 @@ bool NONS_Cursor::callLookback(NONS_EventQueue *queue){
 	return 1;
 }
 
-#define NONS_BUTTON_MERGE_COMMON										\
-	if (!force && this->status==status)									\
-		return;															\
-	SDL_Rect srcRect=nrect.to_SDL_Rect(),								\
-		dstRect=srcRect;												\
-	dstRect.x=posx;														\
-	dstRect.y=posy;														\
-	this->status=status;												\
-	{																	\
-		NONS_MutexLocker ml(screenMutex);								\
-		manualBlit(original,&dstRect,dst->screens[VIRTUAL],&dstRect);	\
-		this->mergeWithoutUpdate_inner(dst,&dstRect,&srcRect);			\
+#define NONS_BUTTON_MERGE_COMMON                                \
+	if (!force && this->status==status)                         \
+		return;                                                 \
+	NONS_LongRect srcRect=nrect,                                \
+		dstRect=srcRect;                                        \
+	dstRect.x=posx;                                             \
+	dstRect.y=posy;                                             \
+	this->status=status;                                        \
+	{                                                           \
+		NONS_Surface screen=dst->get_screen();                  \
+		screen.over(original,&dstRect,&dstRect);                \
+		this->mergeWithoutUpdate_inner(screen,dstRect,srcRect); \
 	}
 
 bool NONS_Button::MouseOver(SDL_Event *event){
@@ -473,28 +448,25 @@ bool NONS_Button::MouseOver(SDL_Event *event){
 
 void NONS_Button::merge(
 		NONS_VirtualScreen *dst,
-		NONS_Rect &nrect,
+		const NONS_LongRect &nrect,
 		int posx,
 		int posy,
-		SDL_Surface *original,
+		const NONS_ConstSurface &original,
 		bool status,
 		bool force){
 	NONS_BUTTON_MERGE_COMMON;
-	int w,h;
-	{
-		NONS_MutexLocker ml(screenMutex);
-		w=(dstRect.w+dstRect.x>dst->screens[VIRTUAL]->w)?(dst->screens[VIRTUAL]->w-dstRect.x):(dstRect.w);
-		h=(dstRect.h+dstRect.y>dst->screens[VIRTUAL]->h)?(dst->screens[VIRTUAL]->h-dstRect.y):(dstRect.h);
-	}
+	NONS_LongRect rect((NONS_LongRect)dst->inRect);
+	long w=(dstRect.w+dstRect.x>rect.w)?rect.w-dstRect.x:dstRect.w,
+	     h=(dstRect.h+dstRect.y>rect.h)?rect.h-dstRect.y:dstRect.h;
 	dst->updateScreen(dstRect.x,dstRect.y,w,h);
 }
 
 void NONS_Button::mergeWithoutUpdate(
 		NONS_VirtualScreen *dst,
-		NONS_Rect &nrect,
+		const NONS_LongRect &nrect,
 		int posx,
 		int posy,
-		SDL_Surface *original,
+		const NONS_ConstSurface &original,
 		bool status,
 		bool force){
 	NONS_BUTTON_MERGE_COMMON;
@@ -505,84 +477,82 @@ NONS_SurfaceButton::~NONS_SurfaceButton(){
 	delete this->getOnLayer();
 }
 
-void NONS_SurfaceButton::mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force){
+void NONS_SurfaceButton::mergeWithoutUpdate(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force){
 	NONS_Button::mergeWithoutUpdate(dst,this->box,this->posx,this->posy,original,status,force);
 }
 
-NONS_Rect NONS_SurfaceButton::get_dimensions(){
-	NONS_Rect rect=this->box;
-	rect.x=(float)posx;
-	rect.y=(float)posy;
+NONS_LongRect NONS_SurfaceButton::get_dimensions(){
+	NONS_LongRect rect=this->box;
+	rect.x=(long)posx;
+	rect.y=(long)posy;
 	return rect;
 }
 
-void NONS_SurfaceButton::mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect){
+void NONS_SurfaceButton::mergeWithoutUpdate_inner(const NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect){
 	NONS_TextButton *_this=dynamic_cast<NONS_TextButton *>(this);
 	if (_this && _this->getShadowLayer()){
-		dstRect->x++;
-		dstRect->y++;
-		manualBlit(_this->setShadowLayer()->data,0,dst->screens[VIRTUAL],dstRect);
-		dstRect->x--;
-		dstRect->y--;
+		NONS_LongRect temp=dstRect;
+		temp.x++;
+		temp.y++;
+		dst.over(_this->setShadowLayer()->data,&temp);
 	}
 	if (this->status)
-		manualBlit(this->getOnLayer()->data,0,dst->screens[VIRTUAL],dstRect);
+		dst.over(this->getOnLayer()->data,&dstRect);
 	else if (this->getOffLayer())
-		manualBlit(this->getOffLayer()->data,0,dst->screens[VIRTUAL],dstRect);
+		dst.over(this->getOffLayer()->data,&dstRect);
 }
 
-void NONS_SurfaceButton::merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force){
+void NONS_SurfaceButton::merge(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force){
 	NONS_Button::merge(dst,this->box,this->posx,this->posy,original,status,force);
 }
 
-NONS_GraphicButton::NONS_GraphicButton(SDL_Surface *src,int posx,int posy,int width,int height,int originX,int originY)
+NONS_GraphicButton::NONS_GraphicButton(const NONS_ConstSurface &src,int posx,int posy,int width,int height,int originX,int originY)
 		:NONS_SurfaceButton(){
 	this->allocateLayer(this->setOnLayer(),src,posx,posy,width,height,originX,originY);
 	this->posx=posx;
 	this->posy=posy;
-	this->box.w=(float)width;
-	this->box.h=(float)height;
+	this->box.w=width;
+	this->box.h=height;
 }
 
 void NONS_GraphicButton::allocateLayer(
 		NONS_Layer *&layer,
-		SDL_Surface *src,
+		const NONS_ConstSurface &src,
 		int posx,
 		int posy,
 		int width,
 		int height,
 		int originX,
 		int originY){
-	SDL_Rect dst={0,0,width,height},
-		srcRect={originX,originY,width,height};
+	NONS_LongRect dst(0,0,width,height),
+		srcRect(originX,originY,width,height);
 	delete layer;
-	layer=new NONS_Layer(&dst,0);
-	manualBlit(src,&srcRect,layer->data,&dst);
+	layer=new NONS_Layer(dst,0);
+	layer->data.over(src,&dst,&srcRect);
 }
 
 NONS_TextButton::NONS_TextButton(
 		const std::wstring &text,
 		const NONS_FontCache &fc,
 		float center,
-		const SDL_Color &on,
-		const SDL_Color &off,
+		const NONS_Color &on,
+		const NONS_Color &off,
 		bool shadow,
 		int limitX,
 		int limitY)
 		:NONS_SurfaceButton(),font_cache(fc FONTCACHE_DEBUG_PARAMETERS){
-	SDL_Color black={0,0,0,0};
 	this->limitX=limitX;
 	this->limitY=limitY;
 	int offsetX,
 		offsetY;
 	this->box=this->GetBoundingBox(text,&this->font_cache,limitX,limitY,offsetX,offsetY);
-	this->setOffLayer()=new NONS_Layer(&this->box.to_SDL_Rect(),0);
+	this->setOffLayer()=new NONS_Layer(this->box,0);
 	this->setOffLayer()->MakeTextLayer(this->font_cache,off);
-	this->setOnLayer()=new NONS_Layer(&this->box.to_SDL_Rect(),0);
+	this->setOnLayer()=new NONS_Layer(this->box,0);
 	this->setOnLayer()->MakeTextLayer(this->font_cache,on);
 	if (shadow){
-		this->setShadowLayer()=new NONS_Layer(&this->box.to_SDL_Rect(),0);
-		this->setShadowLayer()->MakeTextLayer(this->font_cache,black);
+		this->setShadowLayer()=new NONS_Layer(this->box,0);
+		this->setShadowLayer()->MakeTextLayer(this->font_cache,0);
 		this->box.w++;
 		this->box.h++;
 	}else
@@ -822,19 +792,19 @@ int NONS_TextButton::predictLineLength(std::vector<NONS_Glyph *> *arr,long start
 	return res;
 }
 
-void NONS_SpriteButton::mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect){
-	srcRect->x=(!this->status)?0:srcRect->w;
+void NONS_SpriteButton::mergeWithoutUpdate_inner(const NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect){
+	NONS_LongRect temp=srcRect;
+	temp.x=(!this->status)?0:temp.w;
 	NONS_Layer *layer=this->screen->layerStack[this->sprite];
-	SDL_Surface *surface=layer->data;
-	manualBlit(surface,srcRect,dst->screens[VIRTUAL],dstRect,layer->alpha);
+	dst.over(layer->data,&dstRect,&temp,layer->alpha);
 }
 
-void NONS_SpriteButton::mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force){
+void NONS_SpriteButton::mergeWithoutUpdate(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force){
 	NONS_Layer *layer=this->screen->layerStack[this->sprite];
 	NONS_Button::mergeWithoutUpdate(dst,layer->clip_rect,(int)layer->position.x,(int)layer->position.y,original,status,force);
 }
 
-void NONS_SpriteButton::merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force){
+void NONS_SpriteButton::merge(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force){
 	NONS_Layer *layer=this->screen->layerStack[this->sprite];
 	NONS_Button::merge(dst,layer->clip_rect,(int)layer->position.x,(int)layer->position.y,original,status,force);
 }
@@ -844,9 +814,14 @@ bool NONS_SpriteButton::MouseOver(int x,int y){
 	return MOUSE_OVER(x,y,layer->position.x,layer->position.y,layer->clip_rect.w,layer->clip_rect.h);
 }
 
-NONS_Rect NONS_SpriteButton::get_dimensions(){
+NONS_LongRect NONS_SpriteButton::get_dimensions(){
 	NONS_Layer *layer=this->screen->layerStack[this->sprite];
-	return NONS_Rect(layer->position.x,layer->position.y,layer->clip_rect.w,layer->clip_rect.h);
+	return NONS_LongRect(
+		layer->position.x,
+		layer->position.y,
+		layer->clip_rect.w,
+		layer->clip_rect.h
+	);
 }
 
 NONS_ButtonLayer::NONS_ButtonLayer(const NONS_FontCache &fc,NONS_ScreenSpace *screen,bool exitable,NONS_Menu *menu){
@@ -868,9 +843,9 @@ NONS_ButtonLayer::NONS_ButtonLayer(const NONS_FontCache &fc,NONS_ScreenSpace *sc
 	this->return_on_down=0;
 }
 
-NONS_ButtonLayer::NONS_ButtonLayer(SDL_Surface *img,NONS_ScreenSpace *screen){
+NONS_ButtonLayer::NONS_ButtonLayer(const NONS_Surface &img,NONS_ScreenSpace *screen)
+		:loadedGraphic(img){
 	this->font_cache=0;
-	this->loadedGraphic=img;
 	this->screen=screen;
 	this->inputOptions.btnArea=0;
 	this->inputOptions.Cursor=0;
@@ -889,14 +864,12 @@ NONS_ButtonLayer::~NONS_ButtonLayer(){
 	for (ulong a=0;a<this->buttons.size();a++)
 		if (this->buttons[a])
 			delete this->buttons[a];
-	if (this->loadedGraphic && !ImageLoader.unfetchImage(this->loadedGraphic))
-		SDL_FreeSurface(this->loadedGraphic);
 	delete this->font_cache;
 }
 
 void NONS_ButtonLayer::makeTextButtons(const std::vector<std::wstring> &arr,
-		const SDL_Color &on,
-		const SDL_Color &off,
+		const NONS_Color &on,
+		const NONS_Color &off,
 		bool shadow,
 		std::wstring *entry,
 		std::wstring *mouseover,
@@ -945,6 +918,7 @@ int NONS_ButtonLayer::getUserInput(int x,int y){
 	if (this->voiceMouseOver.size())
 		this->audio->loadAsyncBuffer(this->voiceEntry,7);
 	NONS_EventQueue queue;
+	NONS_Surface screenCopy=this->screen->screen->get_screen().clone;
 	SDL_Surface *screenCopy=makeSurface(this->screen->screen->inRect.w,this->screen->screen->inRect.h,32);
 	{
 		NONS_MutexLocker ml(screenMutex);
@@ -1940,7 +1914,7 @@ void put_glyph(SDL_Surface *dst,int x,int y,uchar alpha,uchar *src,const SDL_Rec
 	SDL_UnlockSurface(dst);
 }
 
-void NONS_Glyph::put(SDL_Surface *dst,int x,int y,uchar alpha){
+void NONS_Glyph::put(const NONS_Surface &dst,int x,int y,uchar alpha){
 	if (this->outline_base_bitmap)
 		put_glyph(dst,x,y,alpha,this->outline_base_bitmap,this->outline_bounding_box,this->outline_color);
 	if (this->base_bitmap)

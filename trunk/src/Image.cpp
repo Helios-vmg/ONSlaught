@@ -51,7 +51,15 @@ public:
 	public:
 		Surface(ulong w,ulong h);
 		virtual ~Surface();
-		void get_properties(NONS_SurfaceProperties &sp) const;
+		template <typename T>
+		void get_properties(NONS_SurfaceProperties_basic<T> &sp) const{
+			sp.pixels=this->data;
+			sp.w=this->w;
+			sp.h=this->h;
+			sp.pitch=this->w*4;
+			sp.pixel_count=this->h*this->w;
+			sp.byte_count=sp.pixel_count*4;
+		}
 #define NONS_SurfaceManager_Surface_RELATIONAL_OP(op) bool operator op(const Surface &b) const{ return this->id op b.id; }
 		OVERLOAD_RELATIONAL_OPERATORS(NONS_SurfaceManager_Surface_RELATIONAL_OP)
 	};
@@ -335,6 +343,58 @@ struct NONS_Surface_Private{
 	}
 };
 
+NONS_ConstSurface::NONS_ConstSurface(const NONS_ConstSurface &original):data(0){
+	*this=original;
+}
+
+NONS_Surface &NONS_ConstSurface::operator=(const NONS_ConstSurface &original){
+	delete this->data;
+	if (original){
+		this->data=new NONS_Surface_Private(original.data->surface);
+		sm.ref(this->data->surface);
+	}
+}
+
+NONS_ConstSurface::~NONS_ConstSurface(){
+	if (!this->data)
+		return;
+	sm.deref(this->data->surface);
+	delete this->data;
+}
+
+NONS_LongRect NONS_ConstSurface::default_box(const NONS_LongRect *b) const{
+	return (b)?*b:this->data->rect;
+}
+
+NONS_Surface NONS_ConstSurface::scale(double x,double y) const{
+	NONS_SurfaceManager::index_t temp=sm.scale(this->data->surface,x,y);
+	if (temp.good()){
+		sm.deref(this->data->surface);
+		*this->data=NONS_Surface_Private(temp);
+	}
+}
+
+NONS_Surface NONS_ConstSurface::rotate(double alpha) const{
+	NONS_SurfaceManager::index_t temp=sm.rotate(this->data->surface,alpha);
+	if (temp.good()){
+		sm.deref(this->data->surface);
+		*this->data=NONS_Surface_Private(temp);
+	}
+}
+
+NONS_Surface NONS_ConstSurface::transform(double m[4]) const{
+	NONS_SurfaceManager::index_t temp=sm.transform(this->data->surface,m);
+	if (temp.good()){
+		sm.deref(this->data->surface);
+		*this->data=NONS_Surface_Private(temp);
+	}
+}
+
+void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
+	if (this->good())
+		this->data->surface->get_properties(sp);
+}
+
 NONS_Surface::NONS_Surface(const NONS_CrippledSurface &original){
 	this->data=new NONS_Surface_Private(original.data->surface);
 	sm.ref(this->data->surface);
@@ -344,23 +404,40 @@ NONS_Surface::NONS_Surface(ulong w,ulong h){
 	this->data=new NONS_Surface_Private(sm.allocate(w,h));
 }
 
-NONS_Surface::NONS_Surface(const std::wstring &name){
-	this->data=new NONS_Surface_Private(sm.load(name));
-}
-
-NONS_Surface::NONS_Surface(const NONS_Surface &original,double x,double y,double rotation){
-	if (x==1.0 && y==1.0 && fmod(rotation,360.0)==0.0){
+NONS_Surface &NONS_Surface::operator=(const NONS_Surface &original){
+	delete this->data;
+	if (original){
 		this->data=new NONS_Surface_Private(original.data->surface);
 		sm.ref(this->data->surface);
-	}else{
-		NONS_SurfaceManager::index_t temp=sm.scale(original.data->surface,x,y);
-		this->data=new NONS_Surface_Private(sm.rotate(temp,rotation));
-		sm.deref(temp);
 	}
 }
 
-NONS_Surface::NONS_Surface(const NONS_Surface &original,double m[4]){
-	this->data=new NONS_Surface_Private(sm.transform(original.data->surface,m));
+NONS_Surface &NONS_Surface::operator=(const std::wstring &name){
+	delete this->data;
+	this->data=new NONS_Surface_Private(sm.load(name));
+}
+	
+void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+	NONS_LongRect sr,
+		dr;
+	if (!fix_rects(sr,dr,dst_rect,src_rect,*this,src))
+		return;
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
+	src.get_properties(ssp);
+	this->get_properties(dsp);
+	ssp.pixels+=sr.x*4+sr.y*ssp.pitch;
+	dsp.pixels+=dr.x*4+dr.y*dsp.pitch;
+	for (ulong y=dr.h;y;y--){
+		memcpy(dsp.pixels,ssp.pixels,sr.w*4);
+		ssp.pixels+=ssp.pitch;
+		dsp.pixels+=dsp.pitch;
+	}
+}
+
+void NONS_Surface::get_properties(NONS_SurfaceProperties &sp) const{
+	if (this->good())
+		this->data->surface->get_properties(sp);
 }
 
 //------------------------------------------------------------------------------
@@ -368,24 +445,24 @@ NONS_Surface::NONS_Surface(const NONS_Surface &original,double m[4]){
 //------------------------------------------------------------------------------
 
 struct over_blend_parameters{
-	const NONS_SurfaceProperties *dst,
-		*src;
+	const NONS_SurfaceProperties *dst;
+	const NONS_ConstSurfaceProperties *src;
 	NONS_LongRect dst_rect,
 		src_rect;
 	long alpha;
 };
 
-void over_blend_threaded(const NONS_SurfaceProperties &dst,
-		const NONS_LongRect &dst_rect,
-		const NONS_SurfaceProperties &src,
-		const NONS_LongRect &src_rect,
+void over_blend_threaded(NONS_SurfaceProperties dst,
+		NONS_LongRect dst_rect,
+		NONS_ConstSurfaceProperties src,
+		NONS_LongRect src_rect,
 		long alpha);
 void over_blend_threaded(void *parameters);
 
 void over_blend(
 		const NONS_SurfaceProperties &dst,
 		const NONS_LongRect &dst_rect,
-		const NONS_SurfaceProperties &src,
+		const NONS_ConstSurfaceProperties &src,
 		const NONS_LongRect &src_rect,
 		long alpha){
 	if (cpu_count==1 || src_rect.w*src_rect.h<5000){
@@ -433,44 +510,29 @@ void over_blend_threaded(void *parameters){
 
 uchar integer_division_lookup[0x10000];
 
-//#define _APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
-#define _APPLY_ALPHA(c0,c1,a) ((((a)^0xFF)*(c1)+(a)*(c0))/255)
-#if defined _DEBUG
-#define APPLY_ALPHA _APPLY_ALPHA
-#else
-inline uchar APPLY_ALPHA(ulong c0,ulong c1,ulong a){
-	return (uchar)_APPLY_ALPHA(c0,c1,a);
-}
-#endif
-
-void over_blend_threaded(const NONS_SurfaceProperties &dst,
-		const NONS_LongRect &dst_rect,
-		const NONS_SurfaceProperties &src,
-		const NONS_LongRect &src_rect,
+void over_blend_threaded(
+		NONS_SurfaceProperties dst,
+		NONS_LongRect dst_rect,
+		NONS_ConstSurfaceProperties src,
+		NONS_LongRect src_rect,
 		long alpha){
 	int w=src_rect.w,
 		h=src_rect.h;
-	NONS_SurfaceProperties sp[]={
-		src,
-		dst
-	};
-	sp[0].pixels+=sp[0].pitch*src_rect.y+4*src_rect.x;
-	sp[1].pixels+=sp[1].pitch*dst_rect.y+4*dst_rect.x;
+	src.pixels+=src.pitch*src_rect.y+4*src_rect.x;
+	dst.pixels+=dst.pitch*dst_rect.y+4*dst_rect.x;
 
 	bool negate=(alpha<0);
 	if (negate)
 		alpha=-alpha;
 	for (int y=0;y<h;y++){
-		uchar *pos[]={
-			sp[0].pixels,
-			sp[1].pixels
-		};
+		const uchar *pos0=src.pixels;
+		uchar *pos1=dst.pixels;
 		for (int x=0;x<w;x++){
 			long rgba0[4];
 			uchar *rgba1[4];
 			for (int a=0;a<4;a++){
-				rgba0[a]=pos[0][a];
-				rgba1[a]=pos[1]+a;
+				rgba0[a]=pos0[a];
+				rgba1[a]=pos1+a;
 			}
 
 			rgba0[3]=INTEGER_MULTIPLICATION(rgba0[3],alpha);
@@ -484,88 +546,32 @@ void over_blend_threaded(const NONS_SurfaceProperties &dst,
 			}
 			
 			if (!(negate && rgba0[3])){
-				pos[0]+=4;
-				pos[1]+=4;
+				pos0+=4;
+				pos1+=4;
 				continue;
 			}
 			for (int a=0;a<3;a++)
 				*rgba1[a]=~*rgba1[a];
-			pos[0]+=4;
-			pos[1]+=4;
+			pos0+=4;
+			pos1+=4;
 		}
-		sp[0].pixels+=sp[0].pitch;
-		sp[1].pixels+=sp[1].pitch;
+		src.pixels+=src.pitch;
+		dst.pixels+=dst.pitch;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-NONS_Surface::~NONS_Surface(){
-	sm.deref(this->data->surface);
-	delete this->data;
-}
-
-void NONS_Surface::over(const NONS_Surface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect,long alpha){
+void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect,long alpha) const{
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(sr,dr,dst_rect,src_rect,*this,src))
 		return;
-	NONS_SurfaceProperties ssp,
-		dsp;
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
 	this->get_properties(dsp);
 	over_blend(dsp,dr,ssp,sr,alpha);
-}
-
-void NONS_Surface::copy_pixels(const NONS_Surface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect){
-	NONS_LongRect sr,
-		dr;
-	if (!fix_rects(sr,dr,dst_rect,src_rect,*this,src))
-		return;
-	NONS_SurfaceProperties ssp,
-		dsp;
-	src.get_properties(ssp);
-	this->get_properties(dsp);
-	ssp.pixels+=sr.x*4+sr.y*ssp.pitch;
-	dsp.pixels+=dr.x*4+dr.y*dsp.pitch;
-	for (ulong y=dr.h;y;y--){
-		memcpy(dsp.pixels,ssp.pixels,sr.w*4);
-		ssp.pixels+=ssp.pitch;
-		dsp.pixels+=dsp.pitch;
-	}
-}
-
-NONS_LongRect NONS_Surface::default_box(const NONS_LongRect *b) const{
-	return (b)?*b:this->data->rect;
-}
-
-void NONS_Surface::scale(double x,double y){
-	NONS_SurfaceManager::index_t temp=sm.scale(this->data->surface,x,y);
-	if (temp.good()){
-		sm.deref(this->data->surface);
-		*this->data=NONS_Surface_Private(temp);
-	}
-}
-
-void NONS_Surface::rotate(double alpha){
-	NONS_SurfaceManager::index_t temp=sm.rotate(this->data->surface,alpha);
-	if (temp.good()){
-		sm.deref(this->data->surface);
-		*this->data=NONS_Surface_Private(temp);
-	}
-}
-
-void NONS_Surface::transform(double m[4]){
-	NONS_SurfaceManager::index_t temp=sm.transform(this->data->surface,m);
-	if (temp.good()){
-		sm.deref(this->data->surface);
-		*this->data=NONS_Surface_Private(temp);
-	}
-}
-
-void NONS_Surface::get_properties(NONS_SurfaceProperties &sp) const{
-	if (this->good())
-		this->data->surface->get_properties(sp);
 }
 
 //------------------------------------------------------------------------------
@@ -577,27 +583,37 @@ struct interpolation_parameters{
 		*src;
 	NONS_LongRect dst_rect,
 		src_rect;
+	double x,y;
 };
 
-#define INTERPOLATION_SIGNATURE(x)\
-	void x(NONS_SurfaceProperties dst,NONS_LongRect dst_rect,NONS_SurfaceProperties src,NONS_LongRect src_rect)
-#define DECLARE_INTERPOLATION_F(x)\
-	INTERPOLATION_SIGNATURE(x);\
-	void x(void *parameters){\
-		interpolation_parameters *p=(interpolation_parameters *)parameters;\
-		x(*p->dst,p->dst_rect,*p->src,p->src_rect);\
+#define INTERPOLATION_SIGNATURE(x)  \
+	void x(                         \
+		NONS_SurfaceProperties dst, \
+		NONS_LongRect dst_rect,     \
+		NONS_SurfaceProperties src, \
+		NONS_LongRect src_rect,     \
+		double x_multiplier,        \
+		double y_multiplier         \
+	)
+#define DECLARE_INTERPOLATION_F(a)                                          \
+	INTERPOLATION_SIGNATURE(a);                                             \
+	void a(void *parameters){                                               \
+		interpolation_parameters *p=(interpolation_parameters *)parameters; \
+		a(*p->dst,p->dst_rect,*p->src,p->src_rect,p->x,p->y);               \
 	}
 
-#define NONS_Surface_DEFINE_INTERPOLATION_F(x,y)                    \
-	void NONS_Surface::x(                                           \
+#define NONS_Surface_DEFINE_INTERPOLATION_F(a,b)                    \
+	void NONS_Surface::a(                                           \
 		const NONS_Surface &src,                                    \
 		const NONS_LongRect *dst_rect,                              \
-		const NONS_LongRect *src_rect                               \
+		const NONS_LongRect *src_rect,                              \
+		double x,                                                   \
+		double y                                                    \
 	){                                                              \
-		this->x(y,src,dst_rect,src_rect); \
+		this->interpolation(b,src,dst_rect,src_rect,x,y);           \
 	}
 
-NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,bilinear_interpolation){
+NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(sr,dr,dst_rect,src_rect,*this,src))
@@ -645,12 +661,16 @@ NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,bilinear_interpolat
 }
 
 DECLARE_INTERPOLATION_F(bilinear_interpolation_threaded)
+DECLARE_INTERPOLATION_F(bilinear_interpolation2_threaded)
+DECLARE_INTERPOLATION_F(NN_interpolation_threaded)
+NONS_Surface_DEFINE_INTERPOLATION_F(NN_interpolation,NN_interpolation_threaded)
 NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation,bilinear_interpolation_threaded)
+NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation2,bilinear_interpolation2_threaded)
 
 INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 	const ulong unit=1<<16;
-	ulong advance_x=((src.w-1)<<16)/(dst.w-1),
-		advance_y=((src.h-1)<<16)/(dst.h-1);
+	ulong advance_x=ulong(65536.0/x_multiplier),
+		advance_y=ulong(65536.0/y_multiplier);
 	src_rect.w+=src_rect.x;
 	src_rect.h+=src_rect.y;
 	dst_rect.w+=dst_rect.x;
@@ -699,12 +719,10 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 	}
 }
 
-DECLARE_INTERPOLATION_F(bilinear_interpolation2_threaded)
-
 INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 	const ulong unit=1<<16;
-	ulong advance_x=((src.w-1)<<16)/(dst.w-1),
-		advance_y=((src.h-1)<<16)/(dst.h-1);
+	ulong advance_x=ulong(65536.0/x_multiplier),
+		advance_y=ulong(65536.0/y_multiplier);
 	ulong area=((advance_x>>8)*advance_y)>>8;
 	src_rect.w+=src_rect.x;
 	src_rect.h+=src_rect.y;
@@ -765,6 +783,34 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 }
 
 //------------------------------------------------------------------------------
+// NEAREST NEIGHBOR INTERPOLATION
+//------------------------------------------------------------------------------
+
+INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
+	const ulong unit=1<<16;
+	ulong advance_x=ulong(65536.0/x_multiplier),
+		advance_y=ulong(65536.0/y_multiplier);
+	src_rect.w+=src_rect.x;
+	src_rect.h+=src_rect.y;
+	dst_rect.w+=dst_rect.x;
+	dst_rect.h+=dst_rect.y;
+	long Y=dst_rect.y*advance_y;
+	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
+	for (long y=dst_rect.y;y<dst_rect.h;y++){
+		const uchar *src_pix=src.pixels+src.pitch*(Y>>16);
+		long X=dst_rect.x*advance_x;
+		uchar *dst_pix0=dst_pix;
+		for (long x=dst_rect.x;x<dst_rect.w;x++){
+			*(Uint32 *)dst_pix=*(const Uint32 *)(src_pix+(X>>16)*4);
+			X+=unit;
+			dst_pix+=4;
+		}
+		dst_pix=dst_pix0+dst.pitch;
+		Y+=unit;
+	}
+}
+
+//------------------------------------------------------------------------------
 
 NONS_Surface NONS_Surface::assign_screen(SDL_Surface *s){
 	sm.assign_screen(s);
@@ -794,15 +840,6 @@ NONS_SurfaceManager::Surface::Surface(ulong w,ulong h){
 
 NONS_SurfaceManager::Surface::~Surface(){
 	delete[] this->data;
-}
-
-void NONS_SurfaceManager::Surface::get_properties(NONS_SurfaceProperties &sp) const{
-	sp.pixels=this->data;
-	sp.w=this->w;
-	sp.h=this->h;
-	sp.pitch=this->w*4;
-	sp.pixel_count=this->h*this->w;
-	sp.byte_count=sp.pixel_count*4;
 }
 
 NONS_CrippledSurface::NONS_CrippledSurface(const NONS_Surface &original){

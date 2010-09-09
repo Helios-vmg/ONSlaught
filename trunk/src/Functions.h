@@ -782,7 +782,7 @@ struct NONS_BasicRect{
 		return (x>=this->x && y>=this->y && x<this->x+this->w && y<this->y+this->h);
 	}
 	bool point_is_inside(const NONS_BasicRect<T> &b){
-		return (b.x>=this->x && b.y>=this->y && b.x<this->x+this->w && b.y<this->y+this->h)
+		return (b.x>=this->x && b.y>=this->y && b.x<this->x+this->w && b.y<this->y+this->h);
 	}
 };
 typedef NONS_BasicRect<float> NONS_Rect;
