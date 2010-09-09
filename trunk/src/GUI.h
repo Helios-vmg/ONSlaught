@@ -84,27 +84,36 @@ class NONS_Glyph{
 	//style properties:
 	ulong size,
 		outline_size;
-	SDL_Color color,
+	NONS_Color color,
 		outline_color;
 	bool italic,
 		bold;
 	//~style properties
 	uchar *base_bitmap,
 		*outline_base_bitmap;
-	SDL_Rect bounding_box,
+	NONS_LongRect bounding_box,
 		outline_bounding_box;
 	ulong advance;
 public:
 	ulong refCount;
-	NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color);
+	NONS_Glyph(
+		NONS_FontCache &fc,
+		wchar_t codepoint,
+		ulong size,
+		const NONS_Color &color,
+		bool italic,
+		bool bold,
+		ulong outline_size,
+		const NONS_Color &outline_color
+	);
 	~NONS_Glyph();
 	bool operator<(const NONS_Glyph &b) const{ return this->codepoint<b.codepoint; }
-	void setColor(const SDL_Color &color){ this->color=color; }
-	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
+	void setColor(const NONS_Color &color){ this->color=color; }
+	void setOutlineColor(const NONS_Color &color){ this->outline_color=color; }
 	ulong get_advance_fixed() const{ return this->advance; }
-	const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
-	SDL_Rect get_put_bounding_box(Sint16 x,Sint16 y) const{
-		SDL_Rect ret=(!this->outline_base_bitmap)?this->bounding_box:this->outline_bounding_box;
+	const NONS_LongRect &get_bounding_box() const{ return this->bounding_box; }
+	NONS_LongRect get_put_bounding_box(long x,long y) const{
+		NONS_LongRect ret=(!this->outline_base_bitmap)?this->bounding_box:this->outline_bounding_box;
 		ret.x+=x;
 		ret.y+=y;
 		return ret;
@@ -143,13 +152,13 @@ public:
 #ifdef _DEBUG
 	std::string declared_in;
 	ulong line;
-	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color,const char *file,ulong line);
+	NONS_FontCache(NONS_Font &font,ulong size,const NONS_Color &color,bool italic,bool bold,ulong outline_size,const NONS_Color &outline_color,const char *file,ulong line);
 	NONS_FontCache(const NONS_FontCache &fc,const char *file,ulong line);
 private:
 	NONS_FontCache(const NONS_FontCache &fc);
 public:
 #else
-	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color);
+	NONS_FontCache(NONS_Font &font,ulong size,const NONS_Color &color,bool italic,bool bold,ulong outline_size,const NONS_Color &outline_color);
 	NONS_FontCache(const NONS_FontCache &fc);
 #endif
 	~NONS_FontCache();
@@ -241,8 +250,8 @@ public:
 	void merge(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0);
 	void mergeWithoutUpdate(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0);
 	bool MouseOver(int x,int y){
-		float posx=this->posx+this->box.x,
-			posy=this->posy+this->box.y;
+		float posx=float(this->posx+this->box.x),
+			posy=float(this->posy+this->box.y);
 		return MOUSE_OVER(x,y,posx,posy,this->box.w,this->box.h);
 	}
 	virtual void dummy()=0;
@@ -366,17 +375,17 @@ struct NONS_ButtonLayer{
 	int getUserInput(ulong expiration=0);
 	ulong countActualButtons();
 private:
-	bool react_to_movement(int &mouseOver,SDL_Event *event,SDL_Surface *screenCopy);
-	void react_to_updown(int &mouseOver,SDLKey key,SDL_Surface *screenCopy);
-	bool react_to_click(int &mouseOver,SDL_Surface *screenCopy);
+	bool react_to_movement(int &mouseOver,SDL_Event *event,const NONS_ConstSurface &screenCopy);
+	void react_to_updown(int &mouseOver,SDLKey key,const NONS_ConstSurface &screenCopy);
+	bool react_to_click(int &mouseOver,const NONS_ConstSurface &screenCopy);
 };
 
 struct NONS_Menu{
 	std::vector<std::wstring> strings;
 	std::vector<std::wstring> commands;
-	SDL_Color off;
-	SDL_Color on;
-	SDL_Color nofile;
+	NONS_Color off,
+		on,
+		nofile;
 	bool shadow;
 	NONS_ButtonLayer *buttons;
 	ushort slots;
@@ -386,7 +395,7 @@ struct NONS_Menu{
 	NONS_FontCache *font_cache,
 		*default_font_cache;
 	long fontsize,spacing,lineskip;
-	SDL_Color shadeColor;
+	NONS_Color shadeColor;
 	std::wstring stringSave;
 	std::wstring stringLoad;
 	std::wstring stringSlot;

@@ -106,6 +106,14 @@ struct NONS_Color{
 		}
 		return r;
 	}
+	bool operator==(const NONS_Color &b){
+		Uint32 A=*(Uint32 *)this->rgba;
+		Uint32 B=*(Uint32 *)b.rgba;
+		return A==B;
+	}
+	bool operator!=(const NONS_Color &b){
+		return !(*this==b);
+	}
 };
 
 class NONS_Surface;
