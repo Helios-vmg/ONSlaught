@@ -138,6 +138,7 @@ class NONS_VirtualScreen{
 #endif
 	NONS_Mutex mutex;
 	NONS_Rect outRect;
+	bool fullscreen;
 public:
 	ulong post_filter,
 		pre_inter,
@@ -149,7 +150,6 @@ public:
 		x_divisor,
 		y_divisor;
 	NONS_Surface::public_interpolation_f normalInterpolation;
-	bool fullscreen;
 
 	NONS_Thread asyncEffectThread;
 	bool killAsyncEffect;
@@ -168,36 +168,33 @@ public:
 	NONS_DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
 	NONS_DECLSPEC void updateWholeScreen(bool fast=0);
 	NONS_Surface get_screen();
+	NONS_Surface get_real_screen();
 	//If 0, to window; if 1, to fullscreen; if 2, toggle.
 	bool toggleFullscreen(uchar mode=2);
 	SDL_Surface *toggleFullscreenFromVideo();
-	float convertX(float x){
-		return this->convertW(x)+this->outRect.x;
+	template <typename T>
+	float convertX(T x){
+		return (float)this->convertW(x)+this->outRect.x;
 	}
-	float convertY(float y){
-		return this->convertH(y)+this->outRect.y;
+	template <typename T>
+	float convertY(T y){
+		return (float)this->convertH(y)+this->outRect.y;
 	}
-	float unconvertX(float x){
-		return (x-this->outRect.x)/this->x_multiplier;
+	template <typename T>
+	float unconvertX(T x){
+		return ((float)x-this->outRect.x)/this->x_multiplier;
 	}
-	float unconvertY(float y){
-		return (y-this->outRect.y)/this->y_multiplier;
+	template <typename T>
+	float unconvertY(T y){
+		return ((float)y-this->outRect.y)/this->y_multiplier;
 	}
-	float convertW(float w){
-		ulong r=ulong((w*256.f)*this->x_multiplier);
-		if ((r&0xFFFF)>0)
-			r=(r>>16)+1;
-		else
-			r>>=16;
-		return (float)r;
+	template <typename T>
+	float convertW(T w){
+		return floor((((float)w*256.f)*this->x_multiplier)+.5f);
 	}
-	float convertH(float h){
-		ulong r=ulong((h*256.f)*this->y_multiplier);
-		if ((r&0xFFFF)>0)
-			r=(r>>16)+1;
-		else
-			r>>=16;
-		return (float)r;
+	template <typename T>
+	float convertH(T h){
+		return floor((((float)h*256.f)*this->y_multiplier)+.5f);
 	}
 	NONS_DECLSPEC void updateWithoutLock(bool fast=0);
 	std::string takeScreenshot(const std::string &filename="");
@@ -208,6 +205,10 @@ public:
 	ErrorCode applyFilter(ulong effectNo,const NONS_Color &color,const std::wstring &rule);
 	void changeState(bool switchAsyncState,bool switchFilterState);
 	void printCurrentState();
+	bool get_fullscreen(){
+		NONS_MutexLocker ml(this->mutex);
+		return this->fullscreen;
+	}
 };
 
 FILTER_EFFECT_F(effectMonochrome);

@@ -30,6 +30,7 @@
 #include "ScriptInterpreter.h"
 #include "IOFunctions.h"
 #include "CommandLineOptions.h"
+#include "Image.h"
 #include "Plugin/LibraryLoader.h"
 #include <iomanip>
 #include <iostream>
@@ -619,10 +620,9 @@ void NONS_ScriptInterpreter::init(){
 				o_stderr <<"FATAL ERROR: \""<<fontfile<<"\" is not a valid font file.\n";
 			exit(0);
 		}
-		SDL_Color white={255,255,255,255},
-			black={0,0,0,255};
+		NONS_Color white(255,255,255,255);
 		ulong fs=this->defaultfs*this->virtual_size[1]/this->base_size[1];
-		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,0,black FONTCACHE_DEBUG_PARAMETERS);
+		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,0,NONS_Color() FONTCACHE_DEBUG_PARAMETERS);
 	}
 	if (!CLOptions.play.size()){
 		if (!this->script){
@@ -643,7 +643,7 @@ void NONS_ScriptInterpreter::init(){
 	}
 	{
 		labellog.init(L"NScrllog.dat",L"nonsllog.dat");
-		ImageLoader.init();
+		NONS_Surface::init_loader();
 		o_stdout <<"Global files go in \""<<config_directory<<"\".\n";
 		o_stdout <<"Local files go in \""<<save_directory<<"\".\n";
 		this->audio=new NONS_Audio(CLOptions.musicDirectory);
@@ -678,12 +678,8 @@ void NONS_ScriptInterpreter::init(){
 	}
 	this->gfx_store=this->screen->gfx_store;
 	this->hideTextDuringEffect=1;
-	this->selectOn.r=0xFF;
-	this->selectOn.g=0xFF;
-	this->selectOn.b=0xFF;
-	this->selectOff.r=0xA9;
-	this->selectOff.g=0xA9;
-	this->selectOff.b=0xA9;
+	this->selectOn=0xFFFFFF;
+	this->selectOff=0xA9A9A9;
 	this->autoclick=0;
 	this->timer=SDL_GetTicks();
 	this->menu=new NONS_Menu(this);
@@ -692,7 +688,7 @@ void NONS_ScriptInterpreter::init(){
 	this->btnTimer=0;
 	this->imageButtonExpiration=0;
 	this->printed_lines.clear();
-	this->screen->char_baseline=this->screen->screen->inRect.h-1;
+	this->screen->char_baseline=(long)this->screen->screen->inRect.h-1;
 	this->useWheel=0;
 	this->useEscapeSpace=0;
 	this->screenshot=0;
@@ -720,8 +716,7 @@ void NONS_ScriptInterpreter::uninit(){
 	settings.writeOut(config_directory+settings_filename);
 
 	this->textgosub.clear();
-	if (!!this->screenshot)
-		SDL_FreeSurface(this->screenshot);
+	this->screenshot.unbind();
 	while (this->callStack.size()){
 		delete this->callStack.back();
 		this->callStack.pop_back();
@@ -943,15 +938,15 @@ struct ff_file{
 
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){
 	NONS_LibraryLoader video_player("video_player",0);
-#define play_video_TRY_GET_FUNCTION(type,name,string)\
-	type name=(type)video_player.getFunction(string);\
-	if (!name){\
-		switch (video_player.error){\
-			case NONS_LibraryLoader::LIBRARY_NOT_FOUND:\
-				return NONS_LIBRARY_NOT_FOUND;\
-			case NONS_LibraryLoader::FUNCTION_NOT_FOUND:\
-				return NONS_FUNCTION_NOT_FOUND;\
-		}\
+#define play_video_TRY_GET_FUNCTION(type,name,string)    \
+	type name=(type)video_player.getFunction(string);    \
+	if (!name){                                          \
+		switch (video_player.error){                     \
+			case NONS_LibraryLoader::LIBRARY_NOT_FOUND:  \
+				return NONS_LIBRARY_NOT_FOUND;           \
+			case NONS_LibraryLoader::FUNCTION_NOT_FOUND: \
+				return NONS_FUNCTION_NOT_FOUND;          \
+		}                                                \
 	}
 	play_video_TRY_GET_FUNCTION(
 		video_playback_fp,
@@ -983,9 +978,8 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		success=0;
 		exception_string="File not found.";
 	}else{
-		NONS_MutexLocker ml(screenMutex);
-		SDL_Surface *screen=this->screen->screen->screens[REAL];
-		SDL_FillRect(screen,0,0);
+		NONS_Surface screen=this->screen->screen->get_real_screen();
+		screen.fill(NONS_Color());
 		int stop=0,
 			toggle_fullscreen=0,
 			take_screenshot=0;
@@ -1008,7 +1002,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		}
 		C_play_video_params parameters={
 			C_PLAY_VIDEO_PARAMS_VERSION,
-			screen,
+			screen.get_SDL_screen(),
 			&utf8_filename_copy[0],
 			&playback_params,
 			sizeof(pairs)/sizeof(*pairs),
@@ -1125,9 +1119,9 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from
 		case 1:
 			if (scr->Background->load(&filename)){
 				{
-					NONS_MutexLocker ml(screenMutex);
-					scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
-					scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
+					NONS_LongRect rect=NONS_LongRect(scr->screen->inRect);
+					scr->Background->position.x=(rect.w-scr->Background->clip_rect.w)/2;
+					scr->Background->position.y=(rect.h-scr->Background->clip_rect.h)/2;
 					scr->BlendOnlyBG(1);
 				}
 				generic_play_loop(1);
@@ -1770,10 +1764,8 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 								parsed|=HEX2DEC(hex);
 							}
 							if (a==6){
-								SDL_Color color=this->screen->output->foregroundLayer->fontCache->get_color();
-								color.r=parsed>>16;
-								color.g=(parsed&0xFF00)>>8;
-								color.b=(parsed&0xFF);
+								NONS_Color color/*=this->screen->output->foregroundLayer->fontCache->get_color()*/;
+								color=parsed;
 								this->screen->output->foregroundLayer->fontCache->setColor(color);
 								reduced+=6;
 								break;
@@ -1951,14 +1943,9 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	this->font_cache->set_size(save.fontSize);
 	this->font_cache->spacing=save.spacing;
 	this->font_cache->line_skip=save.lineSkip;
-	scr->resetParameters(&save.textWindow,&save.windowFrame,*this->font_cache,save.fontShadow);
+	scr->resetParameters(save.textWindow,save.windowFrame,*this->font_cache,save.fontShadow);
 	NONS_StandardOutput *out=scr->output;
-	/*out->shadeLayer->clip_rect=save.textWindow;
-	out->x0=save.windowFrame.x;
-	out->y0=save.windowFrame.y;
-	out->w=save.windowFrame.w;
-	out->h=save.windowFrame.h;*/
-	out->shadeLayer->setShade(save.windowColor.r,save.windowColor.g,save.windowColor.b);
+	out->shadeLayer->setShade(save.windowColor);
 	out->shadeLayer->Clear();
 	out->transition->effect=save.windowTransition;
 	out->transition->duration=save.windowTransitionDuration;
@@ -2014,18 +2001,21 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 			scr->Background->load(&save.background);
 	}else{
 		if (!scr->Background){
-			unsigned rgb=(save.bgColor.r<<rshift)|(save.bgColor.g<<gshift)|(save.bgColor.b<<bshift);
-			scr->Background=new NONS_Layer(&scr->screen->inRect,rgb);
+			scr->Background=new NONS_Layer(NONS_LongRect(scr->screen->inRect),save.bgColor);
 		}else{
-			scr->Background->setShade(save.bgColor.r,save.bgColor.g,save.bgColor.b);
+			scr->Background->setShade(save.bgColor);
 			scr->Background->Clear();
 		}
 	}
 	if (save.version>1)
 		scr->char_baseline=save.char_baseline;
 	else
-		scr->char_baseline=scr->screenBuffer->clip_rect.h-1;
-	NONS_Layer **characters[]={&scr->leftChar,&scr->centerChar,&scr->rightChar};
+		scr->char_baseline=scr->screenBuffer.clip_rect().h-1;
+	NONS_Layer **characters[]={
+		&scr->leftChar,
+		&scr->centerChar,
+		&scr->rightChar
+	};
 	for (int a=0;a<3;a++){
 		(*characters[a])->unload();
 		if (!save.characters[a].string.size())
@@ -2066,20 +2056,15 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	au->stopAllSound();
 	out->ephemeralOut(&out->currentBuffer,0,0,1,0);
 	{
-		ulong w,h;
-		{
-			NONS_MutexLocker ml(screenMutex);
-			w=scr->screen->screens[VIRTUAL]->w;
-			h=scr->screen->screens[VIRTUAL]->h;
-		}
-		SDL_Surface *srf=makeSurface(w,h,32);
-		SDL_FillRect(srf,0,amask);
-		NONS_GFX::callEffect(10,1000,0,srf,0,scr->screen);
-		SDL_FreeSurface(srf);
+		ulong w=(ulong)scr->screen->inRect.w,
+			h=(ulong)scr->screen->inRect.h;
+		NONS_Surface s(w,h);
+		s.fill(NONS_Color());
+		NONS_GFX::callEffect(10,1000,0,s,NONS_Surface(),*scr->screen);
 	}
 	SDL_Delay(1500);
 	scr->BlendNoCursor(10,1000,0);
-	this->screen->screen->applyFilter(0,SDL_Color(),L"");
+	this->screen->screen->applyFilter(0,NONS_Color(),L"");
 	for (ulong a=0;a<save.pipelines[1].size();a++){
 		pipelineElement &el=save.pipelines[1][a];
 		this->screen->screen->applyFilter(el.effectNo+1,el.color,el.ruleStr);
@@ -2190,10 +2175,7 @@ bool NONS_ScriptInterpreter::save(int file){
 		this->saveGame->windowFrame.y=out->y0;
 		this->saveGame->windowFrame.w=out->w;
 		this->saveGame->windowFrame.h=out->h;
-		ulong color=out->shadeLayer->defaultShade;
-		this->saveGame->windowColor.r=(color>>rshift)&0xFF;
-		this->saveGame->windowColor.g=(color>>gshift)&0xFF;
-		this->saveGame->windowColor.b=(color>>bshift)&0xFF;
+		this->saveGame->windowColor=out->shadeLayer->defaultShade;
 		this->saveGame->windowTransition=out->transition->effect;
 		this->saveGame->windowTransitionDuration=out->transition->duration;
 		this->saveGame->windowTransitionRule=out->transition->rule;
@@ -2228,16 +2210,9 @@ bool NONS_ScriptInterpreter::save(int file){
 		}
 		//graphic
 		{
-			NONS_Image *i=ImageLoader.elementFromSurface(scr->Background->data);
-			if (i){
-				this->saveGame->background=i->animation.getString();
-			}else{
-				this->saveGame->background.clear();
-				color=scr->Background->defaultShade;
-				this->saveGame->bgColor.r=(color>>rshift)&0xFF;
-				this->saveGame->bgColor.g=(color>>gshift)&0xFF;
-				this->saveGame->bgColor.b=(color>>bshift)&0xFF;
-			}
+			this->saveGame->background=scr->Background->data.get_animation_info().getString();
+			if (!this->saveGame->background.size())
+				this->saveGame->bgColor=scr->Background->defaultShade;
 		}
 		this->saveGame->char_baseline=scr->char_baseline;
 		NONS_Layer **characters[]={&scr->leftChar,&scr->centerChar,&scr->rightChar};
@@ -2272,9 +2247,8 @@ bool NONS_ScriptInterpreter::save(int file){
 			}else{
 				if (!b){
 					NONS_SaveFile::Sprite *spr=new NONS_SaveFile::Sprite();
-					NONS_Image *i=ImageLoader.elementFromSurface(c->data);
-					if (i){
-						spr->string=i->animation.getString();
+					spr->string=c->data.get_animation_info().getString();
+					if (spr->string.size()){
 						this->saveGame->sprites[a]=spr;
 						b=spr;
 					}else
@@ -2325,7 +2299,7 @@ bool NONS_ScriptInterpreter::save(int file){
 	bool ret=this->saveGame->save(save_directory+L"save"+itoaw(file)+L".dat");
 	//Also save user data
 	this->store->saveData();
-	ImageLoader.filelog->writeOut();
+	NONS_Surface::filelog_writeout();
 	return ret;
 }
 
@@ -2392,12 +2366,12 @@ ErrorCode NONS_ScriptInterpreter::command_add_filter(NONS_Statement &stmt){
 	GET_INT_VALUE(effect,0);
 	if (stdStrCmpCI(stmt.commandName,L"add_filter")){
 		if (!effect)
-			this->screen->screen->applyFilter(0,SDL_Color(),L"");
+			this->screen->screen->applyFilter(0,NONS_Color(),L"");
 		else{
 			MINIMUM_PARAMETERS(3);
 			GET_INT_VALUE(rgb,1);
 			GET_STR_VALUE(rule,2);
-			ErrorCode error=this->screen->screen->applyFilter(effect,rgb2SDLcolor(rgb),rule);
+			ErrorCode error=this->screen->screen->applyFilter(effect,rgb,rule);
 			if (error!=NONS_NO_ERROR)
 				return error;
 		}
@@ -2411,7 +2385,7 @@ ErrorCode NONS_ScriptInterpreter::command_add_filter(NONS_Statement &stmt){
 			effect--;
 			if ((ulong)effect>=NONS_GFX::filters.size())
 				return NONS_NO_EFFECT;
-			this->screen->filterPipeline.push_back(pipelineElement(effect,rgb2SDLcolor(rgb),rule,0));
+			this->screen->filterPipeline.push_back(pipelineElement(effect,rgb,rule,0));
 		}
 	}
 	return NONS_NO_ERROR;
@@ -2518,8 +2492,7 @@ ErrorCode NONS_ScriptInterpreter::command_bar(NONS_Statement &stmt){
 	if (total_value<0)
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
 	GET_INT_VALUE(rgb_color,7);
-	SDL_Color color=rgb2SDLcolor(rgb_color);
-	this->screen->addBar(barNo,current_value,x,y,w,h,total_value,color);
+	this->screen->addBar(barNo,current_value,x,y,w,h,total_value,rgb_color);
 	this->screen->hideTextWindow();
 	return NONS_NO_ERROR;
 }
@@ -2536,8 +2509,10 @@ ErrorCode NONS_ScriptInterpreter::command_base_resolution(NONS_Statement &stmt){
 	GET_INT_VALUE(h,1);
 	this->base_size[0]=w;
 	this->base_size[1]=h;
-	for (int a=0;a<2;a++)
-		ImageLoader.base_scale[a]=double(this->virtual_size[a])/double(this->base_size[a]);
+	NONS_Surface::set_base_scale(
+		double(this->virtual_size[0])/double(this->base_size[0]),
+		double(this->virtual_size[1])/double(this->base_size[1])
+	);
 	ulong size=this->defaultfs*this->virtual_size[1]/this->base_size[1];
 	this->font_cache->set_size(size);
 	this->screen->output->set_size(size);
@@ -2550,24 +2525,21 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	long color=0;
 	scr->hideTextWindow();
 	if (!stdStrCmpCI(stmt.parameters[0],L"white")){
-		scr->Background->setShade(-1,-1,-1);
+		scr->Background->setShade(NONS_Color::white);
 		scr->Background->Clear();
 	}else if (!stdStrCmpCI(stmt.parameters[0],L"black")){
-		scr->Background->setShade(0,0,0);
+		scr->Background->setShade(NONS_Color::black);
 		scr->Background->Clear();
 	}else if (this->store->getIntValue(stmt.parameters[0],color,0)==NONS_NO_ERROR){
-		char r=char((color&0xFF0000)>>16),
-			g=(color&0xFF00)>>8,
-			b=(color&0xFF);
-		scr->Background->setShade(r,g,b);
+		scr->Background->setShade(color);
 		scr->Background->Clear();
 	}else{
 		std::wstring filename;
 		GET_STR_VALUE(filename,0);
 		scr->Background->load(&filename);
-		NONS_MutexLocker ml(screenMutex);
-		scr->Background->position.x=(scr->screen->screens[VIRTUAL]->w-scr->Background->clip_rect.w)/2;
-		scr->Background->position.y=(scr->screen->screens[VIRTUAL]->h-scr->Background->clip_rect.h)/2;
+		NONS_LongRect rect=NONS_LongRect(scr->screen->inRect);
+		scr->Background->position.x=(rect.w-scr->Background->clip_rect.w)/2;
+		scr->Background->position.y=(rect.h-scr->Background->clip_rect.h)/2;
 	}
 	scr->leftChar->unload();
 	scr->rightChar->unload();
@@ -2587,8 +2559,7 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_bgcopy(NONS_Statement &stmt){
-	NONS_MutexLocker ml(screenMutex);
-	this->screen->Background->load(this->screen->screen->screens[VIRTUAL]);
+	this->screen->Background->load(this->screen->screen->get_screen());
 	return NONS_NO_ERROR;
 }
 
@@ -2606,21 +2577,25 @@ ErrorCode NONS_ScriptInterpreter::command_blt(NONS_Statement &stmt){
 	GET_COORDINATE(imgY,1,5);
 	GET_COORDINATE(imgW,0,6);
 	GET_COORDINATE(imgH,1,7);
-	NONS_Rect dstRect(screenX,screenY,screenW,screenH),
-		srcRect(imgX,imgY,imgW,imgH);
-	void (*interpolationFunction)(SDL_Surface *,SDL_Rect *,SDL_Surface *,SDL_Rect *,ulong,ulong)=&nearestNeighborInterpolation;
-	ulong x_multiplier=1,y_multiplier=1;
+	NONS_LongRect dstRect((long)screenX,(long)screenY,(long)screenW,(long)screenH),
+		srcRect((long)imgX,(long)imgY,(long)imgW,(long)imgH);
+	//void (*interpolationFunction)(SDL_Surface *,SDL_Rect *,SDL_Surface *,SDL_Rect *,ulong,ulong)=&nearestNeighborInterpolation;
+	double x_multiplier=1,y_multiplier=1;
 	if (imgW==screenW && imgH==screenH){
-		NONS_MutexLocker ml(screenMutex);
-		manualBlit(this->imageButtons->loadedGraphic,&srcRect.to_SDL_Rect(),this->screen->screen->screens[VIRTUAL],&dstRect.to_SDL_Rect());
+		this->screen->screen->get_screen().over(
+			this->imageButtons->loadedGraphic,
+			&dstRect,
+			&srcRect
+		);
 	}else{
-		x_multiplier=(ulong(screenW)<<8)/ulong(imgW);
-		y_multiplier=(ulong(screenH)<<8)/ulong(imgH);
-		NONS_MutexLocker ml(screenMutex);
-		interpolationFunction(
-			this->imageButtons->loadedGraphic,&srcRect.to_SDL_Rect(),
-			this->screen->screen->screens[VIRTUAL],
-			&dstRect.to_SDL_Rect(),x_multiplier,y_multiplier
+		x_multiplier=(double)screenW/(double)imgW;
+		y_multiplier=(double)screenH/(double)imgH;
+		this->screen->screen->get_screen().NN_interpolation(
+			this->imageButtons->loadedGraphic,
+			&dstRect,
+			&srcRect,
+			x_multiplier,
+			y_multiplier
 		);
 	}
 	this->screen->screen->updateScreen((ulong)dstRect.x,(ulong)dstRect.y,(ulong)dstRect.w,(ulong)dstRect.h);
@@ -2687,24 +2662,15 @@ ErrorCode NONS_ScriptInterpreter::command_btndef(NONS_Statement &stmt){
 	std::wstring filename;
 	GET_STR_VALUE(filename,0);
 	if (!filename.size()){
-		SDL_Surface *tmpSrf;
-		{
-			NONS_MutexLocker ml(screenMutex);
-			tmpSrf=makeSurface(
-				this->screen->screen->screens[VIRTUAL]->w,
-				this->screen->screen->screens[VIRTUAL]->h,
-				32);
-		}
+		NONS_Surface tmpSrf=this->screen->screen->get_screen().clone_without_pixel_copy();
 		this->imageButtons=new NONS_ButtonLayer(tmpSrf,this->screen);
 		this->imageButtons->inputOptions.Wheel=this->useWheel;
 		this->imageButtons->inputOptions.EscapeSpace=this->useEscapeSpace;
 		return NONS_NO_ERROR;
 	}
-	SDL_Surface *img;
-	if (!ImageLoader.fetchSprite(img,filename)){
-		ImageLoader.unfetchImage(img);
+	NONS_Surface img=filename;
+	if (!img)
 		return NONS_FILE_NOT_FOUND;
-	}
 	this->imageButtons=new NONS_ButtonLayer(img,this->screen);
 	this->imageButtons->inputOptions.Wheel=this->useWheel;
 	this->imageButtons->inputOptions.EscapeSpace=this->useEscapeSpace;
@@ -2960,8 +2926,7 @@ ErrorCode NONS_ScriptInterpreter::command_delay(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_deletescreenshot(NONS_Statement &stmt){
-	if (!!this->screenshot)
-		SDL_FreeSurface(this->screenshot);
+	this->screenshot.unbind();
 	return NONS_NO_ERROR;
 }
 
@@ -2982,28 +2947,22 @@ ErrorCode NONS_ScriptInterpreter::command_dim(NONS_Statement &stmt){
 #ifndef DRAW_TO_SCREEN
 #define DRAW_BUFFER (this->screen->screenBuffer)
 #else
-#define DRAW_BUFFER (this->screen->screen->screens[VIRTUAL])
+#define DRAW_BUFFER (this->screen->screen->get_screen())
 #endif
 
 ErrorCode NONS_ScriptInterpreter::command_draw(NONS_Statement &stmt){
 #ifndef DRAW_TO_SCREEN
 	this->screen->screen->blitToScreen(DRAW_BUFFER,0,0);
 #endif
-	NONS_MutexLocker ml(screenMutex);
-	this->screen->screen->updateWithoutLock();
+	this->screen->screen->updateWholeScreen();
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
-	SDL_Surface *dst=DRAW_BUFFER;
 	if (!this->screen->Background || !this->screen->Background->data)
-		SDL_FillRect(dst,0,dst->format->Amask);
+		DRAW_BUFFER.fill(NONS_Color::black);
 	else if (!stdStrCmpCI(stmt.commandName,L"drawbg"))
-		manualBlit(
-			this->screen->Background->data,
-			0,
-			dst,
-			&this->screen->Background->position.to_SDL_Rect());
+		DRAW_BUFFER.over(this->screen->Background->data,&this->screen->Background->position);
 	else{
 		MINIMUM_PARAMETERS(5);
 		float x,y;
@@ -3014,80 +2973,24 @@ ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
 		GET_INT_VALUE(yscale,3);
 		GET_INT_VALUE(angle,4);
 		if (!(xscale*yscale))
-			SDL_FillRect(DRAW_BUFFER,0,DRAW_BUFFER->format->Amask);
+			DRAW_BUFFER.fill(NONS_Color::black);
 		else{
-			SDL_Surface *src=this->screen->Background->data;
-			NONS_Image *img=ImageLoader.elementFromSurface(src);
-			bool freeSrc=0;
-
-			if (xscale<0 || yscale<0){
-				SDL_Surface *temp=makeSurface(src->w,src->h,32);
-				if (yscale>0)
-					FlipSurfaceH(src,temp);
-				else if (xscale>0)
-					FlipSurfaceV(src,temp);
-				else
-					FlipSurfaceHV(src,temp);
-				xscale=ABS(xscale);
-				yscale=ABS(yscale);
-				src=temp;
-				freeSrc=1;
-			}
-
-			if (src->format->BitsPerPixel!=32){
-				SDL_Surface *temp=makeSurface(src->w,src->h,32);
-				manualBlit(src,0,temp,0);
-				freeSrc=1;
-				src=temp;
-			}
-			if (img->svg_source){
-				ImageLoader.svg_functions.SVG_set_scale(img->svg_source,double(xscale)/100.0,double(yscale)/100.0);
-				ImageLoader.svg_functions.SVG_set_rotation(img->svg_source,-double(angle));
-				ImageLoader.svg_functions.SVG_add_scale(img->svg_source,ImageLoader.base_scale[0],ImageLoader.base_scale[1]);
-				SDL_Surface *temp=ImageLoader.svg_functions.SVG_render(img->svg_source);
-				if (freeSrc)
-					SDL_FreeSurface(src);
-				freeSrc=1;
-				src=temp;
-			}else{
-				if (xscale!=100 || yscale!=100){
-					SDL_Surface *temp=resizeFunction(src,src->w*xscale/100,src->h*yscale/100);
-					if (freeSrc)
-						SDL_FreeSurface(src);
-					freeSrc=1;
-					src=temp;
-				}
-				if (angle!=0){
-					SDL_Surface *temp=rotationFunction(src,double(angle)/180*M_PI);
-					if (freeSrc)
-						SDL_FreeSurface(src);
-					freeSrc=1;
-					src=temp;
-				}
-			}
-			SDL_Rect dstR={
-				Sint16(-long(src->clip_rect.w/2)+x),
-				Sint16(-long(src->clip_rect.h/2)+y),
-				0,0
-			};
-			manualBlit(src,0,dst,&dstR);
-			if (freeSrc)
-				SDL_FreeSurface(src);
+			NONS_Surface src=this->screen->Background->data;
+			src=src.scale(double(xscale)/100.0,double(yscale)/100.0);
+			src=src.rotate(double(angle)/180.0*M_PI);
+			NONS_LongRect dstR=src.clip_rect();
+			dstR.x=(long)x-dstR.w/2;
+			dstR.y=(long)y-dstR.h/2;
+			dstR.w=0;
+			dstR.h=0;
+			DRAW_BUFFER.over(src,&dstR);
 		}
 	}
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_drawclear(NONS_Statement &stmt){
-	SDL_Surface *dst=DRAW_BUFFER;
-	SDL_LockSurface(dst);
-	surfaceData sd=dst;
-	Uint32 *p=(Uint32 *)sd.pixels;
-	Uint32 mask=dst->format->Amask;
-	for (ulong n=sd.w*sd.h;n;n--)
-		*p++=mask;
-	SDL_UnlockSurface(dst);
-	//SDL_FillRect(dst,0,dst->format->Amask);
+	DRAW_BUFFER.fill(NONS_Color::black);
 	return NONS_NO_ERROR;
 }
 
@@ -3097,12 +3000,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawfill(NONS_Statement &stmt){
 	GET_INT_VALUE(r,0);
 	GET_INT_VALUE(g,1);
 	GET_INT_VALUE(b,2);
-	r=ulong(r)&0xFF;
-	g=ulong(g)&0xFF;
-	b=ulong(b)&0xFF;
-	SDL_Surface *dst=DRAW_BUFFER;
-	surfaceData sd(dst);
-	SDL_FillRect(dst,0,r<<sd.Roffset|g<<sd.Goffset|b<<sd.Boffset|0xFF<<sd.Aoffset);
+	DRAW_BUFFER.fill(NONS_Color(Uint8(r&0xFF),Uint8(g&0xFF),Uint8(b&0xFF)));
 	return NONS_NO_ERROR;
 }
 
@@ -3149,136 +3047,78 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 	NONS_Layer *sprite=sprites[spriteno];
 	if (!sprite || !sprite->data)
 		return NONS_NO_SPRITE_LOADED_THERE;
-	SDL_Surface *src=sprite->data;
-	NONS_Image *img=ImageLoader.elementFromSurface(src);
+	NONS_Surface src=sprite->data;
+	//NONS_Image *img=ImageLoader.elementFromSurface(src);
 	if (cell<0 || (ulong)cell>=sprite->animation.animation_length)
 		return NONS_NO_ERROR;
 	if (functionVersion==2 && !(xscale*yscale))
 		return NONS_NO_ERROR;
 
 
-	SDL_Rect srcRect=sprite->clip_rect.to_SDL_Rect();
-	srcRect.x=Sint16(src->w/sprite->animation.animation_length*cell);
+	NONS_LongRect srcRect=sprite->clip_rect;
+	srcRect.x=src.clip_rect().w/sprite->animation.animation_length*cell;
 	srcRect.y=0;
-	SDL_Rect dstRect={(Sint16)x,(Sint16)y,0,0};
+	NONS_LongRect dstRect((long)x,(long)y,0,0);
 
 
 	bool freeSrc=0;
 	if (functionVersion>1){
-		SDL_Surface *temp=makeSurface(srcRect.w,srcRect.h,32);
-		manualBlit(src,&srcRect,temp,0);
+		NONS_Surface temp(srcRect.w,srcRect.h);
+		temp.over(src,0,&srcRect);
 		src=temp;
-		freeSrc=1;
 	}
 	switch (functionVersion){
 		case 2:
-			{
-				SDL_Surface *dst;
-				if (xscale<0 || yscale<0){
-					dst=makeSurface(srcRect.w,srcRect.h,32);
-					if (yscale>0)
-						FlipSurfaceH(src,dst);
-					else if (xscale>0)
-						FlipSurfaceV(src,dst);
-					else
-						FlipSurfaceHV(src,dst);
-					SDL_FreeSurface(src);
-					xscale=ABS(xscale);
-					yscale=ABS(yscale);
-					src=dst;
-				}
-				if (img->svg_source){
-					ImageLoader.svg_functions.SVG_set_scale(img->svg_source,double(xscale)/100.0,double(yscale)/100.0);
-					ImageLoader.svg_functions.SVG_set_rotation(img->svg_source,-double(rotation));
-					ImageLoader.svg_functions.SVG_add_scale(img->svg_source,ImageLoader.base_scale[0],ImageLoader.base_scale[1]);
-					dst=ImageLoader.svg_functions.SVG_render(img->svg_source);
-					SDL_FreeSurface(src);
-					src=dst;
-				}else{
-					if (xscale!=100 || yscale!=100 || this->virtual_size[0]!=this->base_size[0] || this->virtual_size[1]!=this->base_size[1]){
-						dst=resizeFunction(src,src->w*xscale/100,src->h*yscale/100);
-						SDL_FreeSurface(src);
-						src=dst;
-					}
-					if (rotation){
-						dst=rotationFunction(src,double(rotation)/180*M_PI);
-						SDL_FreeSurface(src);
-						src=dst;
-					}
-				}
-			}
+			src=src.scale(xscale,yscale);
+			src=src.rotate(double(rotation)/180.0*M_PI);
 			break;
 		case 3:
-			if (img->svg_source){
-				double matrix_safe[]={1,1,1,1};
+			{
 				double matrix[]={
 					double(matrix_00)/1000.0,
 					double(matrix_01)/1000.0,
 					double(matrix_10)/1000.0,
 					double(matrix_11)/1000.0
 				};
-				ImageLoader.svg_functions.SVG_set_matrix(img->svg_source,matrix_safe);
-				ImageLoader.svg_functions.SVG_set_matrix(img->svg_source,matrix);
-				SDL_Surface *dst=ImageLoader.svg_functions.SVG_render(img->svg_source);
-				SDL_FreeSurface(src);
-				src=dst;
-			}else{
-				float matrix[]={
-					float(matrix_00)/1000.0f,
-					float(matrix_01)/1000.0f,
-					float(matrix_10)/1000.0f,
-					float(matrix_11)/1000.0f
-				};
-				SDL_Surface *dst=applyTransformationMatrix(src,matrix);
-				if (!dst)
-					return NONS_BAD_MATRIX;
-				SDL_FreeSurface(src);
-				src=dst;
+				src=src.transform(matrix);
 			}
 			break;
 	}
 	if (functionVersion>1){
 		srcRect.x=0;
 		srcRect.y=0;
-		srcRect.w=src->w;
-		srcRect.h=src->h;
-		dstRect.x-=(Sint16)floor(float(srcRect.w)/2.f+.5f);
-		dstRect.y-=(Sint16)floor(float(srcRect.h)/2.f+.5f);
+		NONS_LongRect rect=src.clip_rect();
+		srcRect.w=rect.w;
+		srcRect.h=rect.h;
+		dstRect.x-=(long)floor(float(srcRect.w)/2.f+.5f);
+		dstRect.y-=(long)floor(float(srcRect.h)/2.f+.5f);
 	}
 
+	DRAW_BUFFER.over(src,&dstRect,&srcRect,(alpha<-0xFF)?-0xFF:((alpha>0xFF)?0xFF:alpha));
 
-	manualBlit(src,&srcRect,DRAW_BUFFER,&dstRect,(alpha<-0xFF)?-0xFF:((alpha>0xFF)?0xFF:alpha));
-
-
-	if (freeSrc)
-		SDL_FreeSurface(src);
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_drawtext(NONS_Statement &stmt){
 	NONS_ScreenSpace *scr=this->screen;
-	SDL_Surface *dst=DRAW_BUFFER;
+	//SDL_Surface *dst=DRAW_BUFFER;
 	if (!scr->output->shadeLayer->useDataAsDefaultShade)
-		multiplyBlend(
-			scr->output->shadeLayer->data,0,
-			dst,
-			&scr->output->shadeLayer->clip_rect.to_SDL_Rect());
+		DRAW_BUFFER.multiply(scr->output->shadeLayer->data,0,&scr->output->shadeLayer->clip_rect);
 	else
-		manualBlit(
-			scr->output->shadeLayer->data,0,
-			dst,
-			&scr->output->shadeLayer->clip_rect.to_SDL_Rect());
+		DRAW_BUFFER.over(scr->output->shadeLayer->data,0,&scr->output->shadeLayer->clip_rect);
 	if (scr->output->shadowLayer)
-		manualBlit(
-			scr->output->shadowLayer->data,0,
-			dst,
-			&scr->output->shadowLayer->clip_rect.to_SDL_Rect(),
-			scr->output->shadowLayer->alpha);
-	manualBlit(
-		scr->output->foregroundLayer->data,0,
-		dst,
-		&scr->output->foregroundLayer->clip_rect.to_SDL_Rect(),
-		scr->output->foregroundLayer->alpha);
+		DRAW_BUFFER.over(
+			scr->output->shadowLayer->data,
+			0,
+			&scr->output->shadowLayer->clip_rect,
+			scr->output->shadowLayer->alpha
+		);
+	DRAW_BUFFER.over(
+		scr->output->foregroundLayer->data,
+		0,
+		&scr->output->foregroundLayer->clip_rect,
+		scr->output->foregroundLayer->alpha
+	);
 	return NONS_NO_ERROR;
 }
 
@@ -3381,7 +3221,7 @@ ErrorCode NONS_ScriptInterpreter::command_fileexist(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_filelog(NONS_Statement &stmt){
-	ImageLoader.filelog->commit=1;
+	NONS_Surface::filelog_commit();
 	return NONS_NO_ERROR;
 }
 
@@ -3608,20 +3448,7 @@ ErrorCode NONS_ScriptInterpreter::command_getscreenshot(NONS_Statement &stmt){
 	GET_INT_VALUE(h,1);
 	if (w<=0 || h<=0)
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
-	if (!!this->screenshot)
-		SDL_FreeSurface(this->screenshot);
-	screenMutex.lock();
-	SDL_Surface *scr=this->screen->screen->screens[VIRTUAL];
-	if (scr->format->BitsPerPixel<32){
-		SDL_Surface *temp=makeSurface(scr->w,scr->h,32);
-		manualBlit(scr,0,temp,0);
-		screenMutex.unlock();
-		this->screenshot=SDL_ResizeSmooth(temp,w,h);
-		SDL_FreeSurface(temp);
-	}else{
-		this->screenshot=SDL_ResizeSmooth(scr,w,h);
-		screenMutex.unlock();
-	}
+	this->screenshot=this->screen->screen->get_screen().resize(w,h);
 	return NONS_NO_ERROR;
 }
 
@@ -3823,8 +3650,7 @@ ErrorCode NONS_ScriptInterpreter::command_isfull(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *var;
 	GET_INT_VARIABLE(var,0);
-	NONS_MutexLocker ml(screenMutex);
-	var->set(this->screen->screen->fullscreen);
+	var->set(this->screen->screen->get_fullscreen());
 	return NONS_NO_ERROR;
 }
 
@@ -3883,11 +3709,7 @@ ErrorCode NONS_ScriptInterpreter::command_ld(NONS_Statement &stmt){
 	GET_STR_VALUE(name,1);
 	NONS_Layer **l=0;
 	long off;
-	int width;
-	{
-		NONS_MutexLocker ml(screenMutex);
-		width=this->screen->screen->screens[VIRTUAL]->w;
-	}
+	int width=(int)this->screen->screen->inRect.w;
 	switch (stmt.parameters[0][0]){
 		case 'l':
 			l=&this->screen->leftChar;
@@ -4019,10 +3841,9 @@ ErrorCode NONS_ScriptInterpreter::command_lookbackbutton(NONS_Statement &stmt){
 
 ErrorCode NONS_ScriptInterpreter::command_lookbackcolor(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
-	long a;
-	GET_INT_VALUE(a,0);
-	SDL_Color col={Sint8((a&0xFF0000)>>16),(a&0xFF00)>>8,a&0xFF,0};
-	this->screen->lookback->foreground=col;
+	long color;
+	GET_INT_VALUE(color,0);
+	this->screen->lookback->foreground=color;
 	return NONS_NO_ERROR;
 }
 
@@ -4085,12 +3906,9 @@ ErrorCode NONS_ScriptInterpreter::command_menuselectcolor(NONS_Statement &stmt){
 	GET_INT_VALUE(on,0);
 	GET_INT_VALUE(off,1);
 	GET_INT_VALUE(nofile,2);
-	SDL_Color coloron={Uint8((on&0xFF0000)>>16),(on&0xFF00)>>8,on&0xFF,0},
-		coloroff={Uint8((off&0xFF0000)>>16),(off&0xFF00)>>8,off&0xFF,0},
-		colornofile={Uint8((nofile&0xFF0000)>>16),(nofile&0xFF00)>>8,nofile&0xFF,0};
-	this->menu->on=coloron;
-	this->menu->off=coloroff;
-	this->menu->nofile=colornofile;
+	this->menu->on=on;
+	this->menu->off=off;
+	this->menu->nofile=nofile;
 	this->menu->reset();
 	return NONS_NO_ERROR;
 }
@@ -4128,17 +3946,11 @@ ErrorCode NONS_ScriptInterpreter::command_menusetwindow(NONS_Statement &stmt){
 	GET_COORDINATE(spacingY,1,3);
 	GET_INT_VALUE(shadow,5);
 	GET_INT_VALUE(hexcolor,6);
-	SDL_Color color={
-		Uint8((hexcolor&0xFF0000)>>16),
-		(hexcolor&0xFF00)>>8,
-		hexcolor&0xFF,
-		0
-	};
 	this->menu->fontsize=(long)fontX;
 	this->menu->lineskip=long(fontY+spacingY);
 	this->menu->spacing=(long)spacingX;
 	this->menu->shadow=!!shadow;
-	this->menu->shadeColor=color;
+	this->menu->shadeColor=hexcolor;
 	this->menu->reset();
 	return NONS_NO_ERROR;
 }
@@ -4181,13 +3993,13 @@ ErrorCode NONS_ScriptInterpreter::command_monocro(NONS_Statement &stmt){
 		if (this->screen->apply_monochrome_first && this->screen->filterPipeline[0].effectNo==pipelineElement::NEGATIVE){
 			this->screen->filterPipeline.push_back(this->screen->filterPipeline[0]);
 			this->screen->filterPipeline[0].effectNo=pipelineElement::MONOCHROME;
-			this->screen->filterPipeline[0].color=rgb2SDLcolor(color);
+			this->screen->filterPipeline[0].color=color;
 		}else if (this->screen->filterPipeline[0].effectNo==pipelineElement::MONOCHROME)
-			this->screen->filterPipeline[0].color=rgb2SDLcolor(color);
+			this->screen->filterPipeline[0].color=color;
 		else
-			this->screen->filterPipeline.push_back(pipelineElement(pipelineElement::MONOCHROME,rgb2SDLcolor(color),L"",0));
+			this->screen->filterPipeline.push_back(pipelineElement(pipelineElement::MONOCHROME,color,L"",0));
 	}else
-		this->screen->filterPipeline.push_back(pipelineElement(pipelineElement::MONOCHROME,rgb2SDLcolor(color),L"",0));
+		this->screen->filterPipeline.push_back(pipelineElement(pipelineElement::MONOCHROME,color,L"",0));
 	return NONS_NO_ERROR;
 }
 
@@ -4314,9 +4126,9 @@ ErrorCode NONS_ScriptInterpreter::command_msp(NONS_Statement &stmt){
 	NONS_Layer *l=this->screen->layerStack[spriten];
 	if (!l)
 		return NONS_NO_SPRITE_LOADED_THERE;
+	l->position.x+=(long)x;
+	l->position.y+=(long)y;
 	if (stdStrCmpCI(stmt.commandName,L"amsp")){
-		l->position.x+=x;
-		l->position.y+=y;
 		if (long(l->alpha)+alpha>255)
 			l->alpha=255;
 		else if (long(l->alpha)+alpha<0)
@@ -4324,8 +4136,6 @@ ErrorCode NONS_ScriptInterpreter::command_msp(NONS_Statement &stmt){
 		else
 			l->alpha+=(uchar)alpha;
 	}else{
-		l->position.x=x;
-		l->position.y=y;
 		if (alpha>255)
 			alpha=255;
 		else if (alpha<0)
@@ -4371,7 +4181,7 @@ ErrorCode NONS_ScriptInterpreter::command_nega(NONS_Statement &stmt){
 				}
 		}
 		if (push)
-			v.push_back(pipelineElement(pipelineElement::NEGATIVE,SDL_Color(),L"",0));
+			v.push_back(pipelineElement(pipelineElement::NEGATIVE,NONS_Color(),L"",0));
 	}else{
 		if (v.size() && v[0].effectNo==pipelineElement::NEGATIVE)
 			v.erase(v.begin());
@@ -4477,26 +4287,24 @@ ErrorCode NONS_ScriptInterpreter::command_print(NONS_Statement &stmt){
 	return ret;
 }
 
-void shake(SDL_Surface *dst,long amplitude,ulong duration){
-	SDL_Rect srcrect=dst->clip_rect,
+void shake(const NONS_Surface &dst,long amplitude,ulong duration){
+	NONS_LongRect srcrect=dst.clip_rect(),
 		dstrect=srcrect;
-	SDL_Surface *copyDst=makeSurface(dst->w,dst->h,32);
-	manualBlit(dst,0,copyDst,0);
+	NONS_Surface copy_dst=dst.clone();
 	ulong start=SDL_GetTicks();
-	SDL_Rect last=dstrect;
+	NONS_LongRect last=dstrect;
 	while (SDL_GetTicks()-start<duration){
-		SDL_FillRect(dst,&srcrect,0);
+		dst.fill(srcrect,NONS_Color::black);
 		do{
-			dstrect.x=Sint16((rand()%2)?amplitude:-amplitude);
-			dstrect.y=Sint16((rand()%2)?amplitude:-amplitude);
+			dstrect.x=(rand()%2)?amplitude:-amplitude;
+			dstrect.y=(rand()%2)?amplitude:-amplitude;
 		}while (dstrect.x==last.x && dstrect.y==last.y);
 		last=dstrect;
-		manualBlit(copyDst,&srcrect,dst,&dstrect);
-		SDL_UpdateRect(dst,0,0,0,0);
+		dst.copy_pixels(copy_dst,&dstrect,&srcrect);
+		dst.update();
 	}
-	manualBlit(copyDst,0,dst,0);
-	SDL_UpdateRect(dst,0,0,0,0);
-	SDL_FreeSurface(copyDst);
+	dst.copy_pixels(copy_dst);
+	dst.update();
 }
 
 ErrorCode NONS_ScriptInterpreter::command_quake(NONS_Statement &stmt){
@@ -4508,9 +4316,8 @@ ErrorCode NONS_ScriptInterpreter::command_quake(NONS_Statement &stmt){
 	if (amplitude<0 || duration<0)
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
 	amplitude*=2;
-	amplitude=this->screen->screen->convertW(amplitude);
-	NONS_MutexLocker ml(screenMutex);
-	shake(this->screen->screen->screens[REAL],amplitude,duration);
+	amplitude=(long)this->screen->screen->convertW(amplitude);
+	shake(this->screen->screen->get_screen(),amplitude,duration);
 	return 0;
 }
 
@@ -4677,15 +4484,12 @@ ErrorCode NONS_ScriptInterpreter::command_savescreenshot(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	std::wstring filename;
 	GET_STR_VALUE(filename,0);
-	if (!this->screenshot){
-		NONS_MutexLocker ml(screenMutex);
-		SDL_SaveBMP(this->screen->screen->screens[VIRTUAL],UniToUTF8(filename).c_str());
-	}else{
-		SDL_SaveBMP(this->screenshot,UniToUTF8(filename).c_str());
-		if (!stdStrCmpCI(stmt.commandName,L"savescreenshot")){
-			SDL_FreeSurface(this->screenshot);
-			this->screenshot=0;
-		}
+	if (!this->screenshot)
+		this->screen->screen->get_screen().save_bitmap(filename);
+	else{
+		this->screenshot.save_bitmap(filename);
+		if (!stdStrCmpCI(stmt.commandName,L"savescreenshot"))
+			this->screenshot.unbind();
 	}
 	return NONS_NO_ERROR;
 }
@@ -4827,12 +4631,8 @@ ErrorCode NONS_ScriptInterpreter::command_selectcolor(NONS_Statement &stmt){
 	long on,off;
 	GET_INT_VALUE(on,0);
 	GET_INT_VALUE(off,1);
-	this->selectOn.r=Uint8((on&0xFF0000)>>16);
-	this->selectOn.g=(on&0xFF00)>>8;
-	this->selectOn.b=on&0xFF;
-	this->selectOff.r=Uint8((off&0xFF0000)>>16);
-	this->selectOff.g=(off&0xFF00)>>8;
-	this->selectOff.b=off&0xFF;
+	this->selectOn=on;
+	this->selectOff=off;
 	return NONS_NO_ERROR;
 }
 
@@ -4966,42 +4766,36 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			fontsize<1){
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
 	}
-	NONS_Rect windowRect(windowXstart,windowYstart,windowXend-windowXstart+1,windowYend-windowYstart+1),
-		frameRect(frameXstart,frameYstart,frameXend-frameXstart,frameYend-frameYstart);
+	NONS_LongRect windowRect=(NONS_LongRect)NONS_Rect(windowXstart,windowYstart,windowXend-windowXstart+1,windowYend-windowYstart+1),
+		frameRect=(NONS_LongRect)NONS_Rect(frameXstart,frameYstart,frameXend-frameXstart,frameYend-frameYstart);
+	NONS_LongRect rect=NONS_LongRect(this->screen->screen->inRect);
+	if (frameRect.x+frameRect.w>rect.w || frameRect.y+frameRect.h>rect.h)
+		o_stderr <<"Warning: The text frame is larger than the screen\n";
+	if (this->screen->output->shadeLayer->useDataAsDefaultShade)
+		this->screen->output->shadeLayer->data.unbind();
 	{
-		NONS_MutexLocker ml(screenMutex);
-		SDL_Surface *scr=this->screen->screen->screens[VIRTUAL];
-		if (frameRect.x+frameRect.w>scr->w || frameRect.y+frameRect.h>scr->h)
-			o_stderr <<"Warning: The text frame is larger than the screen\n";
-		if (this->screen->output->shadeLayer->useDataAsDefaultShade){
-			ImageLoader.unfetchImage(this->screen->output->shadeLayer->data);
-			this->screen->output->shadeLayer->data=0;
+		NONS_FontCache *fc[]={
+			this->font_cache,
+			this->screen->output->foregroundLayer->fontCache,
+			this->screen->output->shadowLayer->fontCache
+		};
+		for (int a=0;a<3;a++){
+			fc[a]->set_size((ulong)fontsize);
+			fc[a]->spacing=(long)spacingX;
+			if (forceLineSkip)
+				fc[a]->line_skip=forceLineSkip;
 		}
-		{
-			NONS_FontCache *fc[]={
-				this->font_cache,
-				this->screen->output->foregroundLayer->fontCache,
-				this->screen->output->shadowLayer->fontCache
-			};
-			for (int a=0;a<3;a++){
-				fc[a]->set_size((ulong)fontsize);
-				fc[a]->spacing=(long)spacingX;
-				if (forceLineSkip)
-					fc[a]->line_skip=forceLineSkip;
-			}
-		}
-		if (!syntax){
-			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),*this->font_cache,shadow!=0);
-			this->screen->output->shadeLayer->setShade(uchar((color&0xFF0000)>>16),(color&0xFF00)>>8,color&0xFF);
-			this->screen->output->shadeLayer->Clear();
-		}else{
-			SDL_Surface *pic;
-			ImageLoader.fetchSprite(pic,filename);
-			windowRect.w=(float)pic->w;
-			windowRect.h=(float)pic->h;
-			this->screen->resetParameters(&windowRect.to_SDL_Rect(),&frameRect.to_SDL_Rect(),*this->font_cache,shadow!=0);
-			this->screen->output->shadeLayer->usePicAsDefaultShade(pic);
-		}
+	}
+	if (!syntax){
+		this->screen->resetParameters(windowRect,frameRect,*this->font_cache,shadow!=0);
+		this->screen->output->shadeLayer->setShade(color);
+		this->screen->output->shadeLayer->Clear();
+	}else{
+		NONS_Surface pic=filename;
+		windowRect.w=pic.clip_rect().w;
+		windowRect.h=pic.clip_rect().h;
+		this->screen->resetParameters(windowRect,frameRect,*this->font_cache,shadow!=0);
+		this->screen->output->shadeLayer->usePicAsDefaultShade(pic);
 	}
 	this->screen->output->extraAdvance=(int)spacingX;
 	//this->screen->output->extraLineSkip=0;
@@ -5031,13 +4825,10 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow2(NONS_Statement &stmt){
 	GET_INT_OR_STR_VALUE(color,string,type,0);
 	NONS_Layer *layer=this->screen->output->shadeLayer;
 	if (type==INTEGER){
-		layer->setShade(uchar((color&0xFF0000)>>16),(color&0xFF00)>>8,color&0xFF);
+		layer->setShade(color);
 		layer->Clear();
-	}else{
-		SDL_Surface *pic;
-		ImageLoader.fetchSprite(pic,string);
-		layer->usePicAsDefaultShade(pic);
-	}
+	}else
+		layer->usePicAsDefaultShade(string);
 	this->screen->BlendNoCursor(1);
 	return NONS_NO_ERROR;
 }
@@ -5052,28 +4843,26 @@ ErrorCode NONS_ScriptInterpreter::command_shadedistance(NONS_Statement &stmt){
 	return NONS_NO_ERROR;
 }
 
-void quake(SDL_Surface *dst,char axis,ulong amplitude,ulong duration){
+void quake(const NONS_Surface &dst,char axis,ulong amplitude,ulong duration){
 	float length=(float)duration,
 		amp=(float)amplitude;
-	SDL_Rect srcrect=dst->clip_rect,
+	NONS_LongRect srcrect=dst.clip_rect(),
 		dstrect=srcrect;
-	SDL_Surface *copyDst=makeSurface(dst->w,dst->h,32);
-	manualBlit(dst,0,copyDst,0);
+	NONS_Surface copyDst=dst.clone();
 	ulong start=SDL_GetTicks();
 	while (1){
 		float x=float(SDL_GetTicks()-start);
 		if (x>duration)
 			break;
 		float y=(float)sin(x*(20/length)*M_PI)*((amp/-length)*x+amplitude);
-		SDL_FillRect(dst,&srcrect,0);
+		dst.fill(srcrect,NONS_Color::black);
 		if (axis=='x')
-			dstrect.x=(Sint16)y;
+			dstrect.x=(long)y;
 		else
-			dstrect.y=(Sint16)y;
-		manualBlit(copyDst,&srcrect,dst,&dstrect);
-		SDL_UpdateRect(dst,0,0,0,0);
+			dstrect.y=(long)y;
+		dst.copy_pixels(copyDst,&dstrect,&srcrect);
+		dst.update();
 	}
-	SDL_FreeSurface(copyDst);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_sinusoidal_quake(NONS_Statement &stmt){
@@ -5085,12 +4874,12 @@ ErrorCode NONS_ScriptInterpreter::command_sinusoidal_quake(NONS_Statement &stmt)
 	if (amplitude<0 || duration<0)
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
 	amplitude*=10;
+	NONS_VirtualScreen *scr=this->screen->screen;
 	if (stmt.commandName[5]=='x')
-		amplitude=this->screen->screen->convertW(amplitude);
+		amplitude=(long)scr->convertW(amplitude);
 	else
-		amplitude=this->screen->screen->convertH(amplitude);
-	NONS_MutexLocker ml(screenMutex);
-	quake(this->screen->screen->screens[REAL],(char)stmt.commandName[5],amplitude,duration);
+		amplitude=(long)scr->convertH(amplitude);
+	quake(scr->get_real_screen(),(char)stmt.commandName[5],amplitude,duration);
 	return NONS_NO_ERROR;
 }
 
@@ -5367,7 +5156,7 @@ ErrorCode NONS_ScriptInterpreter::command_use_nice_svg(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long a;
 	GET_INT_VALUE(a,0);
-	ImageLoader.fast_svg=!a;
+	NONS_Surface::use_fast_svg(!a);
 	return NONS_NO_ERROR;
 }
 

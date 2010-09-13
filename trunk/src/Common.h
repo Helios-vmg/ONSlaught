@@ -89,14 +89,6 @@ typedef ushort DWORD;
 #error "longs on this implementation are too small."
 #endif
 
-extern const int rmask;
-extern const int gmask;
-extern const int bmask;
-extern const int amask;
-extern const int rshift;
-extern const int gshift;
-extern const int bshift;
-extern const int ashift;
 extern int lastClickX;
 extern int lastClickY;
 extern NONS_DECLSPEC ulong cpu_count;

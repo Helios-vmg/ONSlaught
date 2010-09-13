@@ -208,8 +208,8 @@ class NONS_ScriptInterpreter{
 	NONS_Cursor *arrowCursor;
 	NONS_Cursor *pageCursor;
 	bool hideTextDuringEffect;
-	SDL_Color selectOn;
-	SDL_Color selectOff;
+	NONS_Color selectOn,
+		selectOff;
 	std::wstring selectVoiceEntry;
 	std::wstring selectVoiceMouseOver;
 	std::wstring selectVoiceClick;
@@ -230,7 +230,7 @@ class NONS_ScriptInterpreter{
 	std::wstring loadgosub;
 	bool useWheel,
 		useEscapeSpace;
-	SDL_Surface *screenshot;
+	NONS_Surface screenshot;
 	std::queue<NONS_ScriptLine *> commandQueue;
 	ulong base_size[2],
 		virtual_size[2];

@@ -186,8 +186,8 @@ void handleInputEvent(SDL_Event &event){
 			x=event.motion.x;
 			y=event.motion.y;
 			if (gScriptInterpreter->screen){
-				x=gScriptInterpreter->screen->screen->unconvertX(x);
-				y=gScriptInterpreter->screen->screen->unconvertY(y);
+				x=(long)gScriptInterpreter->screen->screen->unconvertX(x);
+				y=(long)gScriptInterpreter->screen->screen->unconvertY(y);
 				event.motion.x=(Uint16)x;
 				event.motion.y=(Uint16)y;
 			}
@@ -198,8 +198,8 @@ void handleInputEvent(SDL_Event &event){
 			x=event.button.x;
 			y=event.button.y;
 			if (gScriptInterpreter->screen){
-				x=gScriptInterpreter->screen->screen->unconvertX(x);
-				y=gScriptInterpreter->screen->screen->unconvertY(y);
+				x=(long)gScriptInterpreter->screen->screen->unconvertX(x);
+				y=(long)gScriptInterpreter->screen->screen->unconvertY(y);
 				event.button.x=(Uint16)x;
 				event.button.y=(Uint16)y;
 			}

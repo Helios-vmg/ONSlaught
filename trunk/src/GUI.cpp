@@ -527,7 +527,7 @@ void NONS_GraphicButton::allocateLayer(
 	NONS_LongRect dst(0,0,width,height),
 		srcRect(originX,originY,width,height);
 	delete layer;
-	layer=new NONS_Layer(dst,0);
+	layer=new NONS_Layer(dst,NONS_Color());
 	layer->data.over(src,&dst,&srcRect);
 }
 
@@ -546,13 +546,13 @@ NONS_TextButton::NONS_TextButton(
 	int offsetX,
 		offsetY;
 	this->box=this->GetBoundingBox(text,&this->font_cache,limitX,limitY,offsetX,offsetY);
-	this->setOffLayer()=new NONS_Layer(this->box,0);
+	this->setOffLayer()=new NONS_Layer(this->box,NONS_Color());
 	this->setOffLayer()->MakeTextLayer(this->font_cache,off);
-	this->setOnLayer()=new NONS_Layer(this->box,0);
+	this->setOnLayer()=new NONS_Layer(this->box,NONS_Color());
 	this->setOnLayer()->MakeTextLayer(this->font_cache,on);
 	if (shadow){
-		this->setShadowLayer()=new NONS_Layer(this->box,0);
-		this->setShadowLayer()->MakeTextLayer(this->font_cache,0);
+		this->setShadowLayer()=new NONS_Layer(this->box,NONS_Color());
+		this->setShadowLayer()->MakeTextLayer(this->font_cache,NONS_Color());
 		this->box.w++;
 		this->box.h++;
 	}else

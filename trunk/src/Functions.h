@@ -364,21 +364,6 @@ std::vector<Sint32> getIntervals(typename std::map<Sint32,T>::iterator i,typenam
 	return intervals;
 }
 
-extern const int rmask;
-extern const int gmask;
-extern const int bmask;
-extern const int amask;
-
-//bitmap processing functions
-inline ulong SDLcolor2rgb(const SDL_Color &color){
-	return (color.r<<16)|(color.g<<8)|color.b;
-}
-
-inline SDL_Color rgb2SDLcolor(ulong rgb){
-	SDL_Color c={(rgb>>16)&0xFF,(rgb>>8)&0xFF,rgb&0xFF,0};
-	return c;
-}
-
 //other functions
 Uint32 secondsSince1970();
 /*

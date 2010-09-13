@@ -142,39 +142,6 @@ void getFinalSize(SDL_Surface *src,float matrix[4],ulong &w,ulong &h){
 	h=ulong(maxy-miny);
 }
 
-void invert_matrix(float m[4]){
-	float temp=1/(m[0]*m[3]-m[1]*m[2]);
-	float m2[]={
-		temp*m[3],
-		temp*-m[1],
-		temp*-m[2],
-		temp*m[0]
-	};
-	memcpy(m,m2,4*sizeof(float));
-}
-
-void getCorrected(ulong &x0,ulong &y0,float matrix[4]){
-	float coords[][2]={
-		{0,0},
-		{0,(float)y0},
-		{(float)x0,0},
-		{(float)x0,(float)y0}
-	};
-	float minx,miny;
-	minx=coords[0][0]*matrix[0]+coords[0][1]*matrix[1];
-	miny=coords[0][0]*matrix[2]+coords[0][1]*matrix[3];
-	for (int a=1;a<4;a++){
-		float x=coords[a][0]*matrix[0]+coords[a][1]*matrix[1];
-		float y=coords[a][0]*matrix[2]+coords[a][1]*matrix[3];
-		if (x<minx)
-			minx=x;
-		if (y<miny)
-			miny=y;
-	}
-	x0=(ulong)-minx;
-	y0=(ulong)-miny;
-}
-
 char checkNativeEndianness(){
 	Uint16 a=0x1234;
 	if (*(uchar *)&a==0x12)

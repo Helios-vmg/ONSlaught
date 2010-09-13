@@ -36,7 +36,7 @@
 #include "GUI.h"
 #include "VirtualScreen.h"
 #include "GFX.h"
-#include "ImageLoader.h"
+#include "Image.h"
 #include <map>
 #include <vector>
 

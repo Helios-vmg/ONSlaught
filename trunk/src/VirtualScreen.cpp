@@ -230,10 +230,10 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 	if (this->usingFeature[INTERPOLATION]){
 		NONS_LongRect s(x,y,w,h),
 			d(
-				(long)this->convertX((float)x),
-				(long)this->convertY((float)y),
-				(long)this->convertW((float)w),
-				(long)this->convertH((float)h)
+				(long)this->convertX(x),
+				(long)this->convertY(y),
+				(long)this->convertW(w),
+				(long)this->convertH(h)
 			);
 		/*
 		The following plus ones and minus ones are a patch to correct some weird
@@ -643,11 +643,12 @@ void effectNegative_threaded(const NONS_Surface &dst,const NONS_ConstSurface &sr
 		h=(long)rect.h;
 	src_p.pixels+=long(rect.x)*4+long(rect.y)*src_p.pitch;
 	dst_p.pixels+=long(rect.x)*4+long(rect.y)*dst_p.pitch;
+	Uint32 opaque_white=NONS_Color(0xFF,0xFF,0xFF,0).to_native();
 	for (long y=0;y<h;y++){
 		const Uint32 *pix0=(const Uint32 *)src_p.pixels;
 		Uint32 *pix1=(Uint32 *)dst_p.pixels;
 		for (long x0=0;x0<w;x0++)
-			*pix1++=(*pix0++)^(~amask);
+			*pix1++=(*pix0++)^opaque_white;
 		src_p.pixels+=src_p.pitch;
 		dst_p.pixels+=dst_p.pitch;
 	}

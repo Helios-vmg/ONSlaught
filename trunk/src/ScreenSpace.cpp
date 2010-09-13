@@ -74,7 +74,6 @@ NONS_Layer::NONS_Layer(const NONS_Surface &img,const NONS_Color &rgba)
 }
 
 NONS_Layer::NONS_Layer(const std::wstring *string){
-	this->defaultShade=0;
 	this->fontCache=0;
 	this->visible=1;
 	this->useDataAsDefaultShade=0;
@@ -470,7 +469,7 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 			glyph->put(screen,x0,y0);
 			glyph->done();
 		}
-		SDL_Rect r=glyph->get_put_bounding_box((Sint16)x0,(Sint16)y0);
+		NONS_LongRect r=glyph->get_put_bounding_box((Sint16)x0,(Sint16)y0);
 		if (glyph2){
 			long tempX=(this->shadowPosX<=0)?0:this->shadowPosX,
 				tempY=(this->shadowPosY<=0)?0:this->shadowPosY;

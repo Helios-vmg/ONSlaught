@@ -473,8 +473,8 @@ void waitNonCancellable(long delay){
 Uint8 getCorrectedMousePosition(NONS_VirtualScreen *screen,int *x,int *y){
 	int x0,y0;
 	Uint8 r=SDL_GetMouseState(&x0,&y0);
-	x0=screen->unconvertX(x0);
-	y0=screen->unconvertY(y0);
+	x0=(int)screen->unconvertX(x0);
+	y0=(int)screen->unconvertY(y0);
 	*x=x0;
 	*y=y0;
 	return r;

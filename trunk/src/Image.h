@@ -92,28 +92,85 @@ struct NONS_Color{
 		*this=a;
 	}
 	const NONS_Color &operator=(Uint32 a){
-		for (int a=0;a<4;a++){
-			this->rgba[a]=a&0xFF;
-			a>>=8;
-		}
+		this->rgba[0]=(a&0xFF0000)>>16;
+		this->rgba[1]=(a&0xFF00)>>8;
+		this->rgba[2]=a&0xFF;
+		this->rgba[3]=0;
 		return *this;
 	}
-	Uint32 to_u32(){
-		Uint32 r=0;
-		for (int a=0;a<4;a++){
-			r<<=8;
-			r|=this->rgba[3-a];
-		}
+	Uint32 to_rgb(){
+		Uint32 r=
+			(this->rgba[0]<<16)|
+			(this->rgba[1]<<8)|
+			this->rgba[2];
 		return r;
 	}
-	bool operator==(const NONS_Color &b){
-		Uint32 A=*(Uint32 *)this->rgba;
-		Uint32 B=*(Uint32 *)b.rgba;
-		return A==B;
+	Uint32 to_native() const{
+		return *(Uint32 *)this->rgba;
 	}
-	bool operator!=(const NONS_Color &b){
+	bool operator==(const NONS_Color &b) const{
+		return this->to_native()==b.to_native();
+	}
+	bool operator!=(const NONS_Color &b) const{
 		return !(*this==b);
 	}
+	static NONS_Color white,
+		black,
+		black_transparent,
+		red,
+		green,
+		blue;
+};
+
+struct NONS_AnimationInfo{	
+	enum TRANSPARENCY_METHODS{
+		LEFT_UP='l',
+		RIGHT_UP='r',
+		COPY_TRANS='c',
+		PARALLEL_MASK='a',
+		SEPARATE_MASK='m'
+	} method;
+	ulong animation_length;
+	/*
+	If size==1, the first element contains how long each frame will stay on.
+	Otherwise, element i contains how long will frame i stay on, plus the
+	value of element i-1 if i>0.
+	For example, for the string "<10,20,30>", the resulting contents will be
+	{10,30,60}
+	*/
+	std::vector<ulong> frame_ends;
+	enum LOOP_TYPE{
+		SAWTOOTH_WAVE_CYCLE=0,
+		SINGLE_CYCLE,
+		TRIANGLE_WAVE_CYCLE,
+		NO_CYCLE
+	} loop_type;
+	ulong animation_time_offset;
+	int animation_direction;
+	bool valid;
+	static TRANSPARENCY_METHODS default_trans;
+
+	NONS_AnimationInfo(){}
+	NONS_AnimationInfo(const std::wstring &image_string);
+	NONS_AnimationInfo(const NONS_AnimationInfo &b);
+	NONS_AnimationInfo &operator=(const NONS_AnimationInfo &b);
+	void parse(const std::wstring &image_string);
+	void resetAnimation();
+	long advanceAnimation(ulong msecs);
+	long getCurrentAnimationFrame();
+	const std::wstring &getFilename() const{
+		return this->filename;
+	}
+	const std::wstring &getString() const{
+		return this->string;
+	}
+	const std::wstring &getMaskFilename() const{
+		return this->mask_filename;
+	}
+private:
+	std::wstring filename;
+	std::wstring string;
+	std::wstring mask_filename;
 };
 
 class NONS_Surface;
@@ -142,6 +199,11 @@ public:
 	NONS_LongRect default_box(const NONS_LongRect *) const;
 	//Call to perform pixel-wise read operations on the surface.
 	void get_properties(NONS_ConstSurfaceProperties &sp) const;
+	NONS_ConstSurfaceProperties get_properties() const{
+		NONS_ConstSurfaceProperties sp;
+		this->get_properties(sp);
+		return sp;
+	}
 	//Returns a copy of the surface's rectangle.
 	NONS_LongRect clip_rect() const{ return this->default_box(0); }
 	//Returns an object that points to a deep copy of this object's surface.
@@ -151,11 +213,15 @@ public:
 	NONS_Surface clone_without_pixel_copy() const;
 	//Copies the surface while scaling it.
 	NONS_Surface scale(double x,double y) const;
+	//Copies the surface while resizing it.
+	NONS_Surface resize(ulong x,ulong y) const;
 	//Copies the surface while rotating it.
 	NONS_Surface rotate(double alpha) const;
 	//Copies the surface while applying a linear transformation to it.
 	NONS_Surface transform(double transformation_matrix[4]) const;
+	void save_bitmap(const std::wstring &filename) const;
 	void get_optimized_updates(optim_t &dst) const;
+	const NONS_AnimationInfo &get_animation_info() const;
 };
 
 class NONS_Surface:public NONS_ConstSurface{
@@ -179,6 +245,11 @@ public:
 	void multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void get_properties(NONS_SurfaceProperties &sp) const;
+	NONS_SurfaceProperties get_properties() const{
+		NONS_SurfaceProperties sp;
+		this->get_properties(sp);
+		return sp;
+	}
 	void fill(const NONS_Color &color) const;
 	void fill(const NONS_LongRect &area,const NONS_Color &color) const;
 	void update(ulong x=0,ulong y=0,ulong w=0,ulong h=0) const;
@@ -186,22 +257,22 @@ public:
 #define NONS_Surface_DECLARE_RELATIONAL_OP(type,op) bool operator op(const type &b) const;
 	OVERLOAD_RELATIONAL_OPERATORS2(NONS_Surface,NONS_Surface_DECLARE_RELATIONAL_OP)
 
-#define NONS_Surface_DECLARE_INTERPOLATION_F(x) \
-	void x(                                     \
-		const NONS_Surface &src,                \
-		const NONS_LongRect *dst_rect,          \
-		const NONS_LongRect *src_rect,          \
-		double x,                               \
-		double y                                \
+#define NONS_Surface_DECLARE_INTERPOLATION_F(name) \
+	void name(                                     \
+		const NONS_Surface &src,                   \
+		const NONS_LongRect *dst_rect,             \
+		const NONS_LongRect *src_rect,             \
+		double x,                                  \
+		double y                                   \
 	)
-#define NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(extra,x) \
-	void extra x(                                              \
-		interpolation_f f,                                     \
-		const NONS_Surface &src,                               \
-		const NONS_LongRect *dst_rect,                         \
-		const NONS_LongRect *src_rect,                         \
-		double x,                                              \
-		double y                                               \
+#define NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(extra,name) \
+	void extra name(                                              \
+		interpolation_f f,                                        \
+		const NONS_Surface &src,                                  \
+		const NONS_LongRect *dst_rect,                            \
+		const NONS_LongRect *src_rect,                            \
+		double x,                                                 \
+		double y                                                  \
 	) const
 	NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(,interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(NN_interpolation);
@@ -213,7 +284,12 @@ public:
 	SDL_Surface *get_SDL_screen();
 	static NONS_Surface assign_screen(SDL_Surface *);
 	static NONS_Surface get_screen();
+	static void init_loader();
 	static bool filelog_check(const std::wstring &string);
+	static void filelog_writeout();
+	static void filelog_commit();
+	static void use_fast_svg(bool);
+	static void set_base_scale(double x,double y);
 };
 
 class NONS_CrippledSurface{
@@ -239,9 +315,8 @@ public:
 	void unbind();
 	OVERLOAD_RELATIONAL_OPERATORS2(NONS_CrippledSurface,NONS_Surface_DECLARE_RELATIONAL_OP)
 
-	static void copy_surface(NONS_CrippledSurface &dst,const NONS_Surface &src){
-		NONS_Surface s=src;
-		s=s.clone();
+	static void copy_surface(NONS_CrippledSurface &dst,const NONS_ConstSurface &src){
+		NONS_Surface s=src.clone();
 		dst=s;
 		dst.strong_bind();
 	}

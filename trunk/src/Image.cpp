@@ -29,8 +29,277 @@
 
 #include "Image.h"
 #include "ThreadManager.h"
+#include "Plugin/LibraryLoader.h"
+#include "../svg_loader.h"
+#include "FileLog.h"
+#include "IOFunctions.h"
+#include "Archive.h"
+#include <SDL/SDL_image.h>
 #include <list>
 #include <cmath>
+
+NONS_Color NONS_Color::white            (0xFF,0xFF,0xFF);
+NONS_Color NONS_Color::black            (0x00,0x00,0x00);
+NONS_Color NONS_Color::black_transparent(0x00,0x00,0x00,0x00);
+NONS_Color NONS_Color::red              (0xFF,0x00,0x00);
+NONS_Color NONS_Color::green            (0x00,0xFF,0x00);
+NONS_Color NONS_Color::blue             (0x00,0x00,0xFF);
+
+NONS_AnimationInfo::TRANSPARENCY_METHODS NONS_AnimationInfo::default_trans=COPY_TRANS;
+
+void NONS_AnimationInfo::parse(const std::wstring &image_string){
+	this->string=image_string;
+	this->valid=0;
+	this->method=NONS_AnimationInfo::default_trans;
+	this->animation_length=1;
+	this->animation_time_offset=0;
+	this->animation_direction=1;
+	this->frame_ends.clear();
+	size_t p=0;
+	static const std::wstring slash_semi=L"/;";
+	if (image_string[p]==':'){
+		p++;
+		size_t semicolon=image_string.find(';',p);
+		if (semicolon==image_string.npos)
+			return;
+		switch (wchar_t c=NONS_tolower(image_string[p++])){
+			case 'l':
+			case 'r':
+			case 'c':
+			case 'a':
+			case 'm':
+				this->method=(TRANSPARENCY_METHODS)c;
+				break;
+			default:
+				return;
+		}
+		size_t p2=image_string.find_first_of(slash_semi,p);
+		if (this->method==SEPARATE_MASK){
+			if (p2==image_string.npos)
+				return;
+			this->mask_filename=std::wstring(image_string.begin()+p,image_string.begin()+p2);
+			tolower(this->mask_filename);
+			toforwardslash(this->mask_filename);
+		}
+		p=p2;
+		if (image_string[p]=='/'){
+			std::stringstream stream;
+			while (image_string[++p]!=',' && image_string[p]!=';')
+				stream <<(char)image_string[p];
+			if (!(stream >>this->animation_length) || image_string[p]!=',')
+				return;
+			stream.clear();
+			if (image_string[p+1]!='<'){
+				while (image_string[++p]!=',' && image_string[p]!=';')
+					stream <<(char)image_string[p];
+				ulong delay;
+				if (!(stream >>delay))
+					return;
+				stream.clear();
+				if (this->frame_ends.size())
+					delay+=this->frame_ends.back();
+				this->frame_ends.push_back(delay);
+			}else{
+				p++;
+				size_t gt=image_string.find('>',p);
+				if (gt==image_string.npos || gt>semicolon)
+					return;
+				while (image_string[p]!='>' && image_string[++p]!='>'){
+					while (image_string[p]!=',' && image_string[p]!='>')
+						stream <<(char)image_string[p++];
+					ulong delay;
+					if (!(stream >>delay))
+						return;
+					stream.clear();
+					this->frame_ends.push_back(delay);
+				}
+				p++;
+			}
+			if (!this->frame_ends.size() || this->frame_ends.size()>1 && this->animation_length!=this->frame_ends.size())
+				return;
+			if (image_string[p]!=',')
+				return;
+			while (image_string[++p]!=',' && image_string[p]!=';')
+				stream <<(char)image_string[p];
+			ulong type;
+			if (!(stream >>type))
+				return;
+			this->loop_type=(LOOP_TYPE)type;
+			p++;
+		}
+	}
+	if (image_string[p]==';')
+		p++;
+	this->filename=image_string.substr(p);
+	tolower(this->filename);
+	toforwardslash(this->filename);
+	this->animation_time_offset=0;
+	this->valid=1;
+}
+
+NONS_AnimationInfo::NONS_AnimationInfo(const std::wstring &image_string){
+	this->parse(image_string);
+}
+
+NONS_AnimationInfo::NONS_AnimationInfo(const NONS_AnimationInfo &b){
+	*this=b;
+}
+
+NONS_AnimationInfo &NONS_AnimationInfo::operator=(const NONS_AnimationInfo &b){
+	this->method=b.method;
+	this->mask_filename=b.mask_filename;
+	this->animation_length=b.animation_length;
+	this->frame_ends=b.frame_ends;
+	this->loop_type=b.loop_type;
+	this->filename=b.filename;
+	this->string=b.string;
+	this->animation_time_offset=b.animation_time_offset;
+	this->valid=b.valid;
+	return *this;
+}
+
+void NONS_AnimationInfo::resetAnimation(){
+	this->animation_time_offset=0;
+	this->animation_direction=1;
+}
+
+long NONS_AnimationInfo::advanceAnimation(ulong msecs){
+	if (!this->frame_ends.size() || !this->animation_direction || this->loop_type==NO_CYCLE)
+		return -1;
+	long original=this->getCurrentAnimationFrame();
+	if (this->animation_direction>0)
+		this->animation_time_offset+=msecs;
+	else if (msecs>this->animation_time_offset){
+		this->animation_time_offset=msecs-this->animation_time_offset+this->frame_ends.front();
+		this->animation_direction=1;
+	}else
+		this->animation_time_offset-=msecs;
+	long updated=this->getCurrentAnimationFrame();
+	if (updated==original)
+		return -1;
+	if (updated>=0)
+		return updated;
+	switch (this->loop_type){
+		case SAWTOOTH_WAVE_CYCLE:
+			this->animation_time_offset%=this->frame_ends.back();
+			break;
+		case SINGLE_CYCLE:
+			this->animation_direction=0;
+			return -1;
+		case TRIANGLE_WAVE_CYCLE:
+			if (this->frame_ends.size()==1)
+				this->animation_time_offset=
+					this->frame_ends.back()*(this->animation_length-1)-
+					(this->animation_time_offset-this->frame_ends.back()*this->animation_length)
+					-1;
+			else
+				this->animation_time_offset=
+					this->frame_ends.back()-
+					this->animation_time_offset-1-
+					(this->frame_ends.back()-this->frame_ends[this->frame_ends.size()-2]);
+			this->animation_direction=-1;
+			break;
+	}
+	return this->getCurrentAnimationFrame();
+}
+
+long NONS_AnimationInfo::getCurrentAnimationFrame(){
+	if (this->frame_ends.size()==1){
+		ulong frame=this->animation_time_offset/this->frame_ends.front();
+		if (frame>=this->animation_length)
+			return -1;
+		return frame;
+	}
+	for (size_t a=0;a<this->frame_ends.size();a++)
+		if (this->animation_time_offset<this->frame_ends[a])
+			return a;
+	return -1;
+}
+
+struct SVG_Functions{
+#define SVG_Functions_DECLARE_MEMBER(id) id##_f id
+	SVG_Functions_DECLARE_MEMBER(SVG_load);
+	SVG_Functions_DECLARE_MEMBER(SVG_unload);
+	SVG_Functions_DECLARE_MEMBER(SVG_get_dimensions);
+	SVG_Functions_DECLARE_MEMBER(SVG_set_scale);
+	SVG_Functions_DECLARE_MEMBER(SVG_best_fit);
+	SVG_Functions_DECLARE_MEMBER(SVG_set_rotation);
+	SVG_Functions_DECLARE_MEMBER(SVG_set_matrix);
+	SVG_Functions_DECLARE_MEMBER(SVG_transform_coordinates);
+	SVG_Functions_DECLARE_MEMBER(SVG_add_scale);
+	SVG_Functions_DECLARE_MEMBER(SVG_render);
+	SVG_Functions_DECLARE_MEMBER(SVG_render2);
+	SVG_Functions_DECLARE_MEMBER(SVG_have_linear_transformations);
+	bool valid;
+};
+
+class NONS_DiskCache{
+	typedef std::map<std::wstring,std::wstring,stdStringCmpCI<wchar_t> > map_t;
+	map_t cache_list;
+	ulong state;
+public:
+	NONS_DiskCache():state(0){}
+	~NONS_DiskCache();
+	void add(std::wstring filename,const NONS_ConstSurface &surface);
+	void remove(const std::wstring &filename);
+	NONS_Surface get(const std::wstring &filename);
+};
+
+NONS_DiskCache::~NONS_DiskCache(){
+	for (map_t::iterator i=this->cache_list.begin(),end=this->cache_list.end();i!=end;i++)
+		NONS_File::delete_file(i->second);
+}
+
+void NONS_DiskCache::add(std::wstring src,const NONS_ConstSurface &s){
+	toforwardslash(src);
+	map_t::iterator i=this->cache_list.find(src);
+	std::wstring dst;
+	if (i==this->cache_list.end()){
+		dst=L"__ONSlaught_cache_"+itoaw(this->state++)+L".raw";
+		this->cache_list[src]=dst;
+	}else
+		dst=i->second;
+	std::vector<uchar> buffer;
+	NONS_ConstSurfaceProperties sp=s.get_properties();
+	writeDWord(sp.w,buffer);
+	writeDWord(sp.h,buffer);
+	buffer.resize(buffer.size()+sp.pitch*sp.h,0);
+	memcpy(&buffer[8],sp.pixels,sp.pitch*sp.h);
+	NONS_File::write(dst,&buffer[0],buffer.size());
+}
+
+void NONS_DiskCache::remove(const std::wstring &filename){
+	map_t::iterator i=this->cache_list.find(filename);
+	if (i==this->cache_list.end())
+		return;
+	NONS_File::delete_file(i->second);
+	this->cache_list.erase(i);
+}
+
+NONS_Surface NONS_DiskCache::get(const std::wstring &filename){
+	map_t::iterator i=this->cache_list.find(filename);
+	if (i==this->cache_list.end())
+		return 0;
+	size_t size;
+	uchar *buffer=NONS_File::read(i->second,size);
+	do{
+		if (!buffer)
+			break;
+		if (size<8)
+			break;
+		ulong offset=0,
+			width=readDWord(buffer,offset),
+			height=readDWord(buffer,offset);
+		if (size<8+width*height*4)
+			break;
+		NONS_Surface r(width,height);
+		NONS_SurfaceProperties sp=r.get_properties();
+		memcpy(sp.pixels,buffer+offset,sp.pitch*sp.h);
+		return r;
+	}while (0);
+	delete[] buffer;
+	return NONS_Surface();
+}
 
 class NONS_SurfaceManager{
 public:
@@ -40,7 +309,8 @@ public:
 		long ref_count;
 		static ulong obj_count;
 		static NONS_Mutex mutex;
-		ulong id;
+		ulong id,
+			frames;
 		friend class NONS_SurfaceManager;
 		Surface(){ this->set_id(); }
 		void set_id(){
@@ -50,6 +320,7 @@ public:
 		}
 	public:
 		Surface(ulong w,ulong h);
+		Surface(const Surface &);
 		virtual ~Surface();
 		template <typename T>
 		void get_properties(NONS_SurfaceProperties_basic<T> &sp) const{
@@ -60,6 +331,8 @@ public:
 			sp.pixel_count=this->h*this->w;
 			sp.byte_count=sp.pixel_count*4;
 		}
+		virtual void ref();
+		virtual void unref();
 #define NONS_SurfaceManager_Surface_RELATIONAL_OP(op) bool operator op(const Surface &b) const{ return this->id op b.id; }
 		OVERLOAD_RELATIONAL_OPERATORS(NONS_SurfaceManager_Surface_RELATIONAL_OP)
 	};
@@ -67,13 +340,10 @@ public:
 		SDL_Surface *screen;
 		friend class NONS_SurfaceManager;
 	public:
-		ScreenSurface(SDL_Surface *s):Surface(),screen(s){
-			this->w=s->w;
-			this->h=s->h;
-			this->data=(uchar *)s->pixels;
-			this->ref_count=LONG_MAX>>1;
-		}
+		ScreenSurface(SDL_Surface *s);
 		~ScreenSurface(){ this->data=0; }
+		void ref();
+		void unref();
 	};
 	typedef std::list<Surface *> surfaces_t;
 	class index_t{
@@ -87,33 +357,38 @@ public:
 		index_t(Surface *p):_good(0),p(p){}
 		const Surface &operator*() const{ return (this->p)?*this->p:**this->i; }
 		const Surface *operator->() const{ return (this->p)?this->p:*this->i; }
+		Surface &operator*(){ return (this->p)?*this->p:**this->i; }
+		Surface *operator->(){ return (this->p)?this->p:*this->i; }
 		bool good(){ return this->_good; }
 	};
 
-	NONS_SurfaceManager();
+	NONS_SurfaceManager():initialized(0),screen(0),svg_library(0),filelog(0){}
 	~NONS_SurfaceManager();
 	void init();
 	index_t allocate(ulong w,ulong h);
-	index_t load(const std::wstring &name);
+	index_t load(const NONS_AnimationInfo &ai);
 	index_t copy(const index_t &src);
-	void ref(const index_t &);
-	bool deref(const index_t &);
 	index_t scale(const index_t &src,double scalex,double scaley);
-	index_t resize(const index_t &src,ulong w,ulong h);
+	index_t resize(const index_t &src,long w,long h);
 	index_t rotate(const index_t &src,double rotate);
 	index_t transform(const index_t &src,double matrix[4]);
 	void assign_screen(SDL_Surface *);
 	index_t get_screen();
+	bool filelog_check(const std::wstring &string);
+	void filelog_writeout();
+	void filelog_commit();
+	void use_fast_svg(bool);
+	void set_base_scale(double x,double y);
 private:
 	bool initialized;
 	surfaces_t surfaces;
 	ScreenSurface *screen;
-	//NONS_LibraryLoader *svg_library;
-	//SVG_Functions svg_functions;
-	//NONS_FileLog *filelog;
+	NONS_LibraryLoader *svg_library;
+	SVG_Functions svg_functions;
+	NONS_FileLog *filelog;
 	bool fast_svg;
 	double base_scale[2];
-	//NONS_DiskCache disk_cache;
+	NONS_DiskCache disk_cache;
 	//1 if the image was added, 0 otherwise
 	bool addElementToCache(NONS_Surface *img);
 };
@@ -123,11 +398,109 @@ NONS_Mutex NONS_SurfaceManager::Surface::mutex;
 
 const ulong unit=1<<16;
 
-void assign_SDL_Rect(SDL_Rect &dst,SDL_Surface *s){
-	dst.x=0;
-	dst.y=0;
-	dst.w=s->w;
-	dst.h=s->h;
+NONS_SurfaceManager::~NONS_SurfaceManager(){
+	delete this->filelog;
+	surfaces_t::iterator i=this->surfaces.begin(),
+		e=this->surfaces.end();
+	for (;i!=e;i++)
+		delete *i;
+	delete this->screen;
+	delete this->svg_library;
+}
+
+#define LOG_FILENAME_OLD L"NScrflog.dat"
+#define LOG_FILENAME_NEW L"nonsflog.dat"
+
+void NONS_SurfaceManager::init(){
+	if (this->initialized)
+		return;
+	this->filelog=new NONS_FileLog(LOG_FILENAME_OLD,LOG_FILENAME_NEW);
+#if !NONS_SYS_WINDOWS
+	this->svg_library=new NONS_LibraryLoader("svg_loader",0);
+#else
+	this->svg_library=new NONS_LibraryLoader("svg_loader","svg_loader",0);
+#endif
+	this->svg_functions.valid=1;
+#define NONS_ImageLoader_INIT_MEMBER(id)\
+	if (this->svg_functions.valid && !(this->svg_functions.id=(id##_f)this->svg_library->getFunction(#id)))\
+		this->svg_functions.valid=0
+	NONS_ImageLoader_INIT_MEMBER(SVG_load);
+	NONS_ImageLoader_INIT_MEMBER(SVG_unload);
+	NONS_ImageLoader_INIT_MEMBER(SVG_get_dimensions);
+	NONS_ImageLoader_INIT_MEMBER(SVG_set_scale);
+	NONS_ImageLoader_INIT_MEMBER(SVG_best_fit);
+	NONS_ImageLoader_INIT_MEMBER(SVG_set_rotation);
+	NONS_ImageLoader_INIT_MEMBER(SVG_set_matrix);
+	NONS_ImageLoader_INIT_MEMBER(SVG_transform_coordinates);
+	NONS_ImageLoader_INIT_MEMBER(SVG_add_scale);
+	NONS_ImageLoader_INIT_MEMBER(SVG_render);
+	NONS_ImageLoader_INIT_MEMBER(SVG_render2);
+	NONS_ImageLoader_INIT_MEMBER(SVG_have_linear_transformations);
+	this->fast_svg=1;
+	this->base_scale[0]=this->base_scale[1]=1;
+	this->initialized=1;
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::allocate(ulong w,ulong h){
+	this->surfaces.push_front(new Surface(w,h));
+	return index_t(this->surfaces.begin());
+}
+
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+const int rmask=0xFF000000;
+const int gmask=0x00FF0000;
+const int bmask=0x0000FF00;
+const int amask=0x000000FF;
+const int rshift=24;
+const int gshift=16;
+const int bshift=8;
+const int ashift=0;
+#else
+const int rmask=0x000000FF;
+const int gmask=0x0000FF00;
+const int bmask=0x00FF0000;
+const int amask=0xFF000000;
+const int rshift=0;
+const int gshift=8;
+const int bshift=16;
+const int ashift=24;
+#endif
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo &ai){
+	NONS_DataStream *stream=general_archive.open(ai.getFilename());
+	if (!stream)
+		return index_t();
+	SDL_RWops rw=stream->to_rwops();
+	SDL_Surface *surface=IMG_Load_RW(&rw,0);
+	general_archive.close(stream);
+	if (!surface)
+		return index_t();
+	{
+		SDL_Surface *temp=SDL_CreateRGBSurface(SDL_SWSURFACE,surface->w,surface->h,32,rmask,gmask,bmask,amask);
+		SDL_BlitSurface(surface,0,temp,0);
+		SDL_FreeSurface(surface);
+		surface=temp;
+	}
+	index_t s=this->allocate(surface->w,surface->h);
+	NONS_SurfaceProperties sp;
+	s->get_properties(sp);
+	memcpy(sp.pixels,surface->pixels,sp.byte_count);
+	SDL_FreeSurface(temp);
+	/**/
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::copy(const index_t &src){
+	NONS_ConstSurfaceProperties src_sp;
+	src->get_properties(src_sp);
+	index_t i=this->allocate(src_sp.w,src_sp.h);
+	NONS_SurfaceProperties dst_sp;
+	i->get_properties(dst_sp);
+	memcpy(dst_sp.pixels,src_sp.pixels,dst_sp.pitch*dst_sp.h);
+	return i;
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
+	return this->resize(src,ulong(src->w*floor(scale_x+.5)),ulong(src->h*floor(scale_x+.5)));
 }
 
 #define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
@@ -219,18 +592,52 @@ void linear_interpolation2(
 
 typedef void (*linear_interpolation_f)(uchar *,ulong,ulong,ulong,ulong,const uchar *,ulong,ulong,ulong);
 
-NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
-	return this->resize(src,ulong(src->w*floor(scale_x+.5)),ulong(src->h*floor(scale_x+.5)));
+void mirror_1D(
+		uchar *dst,
+		const uchar *src,
+		ulong w,
+		ulong h,
+		int x_advance,
+		int y_advance){
+	for (ulong y=0;y<h;y++){
+		const Uint32 *src2=(const Uint32 *)src;
+		Uint32 *dst2=(Uint32 *)dst;
+		src2+=(((y_advance>0)?y:(h-1-y))*w*4)+(((x_advance>0)?0:(w-1))*4);
+		dst2+=y*w*4;
+		for (ulong x=0;x<w;x++){
+			*dst2=*src2;
+			src2+=x_advance;
+			dst2++;
+		}
+	}
 }
 
-NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,ulong w,ulong h){
+NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,long w,long h){
+	if (!(w*h))
+		return index_t();
 	index_t src=_src;
 	ulong w0=src->w,
 		h0=src->h,
 		minus;
-	index_t dst=this->allocate(w,h0);
+	index_t dst=src;
+	bool free_src=0;
+	if (w<0 || h<0){
+		NONS_ConstSurfaceProperties ssp;
+		src->get_properties(ssp);
+		NONS_SurfaceProperties dsp;
+		dst=this->allocate(ssp.w,ssp.h);
+		dst->get_properties(dsp);
+		mirror_1D(dsp.pixels,ssp.pixels,ssp.w,ssp.h,(w>=0)?1:-1,(h>=0)?1:-1);
+		if (w<0)
+			w=-w;
+		if (h<0)
+			h=-h;
+		src=dst;
+		free_src=1;
+	}
+	dst=this->allocate(w,h0);
 	linear_interpolation_f f;
-	if (w>=w0){
+	if ((ulong)w>=w0){
 		f=linear_interpolation1;
 		minus=1;
 	}else{
@@ -250,7 +657,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,ulo
 	);
 	src=dst;
 	dst=this->allocate(w,h);
-	if (h>=h0){
+	if ((ulong)h>=h0){
 		f=linear_interpolation1;
 		minus=1;
 	}else{
@@ -268,7 +675,8 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,ulo
 		4,
 		((h0-minus)<<16)/(h-minus)
 	);
-	this->deref(src);
+	if (free_src)
+		src->unref();
 	return dst;
 }
 
@@ -328,6 +736,138 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::rotate(const index_t &src,doub
 	return dst;
 }
 
+bool invert_matrix(double dst[4],double src[4]){
+	double a=src[0]*src[3]-src[1]*src[2];
+	if (!a)
+		return 0;
+	a=double(1)/a;
+	dst[0]=a*src[3];
+	dst[1]=a*-src[1];
+	dst[2]=a*-src[2];
+	dst[3]=a*src[0];
+	return 1;
+}
+
+void get_corrected(ulong &w,ulong &h,double matrix[4]){
+	double coords[][2]={
+		{0,0},
+		{0,(double)h},
+		{(double)w,0},
+		{(double)w,(double)h}
+	};
+	double minx,miny;
+	for (int a=0;a<4;a++){
+		double x=coords[a][0]*matrix[0]+coords[a][1]*matrix[1];
+		double y=coords[a][0]*matrix[2]+coords[a][1]*matrix[3];
+		if (x<minx || !a)
+			minx=x;
+		if (y<miny || !a)
+			miny=y;
+	}
+	w=(ulong)-minx;
+	h=(ulong)-miny;
+}
+
+void get_final_size(const NONS_ConstSurfaceProperties &src,double matrix[4],ulong &w,ulong &h){
+	ulong w0=src.w,
+		h0=src.h;
+	double coords[][2]={
+		{0,0},
+		{0,(double)h0},
+		{(double)w0,0},
+		{(double)w0,(double)h0}
+	};
+	double minx,miny,maxx,maxy;
+	for (int a=0;a<4;a++){
+		double x=coords[a][0]*matrix[0]+coords[a][1]*matrix[1];
+		double y=coords[a][0]*matrix[2]+coords[a][1]*matrix[3];
+		if (x<minx || !a)
+			minx=x;
+		if (x>maxx || !a)
+			maxx=x;
+		if (y<miny || !a)
+			miny=y;
+		if (y>maxy || !a)
+			maxy=y;
+	}
+	w=ulong(maxx-minx);
+	h=ulong(maxy-miny);
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,double matrix[4]){
+	double inverted_matrix[4];
+	if (!invert_matrix(inverted_matrix,matrix))
+		return index_t();
+	NONS_ConstSurfaceProperties src_sp;
+	src->get_properties(src_sp);
+	ulong w,h;
+	get_final_size(src_sp,matrix,w,h);
+	index_t dst=this->allocate(w,h);
+	NONS_SurfaceProperties dst_sp;
+	dst->get_properties(dst_sp);
+	ulong correct_x=src_sp.w,
+		correct_y=src_sp.h;
+	get_corrected(correct_x,correct_y,matrix);
+	long long_matrix[4];
+	for (int a=0;a<4;a++)
+		long_matrix[a]=long(matrix[0]*65536.0);
+	for (ulong y=0;y<dst_sp.h;y++){
+		Uint32 *dst_pixel=(Uint32 *)(dst_sp.pixels+y*src_sp.pitch);
+		bool pixels_were_copied=0;
+		long src_x0=(0-correct_x)*long_matrix[0]+(y-correct_y)*long_matrix[1],
+			src_y0=(0-correct_x)*long_matrix[2]+(y-correct_y)*long_matrix[3];
+		for (ulong x=0;x<dst_sp.w;x++){
+			long src_x=src_x0>>16,
+				src_y=src_y0>>16;
+			src_x0+=long_matrix[0];
+			src_y0+=long_matrix[2];
+			if (!(src_x<0 || src_y<0 || (ulong)src_x>=src_sp.w || (ulong)src_y>=src_sp.h)){
+				const Uint32 *src_pixel=(const Uint32 *)(src_sp.pixels+src_x*4+src_y*src_sp.pitch);
+				*(Uint32 *)dst_pixel=*src_pixel;
+				dst_pixel++;
+				pixels_were_copied=1;
+				continue;
+			}
+			if (!pixels_were_copied){
+				dst_pixel++;
+				continue;
+			}
+			break;
+		}
+	}
+	return dst;
+}
+
+void NONS_SurfaceManager::assign_screen(SDL_Surface *s){
+	delete this->screen;
+	this->screen=new ScreenSurface(s);
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::get_screen(){
+	return index_t(this->screen);
+}
+
+bool NONS_SurfaceManager::filelog_check(const std::wstring &string){
+	this->filelog->check(string);
+}
+
+void NONS_SurfaceManager::filelog_writeout(){
+	this->filelog->writeOut();
+}
+
+void NONS_SurfaceManager::filelog_commit(){
+	this->filelog->commit=1;
+}
+
+void NONS_SurfaceManager::use_fast_svg(bool b){
+	this->fast_svg=b;
+}
+
+void NONS_SurfaceManager::set_base_scale(double x,double y){
+	this->base_scale[0]=x;
+	this->base_scale[1]=y;
+}
+
 NONS_SurfaceManager sm;
 
 struct NONS_Surface_Private{
@@ -351,14 +891,14 @@ NONS_Surface &NONS_ConstSurface::operator=(const NONS_ConstSurface &original){
 	delete this->data;
 	if (original){
 		this->data=new NONS_Surface_Private(original.data->surface);
-		sm.ref(this->data->surface);
+		this->data->surface->ref();
 	}
 }
 
 NONS_ConstSurface::~NONS_ConstSurface(){
 	if (!this->data)
 		return;
-	sm.deref(this->data->surface);
+	this->data->surface->unref();
 	delete this->data;
 }
 
@@ -368,26 +908,29 @@ NONS_LongRect NONS_ConstSurface::default_box(const NONS_LongRect *b) const{
 
 NONS_Surface NONS_ConstSurface::scale(double x,double y) const{
 	NONS_SurfaceManager::index_t temp=sm.scale(this->data->surface,x,y);
-	if (temp.good()){
-		sm.deref(this->data->surface);
-		*this->data=NONS_Surface_Private(temp);
-	}
+	if (!temp.good())
+		return NONS_Surface();
+	NONS_Surface r;
+	r.data=new NONS_Surface_Private(temp);
+	return r;
 }
 
 NONS_Surface NONS_ConstSurface::rotate(double alpha) const{
 	NONS_SurfaceManager::index_t temp=sm.rotate(this->data->surface,alpha);
-	if (temp.good()){
-		sm.deref(this->data->surface);
-		*this->data=NONS_Surface_Private(temp);
-	}
+	if (!temp.good())
+		return NONS_Surface();
+	NONS_Surface r;
+	r.data=new NONS_Surface_Private(temp);
+	return r;
 }
 
 NONS_Surface NONS_ConstSurface::transform(double m[4]) const{
 	NONS_SurfaceManager::index_t temp=sm.transform(this->data->surface,m);
-	if (temp.good()){
-		sm.deref(this->data->surface);
-		*this->data=NONS_Surface_Private(temp);
-	}
+	if (!temp.good())
+		return NONS_Surface();
+	NONS_Surface r;
+	r.data=new NONS_Surface_Private(temp);
+	return r;
 }
 
 void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
@@ -397,7 +940,7 @@ void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
 
 NONS_Surface::NONS_Surface(const NONS_CrippledSurface &original){
 	this->data=new NONS_Surface_Private(original.data->surface);
-	sm.ref(this->data->surface);
+	this->data->surface->ref();
 }
 
 NONS_Surface::NONS_Surface(ulong w,ulong h){
@@ -408,7 +951,7 @@ NONS_Surface &NONS_Surface::operator=(const NONS_Surface &original){
 	delete this->data;
 	if (original){
 		this->data=new NONS_Surface_Private(original.data->surface);
-		sm.ref(this->data->surface);
+		this->data->surface->ref();
 	}
 }
 
@@ -823,6 +1366,30 @@ NONS_Surface NONS_Surface::get_screen(){
 	return r;
 }
 
+void NONS_Surface::init_loader(){
+	sm.init();
+}
+
+bool NONS_Surface::filelog_check(const std::wstring &string){
+	return sm.filelog_check(string);
+}
+
+void NONS_Surface::filelog_writeout(){
+	sm.filelog_writeout();
+}
+
+void NONS_Surface::filelog_commit(){
+	sm.filelog_commit();
+}
+
+void NONS_Surface::use_fast_svg(bool b){
+	sm.use_fast_svg(b);
+}
+
+void NONS_Surface::set_base_scale(double x,double y){
+	sm.set_base_scale(x,y);
+}
+
 #define NONS_Surface_DEFINE_RELATIONAL_OP(type,op) \
 	bool type::operator op(const type &b) const{ return *this->data->surface op *b.data->surface; }
 OVERLOAD_RELATIONAL_OPERATORS2(NONS_Surface,NONS_Surface_DEFINE_RELATIONAL_OP)
@@ -840,6 +1407,35 @@ NONS_SurfaceManager::Surface::Surface(ulong w,ulong h){
 
 NONS_SurfaceManager::Surface::~Surface(){
 	delete[] this->data;
+}
+
+void NONS_SurfaceManager::Surface::ref(){
+	NONS_MutexLocker ml(this->mutex);
+	this->ref_count++;
+}
+
+void NONS_SurfaceManager::Surface::unref(){
+	NONS_MutexLocker ml(this->mutex);
+	this->ref_count--;
+}
+
+NONS_SurfaceManager::ScreenSurface::ScreenSurface(SDL_Surface *s):Surface(),screen(s){
+	this->w=s->w;
+	this->h=s->h;
+	this->data=(uchar *)s->pixels;
+	this->ref_count=LONG_MAX>>1;
+}
+
+void NONS_SurfaceManager::ScreenSurface::ref(){
+	this->mutex.lock();
+	this->ref_count++;
+	SDL_LockSurface(this->screen);
+}
+
+void NONS_SurfaceManager::ScreenSurface::unref(){
+	SDL_UnlockSurface(this->screen);
+	this->ref_count--;
+	this->mutex.unlock();
 }
 
 NONS_CrippledSurface::NONS_CrippledSurface(const NONS_Surface &original){

@@ -1,3 +1,4 @@
+#if 0
 /*
 * Copyright (c) 2008-2010, Helios (helios.vmg@gmail.com)
 * All rights reserved.
@@ -124,7 +125,6 @@ public:
 
 typedef std::map<std::pair<ulong,ulong>,SDL_Rect> optim_t;
 
-#if 0
 struct NONS_Image{
 	SDL_Surface *image;
 	NONS_AnimationInfo animation;
