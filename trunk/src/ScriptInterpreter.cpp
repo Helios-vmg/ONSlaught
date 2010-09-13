@@ -620,9 +620,8 @@ void NONS_ScriptInterpreter::init(){
 				o_stderr <<"FATAL ERROR: \""<<fontfile<<"\" is not a valid font file.\n";
 			exit(0);
 		}
-		NONS_Color white(255,255,255,255);
 		ulong fs=this->defaultfs*this->virtual_size[1]/this->base_size[1];
-		this->font_cache=new NONS_FontCache(*this->main_font,fs,white,0,0,0,NONS_Color() FONTCACHE_DEBUG_PARAMETERS);
+		this->font_cache=new NONS_FontCache(*this->main_font,fs,NONS_Color::white,0,0,0,NONS_Color::black FONTCACHE_DEBUG_PARAMETERS);
 	}
 	if (!CLOptions.play.size()){
 		if (!this->script){
@@ -979,7 +978,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		exception_string="File not found.";
 	}else{
 		NONS_Surface screen=this->screen->screen->get_real_screen();
-		screen.fill(NONS_Color());
+		screen.fill(NONS_Color::black);
 		int stop=0,
 			toggle_fullscreen=0,
 			take_screenshot=0;
@@ -2059,12 +2058,12 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 		ulong w=(ulong)scr->screen->inRect.w,
 			h=(ulong)scr->screen->inRect.h;
 		NONS_Surface s(w,h);
-		s.fill(NONS_Color());
+		s.fill(NONS_Color::black);
 		NONS_GFX::callEffect(10,1000,0,s,NONS_Surface(),*scr->screen);
 	}
 	SDL_Delay(1500);
 	scr->BlendNoCursor(10,1000,0);
-	this->screen->screen->applyFilter(0,NONS_Color(),L"");
+	this->screen->screen->applyFilter(0,NONS_Color::black,L"");
 	for (ulong a=0;a<save.pipelines[1].size();a++){
 		pipelineElement &el=save.pipelines[1][a];
 		this->screen->screen->applyFilter(el.effectNo+1,el.color,el.ruleStr);
@@ -2366,7 +2365,7 @@ ErrorCode NONS_ScriptInterpreter::command_add_filter(NONS_Statement &stmt){
 	GET_INT_VALUE(effect,0);
 	if (stdStrCmpCI(stmt.commandName,L"add_filter")){
 		if (!effect)
-			this->screen->screen->applyFilter(0,NONS_Color(),L"");
+			this->screen->screen->applyFilter(0,NONS_Color::black,L"");
 		else{
 			MINIMUM_PARAMETERS(3);
 			GET_INT_VALUE(rgb,1);
@@ -4181,7 +4180,7 @@ ErrorCode NONS_ScriptInterpreter::command_nega(NONS_Statement &stmt){
 				}
 		}
 		if (push)
-			v.push_back(pipelineElement(pipelineElement::NEGATIVE,NONS_Color(),L"",0));
+			v.push_back(pipelineElement(pipelineElement::NEGATIVE,NONS_Color::black,L"",0));
 	}else{
 		if (v.size() && v[0].effectNo==pipelineElement::NEGATIVE)
 			v.erase(v.begin());

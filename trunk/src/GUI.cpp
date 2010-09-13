@@ -527,7 +527,7 @@ void NONS_GraphicButton::allocateLayer(
 	NONS_LongRect dst(0,0,width,height),
 		srcRect(originX,originY,width,height);
 	delete layer;
-	layer=new NONS_Layer(dst,NONS_Color());
+	layer=new NONS_Layer(dst,NONS_Color::black);
 	layer->data.over(src,&dst,&srcRect);
 }
 
@@ -546,13 +546,13 @@ NONS_TextButton::NONS_TextButton(
 	int offsetX,
 		offsetY;
 	this->box=this->GetBoundingBox(text,&this->font_cache,limitX,limitY,offsetX,offsetY);
-	this->setOffLayer()=new NONS_Layer(this->box,NONS_Color());
+	this->setOffLayer()=new NONS_Layer(this->box,NONS_Color::black);
 	this->setOffLayer()->MakeTextLayer(this->font_cache,off);
-	this->setOnLayer()=new NONS_Layer(this->box,NONS_Color());
+	this->setOnLayer()=new NONS_Layer(this->box,NONS_Color::black);
 	this->setOnLayer()->MakeTextLayer(this->font_cache,on);
 	if (shadow){
-		this->setShadowLayer()=new NONS_Layer(this->box,NONS_Color());
-		this->setShadowLayer()->MakeTextLayer(this->font_cache,NONS_Color());
+		this->setShadowLayer()=new NONS_Layer(this->box,NONS_Color::black);
+		this->setShadowLayer()->MakeTextLayer(this->font_cache,NONS_Color::black);
 		this->box.w++;
 		this->box.h++;
 	}else
@@ -1365,7 +1365,7 @@ int NONS_Menu::write(const std::wstring &txt,int y){
 	NONS_FontCache tempCacheForeground(this->get_font_cache() FONTCACHE_DEBUG_PARAMETERS),
 		tempCacheShadow(tempCacheForeground FONTCACHE_DEBUG_PARAMETERS);
 	if (this->shadow)
-		tempCacheShadow.setColor(NONS_Color());
+		tempCacheShadow.setColor(NONS_Color::black);
 	
 	std::vector<NONS_Glyph *> outputBuffer;
 	std::vector<NONS_Glyph *> outputBuffer2;
@@ -2044,7 +2044,7 @@ void NONS_DebuggingConsole::enter(NONS_ScreenSpace *dst){
 			this->cursorX=this->cursorY=0;
 		}
 		dstCopy=screen.clone();
-		screen.fill(NONS_Color());
+		screen.fill(NONS_Color::black);
 		gScriptInterpreter->getSymbolListing(this->autocompleteVector);
 		std::sort(this->autocompleteVector.begin(),this->autocompleteVector.end());
 		dst->screen->updateWithoutLock();
@@ -2289,17 +2289,14 @@ bool NONS_DebuggingConsole::input(std::wstring &input,NONS_ScreenSpace *dst){
 	return ret;
 }
 
-static const NONS_Color white(0xFF,0xFF,0xFF),
-	black;
-
 void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulong lineHeight){
-	dst->screen->get_screen().fill(NONS_Color());
+	dst->screen->get_screen().fill(NONS_Color::black);
 	long startAt=this->screen.size()/this->screenW-this->screenH;
 	if (this->cursorY+lineHeight>=this->screenH)
 		startAt+=startFromLine+lineHeight;
 	if (startAt<0)
 		startAt=0;
-	this->cache->setColor(white);
+	this->cache->setColor(NONS_Color::white);
 	for (ulong y=0;y<this->screenH;y++){
 		for (ulong x=0;x<this->screenW;x++){
 			if (CONLOCATE(x,y+startAt)>=this->screen.size())
@@ -2333,9 +2330,9 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 						this->characterWidth,
 						this->characterHeight
 					);
-					screen.fill(rect,white);
+					screen.fill(rect,NONS_Color::white);
 				}
-				this->cache->setColor((a!=cursor)?white:black);
+				this->cache->setColor((a!=cursor)?NONS_Color::white:NONS_Color::black);
 				NONS_Glyph *g=this->cache->getGlyph(line[a]);
 				g->put(screen,cursorX*this->characterWidth,cursorY*this->characterHeight);
 				g->done();
@@ -2347,7 +2344,7 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 			}
 		}
 	}else{
-		this->cache->setColor(white);
+		this->cache->setColor(NONS_Color::white);
 		for (ulong a=0;a<line.size();a++){
 			if (cursorY<(long)this->screenH){
 				NONS_Glyph *g=this->cache->getGlyph(line[a]);
@@ -2366,7 +2363,7 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 			this->characterWidth,
 			this->characterHeight
 		);
-		screen.fill(rect,white);
+		screen.fill(rect,NONS_Color::white);
 	}
 	dst->screen->updateWithoutLock();
 }

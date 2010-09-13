@@ -214,7 +214,7 @@ public:
 	//Copies the surface while scaling it.
 	NONS_Surface scale(double x,double y) const;
 	//Copies the surface while resizing it.
-	NONS_Surface resize(ulong x,ulong y) const;
+	NONS_Surface resize(long x,long y) const;
 	//Copies the surface while rotating it.
 	NONS_Surface rotate(double alpha) const;
 	//Copies the surface while applying a linear transformation to it.

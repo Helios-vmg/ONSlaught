@@ -206,11 +206,11 @@ NONS_StandardOutput::NONS_StandardOutput(NONS_Layer *fgLayer,NONS_Layer *shadowL
 }
 
 NONS_StandardOutput::NONS_StandardOutput(NONS_FontCache &fc,const NONS_LongRect &size,const NONS_LongRect &frame,bool shadow){
-	this->foregroundLayer=new NONS_Layer(size,NONS_Color());
-	this->foregroundLayer->MakeTextLayer(fc,NONS_Color(255,255,255,0));
+	this->foregroundLayer=new NONS_Layer(size,NONS_Color::black);
+	this->foregroundLayer->MakeTextLayer(fc,NONS_Color::white);
 	if (shadow){
-		this->shadowLayer=new NONS_Layer(size,NONS_Color());
-		this->shadowLayer->MakeTextLayer(fc,NONS_Color());
+		this->shadowLayer=new NONS_Layer(size,NONS_Color::black);
+		this->shadowLayer->MakeTextLayer(fc,NONS_Color::black);
 	}else
 		this->shadowLayer=0;
 	this->shadeLayer=new NONS_Layer(size,NONS_Color(0x99,0x99,0x99));
@@ -750,7 +750,7 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 		this->lookback=0;
 	}
 	this->layerStack.resize(1000,0);
-	this->Background=new NONS_Layer(size,NONS_Color());
+	this->Background=new NONS_Layer(size,NONS_Color::black);
 	this->leftChar=0;
 	this->centerChar=0;
 	this->rightChar=0;
@@ -786,7 +786,7 @@ NONS_ScreenSpace::NONS_ScreenSpace(const NONS_LongRect &window,const NONS_LongRe
 	this->layerStack.resize(1000,0);
 	this->Background=new NONS_Layer(
 		NONS_LongRect(0,0,CLOptions.virtualWidth,CLOptions.virtualHeight),
-		NONS_Color()
+		NONS_Color::black
 	);
 	this->leftChar=0;
 	this->centerChar=0;
@@ -871,7 +871,7 @@ void NONS_ScreenSpace::BlendOptimized(std::vector<SDL_Rect> &rects){
 	NONS_LongRect refresh_area(minx,miny,maxx-minx,maxy-miny);
 	if (!(refresh_area.w*refresh_area.h))
 		return;
-	this->screenBuffer.fill(refresh_area,NONS_Color());
+	this->screenBuffer.fill(refresh_area,NONS_Color::black);
 	BLEND_OPTIM(this->Background,over);
 	for (ulong a=this->layerStack.size()-1;a>this->sprite_priority;a--){
 		NONS_Layer *p=this->layerStack[a];
@@ -1001,7 +1001,7 @@ ErrorCode NONS_ScreenSpace::BlendNoText(ulong effect,long timing,const std::wstr
 }
 
 ErrorCode NONS_ScreenSpace::BlendOnlyBG(ulong effect){
-	this->screenBuffer.fill(NONS_Color());
+	this->screenBuffer.fill(NONS_Color::black);
 	if (this->Background && this->Background->data)
 		this->screenBuffer.over(this->Background->data,&this->Background->position,&this->Background->clip_rect);
 	if (effect){

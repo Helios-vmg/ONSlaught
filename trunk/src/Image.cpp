@@ -35,6 +35,7 @@
 #include "IOFunctions.h"
 #include "Archive.h"
 #include <SDL/SDL_image.h>
+#include <png.h>
 #include <list>
 #include <cmath>
 
@@ -318,6 +319,8 @@ public:
 			this->id=obj_count++;
 			mutex.unlock();
 		}
+		virtual long ref();
+		virtual long unref();
 	public:
 		Surface(ulong w,ulong h);
 		Surface(const Surface &);
@@ -331,19 +334,17 @@ public:
 			sp.pixel_count=this->h*this->w;
 			sp.byte_count=sp.pixel_count*4;
 		}
-		virtual void ref();
-		virtual void unref();
 #define NONS_SurfaceManager_Surface_RELATIONAL_OP(op) bool operator op(const Surface &b) const{ return this->id op b.id; }
 		OVERLOAD_RELATIONAL_OPERATORS(NONS_SurfaceManager_Surface_RELATIONAL_OP)
 	};
 	class ScreenSurface:public Surface{
 		SDL_Surface *screen;
 		friend class NONS_SurfaceManager;
+		long ref();
+		long unref();
 	public:
 		ScreenSurface(SDL_Surface *s);
 		~ScreenSurface(){ this->data=0; }
-		void ref();
-		void unref();
 	};
 	typedef std::list<Surface *> surfaces_t;
 	class index_t{
@@ -379,6 +380,8 @@ public:
 	void filelog_commit();
 	void use_fast_svg(bool);
 	void set_base_scale(double x,double y);
+	void ref(index_t &i){ i->ref(); }
+	void unref(index_t &);
 private:
 	bool initialized;
 	surfaces_t surfaces;
@@ -391,6 +394,7 @@ private:
 	NONS_DiskCache disk_cache;
 	//1 if the image was added, 0 otherwise
 	bool addElementToCache(NONS_Surface *img);
+	index_t load_image(const std::wstring &filename);
 };
 
 ulong NONS_SurfaceManager::Surface::obj_count=0;
@@ -466,27 +470,34 @@ const int bshift=16;
 const int ashift=24;
 #endif
 
-NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo &ai){
-	NONS_DataStream *stream=general_archive.open(ai.getFilename());
+NONS_SurfaceManager::index_t NONS_SurfaceManager::load_image(const std::wstring &filename){
+	NONS_DataStream *stream=general_archive.open(filename);
+	index_t r;
 	if (!stream)
-		return index_t();
+		return r;
 	SDL_RWops rw=stream->to_rwops();
 	SDL_Surface *surface=IMG_Load_RW(&rw,0);
 	general_archive.close(stream);
 	if (!surface)
-		return index_t();
+		return r;
 	{
 		SDL_Surface *temp=SDL_CreateRGBSurface(SDL_SWSURFACE,surface->w,surface->h,32,rmask,gmask,bmask,amask);
 		SDL_BlitSurface(surface,0,temp,0);
 		SDL_FreeSurface(surface);
 		surface=temp;
 	}
-	index_t s=this->allocate(surface->w,surface->h);
+	r=this->allocate(surface->w,surface->h);
 	NONS_SurfaceProperties sp;
-	s->get_properties(sp);
+	r->get_properties(sp);
+	SDL_LockSurface(surface);
 	memcpy(sp.pixels,surface->pixels,sp.byte_count);
-	SDL_FreeSurface(temp);
-	/**/
+	SDL_UnlockSurface(surface);
+	SDL_FreeSurface(surface);
+	return r;
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo &ai){
+	return this->load_image(ai.getFilename());
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::copy(const index_t &src){
@@ -497,6 +508,18 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::copy(const index_t &src){
 	i->get_properties(dst_sp);
 	memcpy(dst_sp.pixels,src_sp.pixels,dst_sp.pitch*dst_sp.h);
 	return i;
+}
+
+void NONS_SurfaceManager::unref(NONS_SurfaceManager::index_t &i){
+	if (!i->unref()){
+		if (!i.p)
+			this->surfaces.erase(i.i);
+		else{
+			i.p=0;
+			delete this->screen;
+			this->screen=0;
+		}
+	}
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
@@ -891,14 +914,14 @@ NONS_Surface &NONS_ConstSurface::operator=(const NONS_ConstSurface &original){
 	delete this->data;
 	if (original){
 		this->data=new NONS_Surface_Private(original.data->surface);
-		this->data->surface->ref();
+		sm.ref(this->data->surface);
 	}
 }
 
 NONS_ConstSurface::~NONS_ConstSurface(){
 	if (!this->data)
 		return;
-	this->data->surface->unref();
+	sm.unref(this->data->surface);
 	delete this->data;
 }
 
@@ -908,6 +931,15 @@ NONS_LongRect NONS_ConstSurface::default_box(const NONS_LongRect *b) const{
 
 NONS_Surface NONS_ConstSurface::scale(double x,double y) const{
 	NONS_SurfaceManager::index_t temp=sm.scale(this->data->surface,x,y);
+	if (!temp.good())
+		return NONS_Surface();
+	NONS_Surface r;
+	r.data=new NONS_Surface_Private(temp);
+	return r;
+}
+
+NONS_Surface NONS_ConstSurface::resize(long x,long y) const{
+	NONS_SurfaceManager::index_t temp=sm.resize(this->data->surface,x,y);
 	if (!temp.good())
 		return NONS_Surface();
 	NONS_Surface r;
@@ -933,6 +965,10 @@ NONS_Surface NONS_ConstSurface::transform(double m[4]) const{
 	return r;
 }
 
+void NONS_ConstSurface::save_bitmap(const std::wstring &filename) const{
+
+}
+
 void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
 	if (this->good())
 		this->data->surface->get_properties(sp);
@@ -940,7 +976,7 @@ void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
 
 NONS_Surface::NONS_Surface(const NONS_CrippledSurface &original){
 	this->data=new NONS_Surface_Private(original.data->surface);
-	this->data->surface->ref();
+	sm.ref(this->data->surface);
 }
 
 NONS_Surface::NONS_Surface(ulong w,ulong h){
@@ -951,8 +987,9 @@ NONS_Surface &NONS_Surface::operator=(const NONS_Surface &original){
 	delete this->data;
 	if (original){
 		this->data=new NONS_Surface_Private(original.data->surface);
-		this->data->surface->ref();
-	}
+		sm.ref(this->data->surface);
+	}else
+		this->data=0;
 }
 
 NONS_Surface &NONS_Surface::operator=(const std::wstring &name){
@@ -1409,14 +1446,14 @@ NONS_SurfaceManager::Surface::~Surface(){
 	delete[] this->data;
 }
 
-void NONS_SurfaceManager::Surface::ref(){
+long NONS_SurfaceManager::Surface::ref(){
 	NONS_MutexLocker ml(this->mutex);
-	this->ref_count++;
+	return ++this->ref_count;
 }
 
-void NONS_SurfaceManager::Surface::unref(){
+long NONS_SurfaceManager::Surface::unref(){
 	NONS_MutexLocker ml(this->mutex);
-	this->ref_count--;
+	return --this->ref_count;
 }
 
 NONS_SurfaceManager::ScreenSurface::ScreenSurface(SDL_Surface *s):Surface(),screen(s){
@@ -1426,16 +1463,18 @@ NONS_SurfaceManager::ScreenSurface::ScreenSurface(SDL_Surface *s):Surface(),scre
 	this->ref_count=LONG_MAX>>1;
 }
 
-void NONS_SurfaceManager::ScreenSurface::ref(){
+long NONS_SurfaceManager::ScreenSurface::ref(){
 	this->mutex.lock();
-	this->ref_count++;
+	long r=++this->ref_count;
 	SDL_LockSurface(this->screen);
+	return r;
 }
 
-void NONS_SurfaceManager::ScreenSurface::unref(){
+long NONS_SurfaceManager::ScreenSurface::unref(){
 	SDL_UnlockSurface(this->screen);
-	this->ref_count--;
+	long r=--this->ref_count;
 	this->mutex.unlock();
+	return r;
 }
 
 NONS_CrippledSurface::NONS_CrippledSurface(const NONS_Surface &original){

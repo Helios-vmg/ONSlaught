@@ -531,7 +531,7 @@ void NONS_SaveFile::load(std::wstring filename){
 				if (monochrome)
 					this->pipelines->push_back(pipelineElement(0,monochromeColor,L"",0));
 				if (negative)
-					this->pipelines->push_back(pipelineElement(1,NONS_Color(),L"",0));
+					this->pipelines->push_back(pipelineElement(1,NONS_Color::black,L"",0));
 			}else{
 				this->nega_parameter=!!readByte(buffer,offset);
 

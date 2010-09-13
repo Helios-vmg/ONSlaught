@@ -197,7 +197,7 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
 
 NONS_VirtualScreen::~NONS_VirtualScreen(){
 	this->stopEffect();
-	this->applyFilter(0,NONS_Color(),L"");
+	this->applyFilter(0,NONS_Color::black,L"");
 }
 
 NONS_DLLexport void NONS_VirtualScreen::blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect){
@@ -454,10 +454,10 @@ void NONS_VirtualScreen::changeState(bool switchAsyncState,bool switchFilterStat
 				this->screens[this->pre_inter]=this->screens[VIRTUAL];
 			}else
 				this->post_filter=3;
-			NONS_CrippledSurface::copy_surface(this->screens[VIRTUAL],this->screens[VIRTUAL]);
+			NONS_CrippledSurface::copy_surface(this->screens[VIRTUAL],NONS_Surface(this->screens[VIRTUAL]));
 			break;
 		case 2: //turn effect on, filter remains off
-			NONS_CrippledSurface::copy_surface(this->screens[PRE_ASYNC],this->screens[REAL]);
+			NONS_CrippledSurface::copy_surface(this->screens[PRE_ASYNC],NONS_Surface(this->screens[REAL]));
 			if (interpolation)
 				this->post_inter=2;
 			else
@@ -474,7 +474,7 @@ void NONS_VirtualScreen::changeState(bool switchAsyncState,bool switchFilterStat
 				this->post_inter=2;
 			else
 				this->post_filter=2;
-			NONS_CrippledSurface::copy_surface(this->screens[PRE_ASYNC],this->screens[REAL]);
+			NONS_CrippledSurface::copy_surface(this->screens[PRE_ASYNC],NONS_Surface(this->screens[REAL]));
 			break;
 		case 8: //turn effect off, filter remains off
 			this->screens[PRE_ASYNC].unbind();
@@ -487,10 +487,10 @@ void NONS_VirtualScreen::changeState(bool switchAsyncState,bool switchFilterStat
 			if (interpolation){
 				this->post_filter=1;
 				this->pre_inter=1;
-				NONS_CrippledSurface::copy_surface(this->screens[this->pre_inter],this->screens[VIRTUAL]);
+				NONS_CrippledSurface::copy_surface(this->screens[this->pre_inter],NONS_Surface(this->screens[VIRTUAL]));
 			}else{
 				this->post_filter=2;
-				NONS_CrippledSurface::copy_surface(this->screens[VIRTUAL],this->screens[VIRTUAL]);
+				NONS_CrippledSurface::copy_surface(this->screens[VIRTUAL],NONS_Surface(this->screens[VIRTUAL]));
 			}
 			break;
 		case 13: //turn effect off, filter remains on
@@ -643,12 +643,12 @@ void effectNegative_threaded(const NONS_Surface &dst,const NONS_ConstSurface &sr
 		h=(long)rect.h;
 	src_p.pixels+=long(rect.x)*4+long(rect.y)*src_p.pitch;
 	dst_p.pixels+=long(rect.x)*4+long(rect.y)*dst_p.pitch;
-	Uint32 opaque_white=NONS_Color(0xFF,0xFF,0xFF,0).to_native();
+	Uint32 transparent_white=NONS_Color(0xFF,0xFF,0xFF,0).to_native();
 	for (long y=0;y<h;y++){
 		const Uint32 *pix0=(const Uint32 *)src_p.pixels;
 		Uint32 *pix1=(Uint32 *)dst_p.pixels;
 		for (long x0=0;x0<w;x0++)
-			*pix1++=(*pix0++)^opaque_white;
+			*pix1++=(*pix0++)^transparent_white;
 		src_p.pixels+=src_p.pitch;
 		dst_p.pixels+=dst_p.pitch;
 	}
