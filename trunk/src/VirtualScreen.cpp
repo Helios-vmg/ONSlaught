@@ -36,12 +36,6 @@
 #include <iostream>
 #include <cmath>
 
-/*#ifndef DEBUG_SCREEN_MUTEX
-NONS_DECLSPEC NONS_Mutex screenMutex;
-#else
-NONS_DECLSPEC NONS_Mutex screenMutex(1);
-#endif*/
-
 //#define ONLY_NEAREST_NEIGHBOR
 //#define BENCHMARK_INTERPOLATION
 
@@ -274,44 +268,13 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 		NONS_Surface(this->screens[REAL]).update(x,y,w,h);
 }
 
-#if 0
 NONS_DLLexport void NONS_VirtualScreen::updateWholeScreen(bool fast){
-	NONS_MutexLocker ml(screenMutex);
-	this->updateWithoutLock(fast);
+	this->updateWithoutLock(this->screens[REAL].get_surface(),fast);
 }
 
-NONS_DLLexport void NONS_VirtualScreen::updateWithoutLock(bool fast){
-	if (this->usingFeature[OVERALL_FILTER]){
-		SDL_Surface *src=this->screens[VIRTUAL];
-		for (ulong a=0;a<this->filterPipeline.size();a++){
-			pipelineElement &el=this->filterPipeline[a];
-			this->filters[el.effectNo](el.effectNo+1,el.color,src,el.rule,this->screens[this->post_filter],0,0,this->inRect.w,this->inRect.h);
-			if (!a)
-				src=this->screens[this->post_filter];
-		}
-	}
-	if (this->usingFeature[INTERPOLATION]){
-#ifdef BENCHMARK_INTERPOLATION
-		ulong t0=SDL_GetTicks(),t1;
-#endif
-#ifndef ONLY_NEAREST_NEIGHBOR
-		if (fast)
-			nearestNeighborInterpolation(this->screens[this->pre_inter],&this->inRect,this->screens[this->post_inter],&this->outRect,this->x_multiplier,this->y_multiplier);
-		else
-			this->normalInterpolation(this->screens[this->pre_inter],&this->inRect,this->screens[this->post_inter],&this->outRect,this->x_multiplier,this->y_multiplier);
-#else
-		nearestNeighborInterpolation(this->screens[this->pre_inter],&this->inRect,this->screens[this->post_inter],&this->outRect,this->x_multiplier,this->y_multiplier);
-#endif
-#ifdef BENCHMARK_INTERPOLATION
-		t1=SDL_GetTicks()-t0;
-		std::cout <<t1<<std::endl;
-#endif
-		if (!this->usingFeature[ASYNC_EFFECT])
-			SDL_UpdateRect(this->screens[REAL],this->outRect.x,this->outRect.y,this->outRect.w,this->outRect.h);
-	}else if (!this->usingFeature[ASYNC_EFFECT])
-		SDL_UpdateRect(this->screens[REAL],0,0,0,0);
+NONS_DLLexport void NONS_VirtualScreen::updateWithoutLock(const NONS_Surface &s,bool fast){
+	s.update();
 }
-#endif
 
 bool NONS_VirtualScreen::toggleFullscreen(uchar mode){
 	NONS_Surface screen=this->screens[REAL];
@@ -332,7 +295,7 @@ bool NONS_VirtualScreen::toggleFullscreen(uchar mode){
 		screen.copy_pixels(tempCopy);
 	}/*else if (this->usingFeature[INTERPOLATION])
 		this->screens[REAL]->clip_rect=this->outRect;*/
-	this->updateWithoutLock();
+	this->updateWithoutLock(screen);
 	return this->fullscreen;
 }
 
@@ -353,17 +316,18 @@ SDL_Surface *NONS_VirtualScreen::toggleFullscreenFromVideo(){
 	return screen.get_SDL_screen();
 }
 
-std::string NONS_VirtualScreen::takeScreenshot(const std::string &name){
-	std::string filename=(!name.size())?getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp":name;
-	NONS_Surface screen=this->screens[REAL];
-	SDL_SaveBMP(screen.get_SDL_screen(),filename.c_str());
+std::wstring NONS_VirtualScreen::takeScreenshot(const std::wstring &name){
+	std::wstring filename;
+	if (!name.size())
+		filename=generate_filename<wchar_t>();
+	else
+		filename=name;
+	NONS_Surface(this->screens[REAL]).save_bitmap(filename);
 	return filename;
 }
 
 void NONS_VirtualScreen::takeScreenshotFromVideo(void){
-	//NONS_MutexLocker ml(screenMutex);
-	NONS_Surface screen=this->screens[REAL];
-	SDL_SaveBMP(screen.get_SDL_screen(),(getTimeString<char>(1)+'_'+itoac(SDL_GetTicks(),10)+".bmp").c_str());
+	NONS_Surface(this->screens[REAL]).save_bitmap(generate_filename<wchar_t>());
 }
 
 void NONS_VirtualScreen::initEffectList(){

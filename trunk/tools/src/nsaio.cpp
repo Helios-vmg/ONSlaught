@@ -255,7 +255,7 @@ sarArchive::sarArchive(const std::wstring &filename,bool nsa){
 		file_data_start=readBigEndian(4,buffer,offset);
 	delete[] buffer;
 	l=file_data_start-offset;
-	buffer=this->file.read(l,l,0);
+	buffer=this->file.read(l,l,6);
 	if (l<file_data_start-offset){
 		delete[] buffer;
 		return;
@@ -486,24 +486,28 @@ namespace compression{
 		}
 		static unsigned in_f(void *p,unsigned char **buffer){
 			decompress_from_file *_this=(decompress_from_file *)p;
-			size_t l=1<<12;
-			_this->in.resize(l);
-			_this->file->read(&_this->in[0],l,l,_this->offset);
-			_this->in.resize(l);
-			if (!l){
-				_this->in_buffer=0;
-				if (buffer)
-					*buffer=0;
-				_this->remaining=0;
-				return 0;
+			if (_this->remaining){
+				size_t l=1<<12;
+				if (l>_this->remaining)
+					l=_this->remaining;
+				_this->in.resize(l);
+				_this->file->read(&_this->in[0],l,l,_this->offset);
+				_this->in.resize(l);
+				if (l){
+					_this->in_buffer=&_this->in[0];
+					if (buffer)
+						*buffer=_this->in_buffer;
+					_this->remaining-=l;
+					_this->offset+=l;
+					_this->processed+=l;
+					return l;
+				}
 			}
-			_this->in_buffer=&_this->in[0];
+			_this->in_buffer=0;
 			if (buffer)
-				*buffer=_this->in_buffer;
-			_this->remaining=l;
-			_this->offset+=l;
-			_this->processed+=l;
-			return l;
+				*buffer=0;
+			_this->remaining=0;
+			return 0;
 		}
 	};
 	struct decompress_to_file:public base_out_decompression{
@@ -975,6 +979,7 @@ void extractSARfunction(const std::wstring &ex_path,const std::wstring &in_path,
 			compression::decompress_to_file dtf;
 			dff.file=params.file;
 			dff.offset=extraData.offset;
+			dff.remaining=extraData.compressed_length;
 			dtf.file=&file;
 			compression::compression_f f;
 			switch (extraData.compression){

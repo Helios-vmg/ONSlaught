@@ -152,20 +152,23 @@ ErrorCode NONS_GFX::call(const NONS_ConstSurface &src,const NONS_Surface &dst0,N
 		NONS_GFX::initializeLists();
 	//ulong t0=SDL_GetTicks();
 	NONS_Surface ruleFile;
+	NONS_ConstSurface source=src;
 	if (this->rule.size())
 		ruleFile=this->rule;
+	if (!source && dst)
+		source=dst->get_screen().clone_without_pixel_copy();
 	if (this->type==TRANSITION){
 		if (this->effect<=18){
-			(this->*(builtInTransitions[this->effect]))(src,ruleFile,*dst);
+			(this->*(builtInTransitions[this->effect]))(source,ruleFile,*dst);
 		}else if (this->effect-19<NONS_GFX::transitions.size()){
-			NONS_GFX::transitions[this->effect-19](this->effect,this->duration,src,ruleFile,*dst);
+			NONS_GFX::transitions[this->effect-19](this->effect,this->duration,source,ruleFile,*dst);
 			if (!CURRENTLYSKIPPING && NONS_GFX::effectblank)
 				waitNonCancellable(NONS_GFX::effectblank);
 		}else
 			return NONS_NO_EFFECT;
 	}else{
 		if (this->effect<NONS_GFX::filters.size())
-			NONS_GFX::filters[this->effect](this->effect+1,this->color,src,NONS_ConstSurface(),dst0,src.clip_rect());
+			NONS_GFX::filters[this->effect](this->effect+1,this->color,source,NONS_ConstSurface(),dst0,source.clip_rect());
 		else
 			return NONS_NO_EFFECT;
 	}
@@ -177,8 +180,9 @@ ErrorCode NONS_GFX::call(const NONS_ConstSurface &src,const NONS_Surface &dst0,N
 void NONS_GFX::effectNothing(const NONS_ConstSurface &src,const NONS_ConstSurface &,NONS_VirtualScreen &dst){}
 
 void NONS_GFX::effectOnlyUpdate(const NONS_ConstSurface &src,const NONS_ConstSurface &,NONS_VirtualScreen &dst){
-	dst.get_screen().over(src);
-	dst.updateWholeScreen();
+	NONS_Surface screen=dst.get_screen();
+	screen.copy_pixels(src);
+	dst.updateWithoutLock(screen);
 }
 
 bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_VirtualScreen &d){
@@ -236,7 +240,7 @@ void NONS_GFX::effectRshutter(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.x+=shutterW;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.w=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -260,7 +264,7 @@ void NONS_GFX::effectLshutter(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.x+=shutterW;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.w=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -284,7 +288,7 @@ void NONS_GFX::effectDshutter(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.y+=shutterH;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.h=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -308,7 +312,7 @@ void NONS_GFX::effectUshutter(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.y+=shutterH;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.h=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -336,7 +340,7 @@ void NONS_GFX::effectRcurtain(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.x+=shutterW;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.w=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -360,7 +364,7 @@ void NONS_GFX::effectLcurtain(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.x-=shutterW;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.w=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -384,7 +388,7 @@ void NONS_GFX::effectDcurtain(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.y+=shutterH;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.h=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -408,7 +412,7 @@ void NONS_GFX::effectUcurtain(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				screen.copy_pixels(src,&rect,&rect);
 				rect.y-=shutterH;
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		rect.h=1;
 		EFFECT_ITERATION_EPILOGUE;
@@ -440,7 +444,7 @@ void NONS_GFX::effectCrossfade(const NONS_ConstSurface &src,const NONS_ConstSurf
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(dst_copy);
 			screen.over(src,0,0,a);
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 #ifdef BENCHMARK_EFFECTS
 		steps++;
@@ -488,7 +492,7 @@ void NONS_GFX::effectRscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(src     ,&dst_rect_A,&src_rect_A);
 			screen.copy_pixels(dst_copy,&dst_rect_B,&src_rect_B);
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
 #if 0
@@ -530,7 +534,7 @@ void NONS_GFX::effectLscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(dst_copy,&dst_rect_A,&src_rect_A);
 			screen.copy_pixels(src     ,&dst_rect_B,&src_rect_B);
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
 #if 0
@@ -572,7 +576,7 @@ void NONS_GFX::effectDscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(src     ,&dst_rect_A,&src_rect_A);
 			screen.copy_pixels(dst_copy,&dst_rect_B,&src_rect_B);
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
 #if 0
@@ -614,7 +618,7 @@ void NONS_GFX::effectUscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(dst_copy,&dst_rect_A,&src_rect_A);
 			screen.copy_pixels(src     ,&dst_rect_B,&src_rect_B);
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
 #if 0
@@ -660,6 +664,7 @@ NONS_Surface copy_mask(NONS_LongRect &src_rect,const NONS_ConstSurface &mask,NON
 	for (mask_rect[1].y=0;mask_rect[1].y<src_rect.h;mask_rect[1].y+=mask_rect[0].h)
 		for (mask_rect[1].x=0;mask_rect[1].x<src_rect.w;mask_rect[1].x+=mask_rect[0].w)
 			r.copy_pixels(mask,mask_rect,mask_rect+1);
+	return r;
 }
 
 void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst){
@@ -722,7 +727,7 @@ void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 #else
 			threadManager.waitAll();
 #endif
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
 #if 0
@@ -748,10 +753,10 @@ void effectSoftMask_threaded(void *parameters){
 					alpha=0;
 				else if (alpha>255)
 					alpha=255;
-				p.dst.pixels[0]=APPLY_ALPHA(p.src0.pixels[0],p.dst.pixels[0],alpha);
-				p.dst.pixels[1]=APPLY_ALPHA(p.src0.pixels[1],p.dst.pixels[1],alpha);
-				p.dst.pixels[2]=APPLY_ALPHA(p.src0.pixels[2],p.dst.pixels[2],alpha);
-				p.dst.pixels[3]=APPLY_ALPHA(p.src0.pixels[3],p.dst.pixels[3],alpha);
+				p.dst.pixels[0]=(uchar)APPLY_ALPHA(p.src0.pixels[0],p.dst.pixels[0],alpha);
+				p.dst.pixels[1]=(uchar)APPLY_ALPHA(p.src0.pixels[1],p.dst.pixels[1],alpha);
+				p.dst.pixels[2]=(uchar)APPLY_ALPHA(p.src0.pixels[2],p.dst.pixels[2],alpha);
+				p.dst.pixels[3]=(uchar)APPLY_ALPHA(p.src0.pixels[3],p.dst.pixels[3],alpha);
 				if ((long)*b1<p.a-255)
 					*b1=0;
 			}
@@ -826,7 +831,7 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 #else
 			threadManager.waitAll();
 #endif
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 #ifdef BENCHMARK_EFFECTS
 		steps++;
@@ -883,7 +888,7 @@ void NONS_GFX::effectMosaicIn(const NONS_ConstSurface &src,const NONS_ConstSurfa
 					}
 				}
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
 #if 0
@@ -933,7 +938,7 @@ void NONS_GFX::effectMosaicOut(const NONS_ConstSurface &src,const NONS_ConstSurf
 					}
 				}
 			}
-			dst.updateWithoutLock();
+			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
 #if 0

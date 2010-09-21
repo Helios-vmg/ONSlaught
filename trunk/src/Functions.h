@@ -65,6 +65,7 @@
 //Fast version:
 #define INTEGER_MULTIPLICATION(a,b) (((a)*(b))>>8)
 #endif
+#define CHECK_POINTER_AND_CALL(p,c) if (p) p->c
 
 //string functions
 template <typename T,typename T2>
@@ -780,7 +781,14 @@ void freePointerVector(std::vector<T *> &v){
 			delete v[a];
 	v.clear();
 }
-#endif
+
+template <typename T>
+std::basic_string<T> generate_filename(){
+	std::basic_string<T> r=getTimeString<T>(1);
+	r.push_back('_');
+	r.append(itoa<T>(SDL_GetTicks(),10));
+	return r;
+}
 
 /*
 Performs alpha blend between two pixels. None, either, or both pixels may
@@ -806,3 +814,4 @@ Parameters:
 		used.
 */
 void do_alpha_blend(uchar *r1,uchar *g1,uchar *b1,uchar *a1,long r0,long g0,long b0,long a0,bool alpha1,bool alpha0,uchar alpha);
+#endif

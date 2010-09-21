@@ -78,7 +78,6 @@ NONS_Layer::NONS_Layer(const std::wstring *string){
 	this->visible=1;
 	this->useDataAsDefaultShade=0;
 	this->alpha=0xFF;
-	this->data=0;
 	this->load(string);
 	this->position.x=0;
 	this->position.y=0;
@@ -916,14 +915,14 @@ ErrorCode NONS_ScreenSpace::BlendAll(ulong effect){
 		NONS_GFX *e=this->gfx_store->retrieve(effect);
 		if (!e)
 			return NONS_UNDEFINED_EFFECT;
-		return e->call(this->screenBuffer,NONS_Surface(),this->screen);
+		return e->call(this->screenBuffer,NONS_Surface::null,this->screen);
 	}
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScreenSpace::BlendAll(ulong effect,long timing,const std::wstring *rule){
 	this->BlendAll(0);
-	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface(),*this->screen);
+	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface::null,*this->screen);
 }
 
 ErrorCode NONS_ScreenSpace::BlendNoCursor(ulong effect){
@@ -945,14 +944,14 @@ ErrorCode NONS_ScreenSpace::BlendNoCursor(ulong effect){
 		NONS_GFX *e=this->gfx_store->retrieve(effect);
 		if (!e)
 			return NONS_UNDEFINED_EFFECT;
-		return e->call(this->screenBuffer,NONS_Surface(),this->screen);
+		return e->call(this->screenBuffer,NONS_Surface::null,this->screen);
 	}
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScreenSpace::BlendNoCursor(ulong effect,long timing,const std::wstring *rule){
 	this->BlendNoCursor(0);
-	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface(),*this->screen);
+	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface::null,*this->screen);
 }
 
 ErrorCode NONS_ScreenSpace::BlendNoText(ulong effect){
@@ -990,32 +989,32 @@ ErrorCode NONS_ScreenSpace::BlendNoText(ulong effect){
 		NONS_GFX *e=this->gfx_store->retrieve(effect);
 		if (!e)
 			return NONS_UNDEFINED_EFFECT;
-		return e->call(this->screenBuffer,NONS_Surface(),this->screen);
+		return e->call(this->screenBuffer,NONS_Surface::null,this->screen);
 	}
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScreenSpace::BlendNoText(ulong effect,long timing,const std::wstring *rule){
 	this->BlendNoText(0);
-	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface(),*this->screen);
+	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface::null,*this->screen);
 }
 
 ErrorCode NONS_ScreenSpace::BlendOnlyBG(ulong effect){
 	this->screenBuffer.fill(NONS_Color::black);
 	if (this->Background && this->Background->data)
-		this->screenBuffer.over(this->Background->data,&this->Background->position,&this->Background->clip_rect);
+		this->screenBuffer.copy_pixels(this->Background->data,&this->Background->position,&this->Background->clip_rect);
 	if (effect){
 		NONS_GFX *e=this->gfx_store->retrieve(effect);
 		if (!e)
 			return NONS_UNDEFINED_EFFECT;
-		return e->call(this->screenBuffer,NONS_Surface(),this->screen);
+		return e->call(this->screenBuffer,NONS_Surface::null,this->screen);
 	}
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScreenSpace::BlendOnlyBG(ulong effect,long timing,const std::wstring *rule){
 	this->BlendOnlyBG(0);
-	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface(),*this->screen);
+	return NONS_GFX::callEffect(effect,timing,rule,this->screenBuffer,NONS_Surface::null,*this->screen);
 }
 
 void NONS_ScreenSpace::copyBufferToScreenWithoutUpdating(){
@@ -1033,7 +1032,7 @@ void NONS_ScreenSpace::hideText(){
 		return;
 	this->output->text_visible=0;
 	this->BlendNoCursor(0);
-	this->output->transition->call(this->screenBuffer,NONS_Surface(),this->screen);
+	this->output->transition->call(this->screenBuffer,NONS_Surface::null,this->screen);
 }
 
 void NONS_ScreenSpace::showText(){
@@ -1041,7 +1040,7 @@ void NONS_ScreenSpace::showText(){
 		return;
 	this->output->text_visible=1;
 	this->BlendNoCursor(0);
-	this->output->transition->call(this->screenBuffer,NONS_Surface(),this->screen);
+	this->output->transition->call(this->screenBuffer,NONS_Surface::null,this->screen);
 }
 
 void NONS_ScreenSpace::hideTextWindow(){
@@ -1049,7 +1048,7 @@ void NONS_ScreenSpace::hideTextWindow(){
 		return;
 	this->output->visible=0;
 	this->BlendNoCursor(0);
-	this->output->transition->call(this->screenBuffer,NONS_Surface(),this->screen);
+	this->output->transition->call(this->screenBuffer,NONS_Surface::null,this->screen);
 }
 
 void NONS_ScreenSpace::showTextWindow(){
@@ -1057,7 +1056,7 @@ void NONS_ScreenSpace::showTextWindow(){
 		return;
 	this->output->visible=1;
 	this->BlendNoCursor(0);
-	this->output->transition->call(this->screenBuffer,NONS_Surface(),this->screen);
+	this->output->transition->call(this->screenBuffer,NONS_Surface::null,this->screen);
 }
 
 void NONS_ScreenSpace::resetParameters(const NONS_LongRect &window,const NONS_LongRect &frame,NONS_FontCache &fc,bool shadow){
@@ -1093,16 +1092,13 @@ ErrorCode NONS_ScreenSpace::loadSprite(ulong n,const std::wstring &string,long x
 }
 
 void NONS_ScreenSpace::clear(){
-#define CHECK_AND_DELETE(p) (p)->unload();  //if (!!(p)){ /*delete (p); (p)=0;*/}
+#define CHECK_AND_DELETE(p) if (p){ (p)->unload(); delete p; }
 	CHECK_AND_DELETE(this->Background);
 	CHECK_AND_DELETE(this->leftChar);
 	CHECK_AND_DELETE(this->rightChar);
 	CHECK_AND_DELETE(this->centerChar);
-	for (ulong a=0;a<this->layerStack.size();a++){
-		if (this->layerStack[a]){
-			CHECK_AND_DELETE(this->layerStack[a]);
-		}
-	}
+	for (ulong a=0;a<this->layerStack.size();a++)
+		CHECK_AND_DELETE(this->layerStack[a]);
 	this->clearText();
 	this->BlendNoCursor(1);
 }

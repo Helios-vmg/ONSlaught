@@ -48,14 +48,6 @@ NONS_ScriptInterpreter *gScriptInterpreter=0;
 #undef ABS
 #include "SDL_bilinear.h"
 
-#if 0
-SDL_Surface *(*rotationFunction)(SDL_Surface *,double)=SDL_RotateSmooth;
-SDL_Surface *(*resizeFunction)(SDL_Surface *,int,int)=SDL_ResizeSmooth;
-#else
-SDL_Surface *(*rotationFunction)(SDL_Surface *,double)=SDL_Rotate;
-SDL_Surface *(*resizeFunction)(SDL_Surface *,int,int)=SDL_Resize;
-#endif
-
 NONS_DefineFlag ALLOW_IN_DEFINE;
 NONS_RunFlag ALLOW_IN_RUN;
 
@@ -214,7 +206,6 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->main_font=0;
 	this->font_cache=0;
 	this->thread=0;
-	this->screenshot=0;
 	if (initialize){
 		this->init();
 	}
@@ -690,7 +681,6 @@ void NONS_ScriptInterpreter::init(){
 	this->screen->char_baseline=(long)this->screen->screen->inRect.h-1;
 	this->useWheel=0;
 	this->useEscapeSpace=0;
-	this->screenshot=0;
 }
 
 void NONS_ScriptInterpreter::uninit(){
@@ -2059,7 +2049,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 			h=(ulong)scr->screen->inRect.h;
 		NONS_Surface s(w,h);
 		s.fill(NONS_Color::black);
-		NONS_GFX::callEffect(10,1000,0,s,NONS_Surface(),*scr->screen);
+		NONS_GFX::callEffect(10,1000,0,s,NONS_Surface::null,*scr->screen);
 	}
 	SDL_Delay(1500);
 	scr->BlendNoCursor(10,1000,0);
@@ -2540,9 +2530,9 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 		scr->Background->position.x=(rect.w-scr->Background->clip_rect.w)/2;
 		scr->Background->position.y=(rect.h-scr->Background->clip_rect.h)/2;
 	}
-	scr->leftChar->unload();
-	scr->rightChar->unload();
-	scr->centerChar->unload();
+	CHECK_POINTER_AND_CALL(scr->leftChar,unload());
+	CHECK_POINTER_AND_CALL(scr->rightChar,unload());
+	CHECK_POINTER_AND_CALL(scr->centerChar,unload());
 	long number,duration;
 	ErrorCode ret;
 	GET_INT_VALUE(number,1);

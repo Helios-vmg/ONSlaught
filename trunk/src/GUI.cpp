@@ -656,8 +656,6 @@ SDL_Rect NONS_TextButton::GetBoundingBox(const std::wstring &str,NONS_FontCache 
 	return res;
 }
 
-#define CHECK_POINTER_AND_CALL(p,c) if (p) p->c
-
 void NONS_TextButton::write(const std::wstring &str,int offsetX,int offsetY,float center){
 	/*SDL_FillRect(this->getOnLayer()->data,0,gmask|amask);
 	SDL_FillRect(this->getOffLayer()->data,0,gmask|amask);
@@ -829,7 +827,6 @@ NONS_ButtonLayer::NONS_ButtonLayer(const NONS_FontCache &fc,NONS_ScreenSpace *sc
 	this->screen=screen;
 	this->exitable=exitable;
 	this->menu=menu;
-	this->loadedGraphic=0;
 	this->inputOptions.btnArea=0;
 	this->inputOptions.Cursor=0;
 	this->inputOptions.Enter=0;
@@ -2047,7 +2044,7 @@ void NONS_DebuggingConsole::enter(NONS_ScreenSpace *dst){
 		screen.fill(NONS_Color::black);
 		gScriptInterpreter->getSymbolListing(this->autocompleteVector);
 		std::sort(this->autocompleteVector.begin(),this->autocompleteVector.end());
-		dst->screen->updateWithoutLock();
+		dst->screen->updateWithoutLock(screen);
 	}
 	bool ret=1;
 	std::wstring inputLine=this->partial;
@@ -2365,5 +2362,5 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 		);
 		screen.fill(rect,NONS_Color::white);
 	}
-	dst->screen->updateWithoutLock();
+	dst->screen->updateWithoutLock(screen);
 }

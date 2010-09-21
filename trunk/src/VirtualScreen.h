@@ -39,8 +39,6 @@
 #include <string>
 #include <set>
 
-//NONS_DECLSPEC extern NONS_Mutex screenMutex;
-
 struct surfaceData;
 typedef void(*filterFX_f)(ulong,NONS_Color,const NONS_ConstSurface &,const NONS_ConstSurface &,const NONS_Surface &,NONS_LongRect);
 typedef void *(*asyncInit_f)(ulong);
@@ -81,7 +79,7 @@ struct pipelineElement{
 #define INTERPOLATION 1
 #define ASYNC_EFFECT 2
 
-#ifdef DEBUG_SCREEN_MUTEX
+#if defined DEBUG_SCREEN_MUTEX && 0
 class DEBUG_SCREEN_MUTEX_SDL_Surface{
 	SDL_Surface *data;
 	bool check_mutex;
@@ -167,8 +165,8 @@ public:
 	NONS_DECLSPEC void blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect);
 	NONS_DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
 	NONS_DECLSPEC void updateWholeScreen(bool fast=0);
-	NONS_Surface get_screen();
-	NONS_Surface get_real_screen();
+	NONS_Surface get_screen(){ return this->screens[VIRTUAL]; }
+	NONS_Surface get_real_screen(){ return this->screens[REAL]; }
 	//If 0, to window; if 1, to fullscreen; if 2, toggle.
 	bool toggleFullscreen(uchar mode=2);
 	SDL_Surface *toggleFullscreenFromVideo();
@@ -196,8 +194,8 @@ public:
 	float convertH(T h){
 		return floor((((float)h*256.f)*this->y_multiplier)+.5f);
 	}
-	NONS_DECLSPEC void updateWithoutLock(bool fast=0);
-	std::string takeScreenshot(const std::string &filename="");
+	NONS_DECLSPEC void updateWithoutLock(const NONS_Surface &s,bool fast=0);
+	std::wstring takeScreenshot(const std::wstring &filename=L"");
 	void takeScreenshotFromVideo();
 	void initEffectList();
 	ErrorCode callEffect(ulong effectNo,ulong frequency);

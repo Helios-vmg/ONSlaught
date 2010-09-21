@@ -186,7 +186,7 @@ public:
 	//Make a shallow copy of a surface. The pointed surface's reference count
 	//gets incremented.
 	NONS_ConstSurface(const NONS_ConstSurface &original);
-	NONS_Surface &operator=(const NONS_ConstSurface &);
+	NONS_ConstSurface &operator=(const NONS_ConstSurface &);
 	virtual ~NONS_ConstSurface();
 	//Returns whether the object points to something valid.
 	bool good() const{ return !!this->data; }
@@ -199,11 +199,6 @@ public:
 	NONS_LongRect default_box(const NONS_LongRect *) const;
 	//Call to perform pixel-wise read operations on the surface.
 	void get_properties(NONS_ConstSurfaceProperties &sp) const;
-	NONS_ConstSurfaceProperties get_properties() const{
-		NONS_ConstSurfaceProperties sp;
-		this->get_properties(sp);
-		return sp;
-	}
 	//Returns a copy of the surface's rectangle.
 	NONS_LongRect clip_rect() const{ return this->default_box(0); }
 	//Returns an object that points to a deep copy of this object's surface.
@@ -226,32 +221,31 @@ public:
 
 class NONS_Surface:public NONS_ConstSurface{
 	typedef void(*interpolation_f)(void*);
+	NONS_Surface(int){}
 public:
+	static const NONS_Surface null;
 	NONS_Surface(){}
 	NONS_Surface(const NONS_Surface &a){
 		this->data=0;
 		*this=a;
 	}
-	NONS_Surface(const NONS_CrippledSurface &);
-	NONS_Surface(ulong w,ulong h);
+	NONS_Surface(const NONS_CrippledSurface &original);
+	NONS_Surface(ulong w,ulong h){
+		this->data=0;
+		this->assign(w,h);
+	}
 	NONS_Surface(const std::wstring &a){
 		this->data=0;
 		*this=a;
 	}
 	void assign(ulong w,ulong h);
-	NONS_Surface &operator=(const NONS_Surface &);
 	NONS_Surface &operator=(const std::wstring &name);
 	void over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255) const;
 	void multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void get_properties(NONS_SurfaceProperties &sp) const;
-	NONS_SurfaceProperties get_properties() const{
-		NONS_SurfaceProperties sp;
-		this->get_properties(sp);
-		return sp;
-	}
 	void fill(const NONS_Color &color) const;
-	void fill(const NONS_LongRect &area,const NONS_Color &color) const;
+	void fill(const NONS_LongRect area,const NONS_Color &color) const;
 	void update(ulong x=0,ulong y=0,ulong w=0,ulong h=0) const;
 
 #define NONS_Surface_DECLARE_RELATIONAL_OP(type,op) bool operator op(const type &b) const;
@@ -304,6 +298,7 @@ public:
 	~NONS_CrippledSurface();
 	void get_dimensions(ulong &w,ulong &h);
 	bool good() const{ return !!this->data; }
+	operator bool() const{ return this->good(); }
 	template <typename T>
 	NONS_BasicRect<T> get_dimensions(){
 		ulong a,b;
@@ -337,8 +332,8 @@ bool fix_rects(
 	src1=src1.intersect(src_rect);
 	if (src1.w<=0 || src1.h<=0)
 		return 0;
-	dst1.x=src1.x;
-	dst1.y=src1.y;
+	dst1.w=src1.w;
+	dst1.h=src1.h;
 	dst1=dst1.intersect(dst_rect);
 	if (dst1.w<=0 || dst1.h<=0)
 		return 0;
@@ -349,7 +344,7 @@ bool fix_rects(
 
 //#define _APPLY_ALPHA(c0,c1,a) (INTEGER_MULTIPLICATION((a)^0xFF,(c1))+INTEGER_MULTIPLICATION((a),(c0)))
 #define _APPLY_ALPHA(c0,c1,a) ((((a)^0xFF)*(c1)+(a)*(c0))/255)
-#if defined _DEBUG
+#if !defined _DEBUG
 #define APPLY_ALPHA _APPLY_ALPHA
 #else
 inline uchar APPLY_ALPHA(ulong c0,ulong c1,ulong a){

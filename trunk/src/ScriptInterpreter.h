@@ -47,9 +47,6 @@
 #include <ctime>
 //#include <SDL/smpeg.h>
 
-extern SDL_Surface *(*rotationFunction)(SDL_Surface *,double);
-extern SDL_Surface *(*resizeFunction)(SDL_Surface *,int,int);
-
 #define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
 #define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
 #define GET_COORDINATE(dst,axis,src) {\

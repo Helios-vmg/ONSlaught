@@ -248,6 +248,8 @@ void initialize(int argc,char **argv){
 	srand((unsigned int)time(0));
 	signal(SIGTERM,handle_SIGTERM);
 	signal(SIGINT,handle_SIGINT);
+	signal(SIGSEGV,handle_SIGINT);
+	signal(SIGABRT,handle_SIGINT);
 	initialize_conversion_tables();
 	//initialize lookup table/s
 	memset(integer_division_lookup,0,256);
