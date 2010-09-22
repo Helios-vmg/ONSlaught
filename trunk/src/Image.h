@@ -95,7 +95,7 @@ struct NONS_Color{
 		this->rgba[0]=(a&0xFF0000)>>16;
 		this->rgba[1]=(a&0xFF00)>>8;
 		this->rgba[2]=a&0xFF;
-		this->rgba[3]=0;
+		this->rgba[3]=0xFF;
 		return *this;
 	}
 	Uint32 to_rgb(){
@@ -174,7 +174,7 @@ private:
 };
 
 class NONS_Surface;
-typedef std::map<std::pair<ulong,ulong>,SDL_Rect> optim_t;
+typedef std::map<std::pair<ulong,ulong>,NONS_LongRect> optim_t;
 
 class NONS_ConstSurface{
 protected:

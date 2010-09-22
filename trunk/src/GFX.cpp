@@ -45,16 +45,6 @@ bool NONS_GFX::listsInitialized=0;
 std::vector<filterFX_f> NONS_GFX::filters;
 std::vector<transitionFX_f> NONS_GFX::transitions;
 
-//(Parallelized surface function)
-struct PSF_parameters{
-	SDL_Surface *src;
-	SDL_Rect *srcRect;
-	SDL_Surface *dst;
-	SDL_Rect *dstRect;
-	uchar alpha;
-	SDL_Color color;
-};
-
 ulong NONS_GFX::effectblank=0;
 
 NONS_GFX::NONS_GFX(ulong effect,ulong duration,const std::wstring *rule){
@@ -152,23 +142,20 @@ ErrorCode NONS_GFX::call(const NONS_ConstSurface &src,const NONS_Surface &dst0,N
 		NONS_GFX::initializeLists();
 	//ulong t0=SDL_GetTicks();
 	NONS_Surface ruleFile;
-	NONS_ConstSurface source=src;
 	if (this->rule.size())
 		ruleFile=this->rule;
-	if (!source && dst)
-		source=dst->get_screen().clone_without_pixel_copy();
 	if (this->type==TRANSITION){
 		if (this->effect<=18){
-			(this->*(builtInTransitions[this->effect]))(source,ruleFile,*dst);
+			(this->*(builtInTransitions[this->effect]))(src,ruleFile,*dst);
 		}else if (this->effect-19<NONS_GFX::transitions.size()){
-			NONS_GFX::transitions[this->effect-19](this->effect,this->duration,source,ruleFile,*dst);
+			NONS_GFX::transitions[this->effect-19](this->effect,this->duration,src,ruleFile,*dst);
 			if (!CURRENTLYSKIPPING && NONS_GFX::effectblank)
 				waitNonCancellable(NONS_GFX::effectblank);
 		}else
 			return NONS_NO_EFFECT;
 	}else{
 		if (this->effect<NONS_GFX::filters.size())
-			NONS_GFX::filters[this->effect](this->effect+1,this->color,source,NONS_ConstSurface(),dst0,source.clip_rect());
+			NONS_GFX::filters[this->effect](this->effect+1,this->color,src,NONS_ConstSurface(),dst0,src.clip_rect());
 		else
 			return NONS_NO_EFFECT;
 	}
@@ -460,7 +447,8 @@ void NONS_GFX::effectCrossfade(const NONS_ConstSurface &src,const NONS_ConstSurf
 #endif
 	}
 #ifdef BENCHMARK_EFFECTS
-	std::cout <<"effectCrossfade(): "<<float(steps)/(float(this->duration)/1000.0f)<<" steps per second."<<std::endl;
+	float speed=float(steps)/(float(this->duration)/1000.0f);
+	std::cout <<"effectCrossfade(): "<<speed<<" steps per second."<<std::endl;
 #endif
 	effect_epilogue();
 }

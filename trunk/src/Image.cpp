@@ -1039,6 +1039,7 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 			PNG_COMPRESSION_TYPE_DEFAULT,
 			PNG_FILTER_TYPE_DEFAULT
 		);
+		png_set_compression_level(png,5);
 		png_write_info(png, info);
 		if (setjmp(png_jmpbuf(png)))
 			break;

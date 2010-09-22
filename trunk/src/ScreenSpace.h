@@ -129,8 +129,8 @@ struct NONS_StandardOutput{
 private:
 	int predictLineLength(std::wstring *arr,long start,int width);
 	int predictTextHeight(std::wstring *arr);
-	int setLineStart(std::wstring *arr,ulong start,SDL_Rect *frame,float center);
-	int setTextStart(std::wstring *arr,SDL_Rect *frame,float center);
+	int setLineStart(std::wstring *arr,ulong start,NONS_LongRect *frame,float center);
+	int setTextStart(std::wstring *arr,NONS_LongRect *frame,float center);
 	ulong getIndentationSize();
 	float horizontalCenterPolicy;
 	float verticalCenterPolicy;
@@ -178,7 +178,7 @@ struct NONS_ScreenSpace{
 
 	ErrorCode BlendAll(ulong effect);
 	ErrorCode BlendAll(ulong effect,long timing,const std::wstring *rule);
-	void BlendOptimized(std::vector<SDL_Rect> &rects);
+	void BlendOptimized(std::vector<NONS_LongRect> &rects);
 	ErrorCode BlendNoCursor(ulong effect);
 	ErrorCode BlendNoCursor(ulong effect,long timing,const std::wstring *rule);
 	ErrorCode BlendNoText(ulong effect);
@@ -194,7 +194,7 @@ struct NONS_ScreenSpace{
 	void resetParameters(const NONS_LongRect &window,const NONS_LongRect &frame,NONS_FontCache &fc,bool shadow);
 	void clear();
 	ErrorCode loadSprite(ulong n,const std::wstring &string,long x,long y,uchar alpha,bool visibility);
-	bool advanceAnimations(ulong msecs,std::vector<SDL_Rect> &rects);
+	bool advanceAnimations(ulong msecs,std::vector<NONS_LongRect> &rects);
 
 	void addBar(long barNo,ulong current_value,long x,long y,ulong w,ulong h,ulong total_value,const NONS_Color &color);
 	void clearBars();

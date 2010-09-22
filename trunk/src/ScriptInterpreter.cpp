@@ -2525,7 +2525,10 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	}else{
 		std::wstring filename;
 		GET_STR_VALUE(filename,0);
-		scr->Background->load(&filename);
+		if (scr->Background)
+			scr->Background->load(&filename);
+		else
+			scr->Background=new NONS_Layer(&filename);
 		NONS_LongRect rect=NONS_LongRect(scr->screen->inRect);
 		scr->Background->position.x=(rect.w-scr->Background->clip_rect.w)/2;
 		scr->Background->position.y=(rect.h-scr->Background->clip_rect.h)/2;
@@ -2568,7 +2571,7 @@ ErrorCode NONS_ScriptInterpreter::command_blt(NONS_Statement &stmt){
 	GET_COORDINATE(imgH,1,7);
 	NONS_LongRect dstRect((long)screenX,(long)screenY,(long)screenW,(long)screenH),
 		srcRect((long)imgX,(long)imgY,(long)imgW,(long)imgH);
-	//void (*interpolationFunction)(SDL_Surface *,SDL_Rect *,SDL_Surface *,SDL_Rect *,ulong,ulong)=&nearestNeighborInterpolation;
+	//void (*interpolationFunction)(SDL_Surface *,NONS_LongRect *,SDL_Surface *,NONS_LongRect *,ulong,ulong)=&nearestNeighborInterpolation;
 	double x_multiplier=1,y_multiplier=1;
 	if (imgW==screenW && imgH==screenH){
 		this->screen->screen->get_screen().over(

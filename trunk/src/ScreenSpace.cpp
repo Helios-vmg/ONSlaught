@@ -94,6 +94,8 @@ NONS_Layer::~NONS_Layer(){
 void NONS_Layer::MakeTextLayer(NONS_FontCache &fc,const NONS_Color &foreground){
 	this->fontCache=new NONS_FontCache(fc FONTCACHE_DEBUG_PARAMETERS);
 	this->fontCache->setColor(foreground);
+	this->defaultShade=NONS_Color::black_transparent;
+	this->data.fill(this->defaultShade);
 }
 
 void NONS_Layer::Clear(){
@@ -137,7 +139,7 @@ bool NONS_Layer::load(const std::wstring *string){
 	this->clip_rect=this->data.clip_rect();
 	/*if (this->animation.animation_length>1){
 		ulong t0=SDL_GetTicks();
-		SDL_Rect rect=this->getUpdateRect(0,1);
+		NONS_LongRect rect=this->getUpdateRect(0,1);
 		ulong t1=SDL_GetTicks();
 		std::cout <<"completed in "<<t1-t0<<" msec."<<std::endl;
 	}*/
@@ -303,7 +305,7 @@ bool NONS_StandardOutput::prepareForPrinting(std::wstring str){
 	this->indent_next=0;
 	if (this->verticalCenterPolicy>0 && this->currentBuffer.size()>0)
 		return 1;
-	SDL_Rect frame={this->x0,this->y0,this->w,this->h};
+	NONS_LongRect frame(this->x0,this->y0,this->w,this->h);
 	if (this->verticalCenterPolicy)
 		this->y=this->setTextStart(&this->cachedText,&frame,this->verticalCenterPolicy);
 	else if (!this->currentBuffer.size())
@@ -351,7 +353,7 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 	bool enterPressed=0;
 	int x0,
 		y0=this->y;
-	SDL_Rect frame={this->x0,this->y0,this->w,this->h};
+	NONS_LongRect frame(this->x0,this->y0,this->w,this->h);
 	ulong indentationMargin=this->x0+this->getIndentationSize();
 	if (this->x==this->x0){
 		x0=this->setLineStart(&this->cachedText,start,&frame,this->horizontalCenterPolicy);
@@ -590,7 +592,7 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 		dst->updateWholeScreen();
 }
 
-int NONS_StandardOutput::setLineStart(std::wstring *arr,ulong start,SDL_Rect *frame,float center){
+int NONS_StandardOutput::setLineStart(std::wstring *arr,ulong start,NONS_LongRect *frame,float center){
 	while (start<arr->size() && !(*arr)[start])
 		start++;
 	int width=this->predictLineLength(arr,start,frame->w);
@@ -626,7 +628,7 @@ int NONS_StandardOutput::predictTextHeight(std::wstring *arr){
 	return this->foregroundLayer->fontCache->line_skip*lines;
 }
 
-int NONS_StandardOutput::setTextStart(std::wstring *arr,SDL_Rect *frame,float center){
+int NONS_StandardOutput::setTextStart(std::wstring *arr,NONS_LongRect *frame,float center){
 	int height=this->predictTextHeight(arr);
 	float factor=(center<=0.5f)?center:1.0f-center;
 	int pixelcenter=int(float(frame->h)*factor);
@@ -658,7 +660,7 @@ void NONS_StandardOutput::Clear(bool eraseBuffer){
 		}
 	}
 	if (this->verticalCenterPolicy>0 && this->cachedText.size()){
-		SDL_Rect frame={this->x0,this->y0,this->w,this->h};
+		NONS_LongRect frame(this->x0,this->y0,this->w,this->h);
 		this->y=this->setTextStart(&this->cachedText,&frame,this->verticalCenterPolicy);
 		this->prebufferedText.append(L"<y=");
 		this->prebufferedText.append(itoaw(this->y));
@@ -824,7 +826,7 @@ NONS_ScreenSpace::~NONS_ScreenSpace(){
 	delete this->lookback;
 }
 
-void NONS_ScreenSpace::BlendOptimized(std::vector<SDL_Rect> &rects){
+void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 	if (!rects.size())
 		return;
 ////////////////////////////////////////////////////////////////////////////////
@@ -1092,7 +1094,7 @@ ErrorCode NONS_ScreenSpace::loadSprite(ulong n,const std::wstring &string,long x
 }
 
 void NONS_ScreenSpace::clear(){
-#define CHECK_AND_DELETE(p) if (p){ (p)->unload(); delete p; }
+#define CHECK_AND_DELETE(p) if (p){ (p)->unload(); delete p; p=0; }
 	CHECK_AND_DELETE(this->Background);
 	CHECK_AND_DELETE(this->leftChar);
 	CHECK_AND_DELETE(this->rightChar);
@@ -1103,7 +1105,7 @@ void NONS_ScreenSpace::clear(){
 	this->BlendNoCursor(1);
 }
 
-bool NONS_ScreenSpace::advanceAnimations(ulong msecs,std::vector<SDL_Rect> &rects){
+bool NONS_ScreenSpace::advanceAnimations(ulong msecs,std::vector<NONS_LongRect> &rects){
 	rects.clear();
 	bool requireRefresh=0;
 	std::vector<NONS_Layer *> arr;
@@ -1123,7 +1125,7 @@ bool NONS_ScreenSpace::advanceAnimations(ulong msecs,std::vector<SDL_Rect> &rect
 			requireRefresh|=b;
 			if (b){
 				ulong second=p->animation.getCurrentAnimationFrame();
-				SDL_Rect push=p->optimized_updates[std::pair<ulong,ulong>(first,second)];
+				NONS_LongRect push=p->optimized_updates[std::pair<ulong,ulong>(first,second)];
 				push.x+=(Sint16)p->position.x;
 				push.y+=(Sint16)p->position.y;
 				rects.push_back(push);

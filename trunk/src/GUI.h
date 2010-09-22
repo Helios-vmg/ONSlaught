@@ -296,9 +296,9 @@ public:
 	NONS_Layer *&setShadowLayer(){ return this->shadowLayer; }
 	void dummy(){}
 private:
-	SDL_Rect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY);
+	NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY);
 	void write(const std::wstring &str,int offsetX,int offsetY,float center=0);
-	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center,int offsetX);
+	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,NONS_LongRect *frame,float center,int offsetX);
 	int predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width,int offsetX);
 };
 
@@ -324,7 +324,7 @@ struct NONS_ButtonLayer{
 	std::wstring voiceMouseOver;
 	std::wstring voiceClick;
 	NONS_Audio *audio;
-	SDL_Rect boundingBox;
+	NONS_LongRect boundingBox;
 	bool exitable;
 	NONS_Menu *menu;
 	NONS_Surface loadedGraphic;

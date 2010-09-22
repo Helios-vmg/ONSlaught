@@ -318,7 +318,7 @@ int NONS_Cursor::animate(NONS_Menu *menu,ulong expiration){
 	const long delayadvance=25;
 	ulong expire=expiration?expiration:ULONG_MAX;
 	int ret=0;
-	std::vector<SDL_Rect> rects;
+	std::vector<NONS_LongRect> rects;
 	if (this->data->animated())
 		this->screen->BlendAll(1);
 	while (!done && !CURRENTLYSKIPPING && expire>0){
@@ -564,7 +564,7 @@ NONS_TextButton::~NONS_TextButton(){
 	delete this->getShadowLayer();
 }
 
-SDL_Rect NONS_TextButton::GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY){
+NONS_LongRect NONS_TextButton::GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY){
 	std::vector<NONS_Glyph *> outputBuffer;
 	long lastSpace=-1;
 	int x0=0,
@@ -577,7 +577,7 @@ SDL_Rect NONS_TextButton::GetBoundingBox(const std::wstring &str,NONS_FontCache 
 		fontLineSkip=this->font_cache->font_line_skip*/;
 	if (!cache)
 		cache=this->getOffLayer()->fontCache;
-	SDL_Rect frame={0,0,this->limitX,this->limitY};
+	NONS_LongRect frame(0,0,this->limitX,this->limitY);
 	int minx=INT_MAX,
 		miny=INT_MAX,
 		maxx=INT_MIN,
@@ -652,7 +652,7 @@ SDL_Rect NONS_TextButton::GetBoundingBox(const std::wstring &str,NONS_FontCache 
 	}
 	offsetX=(minx<0)?-minx:0;
 	offsetY=(miny<0)?-miny:0;
-	SDL_Rect res={0,0,maxx+offsetX,maxy+offsetY};
+	NONS_LongRect res(0,0,maxx+offsetX,maxy+offsetY);
 	return res;
 }
 
@@ -668,18 +668,9 @@ void NONS_TextButton::write(const std::wstring &str,int offsetX,int offsetY,floa
 	int x0=offsetX,
 		y0=offsetY;
 	int wordL=0;
-	SDL_Rect frame={
-		0,
-		(Sint16)-this->box.y,
-		(Uint16)this->box.w,
-		(Uint16)this->box.h
-	};
+	NONS_LongRect frame(0,-this->box.y,this->box.w,this->box.h);
 	int lineSkip=this->getOffLayer()->fontCache->line_skip;
-	SDL_Rect screenFrame={
-		0,0,
-		(Uint16)this->limitX,
-		(Uint16)this->limitY
-	};
+	NONS_LongRect screenFrame(0,0,this->limitX,this->limitY);
 	for (size_t a=0;a<str.size();a++){
 		wchar_t c=str[a];
 		NONS_Glyph *glyph=this->getOffLayer()->fontCache->getGlyph(c);
@@ -774,7 +765,7 @@ void NONS_TextButton::write(const std::wstring &str,int offsetX,int offsetY,floa
 	}
 }
 
-int NONS_TextButton::setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center,int offsetX){
+int NONS_TextButton::setLineStart(std::vector<NONS_Glyph *> *arr,long start,NONS_LongRect *frame,float center,int offsetX){
 	while (!(*arr)[start])
 		start++;
 	int width=this->predictLineLength(arr,start,frame->w,offsetX);
@@ -1844,7 +1835,7 @@ void put_glyph(const NONS_Surface &dst,int x,int y,uchar alpha,uchar *src,const 
 				color.rgba[0],
 				color.rgba[1],
 				color.rgba[2],
-				color.rgba[3],
+				/*color.rgba[3]*/a0,
 				1,1,
 				alpha
 			);
