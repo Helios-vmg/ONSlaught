@@ -3040,7 +3040,6 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 	if (!sprite || !sprite->data)
 		return NONS_NO_SPRITE_LOADED_THERE;
 	NONS_Surface src=sprite->data;
-	//NONS_Image *img=ImageLoader.elementFromSurface(src);
 	if (cell<0 || (ulong)cell>=sprite->animation.animation_length)
 		return NONS_NO_ERROR;
 	if (functionVersion==2 && !(xscale*yscale))
@@ -3061,19 +3060,16 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 	}
 	switch (functionVersion){
 		case 2:
-			src=src.scale(xscale,yscale);
-			src=src.rotate(double(rotation)/180.0*M_PI);
+			//src=src.scale(xscale,yscale);
+			//src=src.rotate(double(rotation)/180.0*M_PI);
+			src=src.transform(
+				NONS_Matrix::rotation(double(rotation)/180.0*M_PI)
+				*
+				NONS_Matrix::scale(xscale,yscale)
+			);
 			break;
 		case 3:
-			{
-				double matrix[]={
-					double(matrix_00)/1000.0,
-					double(matrix_01)/1000.0,
-					double(matrix_10)/1000.0,
-					double(matrix_11)/1000.0
-				};
-				src=src.transform(matrix);
-			}
+			src=src.transform(NONS_Matrix(matrix_00/1000.0,matrix_01/1000.0,matrix_10/1000.0,matrix_11/1000.0));
 			break;
 	}
 	if (functionVersion>1){

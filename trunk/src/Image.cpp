@@ -375,7 +375,7 @@ public:
 	index_t scale(const index_t &src,double scalex,double scaley);
 	index_t resize(const index_t &src,long w,long h);
 	index_t rotate(const index_t &src,double rotate);
-	index_t transform(const index_t &src,double matrix[4]);
+	index_t transform(const index_t &src,const NONS_Matrix &m,bool fast);
 	void assign_screen(SDL_Surface *);
 	index_t get_screen();
 	SDL_Surface *get_screen(const index_t &);
@@ -520,9 +520,10 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::copy(const index_t &src){
 
 void NONS_SurfaceManager::unref(NONS_SurfaceManager::index_t &i){
 	if (!i->unref()){
-		if (!i.p)
+		if (!i.p){
+			delete *i.i;
 			this->surfaces.erase(i.i);
-		else{
+		}else{
 			i.p=0;
 			delete this->screen;
 			this->screen=0;
@@ -537,7 +538,7 @@ void NONS_SurfaceManager::update(const NONS_SurfaceManager::index_t &i,ulong x,u
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
-	return this->resize(src,ulong(src->w*floor(scale_x+.5)),ulong(src->h*floor(scale_x+.5)));
+	return this->resize(src,ulong(floor(src->w*scale_x+.5)),ulong(floor(src->h*scale_y+.5)));
 }
 
 #define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
@@ -600,7 +601,7 @@ void linear_interpolation2(
 			X1=fractional_advance;
 		for (ulong x=0;x<w;x++){
 			const uchar *pixel=src+(X0>>16)*src_advance;
-			ulong color[3]={0};
+			ulong color[4]={0};
 			for (ulong x0=X0;x0<X1;){
 				ulong multiplier;
 				if (X1-x0<unit)
@@ -612,12 +613,14 @@ void linear_interpolation2(
 				color[0]+=pixel[0]*multiplier;
 				color[1]+=pixel[1]*multiplier;
 				color[2]+=pixel[2]*multiplier;
+				color[3]+=pixel[3]*multiplier;
 				pixel+=src_advance;
 				x0=FLOOR(x0)+unit;
 			}
 			dst[0]=uchar(color[0]/fractional_advance);
 			dst[1]=uchar(color[1]/fractional_advance);
 			dst[2]=uchar(color[2]/fractional_advance);
+			dst[3]=uchar(color[3]/fractional_advance);
 			dst+=dst_advance;
 			X0=X1;
 			X1+=fractional_advance;
@@ -717,6 +720,8 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	return dst;
 }
 
+#include <iostream>
+
 NONS_SurfaceManager::index_t NONS_SurfaceManager::rotate(const index_t &src,double angle){
 	double dcos=cos(angle),
 		dsin=sin(angle);
@@ -741,30 +746,51 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::rotate(const index_t &src,doub
 		d.w*4
 	};
 
+	uchar empty_pixels[4]={0};
 	uchar *dp=d.data;
 	for (ulong y=0;y<h;y++){
 		long rotx=srotx=srotx-nsin;
 		long roty=sroty=sroty+ncos;
-		for (ulong x=0;x<h;x++){
+		for (ulong x=0;x<w;x++){
 			long newx=rotx>>16;
 			long newy=roty>>16;
-			if (newx>=0 && newx<(long)s.w && newy>=0 && newy<(long)s.h) {
+			if (rotx>-0x10000 && rotx<long(s.w<<16) && roty>-0x10000 && roty<long(s.h<<16)){
 				uchar *sp=s.data+newy*pitch[0]+newx*4;
-				uchar *cO=sp;
-				uchar *cV=(newy<(long)s.h-1)?sp+pitch[0]:sp;
-				uchar *cH=(newx<(long)s.w-1)?sp+1:sp;
-				uchar *cD=(newx<(long)s.w-1)?cV+1:cV;
+				uchar *pixel[4]={
+					sp,
+					sp+4,
+					sp+pitch[0],
+					sp+pitch[0]+4,
+				};
+				if (newx<0){
+					pixel[0]=empty_pixels;
+					pixel[2]=empty_pixels;
+				}
+				if (newy<0){
+					pixel[0]=empty_pixels;
+					pixel[1]=empty_pixels;
+				}
+				if (newx>=(long)s.w-1){
+					pixel[1]=empty_pixels;
+					pixel[3]=empty_pixels;
+				}
+				if (newy>=(long)s.h-1){
+					pixel[2]=empty_pixels;
+					pixel[3]=empty_pixels;
+				}
 
 				long wx=rotx&0xFFFF;
 				long wy=roty&0xFFFF;
 				long rwx=wx^0xFFFF;
 				long rwy=wy^0xFFFF;
+				uchar rgba[4];
 				for (int a=0;a<4;a++){
-					long m1=((cO[a]*rwx+cH[a]*wx)>>16);
-					long m2=((cV[a]*rwx+cD[a]*wx)>>16);
-					dp[a]=uchar((m1*rwy+m2*wy)>>16);
+					long m1=((pixel[0][a]*rwx+pixel[1][a]*wx)>>16);
+					long m2=((pixel[2][a]*rwx+pixel[3][a]*wx)>>16);
+					rgba[a]=uchar((m1*rwy+m2*wy)>>16);
 				}
-			}			
+				*(Uint32 *)dp=*(Uint32 *)rgba;
+			}
 			rotx+=ncos;
 			roty+=nsin;
 			dp+=4;
@@ -785,7 +811,7 @@ bool invert_matrix(double dst[4],double src[4]){
 	return 1;
 }
 
-void get_corrected(ulong &w,ulong &h,double matrix[4]){
+void get_corrected(ulong &w,ulong &h,const NONS_Matrix &m){
 	double coords[][2]={
 		{0,0},
 		{0,(double)h},
@@ -795,8 +821,8 @@ void get_corrected(ulong &w,ulong &h,double matrix[4]){
 	double minx=0,
 		miny=0;
 	for (int a=0;a<4;a++){
-		double x=coords[a][0]*matrix[0]+coords[a][1]*matrix[1];
-		double y=coords[a][0]*matrix[2]+coords[a][1]*matrix[3];
+		double x=coords[a][0]*m[0]+coords[a][1]*m[1];
+		double y=coords[a][0]*m[2]+coords[a][1]*m[3];
 		if (x<minx || !a)
 			minx=x;
 		if (y<miny || !a)
@@ -806,7 +832,7 @@ void get_corrected(ulong &w,ulong &h,double matrix[4]){
 	h=(ulong)-miny;
 }
 
-void get_final_size(const NONS_ConstSurfaceProperties &src,double matrix[4],ulong &w,ulong &h){
+void get_final_size(const NONS_ConstSurfaceProperties &src,const NONS_Matrix &m,ulong &w,ulong &h){
 	ulong w0=src.w,
 		h0=src.h;
 	double coords[][2]={
@@ -820,8 +846,8 @@ void get_final_size(const NONS_ConstSurfaceProperties &src,double matrix[4],ulon
 		maxx=0,
 		maxy=0;
 	for (int a=0;a<4;a++){
-		double x=coords[a][0]*matrix[0]+coords[a][1]*matrix[1];
-		double y=coords[a][0]*matrix[2]+coords[a][1]*matrix[3];
+		double x=coords[a][0]*m[0]+coords[a][1]*m[1];
+		double y=coords[a][0]*m[2]+coords[a][1]*m[3];
 		if (x<minx || !a)
 			minx=x;
 		if (x>maxx || !a)
@@ -835,39 +861,97 @@ void get_final_size(const NONS_ConstSurfaceProperties &src,double matrix[4],ulon
 	h=ulong(maxy-miny);
 }
 
-NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,double matrix[4]){
-	double inverted_matrix[4];
-	if (!invert_matrix(inverted_matrix,matrix))
+struct transform_params{
+	long long_matrix[4];
+	ulong y0,w,h;
+};
+
+void transform_threaded(void *p){
+	transform_params params=*(transform_params *)p;
+	const uchar empty_pixels[4]={0};
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,const NONS_Matrix &m,bool fast){
+	if (!m.determinant())
 		return index_t();
+	NONS_Matrix inverted_matrix=!m;
 	NONS_ConstSurfaceProperties src_sp;
 	src->get_properties(src_sp);
 	ulong w,h;
-	get_final_size(src_sp,matrix,w,h);
+	get_final_size(src_sp,m,w,h);
 	index_t dst=this->allocate(w,h);
 	NONS_SurfaceProperties dst_sp;
 	dst->get_properties(dst_sp);
 	ulong correct_x=src_sp.w,
 		correct_y=src_sp.h;
-	get_corrected(correct_x,correct_y,matrix);
+	get_corrected(correct_x,correct_y,m);
 	long long_matrix[4];
+	const uchar empty_pixels[4]={0};
 	for (int a=0;a<4;a++)
-		long_matrix[a]=long(matrix[0]*65536.0);
+		long_matrix[a]=long(inverted_matrix[a]*65536.0);
 	for (ulong y=0;y<dst_sp.h;y++){
-		Uint32 *dst_pixel=(Uint32 *)(dst_sp.pixels+y*src_sp.pitch);
+		Uint32 *dst_pixel=(Uint32 *)(dst_sp.pixels+y*dst_sp.pitch);
 		bool pixels_were_copied=0;
 		long src_x0=(0-correct_x)*long_matrix[0]+(y-correct_y)*long_matrix[1],
 			src_y0=(0-correct_x)*long_matrix[2]+(y-correct_y)*long_matrix[3];
 		for (ulong x=0;x<dst_sp.w;x++){
-			long src_x=src_x0>>16,
-				src_y=src_y0>>16;
-			src_x0+=long_matrix[0];
-			src_y0+=long_matrix[2];
-			if (!(src_x<0 || src_y<0 || (ulong)src_x>=src_sp.w || (ulong)src_y>=src_sp.h)){
-				const Uint32 *src_pixel=(const Uint32 *)(src_sp.pixels+src_x*4+src_y*src_sp.pitch);
-				*(Uint32 *)dst_pixel=*src_pixel;
-				dst_pixel++;
-				pixels_were_copied=1;
-				continue;
+			if (fast){
+				long src_x=(src_x0+0x5000)>>16,
+					src_y=(src_y0+0x5000)>>16;
+				src_x0+=long_matrix[0];
+				src_y0+=long_matrix[2];
+				if (!(src_x<0 || src_y<0 || (ulong)src_x>=src_sp.w || (ulong)src_y>=src_sp.h)){
+					const Uint32 *src_pixel=(const Uint32 *)(src_sp.pixels+src_x*4+src_y*src_sp.pitch);
+					*dst_pixel++=*src_pixel;
+					pixels_were_copied=1;
+					continue;
+				}
+			}else{
+				long src_x=src_x0>>16,
+					src_y=src_y0>>16,
+					temp_x0=src_x0,
+					temp_y0=src_y0;
+				src_x0+=long_matrix[0];
+				src_y0+=long_matrix[2];
+				if (temp_x0>-0x10000 && temp_x0<long(src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(src_sp.h<<16)){
+					const uchar *sp=(const uchar *)(src_sp.pixels+src_y*src_sp.pitch+src_x*4);
+					const uchar *pixel[4]={
+						sp,
+						sp+4,
+						sp+src_sp.pitch,
+						sp+src_sp.pitch+4,
+					};
+					if (src_x<0){
+						pixel[0]=empty_pixels;
+						pixel[2]=empty_pixels;
+					}
+					if (src_y<0){
+						pixel[0]=empty_pixels;
+						pixel[1]=empty_pixels;
+					}
+					if (src_x>=(long)src_sp.w-1){
+						pixel[1]=empty_pixels;
+						pixel[3]=empty_pixels;
+					}
+					if (src_y>=(long)src_sp.h-1){
+						pixel[2]=empty_pixels;
+						pixel[3]=empty_pixels;
+					}
+
+					long fraction_x=temp_x0&0xFFFF,
+						fraction_y=temp_y0&0xFFFF,
+						rfraction_x=fraction_x^0xFFFF,
+						rfraction_y=fraction_y^0xFFFF;
+					uchar rgba[4];
+					for (int a=0;a<4;a++){
+						long m1=((pixel[0][a]*rfraction_x+pixel[1][a]*fraction_x)>>16);
+						long m2=((pixel[2][a]*rfraction_x+pixel[3][a]*fraction_x)>>16);
+						rgba[a]=uchar((m1*rfraction_y+m2*fraction_y)>>16);
+					}
+					*dst_pixel++=*(Uint32 *)rgba;
+					pixels_were_copied=1;
+					continue;
+				}
 			}
 			if (!pixels_were_copied){
 				dst_pixel++;
@@ -989,8 +1073,8 @@ NONS_Surface NONS_ConstSurface::rotate(double alpha) const{
 	return r;
 }
 
-NONS_Surface NONS_ConstSurface::transform(double m[4]) const{
-	NONS_SurfaceManager::index_t temp=sm.transform(this->data->surface,m);
+NONS_Surface NONS_ConstSurface::transform(const NONS_Matrix &m,bool fast) const{
+	NONS_SurfaceManager::index_t temp=sm.transform(this->data->surface,m,fast);
 	if (!temp.good())
 		return NONS_Surface::null;
 	NONS_Surface r;

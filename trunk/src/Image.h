@@ -31,6 +31,7 @@
 #define NONS_Surface_H
 #include "Common.h"
 #include "Functions.h"
+#include <cmath>
 
 #define OVERLOAD_RELATIONAL_OPERATORS(macro)\
 	macro(==)\
@@ -173,6 +174,47 @@ private:
 	std::wstring mask_filename;
 };
 
+class NONS_Matrix{
+	double matrix[4];
+public:
+	NONS_Matrix(double a,double b,double c,double d){
+		this->matrix[0]=a;
+		this->matrix[1]=b;
+		this->matrix[2]=c;
+		this->matrix[3]=d;
+	}
+	double determinant() const{
+		return this->matrix[0]*this->matrix[3]-this->matrix[1]*this->matrix[2];
+	}
+	NONS_Matrix operator!() const{
+		double a=1.0/this->determinant();
+		return NONS_Matrix(
+			a*this->matrix[3],
+			a*-this->matrix[1],
+			a*-this->matrix[2],
+			a*this->matrix[0]
+		);
+	}
+	NONS_Matrix operator*(const NONS_Matrix &m) const{
+		return NONS_Matrix(
+			this->matrix[0]*m.matrix[0]+this->matrix[1]*m.matrix[2],
+			this->matrix[0]*m.matrix[1]+this->matrix[1]*m.matrix[3],
+			this->matrix[2]*m.matrix[0]+this->matrix[3]*m.matrix[2],
+			this->matrix[2]*m.matrix[1]+this->matrix[3]*m.matrix[3]
+		);
+	}
+	const double &operator[](unsigned i)const{ return this->matrix[i]; }
+	static NONS_Matrix rotation(double alpha){
+		return NONS_Matrix(cos(alpha),-sin(alpha),sin(alpha),cos(alpha));
+	}
+	static NONS_Matrix scale(double x,double y){
+		return NONS_Matrix(x,0,0,y);
+	}
+	static NONS_Matrix shear(double x,double y){
+		return NONS_Matrix(1,x,y,1);
+	}
+};
+
 class NONS_Surface;
 typedef std::map<std::pair<ulong,ulong>,NONS_LongRect> optim_t;
 
@@ -213,7 +255,7 @@ public:
 	//Copies the surface while rotating it.
 	NONS_Surface rotate(double alpha) const;
 	//Copies the surface while applying a linear transformation to it.
-	NONS_Surface transform(double transformation_matrix[4]) const;
+	NONS_Surface transform(const NONS_Matrix &m,bool fast=0) const;
 	void save_bitmap(const std::wstring &filename) const;
 	void get_optimized_updates(optim_t &dst) const;
 	const NONS_AnimationInfo &get_animation_info() const;
