@@ -246,4 +246,18 @@ public:
 	NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name);
 	~NONS_TemporaryFile();
 };
+
+class NONS_Clock{
+#if NONS_SYS_WINDOWS
+	void *data;
+#endif
+public:
+	typedef double t;
+#if NONS_SYS_WINDOWS
+	NONS_Clock();
+	~NONS_Clock();
+#endif
+	t get() const;
+	t get(double m) const{ return this->get()*m; }
+};
 #endif

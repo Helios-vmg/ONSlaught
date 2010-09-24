@@ -43,7 +43,7 @@ typedef unsigned char uchar;
 #define NONS_SYS_BSD (defined __bsdi__)
 #endif
 #ifndef NONS_SYS_UNIX
-#define NONS_SYS_UNIX (defined __unix__ || defined __unix)
+#define NONS_SYS_UNIX (defined __unix__ || defined __unix || (__APPLE__ && __MACH__))
 #endif
 #ifndef NONS_SYS_PSP
 #define NONS_SYS_PSP (defined PSP)

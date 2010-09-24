@@ -71,7 +71,7 @@ void _asyncEffectThread(void *param){
 		userData=vs->initializers[effectNo](effectNo);
 	asyncEffect_f effect=vs->effects[effectNo];
 	while (!vs->killAsyncEffect){
-		ulong t0=SDL_GetTicks();
+		ulong t0=clock.get();
 		{
 			NONS_MutexLocker ml(screenMutex);
 			SDL_LockSurface(vs->screens[PRE_ASYNC]);
@@ -83,7 +83,7 @@ void _asyncEffectThread(void *param){
 			if (refresh)
 				SDL_UpdateRect(vs->screens[REAL],0,0,0,0);
 		}
-		ulong t1=SDL_GetTicks();
+		ulong t1=clock.get();
 		t1-=t0;
 		if (t1<ms)
 			SDL_Delay(ms-t1);
@@ -534,16 +534,16 @@ void effectMonochrome_threaded(const NONS_Surface &dst,const NONS_ConstSurface &
 		uchar *pix1=dst_p.pixels;
 		for (long x0=0;x0<w;x0++){
 			ulong c0[]={
-				RED_MONOCHROME(ulong(pix0[0])),
-				GREEN_MONOCHROME(ulong(pix0[1])),
-				BLUE_MONOCHROME(ulong(pix0[2]))
+				RED_MONOCHROME(ulong(pix0[src_p.offsets[0]])),
+				GREEN_MONOCHROME(ulong(pix0[src_p.offsets[1]])),
+				BLUE_MONOCHROME(ulong(pix0[src_p.offsets[2]]))
 			};
 			for (int a=0;a<3;a++){
 				ulong b=c0[0]*color.rgba[a]
 				       +c0[1]*color.rgba[a]
 				       +c0[2]*color.rgba[a];
 				b/=255;
-				pix1[a]=(uchar)b;
+				pix1[dst_p.offsets[a]]=(uchar)b;
 			}
 			pix0+=4;
 			pix1+=4;
@@ -607,12 +607,17 @@ void effectNegative_threaded(const NONS_Surface &dst,const NONS_ConstSurface &sr
 		h=(long)rect.h;
 	src_p.pixels+=long(rect.x)*4+long(rect.y)*src_p.pitch;
 	dst_p.pixels+=long(rect.x)*4+long(rect.y)*dst_p.pitch;
-	Uint32 transparent_white=NONS_Color(0xFF,0xFF,0xFF,0).to_native();
 	for (long y=0;y<h;y++){
-		const Uint32 *pix0=(const Uint32 *)src_p.pixels;
-		Uint32 *pix1=(Uint32 *)dst_p.pixels;
-		for (long x0=0;x0<w;x0++)
-			*pix1++=(*pix0++)^transparent_white;
+		const uchar *pix0=src_p.pixels;
+		uchar *pix1=dst_p.pixels;
+		for (long x0=0;x0<w;x0++){
+			pix1[dst_p.offsets[0]]=~pix0[src_p.offsets[0]];
+			pix1[dst_p.offsets[1]]=~pix0[src_p.offsets[1]];
+			pix1[dst_p.offsets[2]]=~pix0[src_p.offsets[2]];
+			pix1[dst_p.offsets[3]]=pix0[src_p.offsets[3]];
+			pix1+=4;
+			pix0+=4;
+		}
 		src_p.pixels+=src_p.pitch;
 		dst_p.pixels+=dst_p.pitch;
 	}

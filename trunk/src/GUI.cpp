@@ -63,8 +63,8 @@ void NONS_Lookback::resetButtons(){
 	temp.y=temp.h;
 	temp.h/=3;
 	temp.y-=temp.h;
-	NONS_GraphicButton *up=new NONS_GraphicButton(NONS_ConstSurface(),0,0,(int)temp.w,(int)temp.h,0,0),
-		*down=new NONS_GraphicButton(NONS_ConstSurface(),0,(int)temp.y,(int)temp.w,(int)temp.h,0,0);
+	NONS_GraphicButton *up=new NONS_GraphicButton(NONS_Surface::null,0,0,(int)temp.w,(int)temp.h,0,0),
+		*down=new NONS_GraphicButton(NONS_Surface::null,0,(int)temp.y,(int)temp.w,(int)temp.h,0,0);
 	delete this->up;
 	delete this->down;
 	this->up=up;
@@ -102,8 +102,8 @@ void NONS_Lookback::setUpButtons(){
 	NONS_GraphicButton *up=dynamic_cast<NONS_GraphicButton *>(this->up),
 		*down=dynamic_cast<NONS_GraphicButton *>(this->down);
 	assert(up!=0);
-	up->allocateLayer(up->setOffLayer(),NONS_ConstSurface(),0,0,(int)up->getBox().w,(int)up->getBox().h,0,0);
-	down->allocateLayer(down->setOffLayer(),NONS_ConstSurface(),0,0,(int)down->getBox().w,(int)down->getBox().h,0,0);
+	up->allocateLayer(up->setOffLayer(),NONS_Surface::null,0,0,(int)up->getBox().w,(int)up->getBox().h,0,0);
+	down->allocateLayer(down->setOffLayer(),NONS_Surface::null,0,0,(int)down->getBox().w,(int)down->getBox().h,0,0);
 	NONS_LongRect srcRect=this->surfaces[0].clip_rect(),
 		dstRect[4];
 	NONS_Layer *dst[]={
@@ -310,6 +310,7 @@ NONS_Cursor::~NONS_Cursor(){
 int NONS_Cursor::animate(NONS_Menu *menu,ulong expiration){
 	if (CURRENTLYSKIPPING)
 		return 0;
+	NONS_Clock clock;
 	this->screen->cursor=this->data;
 	this->data->position.x=this->xpos+((!this->absolute)?this->screen->output->x:0);
 	this->data->position.y=this->ypos+((!this->absolute)?this->screen->output->y:0);
@@ -376,13 +377,13 @@ int NONS_Cursor::animate(NONS_Menu *menu,ulong expiration){
 						break;
 				}
 			}
-			ulong t0=SDL_GetTicks();
+			NONS_Clock::t t0=clock.get();
 			if (!!this->screen && this->screen->advanceAnimations(delayadvance,rects))
 				this->screen->BlendOptimized(rects);
-			ulong t1=SDL_GetTicks()-t0;
-			long delay=delayadvance-t1;
+			NONS_Clock::t t1=clock.get()-t0,
+				delay=delayadvance-t1;
 			if (delay>0)
-				SDL_Delay(delay);
+				SDL_Delay((Uint32)delay);
 			expire-=delayadvance;
 		}
 	}
@@ -527,7 +528,7 @@ void NONS_GraphicButton::allocateLayer(
 	NONS_LongRect dst(0,0,width,height),
 		srcRect(originX,originY,width,height);
 	delete layer;
-	layer=new NONS_Layer(dst,NONS_Color::black);
+	layer=new NONS_Layer(dst,NONS_Color::black_transparent);
 	layer->data.over(src,&dst,&srcRect);
 }
 

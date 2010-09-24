@@ -500,7 +500,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 
 		{
 			ulong t0,t1;
-			t0=SDL_GetTicks();
+			t0=clock.get();
 			NONS_File cache(this->cache_filename,0);
 			ulong advance;
 			std::string obuffer;
@@ -520,13 +520,13 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 			}
 			if (obuffer.size())
 				cache.write(&obuffer[0],obuffer.size());
-			t1=SDL_GetTicks();
+			t1=clock.get();
 			std::cout <<"Script converted in "<<t1-t0<<" ms."<<std::endl;
 		}
 	}else
 		this->cache_filename=scriptname;
 	ulong t0,t1;
-	t0=SDL_GetTicks();
+	t0=clock.get();
 	{
 		std::string buffer;
 		{
@@ -629,7 +629,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 	}
 	hash.Result(this->hash);
 	save_directory=getSaveLocation(this->hash);
-	t1=SDL_GetTicks();
+	t1=clock.get();
 	std::cout <<"Script data loaded in "<<t1-t0<<" ms."<<std::endl;
 	return NONS_NO_ERROR;
 }

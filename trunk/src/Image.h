@@ -55,6 +55,7 @@ struct NONS_SurfaceProperties_basic{
 		pitch,
 		byte_count,
 		pixel_count;
+	uchar offsets[4];
 	NONS_SurfaceProperties_basic<T>(){}
 	template <typename T2>
 	operator NONS_SurfaceProperties_basic<T2>() const{
@@ -65,6 +66,19 @@ struct NONS_SurfaceProperties_basic{
 		r.pitch=this->pitch;
 		r.byte_count=this->byte_count;
 		r.pixel_count=this->pixel_count;
+		r.offsets[0]=this->offsets[0];
+		r.offsets[1]=this->offsets[1];
+		r.offsets[2]=this->offsets[2];
+		r.offsets[3]=this->offsets[3];
+		return r;
+	}
+	template <typename T2>
+	bool same_format(const NONS_SurfaceProperties_basic<T2> &b){
+		return
+			this->offsets[0]==b.offsets[0] &&
+			this->offsets[1]==b.offsets[1] &&
+			this->offsets[2]==b.offsets[2] &&
+			this->offsets[3]==b.offsets[3];
 	}
 };
 typedef NONS_SurfaceProperties_basic<uchar> NONS_SurfaceProperties;
@@ -106,11 +120,18 @@ struct NONS_Color{
 			this->rgba[2];
 		return r;
 	}
-	Uint32 to_native() const{
-		return *(Uint32 *)this->rgba;
+	Uint32 to_native(uchar *format) const{
+		Uint8 r[]={
+			this->rgba[format[0]],
+			this->rgba[format[1]],
+			this->rgba[format[2]],
+			this->rgba[format[3]]
+		};
+		return *(Uint32 *)r;
 	}
 	bool operator==(const NONS_Color &b) const{
-		return this->to_native()==b.to_native();
+		uchar f[]={0,1,2,3};
+		return this->to_native(f)==b.to_native(f);
 	}
 	bool operator!=(const NONS_Color &b) const{
 		return !(*this==b);

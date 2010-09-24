@@ -671,7 +671,7 @@ void NONS_ScriptInterpreter::init(){
 	this->selectOn=0xFFFFFF;
 	this->selectOff=0xA9A9A9;
 	this->autoclick=0;
-	this->timer=SDL_GetTicks();
+	this->timer=NONS_Clock().get();
 	this->menu=new NONS_Menu(this);
 	this->imageButtons=0;
 	this->new_if=0;
@@ -2699,7 +2699,7 @@ ErrorCode NONS_ScriptInterpreter::command_btnwait(NONS_Statement &stmt){
 	if (choice==INT_MIN)
 		return NONS_END;
 	var->set(choice+1);
-	this->btnTimer=SDL_GetTicks();
+	this->btnTimer=NONS_Clock().get();
 	if (choice>=0 && stdStrCmpCI(stmt.commandName,L"btnwait2")){
 		delete this->imageButtons;
 		this->imageButtons=0;
@@ -2830,7 +2830,7 @@ ErrorCode NONS_ScriptInterpreter::command_clock(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *dst;
 	GET_INT_VARIABLE(dst,0);
-	dst->set(SDL_GetTicks());
+	dst->set((long)NONS_Clock().get());
 	return NONS_NO_ERROR;
 }
 
@@ -3066,10 +3066,11 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 				NONS_Matrix::rotation(double(rotation)/180.0*M_PI)
 				*
 				NONS_Matrix::scale(xscale,yscale)
+				,1
 			);
 			break;
 		case 3:
-			src=src.transform(NONS_Matrix(matrix_00/1000.0,matrix_01/1000.0,matrix_10/1000.0,matrix_11/1000.0));
+			src=src.transform(NONS_Matrix(matrix_00/1000.0,matrix_01/1000.0,matrix_10/1000.0,matrix_11/1000.0),1);
 			break;
 	}
 	if (functionVersion>1){
@@ -3243,7 +3244,7 @@ ErrorCode NONS_ScriptInterpreter::command_getbtntimer(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *var;
 	GET_INT_VARIABLE(var,0);
-	var->set(SDL_GetTicks()-this->btnTimer);
+	var->set(long(NONS_Clock().get()-this->btnTimer));
 	return NONS_NO_ERROR;
 }
 
@@ -3460,7 +3461,7 @@ ErrorCode NONS_ScriptInterpreter::command_gettimer(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *var;
 	GET_INT_VARIABLE(var,0);
-	var->set(this->timer);
+	var->set((long)this->timer);
 	return NONS_NO_ERROR;
 }
 
@@ -4279,9 +4280,10 @@ void shake(const NONS_Surface &dst,long amplitude,ulong duration){
 	NONS_LongRect srcrect=dst.clip_rect(),
 		dstrect=srcrect;
 	NONS_Surface copy_dst=dst.clone();
-	ulong start=SDL_GetTicks();
+	NONS_Clock clock;
+	NONS_Clock::t start=clock.get();
 	NONS_LongRect last=dstrect;
-	while (SDL_GetTicks()-start<duration){
+	while (clock.get()-start<(NONS_Clock::t)duration){
 		dst.fill(srcrect,NONS_Color::black);
 		do{
 			dstrect.x=(rand()%2)?amplitude:-amplitude;
@@ -4327,7 +4329,7 @@ ErrorCode NONS_ScriptInterpreter::command_reset(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_resettimer(NONS_Statement &stmt){
-	this->timer=SDL_GetTicks();
+	this->timer=NONS_Clock().get();
 	return NONS_NO_ERROR;
 }
 
@@ -4832,17 +4834,18 @@ ErrorCode NONS_ScriptInterpreter::command_shadedistance(NONS_Statement &stmt){
 }
 
 void quake(const NONS_Surface &dst,char axis,ulong amplitude,ulong duration){
-	float length=(float)duration,
-		amp=(float)amplitude;
+	double length=(double)duration,
+		amp=(double)amplitude;
 	NONS_LongRect srcrect=dst.clip_rect(),
 		dstrect=srcrect;
 	NONS_Surface copyDst=dst.clone();
-	ulong start=SDL_GetTicks();
+	NONS_Clock clock;
+	NONS_Clock::t start=clock.get();
 	while (1){
-		float x=float(SDL_GetTicks()-start);
+		NONS_Clock::t x=clock.get()-start;
 		if (x>duration)
 			break;
-		float y=(float)sin(x*(20/length)*M_PI)*((amp/-length)*x+amplitude);
+		double y=sin(x*(20/length)*M_PI)*((amp/-length)*x+amplitude);
 		dst.fill(srcrect,NONS_Color::black);
 		if (axis=='x')
 			dstrect.x=(long)y;
@@ -5197,9 +5200,9 @@ ErrorCode NONS_ScriptInterpreter::command_waittimer(NONS_Statement &stmt){
 	GET_INT_VALUE(ms,0);
 	if (ms<0)
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
-	ulong now=SDL_GetTicks();
+	NONS_Clock::t now=NONS_Clock().get();
 	if (ulong(ms)>now-this->timer){
-		long delay=ms-(now-this->timer);
+		NONS_Clock::t delay=ms-(now-this->timer);
 		while (delay>0 && !forceSkip){
 			SDL_Delay(10);
 			delay-=10;

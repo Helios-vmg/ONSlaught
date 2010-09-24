@@ -138,9 +138,9 @@ bool NONS_Layer::load(const std::wstring *string){
 	this->animation.parse(*string);
 	this->clip_rect=this->data.clip_rect();
 	/*if (this->animation.animation_length>1){
-		ulong t0=SDL_GetTicks();
+		ulong t0=clock.get();
 		NONS_LongRect rect=this->getUpdateRect(0,1);
-		ulong t1=SDL_GetTicks();
+		ulong t1=clock.get();
 		std::cout <<"completed in "<<t1-t0<<" msec."<<std::endl;
 	}*/
 	return 1;
@@ -370,11 +370,12 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 	y0=this->y;
 	int lineSkip=this->foregroundLayer->fontCache->line_skip;
 	int fontLineSkip=this->foregroundLayer->fontCache->font_line_skip;
-	ulong t0,t1;
+	NONS_Clock clock;
+	NONS_Clock::t t0,t1;
 	if (this->resumePrinting)
 		start=this->resumePrintingWhere;
 	for (ulong a=start;a<end && a<this->cachedText.size();a++){
-		t0=SDL_GetTicks();
+		t0=clock.get();
 		wchar_t character=this->cachedText[a];
 		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(character);
 		NONS_Glyph *glyph2=(this->shadowLayer)?this->shadowLayer->fontCache->getGlyph(character):0;
@@ -486,9 +487,9 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 			if (event.type==SDL_KEYDOWN && (event.key.keysym.sym==SDLK_RETURN || event.key.keysym.sym==SDLK_SPACE))
 				enterPressed=1;
 		}
-		t1=SDL_GetTicks();
-		if (!CURRENTLYSKIPPING && !enterPressed && this->display_speed>t1-t0)
-			SDL_Delay(this->display_speed-(t1-t0));
+		t1=clock.get();
+		if (!CURRENTLYSKIPPING && !enterPressed && this->display_speed>ulong(t1-t0))
+			SDL_Delay(this->display_speed-long(t1-t0));
 	}
 	this->x=x0;
 	this->y=y0;
@@ -1126,8 +1127,8 @@ bool NONS_ScreenSpace::advanceAnimations(ulong msecs,std::vector<NONS_LongRect> 
 			if (b){
 				ulong second=p->animation.getCurrentAnimationFrame();
 				NONS_LongRect push=p->optimized_updates[std::pair<ulong,ulong>(first,second)];
-				push.x+=(Sint16)p->position.x;
-				push.y+=(Sint16)p->position.y;
+				push.x+=p->position.x;
+				push.y+=p->position.y;
 				rects.push_back(push);
 			}
 		}

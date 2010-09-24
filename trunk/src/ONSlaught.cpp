@@ -44,8 +44,6 @@
 #include <windows.h>
 #endif
 
-void mainThread(void *);
-
 void useArgumentsFile(const char *filename,std::vector<std::wstring> &argv){
 	std::ifstream file(filename);
 	if (!file)
@@ -303,27 +301,11 @@ void print_version_string(){
 		"All rights reserved.\n\n\n";
 }
 
+void mainThread(void *);
+
 int main(int argc,char **argv){
 	print_version_string();
 	initialize(argc,argv);
-	{
-		NONS_Surface s=L"f:/ONSlaught/Testing/TH/20091211T173319_0000232925.png",
-		//NONS_Surface s=L"f:/0.png",
-			temp=s;
-		if (!s)
-			return 0;
-		ulong t0,t1;
-		double alpha=3.141592/180.0*30.0;
-		t0=SDL_GetTicks();
-		s=s.transform(NONS_Matrix::scale(10,10));
-		t1=SDL_GetTicks();
-		std::cout <<t1-t0<<std::endl;
-		s.save_bitmap(L"rotation_0");
-		s=temp;
-		s=s.transform(NONS_Matrix::scale(10,10),1);
-		s.save_bitmap(L"rotation_1");
-		return 0;
-	}
 	{
 		NONS_ScriptInterpreter interpreter;
 		gScriptInterpreter=&interpreter;

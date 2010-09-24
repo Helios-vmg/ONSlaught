@@ -35,6 +35,7 @@
 #include "ImageLoader.h"
 #include "Plugin/LibraryLoader.h"
 #include <cmath>
+#include <cfloat>
 #include <iostream>
 
 #if defined _DEBUG
@@ -140,7 +141,6 @@ ErrorCode NONS_GFX::call(const NONS_ConstSurface &src,const NONS_Surface &dst0,N
 	};
 	if (!NONS_GFX::listsInitialized)
 		NONS_GFX::initializeLists();
-	//ulong t0=SDL_GetTicks();
 	NONS_Surface ruleFile;
 	if (this->rule.size())
 		ruleFile=this->rule;
@@ -155,12 +155,10 @@ ErrorCode NONS_GFX::call(const NONS_ConstSurface &src,const NONS_Surface &dst0,N
 			return NONS_NO_EFFECT;
 	}else{
 		if (this->effect<NONS_GFX::filters.size())
-			NONS_GFX::filters[this->effect](this->effect+1,this->color,src,NONS_ConstSurface(),dst0,src.clip_rect());
+			NONS_GFX::filters[this->effect](this->effect+1,this->color,src,NONS_Surface::null,dst0,src.clip_rect());
 		else
 			return NONS_NO_EFFECT;
 	}
-	//Unused:
-	//ulong t1=SDL_GetTicks();
 	return NONS_NO_ERROR;
 }
 
@@ -188,20 +186,21 @@ bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_Vi
 	return 1;
 }
 
-#define EFFECT_INITIALIZE_DELAYS(base)                  \
-	long delay=long(float(this->duration)/float(base)), \
-		idealtimepos=0,                                 \
-		lastT=9999,                                     \
-		start=SDL_GetTicks()
+#define EFFECT_INITIALIZE_DELAYS(base)                           \
+	NONS_Clock clock;                                            \
+	NONS_Clock::t delay=long(float(this->duration)/float(base)), \
+		idealtimepos=0,                                          \
+		lastT=DBL_MAX,                                           \
+		start=clock.get()
 #define EFFECT_ITERATION_PROLOGUE(condition,action)                         \
 	idealtimepos+=delay;                                                    \
-	long t0=SDL_GetTicks();                                                 \
+	NONS_Clock::t t0=clock.get();                                           \
 	if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && (condition)){ \
 		{action}                                                            \
 		continue;                                                           \
 	}
 #define EFFECT_ITERATION_EPILOGUE      \
-	long t1=SDL_GetTicks();            \
+	NONS_Clock::t t1=clock.get();      \
 	lastT=t1-t0;                       \
 	if (lastT<delay)                   \
 		SDL_Delay(Uint32(delay-lastT))
@@ -311,11 +310,7 @@ void NONS_GFX::effectRcurtain(const NONS_ConstSurface &src,const NONS_ConstSurfa
 	NONS_LongRect src_rect;
 	if (!effect_standard_check(src_rect,src,dst))
 		return;
-	//TODO: verify possible bug:
-	NONS_LongRect rect(0,0,1,src_rect.w);
-	//Should this be
-	//NONS_Rect rect(0,0,1,src_rect.h);
-	//?
+	NONS_LongRect rect(0,0,1,src_rect.h);
 	long shutterW=(long)sqrt(double(src_rect.w));
 	EFFECT_INITIALIZE_DELAYS(shutterW*2);
 	for (long a=0;a<shutterW*2;a++){
@@ -419,14 +414,6 @@ void NONS_GFX::effectCrossfade(const NONS_ConstSurface &src,const NONS_ConstSurf
 #endif
 	for (long a=step;a<256;a+=step){
 		EFFECT_ITERATION_PROLOGUE(a<255,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a<255){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		{
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(dst_copy);
@@ -437,17 +424,9 @@ void NONS_GFX::effectCrossfade(const NONS_ConstSurface &src,const NONS_ConstSurf
 		steps++;
 #endif
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 #ifdef BENCHMARK_EFFECTS
-	float speed=float(steps)/(float(this->duration)/1000.0f);
+	double speed=steps*1000.0/this->duration;
 	std::cout <<"effectCrossfade(): "<<speed<<" steps per second."<<std::endl;
 #endif
 	effect_epilogue();
@@ -466,14 +445,6 @@ void NONS_GFX::effectRscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 		dst_rect_B=src_rect;
 	for (long a=src_rect.w-1;a>=0;a--){
 		EFFECT_ITERATION_PROLOGUE(a>0,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a>0){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		src_rect_A.x=a;
 		dst_rect_B.x=src_rect_A.w-src_rect_A.x;
 		{
@@ -483,14 +454,6 @@ void NONS_GFX::effectRscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 	effect_epilogue();
 }
@@ -508,14 +471,6 @@ void NONS_GFX::effectLscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 		dst_rect_B=src_rect;
 	for (ulong a=0;a<(ulong)src_rect.w;a++){
 		EFFECT_ITERATION_PROLOGUE(a<(ulong)src_rect.w-1,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a<(ulong)src->w-1){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		src_rect_A.x=a;
 		dst_rect_B.x=src_rect_A.w-src_rect_A.x;
 		{
@@ -525,14 +480,6 @@ void NONS_GFX::effectLscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 	effect_epilogue();
 }
@@ -550,14 +497,6 @@ void NONS_GFX::effectDscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 		dst_rect_B=src_rect;
 	for (long a=src_rect.h-1;a>=0;a--){
 		EFFECT_ITERATION_PROLOGUE(a>0,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a>0){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		src_rect_A.y=a;
 		dst_rect_B.y=src_rect_A.h-src_rect_A.y;
 		{
@@ -567,14 +506,6 @@ void NONS_GFX::effectDscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 	effect_epilogue();
 }
@@ -592,14 +523,6 @@ void NONS_GFX::effectUscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 		dst_rect_B=src_rect;
 	for (ulong a=0;a<(ulong)src_rect.h;a++){
 		EFFECT_ITERATION_PROLOGUE(a<(ulong)src_rect.w-1,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a<(ulong)src0->h-1){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		src_rect_A.y=a;
 		dst_rect_B.y=src_rect_A.h-src_rect_A.y;
 		{
@@ -609,14 +532,6 @@ void NONS_GFX::effectUscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 	effect_epilogue();
 }
@@ -631,9 +546,12 @@ void effectHardMask_threaded(void *parameters){
 	EHM_parameters p=*(EHM_parameters *)parameters;
 	for (ulong y=0;y<p.src0.h;y++){
 		for (ulong x=0;x<p.src0.w;x++){
-			uchar *b1=p.src1.pixels+2;
+			uchar *b1=p.src1.pixels+p.src1.offsets[2];
 			if (*b1<=p.a){
-				*(Uint32 *)p.dst.pixels=*(const Uint32 *)p.src0.pixels;
+				p.dst.pixels[p.dst.offsets[0]]=p.src0.pixels[p.src0.offsets[0]];
+				p.dst.pixels[p.dst.offsets[1]]=p.src0.pixels[p.src0.offsets[1]];
+				p.dst.pixels[p.dst.offsets[2]]=p.src0.pixels[p.src0.offsets[2]];
+				p.dst.pixels[p.dst.offsets[3]]=p.src0.pixels[p.src0.offsets[3]];
 				*b1=0xFF;
 			}
 			p.src0.pixels+=4;
@@ -646,12 +564,12 @@ void effectHardMask_threaded(void *parameters){
 NONS_Surface copy_mask(NONS_LongRect &src_rect,const NONS_ConstSurface &mask,NONS_VirtualScreen &screen){
 	NONS_Surface r=screen.get_screen().clone_without_pixel_copy();
 	NONS_LongRect mask_rect[2];
-	mask_rect[0]=r.clip_rect();
+	mask_rect[0]=mask.clip_rect();
 	mask_rect[1]=mask_rect[0];
 	//copy the rule as a tile
 	for (mask_rect[1].y=0;mask_rect[1].y<src_rect.h;mask_rect[1].y+=mask_rect[0].h)
 		for (mask_rect[1].x=0;mask_rect[1].x<src_rect.w;mask_rect[1].x+=mask_rect[0].w)
-			r.copy_pixels(mask,mask_rect,mask_rect+1);
+			r.copy_pixels(mask,mask_rect+1,mask_rect);
 	return r;
 }
 
@@ -680,19 +598,11 @@ void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 		p.src0.pixels+=p.src0.pitch*a*division;
 		p.src1.pixels+=p.src1.pitch*a*division;
 	}
-	parameters.back().src0.h=src_rect.h-division*cpu_count;
+	parameters.back().src0.h=src_rect.h-division*(cpu_count-1);
 
 	EFFECT_INITIALIZE_DELAYS(256);
 	for (long a=0;a<256;a++){
 		EFFECT_ITERATION_PROLOGUE(a<255,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a<255){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		{
 			NONS_Surface screen=dst.get_screen();
 			screen.get_properties(screen_sp);
@@ -718,14 +628,6 @@ void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 	effect_epilogue();
 }
@@ -741,10 +643,10 @@ void effectSoftMask_threaded(void *parameters){
 					alpha=0;
 				else if (alpha>255)
 					alpha=255;
-				p.dst.pixels[0]=(uchar)APPLY_ALPHA(p.src0.pixels[0],p.dst.pixels[0],alpha);
-				p.dst.pixels[1]=(uchar)APPLY_ALPHA(p.src0.pixels[1],p.dst.pixels[1],alpha);
-				p.dst.pixels[2]=(uchar)APPLY_ALPHA(p.src0.pixels[2],p.dst.pixels[2],alpha);
-				p.dst.pixels[3]=(uchar)APPLY_ALPHA(p.src0.pixels[3],p.dst.pixels[3],alpha);
+				p.dst.pixels[p.dst.offsets[0]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[0]],p.dst.pixels[p.dst.offsets[0]],alpha);
+				p.dst.pixels[p.dst.offsets[1]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[1]],p.dst.pixels[p.dst.offsets[1]],alpha);
+				p.dst.pixels[p.dst.offsets[2]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[2]],p.dst.pixels[p.dst.offsets[2]],alpha);
+				p.dst.pixels[p.dst.offsets[3]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[3]],p.dst.pixels[p.dst.offsets[3]],alpha);
 				if ((long)*b1<p.a-255)
 					*b1=0;
 			}
@@ -779,7 +681,7 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 		p.src0.pixels+=p.src0.pitch*a*division;
 		p.src1.pixels+=p.src1.pitch*a*division;
 	}
-	parameters.back().src0.h=src_rect.h-division*cpu_count;
+	parameters.back().src0.h=src_rect.h-division*(cpu_count-1);
 
 	EFFECT_INITIALIZE_DELAYS(512);
 #ifdef BENCHMARK_EFFECTS
@@ -787,15 +689,6 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 #endif
 	for (long a=0;a<512;a++){
 		EFFECT_ITERATION_PROLOGUE(a<511,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a<511){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
-
 		{
 			NONS_Surface screen=dst.get_screen();
 			screen.get_properties(screen_sp);
@@ -826,17 +719,10 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 #endif
 
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 #ifdef BENCHMARK_EFFECTS
-	std::cout <<"effectSoftMask(): "<<float(steps)/(float(this->duration)/1000.0f)<<" steps per second."<<std::endl;
+	double speed=steps*1000.0/this->duration;
+	std::cout <<"effectSoftMask(): "<<speed<<" steps per second."<<std::endl;
 #endif
 	effect_epilogue();
 }
@@ -848,14 +734,6 @@ void NONS_GFX::effectMosaicIn(const NONS_ConstSurface &src,const NONS_ConstSurfa
 	EFFECT_INITIALIZE_DELAYS(10);
 	for (long a=9;a>=0;a--){
 		EFFECT_ITERATION_PROLOGUE(lastT>5 && a>0,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && lastT>5 && a>0){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		{
 			NONS_Surface screen=dst.get_screen();
 			if (a==0)
@@ -867,26 +745,21 @@ void NONS_GFX::effectMosaicIn(const NONS_ConstSurface &src,const NONS_ConstSurfa
 				src.get_properties(src_sp);
 				ulong pixelSize=1<<a;
 				for (ulong y=0;y<dst_sp.h;y+=pixelSize){
-					ulong tps=y+(pixelSize-1>=dst_sp.h)?dst_sp.h-y-1:pixelSize;
 					for (ulong x=0;x<dst_sp.w;x+=pixelSize){
 						NONS_LongRect rect(x,y,pixelSize,pixelSize);
 						const uchar *src_pixel=src_sp.pixels;
-						src_pixel+=src_sp.pitch*(y+tps-1)+4*x;
-						screen.fill(rect,NONS_Color(src_pixel[0],src_pixel[1],src_pixel[2],src_pixel[3]));
+						src_pixel+=src_sp.pitch*y+4*x;
+						screen.fill(rect,NONS_Color(
+							src_pixel[src_sp.offsets[0]],
+							src_pixel[src_sp.offsets[1]],
+							src_pixel[src_sp.offsets[2]],
+							src_pixel[src_sp.offsets[3]]));
 					}
 				}
 			}
 			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 	effect_epilogue();
 }
@@ -898,14 +771,6 @@ void NONS_GFX::effectMosaicOut(const NONS_ConstSurface &src,const NONS_ConstSurf
 	EFFECT_INITIALIZE_DELAYS(10);
 	for (long a=0;a<10;a++){
 		EFFECT_ITERATION_PROLOGUE(lastT>5 && a>0,);
-#if 0
-		//old code
-		long t0=SDL_GetTicks();
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && lastT>5 && a>0){
-			idealtimepos+=(long)delay;
-			continue;
-		}
-#endif
 		{
 			NONS_Surface screen=dst.get_screen();
 			if (a==0)
@@ -917,26 +782,21 @@ void NONS_GFX::effectMosaicOut(const NONS_ConstSurface &src,const NONS_ConstSurf
 				src.get_properties(src_sp);
 				ulong pixelSize=1<<a;
 				for (ulong y=0;y<dst_sp.h;y+=pixelSize){
-					ulong tps=y+(pixelSize-1>=dst_sp.h)?dst_sp.h-y-1:pixelSize;
 					for (ulong x=0;x<dst_sp.w;x+=pixelSize){
 						NONS_LongRect rect(x,y,pixelSize,pixelSize);
 						const uchar *src_pixel=src_sp.pixels;
-						src_pixel+=src_sp.pitch*(y+tps-1)+4*x;
-						screen.fill(rect,NONS_Color(src_pixel[0],src_pixel[1],src_pixel[2],src_pixel[3]));
+						src_pixel+=src_sp.pitch*y+4*x;
+						screen.fill(rect,NONS_Color(
+							src_pixel[src_sp.offsets[0]],
+							src_pixel[src_sp.offsets[1]],
+							src_pixel[src_sp.offsets[2]],
+							src_pixel[src_sp.offsets[3]]));
 					}
 				}
 			}
 			dst.updateWithoutLock(screen);
 		}
 		EFFECT_ITERATION_EPILOGUE;
-#if 0
-		//old code
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		if (lastT<delay)
-			SDL_Delay(Uint32(delay-lastT));
-		idealtimepos+=(long)delay;
-#endif
 	}
 	dst.get_screen().copy_pixels(src);
 	effect_epilogue();

@@ -783,3 +783,38 @@ NONS_TemporaryFile::~NONS_TemporaryFile(){
 	this->file.close();
 	NONS_File::delete_file(this->name);
 }
+
+#if NONS_SYS_WINDOWS
+NONS_Clock::NONS_Clock(){
+	Uint64 *p=new Uint64;
+	LARGE_INTEGER li;
+	*p=(!QueryPerformanceFrequency(&li))?0:li.QuadPart/1000;
+	this->data=p;
+}
+
+NONS_Clock::~NONS_Clock(){
+	delete (Uint64 *)this->data;
+}
+#endif
+
+#if NONS_SYS_UNIX
+#include <time.h>
+#endif
+
+NONS_Clock::t NONS_Clock::get() const{
+#if NONS_SYS_WINDOWS
+	const Uint64 *p=(const Uint64 *)this->data;
+	if (!*p)
+		return SDL_GetTicks();
+	LARGE_INTEGER li;
+	QueryPerformanceCounter(&li);
+	return NONS_Clock::t(li.QuadPart)/NONS_Clock::t(*p);
+#elif NONS_SYS_UNIX
+	timespec ts;
+	if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&ts)<0)
+		return SDL_GetTicks();
+	return NONS_Clock::t(ts.tv_sec)*1000.0+NONS_Clock::t(ts.tv_nsec)/1000000.0;
+#else
+	return SDL_GetTicks();
+#endif
+}

@@ -314,6 +314,7 @@ public:
 		static NONS_Mutex surface_mutex;
 		ulong id,
 			frames;
+		uchar offsets[4];
 		friend class NONS_SurfaceManager;
 		Surface(){ this->set_id(); }
 		void set_id(){
@@ -335,6 +336,7 @@ public:
 			sp.pitch=this->w*4;
 			sp.pixel_count=this->h*this->w;
 			sp.byte_count=sp.pixel_count*4;
+			memcpy(sp.offsets,this->offsets,4);
 		}
 #define NONS_SurfaceManager_Surface_RELATIONAL_OP(op) bool operator op(const Surface &b) const{ return this->id op b.id; }
 		OVERLOAD_RELATIONAL_OPERATORS(NONS_SurfaceManager_Surface_RELATIONAL_OP)
@@ -374,7 +376,6 @@ public:
 	index_t copy(const index_t &src);
 	index_t scale(const index_t &src,double scalex,double scaley);
 	index_t resize(const index_t &src,long w,long h);
-	index_t rotate(const index_t &src,double rotate);
 	index_t transform(const index_t &src,const NONS_Matrix &m,bool fast);
 	void assign_screen(SDL_Surface *);
 	index_t get_screen();
@@ -488,6 +489,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::load_image(const std::wstring 
 		return r;
 	{
 		SDL_Surface *temp=SDL_CreateRGBSurface(SDL_SWSURFACE,surface->w,surface->h,32,rmask,gmask,bmask,amask);
+		SDL_SetAlpha(surface,0,255);
 		SDL_BlitSurface(surface,0,temp,0);
 		SDL_FreeSurface(surface);
 		surface=temp;
@@ -555,6 +557,8 @@ void linear_interpolation1(
 		const uchar *src,
 		ulong src_advance,
 		ulong src_pitch,
+		const uchar *dst_offsets,
+		const uchar *src_offsets,
 		ulong fractional_advance){
 	ulong X=0;
 	for (ulong x=0;x<w;x++){
@@ -566,10 +570,12 @@ void linear_interpolation1(
 		weight[1]=GET_FRACTION(X);
 		weight[0]=unit-weight[1];
 		for (ulong y=0;y<h;y++){
-			dst[0]=uchar((pixel[0][0]*weight[0]+pixel[1][0]*weight[1])>>16);
-			dst[1]=uchar((pixel[0][1]*weight[0]+pixel[1][1]*weight[1])>>16);
-			dst[2]=uchar((pixel[0][2]*weight[0]+pixel[1][2]*weight[1])>>16);
-			dst[3]=uchar((pixel[0][3]*weight[0]+pixel[1][3]*weight[1])>>16);
+#define LINEAR_SET_CHANNEL(i)\
+	dst[dst_offsets[i]]=uchar((pixel[0][src_offsets[i]]*weight[0]+pixel[1][src_offsets[i]]*weight[1])>>16)
+			LINEAR_SET_CHANNEL(0);
+			LINEAR_SET_CHANNEL(1);
+			LINEAR_SET_CHANNEL(2);
+			LINEAR_SET_CHANNEL(3);
 			pixel[0]+=src_pitch;
 			pixel[1]+=src_pitch;
 			dst+=dst_pitch;
@@ -594,6 +600,8 @@ void linear_interpolation2(
 		const uchar *src,
 		ulong src_advance,
 		ulong src_pitch,
+		const uchar *dst_offsets,
+		const uchar *src_offsets,
 		ulong fractional_advance){
 	for (ulong y=0;y<h;y++){
 		uchar *dst0=dst;
@@ -610,17 +618,17 @@ void linear_interpolation2(
 					multiplier=FLOOR(X0)+unit-X0;
 				else
 					multiplier=unit;
-				color[0]+=pixel[0]*multiplier;
-				color[1]+=pixel[1]*multiplier;
-				color[2]+=pixel[2]*multiplier;
-				color[3]+=pixel[3]*multiplier;
+				color[0]+=pixel[src_offsets[0]]*multiplier;
+				color[1]+=pixel[src_offsets[1]]*multiplier;
+				color[2]+=pixel[src_offsets[2]]*multiplier;
+				color[3]+=pixel[src_offsets[3]]*multiplier;
 				pixel+=src_advance;
 				x0=FLOOR(x0)+unit;
 			}
-			dst[0]=uchar(color[0]/fractional_advance);
-			dst[1]=uchar(color[1]/fractional_advance);
-			dst[2]=uchar(color[2]/fractional_advance);
-			dst[3]=uchar(color[3]/fractional_advance);
+			dst[dst_offsets[0]]=uchar(color[0]/fractional_advance);
+			dst[dst_offsets[1]]=uchar(color[1]/fractional_advance);
+			dst[dst_offsets[2]]=uchar(color[2]/fractional_advance);
+			dst[dst_offsets[3]]=uchar(color[3]/fractional_advance);
 			dst+=dst_advance;
 			X0=X1;
 			X1+=fractional_advance;
@@ -630,24 +638,31 @@ void linear_interpolation2(
 	}
 }
 
-typedef void (*linear_interpolation_f)(uchar *,ulong,ulong,ulong,ulong,const uchar *,ulong,ulong,ulong);
+typedef void (*linear_interpolation_f)(uchar *,ulong,ulong,ulong,ulong,const uchar *,ulong,ulong,const uchar *,const uchar *,ulong);
 
 void mirror_1D(
 		uchar *dst,
 		const uchar *src,
 		ulong w,
 		ulong h,
+		const uchar *dst_offsets,
+		const uchar *src_offsets,
 		int x_advance,
 		int y_advance){
 	for (ulong y=0;y<h;y++){
-		const Uint32 *src2=(const Uint32 *)src;
-		Uint32 *dst2=(Uint32 *)dst;
+		const uchar *src2=src;
+		uchar *dst2=dst;
 		src2+=(((y_advance>0)?y:(h-1-y))*w*4)+(((x_advance>0)?0:(w-1))*4);
 		dst2+=y*w*4;
 		for (ulong x=0;x<w;x++){
-			*dst2=*src2;
-			src2+=x_advance;
-			dst2++;
+			uchar p[4];
+			p[dst_offsets[0]]=src2[src_offsets[0]];
+			p[dst_offsets[1]]=src2[src_offsets[1]];
+			p[dst_offsets[2]]=src2[src_offsets[2]];
+			p[dst_offsets[3]]=src2[src_offsets[3]];
+			*dst2=*(Uint32 *)p;
+			src2+=x_advance*4;
+			dst2+=4;
 		}
 	}
 }
@@ -667,7 +682,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		NONS_SurfaceProperties dsp;
 		dst=this->allocate(ssp.w,ssp.h);
 		dst->get_properties(dsp);
-		mirror_1D(dsp.pixels,ssp.pixels,ssp.w,ssp.h,(w>=0)?1:-1,(h>=0)?1:-1);
+		mirror_1D(dsp.pixels,ssp.pixels,ssp.w,ssp.h,dsp.offsets,ssp.offsets,(w>=0)?1:-1,(h>=0)?1:-1);
 		if (w<0)
 			w=-w;
 		if (h<0)
@@ -693,6 +708,8 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		(uchar *)src->data,
 		4,
 		src->w*4,
+		dst->offsets,
+		src->offsets,
 		((w0-minus)<<16)/(w-minus)
 	);
 	src=dst;
@@ -713,6 +730,8 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		(uchar *)src->data,
 		src->w*4,
 		4,
+		dst->offsets,
+		src->offsets,
 		((h0-minus)<<16)/(h-minus)
 	);
 	if (free_src)
@@ -720,84 +739,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	return dst;
 }
 
-#include <iostream>
-
-NONS_SurfaceManager::index_t NONS_SurfaceManager::rotate(const index_t &src,double angle){
-	double dcos=cos(angle),
-		dsin=sin(angle);
-
-	const NONS_SurfaceManager::Surface &s=*src;
-	ulong w=(ulong)ceil(abs(s.h*dsin)+abs(s.w*dcos));
-	ulong h=(ulong)ceil(abs(s.h*dcos)+abs(s.w*dsin));
-	long center_x=s.w<<15;
-	long center_y=s.h<<15;
-	long dx=w>>1;
-	long dy=h>>1;
-	long ncos=long(dcos*65536.f);
-	long nsin=long(dsin*65536.f);
-	long srotx=long(-dx*ncos+dy*nsin)+center_x;
-	long sroty=long(-dx*nsin-dy*ncos)+center_y;
-
-	index_t dst=this->allocate(w,h);
-	const NONS_SurfaceManager::Surface &d=*dst;
-
-	ulong pitch[]={
-		s.w*4,
-		d.w*4
-	};
-
-	uchar empty_pixels[4]={0};
-	uchar *dp=d.data;
-	for (ulong y=0;y<h;y++){
-		long rotx=srotx=srotx-nsin;
-		long roty=sroty=sroty+ncos;
-		for (ulong x=0;x<w;x++){
-			long newx=rotx>>16;
-			long newy=roty>>16;
-			if (rotx>-0x10000 && rotx<long(s.w<<16) && roty>-0x10000 && roty<long(s.h<<16)){
-				uchar *sp=s.data+newy*pitch[0]+newx*4;
-				uchar *pixel[4]={
-					sp,
-					sp+4,
-					sp+pitch[0],
-					sp+pitch[0]+4,
-				};
-				if (newx<0){
-					pixel[0]=empty_pixels;
-					pixel[2]=empty_pixels;
-				}
-				if (newy<0){
-					pixel[0]=empty_pixels;
-					pixel[1]=empty_pixels;
-				}
-				if (newx>=(long)s.w-1){
-					pixel[1]=empty_pixels;
-					pixel[3]=empty_pixels;
-				}
-				if (newy>=(long)s.h-1){
-					pixel[2]=empty_pixels;
-					pixel[3]=empty_pixels;
-				}
-
-				long wx=rotx&0xFFFF;
-				long wy=roty&0xFFFF;
-				long rwx=wx^0xFFFF;
-				long rwy=wy^0xFFFF;
-				uchar rgba[4];
-				for (int a=0;a<4;a++){
-					long m1=((pixel[0][a]*rwx+pixel[1][a]*wx)>>16);
-					long m2=((pixel[2][a]*rwx+pixel[3][a]*wx)>>16);
-					rgba[a]=uchar((m1*rwy+m2*wy)>>16);
-				}
-				*(Uint32 *)dp=*(Uint32 *)rgba;
-			}
-			rotx+=ncos;
-			roty+=nsin;
-			dp+=4;
-		}
-	}
-	return dst;
-}
+#define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
 
 bool invert_matrix(double dst[4],double src[4]){
 	double a=src[0]*src[3]-src[1]*src[2];
@@ -862,13 +804,102 @@ void get_final_size(const NONS_ConstSurfaceProperties &src,const NONS_Matrix &m,
 }
 
 struct transform_params{
+	bool fast;
 	long long_matrix[4];
-	ulong y0,w,h;
+	ulong y0,h,correct_x,correct_y;
+	NONS_ConstSurfaceProperties src_sp;
+	NONS_SurfaceProperties dst_sp;
 };
 
 void transform_threaded(void *p){
 	transform_params params=*(transform_params *)p;
 	const uchar empty_pixels[4]={0};
+	params.h+=params.y0;
+	for (ulong y=params.y0;y<params.h;y++){
+		Uint32 *dst_pixel=(Uint32 *)(params.dst_sp.pixels+y*params.dst_sp.pitch);
+		bool pixels_were_copied=0;
+		long src_x0=(0-params.correct_x)*params.long_matrix[0]+(y-params.correct_y)*params.long_matrix[1],
+			src_y0=(0-params.correct_x)*params.long_matrix[2]+(y-params.correct_y)*params.long_matrix[3];
+		for (ulong x=0;x<params.dst_sp.w;++x){
+			if (params.fast){
+				long src_x=(src_x0+0x5000)>>16,
+					src_y=(src_y0+0x5000)>>16;
+				src_x0+=params.long_matrix[0];
+				src_y0+=params.long_matrix[2];
+				if (!(src_x<0 || src_y<0 || (ulong)src_x>=params.src_sp.w || (ulong)src_y>=params.src_sp.h)){
+					const uchar *src_pixel=params.src_sp.pixels+src_x*4+src_y*params.src_sp.pitch;
+					uchar p[4];
+					p[params.dst_sp.offsets[0]]=src_pixel[params.src_sp.offsets[0]];
+					p[params.dst_sp.offsets[1]]=src_pixel[params.src_sp.offsets[1]];
+					p[params.dst_sp.offsets[2]]=src_pixel[params.src_sp.offsets[2]];
+					p[params.dst_sp.offsets[3]]=src_pixel[params.src_sp.offsets[3]];
+					*dst_pixel=*(Uint32 *)p;
+					dst_pixel++;
+					pixels_were_copied=1;
+					continue;
+				}
+			}else{
+				long src_x=src_x0>>16,
+					src_y=src_y0>>16,
+					temp_x0=src_x0,
+					temp_y0=src_y0;
+				src_x0+=params.long_matrix[0];
+				src_y0+=params.long_matrix[2];
+				if (temp_x0>-0x10000 && temp_x0<long(params.src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(params.src_sp.h<<16)){
+					const uchar *sp=(const uchar *)(params.src_sp.pixels+src_y*params.src_sp.pitch+src_x*4);
+					const uchar *pixel[4]={
+						sp,
+						sp+4,
+						sp+params.src_sp.pitch,
+						sp+params.src_sp.pitch+4,
+					};
+					if (src_x<0){
+						pixel[0]=empty_pixels;
+						pixel[2]=empty_pixels;
+					}
+					if (src_y<0){
+						pixel[0]=empty_pixels;
+						pixel[1]=empty_pixels;
+					}
+					if (src_x>=(long)params.src_sp.w-1){
+						pixel[1]=empty_pixels;
+						pixel[3]=empty_pixels;
+					}
+					if (src_y>=(long)params.src_sp.h-1){
+						pixel[2]=empty_pixels;
+						pixel[3]=empty_pixels;
+					}
+
+					long fraction_x,
+						fraction_y,
+						ifraction_x,
+						ifraction_y;
+					fraction_x=GET_FRACTION(temp_x0);
+					fraction_y=GET_FRACTION(temp_y0);
+					ifraction_x=unit-fraction_x;
+					ifraction_y=unit-fraction_y;
+					uchar rgba[4];
+					long m1,m2;
+#define TRANSFORM_SET_CHANNEL(i)                                                                             \
+	m1=((pixel[0][params.src_sp.offsets[i]]*ifraction_x+pixel[1][params.src_sp.offsets[i]]*fraction_x)>>16); \
+	m2=((pixel[2][params.src_sp.offsets[i]]*ifraction_x+pixel[3][params.src_sp.offsets[i]]*fraction_x)>>16); \
+	rgba[params.dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
+					TRANSFORM_SET_CHANNEL(0);
+					TRANSFORM_SET_CHANNEL(1);
+					TRANSFORM_SET_CHANNEL(2);
+					TRANSFORM_SET_CHANNEL(3);
+					*dst_pixel++=*(Uint32 *)rgba;
+					pixels_were_copied=1;
+					continue;
+				}
+			}
+			if (!pixels_were_copied){
+				dst_pixel++;
+				continue;
+			}
+			break;
+		}
+	}
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,const NONS_Matrix &m,bool fast){
@@ -889,77 +920,39 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,c
 	const uchar empty_pixels[4]={0};
 	for (int a=0;a<4;a++)
 		long_matrix[a]=long(inverted_matrix[a]*65536.0);
-	for (ulong y=0;y<dst_sp.h;y++){
-		Uint32 *dst_pixel=(Uint32 *)(dst_sp.pixels+y*dst_sp.pitch);
-		bool pixels_were_copied=0;
-		long src_x0=(0-correct_x)*long_matrix[0]+(y-correct_y)*long_matrix[1],
-			src_y0=(0-correct_x)*long_matrix[2]+(y-correct_y)*long_matrix[3];
-		for (ulong x=0;x<dst_sp.w;x++){
-			if (fast){
-				long src_x=(src_x0+0x5000)>>16,
-					src_y=(src_y0+0x5000)>>16;
-				src_x0+=long_matrix[0];
-				src_y0+=long_matrix[2];
-				if (!(src_x<0 || src_y<0 || (ulong)src_x>=src_sp.w || (ulong)src_y>=src_sp.h)){
-					const Uint32 *src_pixel=(const Uint32 *)(src_sp.pixels+src_x*4+src_y*src_sp.pitch);
-					*dst_pixel++=*src_pixel;
-					pixels_were_copied=1;
-					continue;
-				}
-			}else{
-				long src_x=src_x0>>16,
-					src_y=src_y0>>16,
-					temp_x0=src_x0,
-					temp_y0=src_y0;
-				src_x0+=long_matrix[0];
-				src_y0+=long_matrix[2];
-				if (temp_x0>-0x10000 && temp_x0<long(src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(src_sp.h<<16)){
-					const uchar *sp=(const uchar *)(src_sp.pixels+src_y*src_sp.pitch+src_x*4);
-					const uchar *pixel[4]={
-						sp,
-						sp+4,
-						sp+src_sp.pitch,
-						sp+src_sp.pitch+4,
-					};
-					if (src_x<0){
-						pixel[0]=empty_pixels;
-						pixel[2]=empty_pixels;
-					}
-					if (src_y<0){
-						pixel[0]=empty_pixels;
-						pixel[1]=empty_pixels;
-					}
-					if (src_x>=(long)src_sp.w-1){
-						pixel[1]=empty_pixels;
-						pixel[3]=empty_pixels;
-					}
-					if (src_y>=(long)src_sp.h-1){
-						pixel[2]=empty_pixels;
-						pixel[3]=empty_pixels;
-					}
 
-					long fraction_x=temp_x0&0xFFFF,
-						fraction_y=temp_y0&0xFFFF,
-						rfraction_x=fraction_x^0xFFFF,
-						rfraction_y=fraction_y^0xFFFF;
-					uchar rgba[4];
-					for (int a=0;a<4;a++){
-						long m1=((pixel[0][a]*rfraction_x+pixel[1][a]*fraction_x)>>16);
-						long m2=((pixel[2][a]*rfraction_x+pixel[3][a]*fraction_x)>>16);
-						rgba[a]=uchar((m1*rfraction_y+m2*fraction_y)>>16);
-					}
-					*dst_pixel++=*(Uint32 *)rgba;
-					pixels_were_copied=1;
-					continue;
-				}
-			}
-			if (!pixels_were_copied){
-				dst_pixel++;
-				continue;
-			}
-			break;
-		}
+#ifndef USE_THREAD_MANAGER
+	std::vector<NONS_Thread> threads(cpu_count);
+#endif
+	std::vector<transform_params> parameters(cpu_count);
+	ulong division=ulong(float(dst_sp.h)/float(cpu_count));
+	for (ulong a=0;a<cpu_count;a++){
+		transform_params &p=parameters[a];
+		p.correct_x=correct_x;
+		p.correct_y=correct_y;
+		p.dst_sp=dst_sp;
+		p.src_sp=src_sp;
+		p.fast=fast;
+		p.h=division;
+		for (int b=0;b<4;b++)
+			p.long_matrix[b]=long_matrix[b];
+		p.y0=division*a;
 	}
+	parameters.back().h+=dst_sp.h-division*cpu_count;
+	for (ulong a=1;a<cpu_count;a++)
+#ifndef USE_THREAD_MANAGER
+		threads[a].call(transform_threaded,&parameters[a]);
+#else
+		threadManager.call(a-1,transform_threaded,&parameters[a]);
+#endif
+	transform_threaded(&parameters[0]);
+#ifndef USE_THREAD_MANAGER
+	for (ulong a=1;a<cpu_count;a++)
+		threads[a].join();
+#else
+	if (cpu_count>1)
+		threadManager.waitAll();
+#endif
 	return dst;
 }
 
@@ -1065,7 +1058,11 @@ NONS_Surface NONS_ConstSurface::resize(long x,long y) const{
 }
 
 NONS_Surface NONS_ConstSurface::rotate(double alpha) const{
-	NONS_SurfaceManager::index_t temp=sm.rotate(this->data->surface,alpha);
+	NONS_SurfaceManager::index_t temp=sm.transform(
+		this->data->surface,
+		NONS_Matrix::rotation(alpha),
+		0
+	);
 	if (!temp.good())
 		return NONS_Surface::null;
 	NONS_Surface r;
@@ -1128,9 +1125,22 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 		if (setjmp(png_jmpbuf(png)))
 			break;
 
+		std::vector<uchar> consistent(sp.byte_count);
+		memcpy(&consistent[0],sp.pixels,sp.byte_count);
+		for (ulong a=0;a<consistent.size();a+=4){
+			uchar p[4];
+			p[0]=consistent[a+sp.offsets[0]];
+			p[1]=consistent[a+sp.offsets[1]];
+			p[2]=consistent[a+sp.offsets[2]];
+			p[3]=consistent[a+sp.offsets[3]];
+			consistent[0]=p[0];
+			consistent[1]=p[1];
+			consistent[2]=p[2];
+			consistent[3]=p[3];
+		}
 		std::vector<const uchar *> pointers(sp.h);
 		for (ulong a=0;a<pointers.size();a++)
-			pointers[a]=sp.pixels+sp.pitch*a;
+			pointers[a]=&consistent[sp.pitch*a];
 		png_write_image(png,(png_bytepp)&pointers[0]);
 		if (setjmp(png_jmpbuf(png)))
 			break;
@@ -1161,11 +1171,7 @@ NONS_Surface NONS_ConstSurface::clone() const{
 	NONS_Surface r=this->clone_without_pixel_copy();
 	if (!r)
 		return r;
-	NONS_SurfaceProperties dst_sp;
-	NONS_ConstSurfaceProperties src_sp;
-	this->get_properties(src_sp);
-	r.get_properties(dst_sp);
-	memcpy(dst_sp.pixels,src_sp.pixels,dst_sp.byte_count);
+	r.copy_pixels(*this);
 	return r;
 }
 
@@ -1219,10 +1225,25 @@ void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect 
 	this->get_properties(dsp);
 	ssp.pixels+=sr.x*4+sr.y*ssp.pitch;
 	dsp.pixels+=dr.x*4+dr.y*dsp.pitch;
-	for (ulong y=sr.h;y;y--){
-		memcpy(dsp.pixels,ssp.pixels,sr.w*4);
-		ssp.pixels+=ssp.pitch;
-		dsp.pixels+=dsp.pitch;
+	if (ssp.same_format(dsp)){
+		for (ulong y=sr.h;y;y--){
+			memcpy(dsp.pixels,ssp.pixels,sr.w*4);
+			ssp.pixels+=ssp.pitch;
+			dsp.pixels+=dsp.pitch;
+		}
+	}else{
+		for (long y=0;y<sr.h;y++){
+			const uchar *src_pix=ssp.pixels+ssp.pitch*y;
+			uchar *dst_pix=dsp.pixels+dsp.pitch*y;
+			for (ulong x=sr.w;x;x--){
+				dst_pix[dsp.offsets[0]]=src_pix[ssp.offsets[0]];
+				dst_pix[dsp.offsets[1]]=src_pix[ssp.offsets[1]];
+				dst_pix[dsp.offsets[2]]=src_pix[ssp.offsets[2]];
+				dst_pix[dsp.offsets[3]]=src_pix[ssp.offsets[3]];
+				src_pix+=4;
+				dst_pix+=4;
+			}
+		}
 	}
 }
 
@@ -1247,7 +1268,7 @@ void NONS_Surface::fill(NONS_LongRect area,const NONS_Color &color) const{
 	area.h+=area.y;
 	if (!(area.w*area.h))
 		return;
-	Uint32 c=color.to_native();
+	Uint32 c=color.to_native(sp.offsets);
 	for (ulong y=area.y;y<(ulong)area.h;y++){
 		Uint32 *pixel=(Uint32 *)sp.pixels;
 		pixel+=sp.w*y+area.x;
@@ -1345,37 +1366,34 @@ void over_blend_threaded(
 	src.pixels+=src.pitch*src_rect.y+4*src_rect.x;
 	dst.pixels+=dst.pitch*dst_rect.y+4*dst_rect.x;
 
-	bool negate=(alpha<0);
-	if (negate)
+	uchar negate=0;
+	if (alpha<0){
 		alpha=-alpha;
+		negate=0xFF;
+	}
 	for (int y=0;y<h;y++){
 		const uchar *pos0=src.pixels;
 		uchar *pos1=dst.pixels;
 		for (int x=0;x<w;x++){
 			long rgba0[4];
 			uchar *rgba1[4];
-			for (int a=0;a<4;a++){
-				rgba0[a]=pos0[a];
-				rgba1[a]=pos1+a;
-			}
+#define OVER_SETUP_PIXEL(i)        \
+	rgba0[i]=pos0[src.offsets[i]]; \
+	rgba1[i]=pos1+dst.offsets[i]
+			OVER_SETUP_PIXEL(0);
+			OVER_SETUP_PIXEL(1);
+			OVER_SETUP_PIXEL(2);
+			OVER_SETUP_PIXEL(3);
 
 			rgba0[3]=INTEGER_MULTIPLICATION(rgba0[3],alpha);
 			ulong bottom_alpha=
 				*rgba1[3]=~(uchar)INTEGER_MULTIPLICATION(rgba0[3]^0xFF,*rgba1[3]^0xFF);
 			ulong composite=integer_division_lookup[rgba0[3]+(bottom_alpha<<8)];
 			if (composite){
-				*rgba1[0]=(uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],composite);
-				*rgba1[1]=(uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],composite);
-				*rgba1[2]=(uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],composite);
+				*rgba1[0]=((uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],composite))^negate;
+				*rgba1[1]=((uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],composite))^negate;
+				*rgba1[2]=((uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],composite))^negate;
 			}
-			
-			if (!(negate && rgba0[3])){
-				pos0+=4;
-				pos1+=4;
-				continue;
-			}
-			for (int a=0;a<3;a++)
-				*rgba1[a]=~*rgba1[a];
 			pos0+=4;
 			pos1+=4;
 		}
@@ -1471,12 +1489,14 @@ void multiply_blend_threaded(
 		const uchar *pos0=src.pixels;
 		uchar *pos1=dst.pixels;
 		for (int x=0;x<w;x++){
-			long rgba0[4];
-			uchar *rgba1[4];
-			for (int a=0;a<4;a++){
-				rgba0[a]=pos0[a];
-				rgba1[a]=pos1+a;
-			}
+			int rgba0[3];
+			uchar *rgba1[3];
+#define MULTIPLY_SETUP_PIXEL(i)    \
+	rgba0[i]=pos0[src.offsets[i]]; \
+	rgba1[i]=pos1+dst.offsets[i]
+			MULTIPLY_SETUP_PIXEL(0);
+			MULTIPLY_SETUP_PIXEL(1);
+			MULTIPLY_SETUP_PIXEL(2);
 			*rgba1[0]=(uchar)INTEGER_MULTIPLICATION(rgba0[0],*rgba1[0]);
 			*rgba1[1]=(uchar)INTEGER_MULTIPLICATION(rgba0[1],*rgba1[1]);
 			*rgba1[2]=(uchar)INTEGER_MULTIPLICATION(rgba0[2],*rgba1[2]);
@@ -1610,7 +1630,6 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 	for (long y=dst_rect.y;y<dst_rect.h;y++){
 		long y0=Y>>16;
 		const uchar *src_pix=src.pixels+src.pitch*y0;
-#define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
 		ulong fraction_y=GET_FRACTION(Y),
 			ifraction_y=unit-fraction_y;
 		long X=dst_rect.x*advance_x;
@@ -1632,10 +1651,10 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 			weight[2]=BILINEAR_FIXED16_MULTIPLICATION(ifraction_x, fraction_y);
 			weight[3]=BILINEAR_FIXED16_MULTIPLICATION( fraction_x, fraction_y);
 #define BILINEAR_SET_PIXEL(x)\
-			dst_pix[x]=uchar((pixel[0][x]*weight[0]+\
-			                  pixel[1][x]*weight[1]+\
-			                  pixel[2][x]*weight[2]+\
-			                  pixel[3][x]*weight[3])>>16)
+			dst_pix[dst.offsets[x]]=uchar((pixel[0][src.offsets[x]]*weight[0]+\
+			                  pixel[1][src.offsets[x]]*weight[1]+\
+			                  pixel[2][src.offsets[x]]*weight[2]+\
+			                  pixel[3][src.offsets[x]]*weight[3])>>16)
 			BILINEAR_SET_PIXEL(0);
 			BILINEAR_SET_PIXEL(1);
 			BILINEAR_SET_PIXEL(2);
@@ -1688,20 +1707,20 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 					else
 						x_multiplier=unit;
 					ulong compound_multiplier=((y_multiplier>>8)*x_multiplier)>>8;
-					color[0]+=ulong(pixel[0])*compound_multiplier;
-					color[1]+=ulong(pixel[1])*compound_multiplier;
-					color[2]+=ulong(pixel[2])*compound_multiplier;
-					color[3]+=ulong(pixel[3])*compound_multiplier;
+					color[0]+=ulong(pixel[src.offsets[0]])*compound_multiplier;
+					color[1]+=ulong(pixel[src.offsets[1]])*compound_multiplier;
+					color[2]+=ulong(pixel[src.offsets[2]])*compound_multiplier;
+					color[3]+=ulong(pixel[src.offsets[3]])*compound_multiplier;
 					pixel+=4;
 					x2=FLOOR(x2)+unit;
 				}
 				pixel=pixel0+src.pitch;
 				y2=FLOOR(y2)+unit;
 			}
-			dst_pix[0]=uchar(color[0]/area);
-			dst_pix[1]=uchar(color[1]/area);
-			dst_pix[2]=uchar(color[2]/area);
-			dst_pix[3]=uchar(color[3]/area);
+			dst_pix[dst.pixels[0]]=uchar(color[0]/area);
+			dst_pix[dst.pixels[1]]=uchar(color[1]/area);
+			dst_pix[dst.pixels[2]]=uchar(color[2]/area);
+			dst_pix[dst.pixels[3]]=uchar(color[3]/area);
 			dst_pix+=4;
 			X0=X1;
 			X1+=advance_x;
@@ -1796,15 +1815,19 @@ OVERLOAD_RELATIONAL_OPERATORS2(NONS_CrippledSurface,NONS_Surface_DEFINE_RELATION
 NONS_SurfaceManager::Surface::Surface(ulong w,ulong h){
 	this->set_id();
 	size_t n=w*h*4+1;
-	this->data=new uchar[n];
+	this->data=(uchar *)malloc(n);
 	this->w=w;
 	this->h=h;
 	this->ref_count=1;
+	this->offsets[0]=0;
+	this->offsets[1]=1;
+	this->offsets[2]=2;
+	this->offsets[3]=3;
 	memset(this->data,0,n);
 }
 
 NONS_SurfaceManager::Surface::~Surface(){
-	delete[] this->data;
+	free(this->data);
 }
 
 long NONS_SurfaceManager::Surface::ref(){
@@ -1817,11 +1840,28 @@ long NONS_SurfaceManager::Surface::unref(){
 	return --this->ref_count;
 }
 
-NONS_SurfaceManager::ScreenSurface::ScreenSurface(SDL_Surface *s):Surface(),screen(s){
+NONS_SurfaceManager::ScreenSurface::ScreenSurface(SDL_Surface *s)
+		:Surface(),screen(s){
 	this->w=s->w;
 	this->h=s->h;
 	this->data=(uchar *)s->pixels;
 	this->ref_count=LONG_MAX>>1;
+	bool used[4]={0};
+	this->offsets[0]=s->format->Rshift>>3;
+	used[this->offsets[0]]=1;
+	this->offsets[1]=s->format->Gshift>>3;
+	used[this->offsets[1]]=1;
+	this->offsets[2]=s->format->Bshift>>3;
+	used[this->offsets[2]]=1;
+	this->offsets[3]=s->format->Ashift>>3;
+	if (used[this->offsets[3]]){
+		for (int a=0;a<4;a++){
+			if (!used[a]){
+				this->offsets[3]=a;
+				break;
+			}
+		}
+	}
 }
 
 long NONS_SurfaceManager::ScreenSurface::ref(){

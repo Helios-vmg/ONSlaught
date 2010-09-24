@@ -214,11 +214,11 @@ class NONS_ScriptInterpreter{
 	std::wstring trapLabel;
 	std::wstring clickStr;
 	ulong autoclick;
-	ulong timer;
+	NONS_Clock::t timer;
 	NONS_Menu *menu;
 	NONS_ButtonLayer *imageButtons;
 	bool new_if;
-	ulong btnTimer;
+	NONS_Clock::t btnTimer;
 	ulong imageButtonExpiration;
 	NONS_SaveFile *saveGame;
 	std::wstring currentBuffer;
