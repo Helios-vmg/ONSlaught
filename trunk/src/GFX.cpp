@@ -417,7 +417,7 @@ void NONS_GFX::effectCrossfade(const NONS_ConstSurface &src,const NONS_ConstSurf
 		{
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(dst_copy);
-			screen.over(src,0,0,a);
+			screen.over_with_alpha(src,0,0,a);
 			dst.updateWithoutLock(screen);
 		}
 #ifdef BENCHMARK_EFFECTS

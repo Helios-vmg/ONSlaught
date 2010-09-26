@@ -785,7 +785,7 @@ void NONS_SpriteButton::mergeWithoutUpdate_inner(const NONS_Surface &dst,const N
 	NONS_LongRect temp=srcRect;
 	temp.x=(!this->status)?0:temp.w;
 	NONS_Layer *layer=this->screen->layerStack[this->sprite];
-	dst.over(layer->data,&dstRect,&temp,layer->alpha);
+	dst.over_with_alpha(layer->data,&dstRect,&temp,layer->alpha);
 }
 
 void NONS_SpriteButton::mergeWithoutUpdate(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force){

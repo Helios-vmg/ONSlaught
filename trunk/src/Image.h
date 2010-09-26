@@ -307,8 +307,12 @@ public:
 	}
 	void assign(ulong w,ulong h);
 	NONS_Surface &operator=(const std::wstring &name);
-	void over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255) const;
+	void over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
+	void over_with_alpha(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255) const;
+	void over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
+	void over_frame_with_alpha(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255) const;
 	void multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
+	void multiply_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void get_properties(NONS_SurfaceProperties &sp) const;
 	void fill(const NONS_Color &color) const;

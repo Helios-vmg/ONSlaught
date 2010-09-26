@@ -1545,41 +1545,41 @@ void over_blend_threaded(
 		NONS_ConstSurfaceProperties src,
 		NONS_LongRect src_rect,
 		long alpha){
-	int w=src_rect.w,
-		h=src_rect.h;
+	ulong w=(ulong)src_rect.w,
+		h=(ulong)src_rect.h;
 	src.pixels+=src.pitch*src_rect.y+4*src_rect.x;
 	dst.pixels+=dst.pitch*dst_rect.y+4*dst_rect.x;
 
+#define OVER_SETUP_PIXEL(i)        \
+	rgba0[i]=pos0[src.offsets[i]]; \
+	rgba1[i]=pos1+dst.offsets[i]
 	uchar negate=0;
 	if (alpha<0){
 		alpha=-alpha;
 		negate=0xFF;
 	}
-	for (int y=0;y<h;y++){
+	for (unsigned y=h;y;--y){
 		const uchar *pos0=src.pixels;
 		uchar *pos1=dst.pixels;
-		for (int x=0;x<w;x++){
+		for (unsigned x=w;x;--x){
 			long rgba0[4];
 			uchar *rgba1[4];
-#define OVER_SETUP_PIXEL(i)        \
-	rgba0[i]=pos0[src.offsets[i]]; \
-	rgba1[i]=pos1+dst.offsets[i]
 			OVER_SETUP_PIXEL(0);
 			OVER_SETUP_PIXEL(1);
 			OVER_SETUP_PIXEL(2);
 			OVER_SETUP_PIXEL(3);
+			pos0+=4;
+			pos1+=4;
 
 			rgba0[3]=INTEGER_MULTIPLICATION(rgba0[3],alpha);
 			ulong bottom_alpha=
 				*rgba1[3]=~(uchar)INTEGER_MULTIPLICATION(rgba0[3]^0xFF,*rgba1[3]^0xFF);
 			ulong composite=integer_division_lookup[rgba0[3]+(bottom_alpha<<8)];
-			if (composite){
-				*rgba1[0]=((uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],composite))^negate;
-				*rgba1[1]=((uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],composite))^negate;
-				*rgba1[2]=((uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],composite))^negate;
-			}
-			pos0+=4;
-			pos1+=4;
+			if (!composite)
+				continue;
+			*rgba1[0]=((uchar)APPLY_ALPHA(rgba0[0],*rgba1[0],composite))^negate;
+			*rgba1[1]=((uchar)APPLY_ALPHA(rgba0[1],*rgba1[1],composite))^negate;
+			*rgba1[2]=((uchar)APPLY_ALPHA(rgba0[2],*rgba1[2],composite))^negate;
 		}
 		src.pixels+=src.pitch;
 		dst.pixels+=dst.pitch;
@@ -1588,9 +1588,15 @@ void over_blend_threaded(
 
 //------------------------------------------------------------------------------
 
-void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect,long alpha) const{
+void NONS_Surface::over_frame_with_alpha(
+		const NONS_ConstSurface &src,
+		ulong frame,
+		const NONS_LongRect *dst_rect,
+		const NONS_LongRect *src_rect,
+		long alpha) const{
 	if (!*this || !src)
 		return;
+	assert(frame<this->data->animation.animation_length);
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(dr,sr,dst_rect,src_rect,*this,src))
@@ -1598,15 +1604,21 @@ void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_re
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
-	long i;
-	/*i=src.data->animation.getCurrentAnimationFrame();
-	i=(i<0)?0:i;
-	ssp.pixels+=i*ssp.byte_count;*/
+	ssp.pixels+=frame*ssp.byte_count;
 	this->get_properties(dsp);
-	/*i=this->data->animation.getCurrentAnimationFrame();
-	i=(i<0)?0:i;
-	dsp.pixels+=i*dsp.byte_count;*/
 	over_blend(dsp,dr,ssp,sr,alpha);
+}
+
+void over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+	this->over_frame_with_alpha(src,frame,dst_rect,src_rect);
+}
+
+void NONS_Surface::over_with_alpha(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect,long alpha) const{
+	this->over_frame_with_alpha(src,0,dst_rect,src_rect,alpha);
+}
+
+void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+	this->over_frame_with_alpha(src,0,dst_rect,src_rect);
 }
 
 //------------------------------------------------------------------------------
@@ -1701,7 +1713,7 @@ void multiply_blend_threaded(
 
 //------------------------------------------------------------------------------
 
-void NONS_Surface::multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::multiply_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
 	if (!*this || !src)
 		return;
 	NONS_LongRect sr,
@@ -1711,15 +1723,14 @@ void NONS_Surface::multiply(const NONS_ConstSurface &src,const NONS_LongRect *ds
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
-	long i;
-	i=src.data->animation.getCurrentAnimationFrame();
-	i=(i<0)?0:i;
-	ssp.pixels+=i*ssp.byte_count;
+	ssp.pixels+=frame*ssp.byte_count;
 	this->get_properties(dsp);
-	i=this->data->animation.getCurrentAnimationFrame();
-	i=(i<0)?0:i;
 	dsp.pixels+=i*dsp.byte_count;
 	multiply_blend(dsp,dr,ssp,sr);
+}
+
+void NONS_Surface::multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+	this->multiply_frame(src,0,dst_rect,src_rect);
 }
 
 //------------------------------------------------------------------------------

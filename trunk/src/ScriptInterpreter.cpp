@@ -3083,7 +3083,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 		dstRect.y-=(long)floor(float(srcRect.h)/2.f+.5f);
 	}
 
-	DRAW_BUFFER.over(src,&dstRect,&srcRect,(alpha<-0xFF)?-0xFF:((alpha>0xFF)?0xFF:alpha));
+	DRAW_BUFFER.over_with_alpha(src,&dstRect,&srcRect,(alpha<-0xFF)?-0xFF:((alpha>0xFF)?0xFF:alpha));
 
 	return NONS_NO_ERROR;
 }
@@ -3096,13 +3096,13 @@ ErrorCode NONS_ScriptInterpreter::command_drawtext(NONS_Statement &stmt){
 	else
 		DRAW_BUFFER.over(scr->output->shadeLayer->data,0,&scr->output->shadeLayer->clip_rect);
 	if (scr->output->shadowLayer)
-		DRAW_BUFFER.over(
+		DRAW_BUFFER.over_with_alpha(
 			scr->output->shadowLayer->data,
 			0,
 			&scr->output->shadowLayer->clip_rect,
 			scr->output->shadowLayer->alpha
 		);
-	DRAW_BUFFER.over(
+	DRAW_BUFFER.over_with_alpha(
 		scr->output->foregroundLayer->data,
 		0,
 		&scr->output->foregroundLayer->clip_rect,

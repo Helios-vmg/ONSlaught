@@ -827,14 +827,33 @@ NONS_ScreenSpace::~NONS_ScreenSpace(){
 	delete this->lookback;
 }
 
-void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,const NONS_Surface &screenBuffer){
+template <typename T>
+void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,const NONS_Surface &screenBuffer,T function){
+	if (!p || !p->data || !p->visible)
+		return;
+	NONS_LongRect src(
+		refresh_area.x-p->position.x+p->clip_rect.x,
+		refresh_area.y-p->position.y+p->clip_rect.y,
+		std::min(refresh_area.w,(long)p->clip_rect.w),
+		std::min(refresh_area.h,(long)p->clip_rect.h)
+	);
+	if (src.x<p->clip_rect.x)
+		src.x=p->clip_rect.x;
+	if (src.y<p->clip_rect.y)
+		src.y=p->clip_rect.y;
+	NONS_LongRect dst=refresh_area;
+	if (dst.x<p->position.x)
+		dst.x=p->position.x;
+	if (dst.y<p->position.y)
+		dst.y=p->position.y;
+	(screenBuffer.*function)(p->data,&dst,&src);
 }
 
 void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 	if (!rects.size())
 		return;
 ////////////////////////////////////////////////////////////////////////////////
-#define BLEND_OPTIM(p,function) {                                 \
+//#define BLEND_OPTIM(p,function) {                                 \
 	if ((p) && (p)->data && (p)->visible){                        \
 		NONS_LongRect src(                                        \
 			refresh_area.x-(p)->position.x+(p)->clip_rect.x,      \
@@ -854,6 +873,7 @@ void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 		this->screenBuffer.function((p)->data,&dst,&src);         \
 	}                                                             \
 }
+#define BLEND_OPTIM(p,function) blend_optimized((p),refresh_area,this->screenBuffer,&NONS_Surface:: function)
 ////////////////////////////////////////////////////////////////////////////////
 	ulong minx=rects[0].x,
 		maxx=minx+rects[0].w,
@@ -941,7 +961,7 @@ ErrorCode NONS_ScreenSpace::BlendNoCursor(ulong effect){
 		else
 			BlendNoCursor_A(over);
 #define BlendNoCursor_B(dst) \
-	this->screenBuffer.over(this->output->dst->data,&this->output->dst->clip_rect,0,this->output->dst->alpha)
+	this->screenBuffer.over_with_alpha(this->output->dst->data,&this->output->dst->clip_rect,0,this->output->dst->alpha)
 		if (this->output->shadowLayer)
 			BlendNoCursor_B(shadowLayer);
 		BlendNoCursor_B(foregroundLayer);
@@ -966,19 +986,19 @@ ErrorCode NONS_ScreenSpace::BlendNoText(ulong effect){
 		for (ulong a=this->layerStack.size()-1;a>this->sprite_priority;a--){
 			NONS_Layer *l=this->layerStack[a];
 			if (l && l->visible && l->data)
-				this->screenBuffer.over(l->data,&l->position,&l->clip_rect,l->alpha);
+				this->screenBuffer.over_with_alpha(l->data,&l->position,&l->clip_rect,l->alpha);
 		}
 	}
 	for (ulong a=0;a<this->charactersBlendOrder.size();a++){
 		NONS_Layer *l=*this->characters[charactersBlendOrder[a]];
 		if (l && l->data)
-			this->screenBuffer.over(l->data,&l->position,&l->clip_rect,l->alpha);
+			this->screenBuffer.over_with_alpha(l->data,&l->position,&l->clip_rect,l->alpha);
 	}
 	if (this->blendSprites){
 		for (long a=this->sprite_priority;a>=0;a--){
 			NONS_Layer *l=this->layerStack[a];
 			if (l && l->visible && l->data)
-				this->screenBuffer.over(l->data,&l->position,&l->clip_rect,l->alpha);
+				this->screenBuffer.over_with_alpha(l->data,&l->position,&l->clip_rect,l->alpha);
 		}
 	}
 	for (ulong a=0;a<this->filterPipeline.size();a++){
@@ -1123,17 +1143,16 @@ bool NONS_ScreenSpace::advanceAnimations(ulong msecs,std::vector<NONS_LongRect> 
 	arr.push_back(this->cursor);
 	for (ulong a=0;a<arr.size();a++){
 		NONS_Layer *p=arr[a];
-		if (p && p->data){
-			ulong first=p->animation.getCurrentAnimationFrame();
-			bool b=p->advanceAnimation(msecs);
-			requireRefresh|=b;
-			if (b){
-				ulong second=p->animation.getCurrentAnimationFrame();
-				NONS_LongRect push=p->optimized_updates[std::pair<ulong,ulong>(first,second)];
-				push.x+=p->position.x;
-				push.y+=p->position.y;
-				rects.push_back(push);
-			}
+		if (!p || !p->data)
+			continue;
+		ulong first=p->animation.getCurrentAnimationFrame();
+		if (p->advanceAnimation(msecs)){
+			requireRefresh=1;
+			ulong second=p->animation.getCurrentAnimationFrame();
+			NONS_LongRect push=p->optimized_updates[std::pair<ulong,ulong>(first,second)];
+			push.x+=p->position.x;
+			push.y+=p->position.y;
+			rects.push_back(push);
 		}
 	}
 	return requireRefresh;
