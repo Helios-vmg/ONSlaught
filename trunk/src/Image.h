@@ -172,7 +172,10 @@ struct NONS_AnimationInfo{
 	bool valid;
 	static TRANSPARENCY_METHODS default_trans;
 
-	NONS_AnimationInfo(){}
+	NONS_AnimationInfo()
+		:animation_length(0),
+		animation_time_offset(0),
+		valid(1){}
 	NONS_AnimationInfo(const std::wstring &image_string);
 	NONS_AnimationInfo(const NONS_AnimationInfo &b);
 	NONS_AnimationInfo &operator=(const NONS_AnimationInfo &b);
@@ -243,6 +246,7 @@ class NONS_ConstSurface{
 protected:
 	NONS_Surface_Private *data;
 	friend class NONS_CrippledSurface;
+	friend class NONS_Surface;
 public:
 	//Create a null surface.
 	NONS_ConstSurface():data(0){}

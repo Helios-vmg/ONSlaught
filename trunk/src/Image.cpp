@@ -315,6 +315,7 @@ public:
 		ulong id,
 			frames;
 		uchar offsets[4];
+		optim_t updates;
 		friend class NONS_SurfaceManager;
 		Surface(){ this->set_id(); }
 		void set_id(){
@@ -373,6 +374,9 @@ public:
 	void init();
 	index_t allocate(ulong w,ulong h);
 	index_t load(const NONS_AnimationInfo &ai);
+	void process_left_right_up(NONS_AnimationInfo::TRANSPARENCY_METHODS method,index_t &i,ulong animation);
+	void process_separate_mask(index_t &i,ulong animation);
+	void process_parallel_mask(index_t &i,ulong animation);
 	index_t copy(const index_t &src);
 	index_t scale(const index_t &src,double scalex,double scaley);
 	index_t resize(const index_t &src,long w,long h);
@@ -388,6 +392,7 @@ public:
 	void ref(index_t &i){ i->ref(); }
 	void unref(index_t &);
 	void update(const index_t &,ulong,ulong,ulong,ulong) const;
+	void get_optimized_updates(const index_t &i,optim_t &dst){ dst=i->updates; }
 private:
 	bool initialized;
 	surfaces_t surfaces;
@@ -401,6 +406,7 @@ private:
 	//1 if the image was added, 0 otherwise
 	bool addElementToCache(NONS_Surface *img);
 	index_t load_image(const std::wstring &filename);
+	NONS_LongRect get_update_rect(ulong,ulong,NONS_ConstSurfaceProperties);
 };
 
 ulong NONS_SurfaceManager::Surface::obj_count=0;
@@ -504,9 +510,163 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::load_image(const std::wstring 
 	return r;
 }
 
+template <typename T>
+inline T abs(T x){
+	return (x<0)?-x:x;
+}
+
+NONS_LongRect NONS_SurfaceManager::get_update_rect(ulong a,ulong b,NONS_ConstSurfaceProperties sp){
+	NONS_LongRect r;
+	ulong w=sp.w,
+		h=sp.h,
+		minx=w,
+		maxx=0,
+		miny=h,
+		maxy=0;
+	for (ulong y=0;y<h;y++){
+		const uchar *first=sp.pixels+sp.byte_count*a+sp.pitch*y,
+			*second=sp.pixels+sp.byte_count*b+sp.pitch*y;
+		for (ulong x=0;x<w;x++){
+			int maxdiff=0;
+			for (int c=0;c<4 && maxdiff<8;c++){
+				int d=abs(int(first[c])-int(second[c]));
+				if (d>maxdiff)
+					maxdiff=d;
+			}
+			if (maxdiff>=8){
+				if (x<minx)
+					minx=x;
+				if (x>maxx)
+					maxx=x;
+				if (y<miny)
+					miny=y;
+				if (y>maxy)
+					maxy=y;
+			}
+			first+=4;
+			second+=4;
+		}
+	}
+	r.x=minx;
+	r.y=miny;
+	r.w=maxx-minx+1;
+	r.h=maxy-miny+1;
+	return r;
+}
+
+void NONS_SurfaceManager::process_left_right_up(NONS_AnimationInfo::TRANSPARENCY_METHODS method,NONS_SurfaceManager::index_t &i,ulong animation){
+	NONS_SurfaceProperties sp;
+	i->get_properties(sp);
+	NONS_Color chroma;
+	const uchar *chroma_pixel=sp.pixels;
+	if (method==NONS_AnimationInfo::RIGHT_UP)
+		chroma_pixel=sp.pixels+sp.pitch-4;
+	chroma.rgba[0]=chroma_pixel[0];
+	chroma.rgba[1]=chroma_pixel[1];
+	chroma.rgba[2]=chroma_pixel[2];
+	uchar *p=sp.pixels;
+	for (ulong a=sp.pixel_count;a;a--){
+		NONS_Color c(p[0],p[1],p[2]);
+		if (c==chroma)
+			*(Uint32 *)p=0;
+		else
+			p[sp.offsets[3]]=0xFF;
+		p+=4;
+	}
+	uchar *temp=(uchar *)malloc(sp.byte_count);
+	ulong w2=sp.w/animation;
+	for (ulong a=0;a<animation;a++){
+		const uchar *src=sp.pixels+w2*a;
+		uchar *dst=temp+w2*sp.h*4*a;
+		for (ulong y=0;y<sp.h;y++){
+			memcpy(dst,src,w2*4);
+			dst+=w2*4;
+			src+=sp.pitch;
+		}
+	}
+	free(i->data);
+	i->data=temp;
+	i->w=w2;
+	i->frames=animation;
+}
+
+void NONS_SurfaceManager::process_parallel_mask(NONS_SurfaceManager::index_t &i,ulong animation){
+	NONS_SurfaceProperties sp;
+	i->get_properties(sp);
+	uchar *temp=(uchar *)malloc(sp.byte_count/2);
+	ulong w2=sp.w/2/animation;
+	for (ulong a=0;a<animation;a++){
+		const uchar *src=sp.pixels+w2*2*a;
+		uchar *dst=temp+w2*sp.h*4*a;
+		for (ulong y=0;y<sp.h;y++){
+			memcpy(dst,src,w2*4);
+			const uchar *alpha=src+w2*4;
+			for (ulong x=0;x<w2;x++)
+				dst[x*4+3]=~alpha[x*4+2];
+			dst+=w2*4;
+			src+=sp.pitch;
+		}
+	}
+	free(i->data);
+	i->data=temp;
+	i->w=w2;
+	i->frames=animation;
+}
+
+void NONS_SurfaceManager::process_separate_mask(NONS_SurfaceManager::index_t &i,ulong animation){
+	//TODO:
+	/*NONS_SurfaceProperties sp;
+	i->get_properties(sp);
+	uchar *temp=(uchar *)malloc(sp.byte_count/2);
+	ulong w2=sp.w/2/animation;
+	for (ulong a=0;a<animation;a++){
+		const uchar *src=sp.pixels+w2*2*a;
+		uchar *dst=temp+w2*sp.h*4*a;
+		for (ulong y=0;y<sp.h;y++){
+			memcpy(dst,src,w2*4);
+			const uchar *alpha=src+w2*4;
+			for (ulong x=0;x<w2;x++)
+				dst[x*4+3]=~alpha[x*4+2];
+			dst+=w2*4;
+			src+=sp.pitch;
+		}
+	}
+	free(i->data);
+	i->data=temp;
+	i->w=w2;
+	i->frames=animation;*/
+}
+
 NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo &ai){
 	index_t primary=this->load_image(ai.getFilename());
-	//TODO: complete me.
+	if (!primary.good())
+		return primary;
+	switch (ai.method){
+		case NONS_AnimationInfo::LEFT_UP:
+		case NONS_AnimationInfo::RIGHT_UP:
+			this->process_left_right_up(ai.method,primary,ai.animation_length);
+			break;
+		case NONS_AnimationInfo::SEPARATE_MASK:
+			//TODO
+			break;
+		case NONS_AnimationInfo::PARALLEL_MASK:
+			this->process_parallel_mask(primary,ai.animation_length);
+			break;
+		case NONS_AnimationInfo::COPY_TRANS:;
+	}
+	ulong n=ai.animation_length;
+	if (n>=2){
+		NONS_ConstSurfaceProperties sp;
+		primary->get_properties(sp);
+		optim_t &map=primary->updates;
+		for (ulong a=0;a<n;a++){
+			for (ulong b=a+1;b<n;b++){
+				NONS_LongRect r=this->get_update_rect(a,b,sp);
+				map[std::make_pair(a,b)]=r;
+				map[std::make_pair(b,a)]=r;
+			}
+		}
+	}
 	return primary;
 }
 
@@ -1171,7 +1331,22 @@ NONS_Surface NONS_ConstSurface::clone() const{
 	NONS_Surface r=this->clone_without_pixel_copy();
 	if (!r)
 		return r;
-	r.copy_pixels(*this);
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
+	this->get_properties(ssp);
+	r.get_properties(dsp);
+	if (this->data->animation.animation_length>=2)
+		ssp.pixel_count*=this->data->animation.animation_length;
+	const uchar *src=ssp.pixels;
+	uchar *dst=dsp.pixels;
+	for (ulong a=ssp.pixel_count;a;a--){
+		dst[dsp.offsets[0]]=src[ssp.offsets[0]];
+		dst[dsp.offsets[1]]=src[ssp.offsets[1]];
+		dst[dsp.offsets[2]]=src[ssp.offsets[2]];
+		dst[dsp.offsets[3]]=src[ssp.offsets[3]];
+		src+=4;
+		dst+=4;
+	}
 	return r;
 }
 
@@ -1180,7 +1355,9 @@ NONS_Surface NONS_ConstSurface::clone_without_pixel_copy() const{
 }
 
 void NONS_ConstSurface::get_optimized_updates(optim_t &dst) const{
-	//TODO
+	if (!*this)
+		return;
+	sm.get_optimized_updates(this->data->surface,dst);
 }
 
 static NONS_AnimationInfo null;
@@ -1222,7 +1399,14 @@ void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect 
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
+	long i;
+	i=src.data->animation.getCurrentAnimationFrame();
+	i=(i<0)?0:i;
+	ssp.pixels+=i*ssp.byte_count;
 	this->get_properties(dsp);
+	i=this->data->animation.getCurrentAnimationFrame();
+	i=(i<0)?0:i;
+	dsp.pixels+=i*dsp.byte_count;
 	ssp.pixels+=sr.x*4+sr.y*ssp.pitch;
 	dsp.pixels+=dr.x*4+dr.y*dsp.pitch;
 	if (ssp.same_format(dsp)){
@@ -1414,7 +1598,14 @@ void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_re
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
+	long i;
+	/*i=src.data->animation.getCurrentAnimationFrame();
+	i=(i<0)?0:i;
+	ssp.pixels+=i*ssp.byte_count;*/
 	this->get_properties(dsp);
+	/*i=this->data->animation.getCurrentAnimationFrame();
+	i=(i<0)?0:i;
+	dsp.pixels+=i*dsp.byte_count;*/
 	over_blend(dsp,dr,ssp,sr,alpha);
 }
 
@@ -1520,7 +1711,14 @@ void NONS_Surface::multiply(const NONS_ConstSurface &src,const NONS_LongRect *ds
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
+	long i;
+	i=src.data->animation.getCurrentAnimationFrame();
+	i=(i<0)?0:i;
+	ssp.pixels+=i*ssp.byte_count;
 	this->get_properties(dsp);
+	i=this->data->animation.getCurrentAnimationFrame();
+	i=(i<0)?0:i;
+	dsp.pixels+=i*dsp.byte_count;
 	multiply_blend(dsp,dr,ssp,sr);
 }
 

@@ -827,6 +827,9 @@ NONS_ScreenSpace::~NONS_ScreenSpace(){
 	delete this->lookback;
 }
 
+void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,const NONS_Surface &screenBuffer){
+}
+
 void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 	if (!rects.size())
 		return;
@@ -848,7 +851,7 @@ void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 			dst.x=(p)->position.x;                                \
 		if (dst.y<(p)->position.y)                                \
 			dst.y=(p)->position.y;                                \
-		(p)->data.function(this->screenBuffer,&dst,&src);         \
+		this->screenBuffer.function((p)->data,&dst,&src);         \
 	}                                                             \
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -873,7 +876,7 @@ void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 	NONS_LongRect refresh_area(minx,miny,maxx-minx,maxy-miny);
 	if (!(refresh_area.w*refresh_area.h))
 		return;
-	this->screenBuffer.fill(refresh_area,NONS_Color::black);
+	this->screenBuffer.fill(refresh_area,NONS_Color::black_transparent);
 	BLEND_OPTIM(this->Background,over);
 	for (ulong a=this->layerStack.size()-1;a>this->sprite_priority;a--){
 		NONS_Layer *p=this->layerStack[a];

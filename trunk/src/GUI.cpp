@@ -194,8 +194,7 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 						if (event.button.button==SDL_BUTTON_LEFT){
 							if (mouseOver<0 || !visibility)
 								break;
-							//TODO: call copy_pixels()?
-							dst->get_screen().over(dst_copy);
+							dst->get_screen().copy_pixels(dst_copy);
 							int dir;
 							if (!mouseOver)
 								dir=-1;
