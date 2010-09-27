@@ -338,7 +338,7 @@ public:
 			sp.pixel_count=this->h*this->w;
 			sp.byte_count=sp.pixel_count*4;
 			memcpy(sp.offsets,this->offsets,4);
-			sp.subpictures=this->frames;
+			sp.frames=this->frames;
 		}
 #define NONS_SurfaceManager_Surface_RELATIONAL_OP(op) bool operator op(const Surface &b) const{ return this->id op b.id; }
 		OVERLOAD_RELATIONAL_OPERATORS(NONS_SurfaceManager_Surface_RELATIONAL_OP)
@@ -579,22 +579,24 @@ void NONS_SurfaceManager::process_left_right_up(NONS_AnimationInfo::TRANSPARENCY
 }
 
 void NONS_SurfaceManager::process_copy(NONS_SurfaceManager::index_t &i,ulong animation){
-	NONS_SurfaceProperties sp;
-	i->get_properties(sp);
-	uchar *temp=(uchar *)malloc(sp.byte_count);
-	ulong w2=sp.w/animation;
-	for (ulong a=0;a<animation;a++){
-		const uchar *src=sp.pixels+w2*4*a;
-		uchar *dst=temp+w2*sp.h*4*a;
-		for (ulong y=0;y<sp.h;y++){
-			memcpy(dst,src,w2*4);
-			dst+=w2*4;
-			src+=sp.pitch;
+	if (animation>1){
+		NONS_SurfaceProperties sp;
+		i->get_properties(sp);
+		uchar *temp=(uchar *)malloc(sp.byte_count);
+		ulong w2=sp.w/animation;
+		for (ulong a=0;a<animation;a++){
+			const uchar *src=sp.pixels+w2*4*a;
+			uchar *dst=temp+w2*sp.h*4*a;
+			for (ulong y=0;y<sp.h;y++){
+				memcpy(dst,src,w2*4);
+				dst+=w2*4;
+				src+=sp.pitch;
+			}
 		}
+		free(i->data);
+		i->data=temp;
+		i->w=w2;
 	}
-	free(i->data);
-	i->data=temp;
-	i->w=w2;
 	i->frames=animation;
 }
 
@@ -642,35 +644,40 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo 
 	if (!primary.good())
 		return primary;
 	index_t secondary;
+	ulong n=ai.animation_length;
+	n=(n>=2)?n:1;
 	switch (ai.method){
 		case NONS_AnimationInfo::LEFT_UP:
 		case NONS_AnimationInfo::RIGHT_UP:
-			this->process_left_right_up(ai.method,primary,ai.animation_length);
+			this->process_left_right_up(ai.method,primary,n);
 			break;
 		case NONS_AnimationInfo::COPY_TRANS:
-			this->process_copy(primary,ai.animation_length);
+			this->process_copy(primary,n);
 			break;
 		case NONS_AnimationInfo::SEPARATE_MASK:
 			secondary=this->load_image(ai.getMaskFilename());
-			this->process_separate_mask(primary,secondary,ai.animation_length);
+			if (!secondary.good()){
+				this->unref(primary);
+				return index_t();
+			}
+			this->process_separate_mask(primary,secondary,n);
 			this->unref(secondary);
 			break;
 		case NONS_AnimationInfo::PARALLEL_MASK:
-			this->process_parallel_mask(primary,ai.animation_length);
+			this->process_parallel_mask(primary,n);
 			break;
 	}
-	ulong n=ai.animation_length;
-	primary->frames=(n>=2)?n:1;
+	primary->frames=n;
 	return primary;
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::copy(const index_t &src){
 	NONS_ConstSurfaceProperties src_sp;
 	src->get_properties(src_sp);
-	index_t i=this->allocate(src_sp.w,src_sp.h,src_sp.subpictures);
+	index_t i=this->allocate(src_sp.w,src_sp.h,src_sp.frames);
 	NONS_SurfaceProperties dst_sp;
 	i->get_properties(dst_sp);
-	memcpy(dst_sp.pixels,src_sp.pixels,dst_sp.pixel_count*dst_sp.subpictures);
+	memcpy(dst_sp.pixels,src_sp.pixels,dst_sp.pixel_count*dst_sp.frames);
 	return i;
 }
 
@@ -853,9 +860,9 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	NONS_SurfaceProperties dsp;
 	if (w<0 || h<0){
 		src->get_properties(ssp);
-		dst=this->allocate(ssp.w,ssp.h,ssp.subpictures);
+		dst=this->allocate(ssp.w,ssp.h,ssp.frames);
 		dst->get_properties(dsp);
-		ssp.h*=ssp.subpictures;
+		ssp.h*=ssp.frames;
 		mirror_1D(dsp.pixels,ssp.pixels,ssp.w,ssp.h,dsp.offsets,ssp.offsets,(w>0)?1:-1,(h>0)?1:-1);
 		if (w<0)
 			w=-w;
@@ -865,7 +872,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		free_src=1;
 	}
 	dst->get_properties(dsp);
-	dst=this->allocate(w,h0,dsp.subpictures);
+	dst=this->allocate(w,h0,dsp.frames);
 	linear_interpolation_f f;
 	if ((ulong)w>=w0){
 		f=linear_interpolation1;
@@ -877,7 +884,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	f(
 		(uchar *)dst->data,
 		dst->w,
-		dst->h*dsp.subpictures,
+		dst->h*dsp.frames,
 		4,
 		dst->w*4,
 		(uchar *)src->data,
@@ -888,7 +895,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		((w0-minus)<<16)/(w-minus)
 	);
 	src=dst;
-	dst=this->allocate(w,h,dsp.subpictures);
+	dst=this->allocate(w,h,dsp.frames);
 	if ((ulong)h>=h0){
 		f=linear_interpolation1;
 		minus=1;
@@ -898,7 +905,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	}
 	f(
 		(uchar *)dst->data,
-		dst->h*dsp.subpictures,
+		dst->h*dsp.frames,
 		dst->w,
 		dst->w*4,
 		4,
@@ -992,7 +999,7 @@ struct transform_params{
 	rgba[params.dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
 void transform_threaded(void *p){
 	transform_params params=*(transform_params *)p;
-	for (ulong subpicture=0;subpicture<params.src_sp.subpictures;subpicture++){
+	for (ulong subpicture=0;subpicture<params.src_sp.frames;subpicture++){
 		const uchar empty_pixels[4]={0};
 		params.h+=params.y0;
 		for (ulong y=params.y0;y<params.h;y++){
@@ -1089,7 +1096,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,c
 	src->get_properties(src_sp);
 	ulong w,h;
 	get_final_size(src_sp,m,w,h);
-	index_t dst=this->allocate(w,h,src_sp.subpictures);
+	index_t dst=this->allocate(w,h,src_sp.frames);
 	NONS_SurfaceProperties dst_sp;
 	dst->get_properties(dst_sp);
 	ulong correct_x=src_sp.w,
@@ -1287,9 +1294,9 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 			break;
 		NONS_ConstSurfaceProperties sp;
 		s.get_properties(sp);
-		sp.h*=sp.subpictures;
-		sp.byte_count*=sp.subpictures;
-		sp.pixel_count*=sp.subpictures;
+		sp.h*=sp.frames;
+		sp.byte_count*=sp.frames;
+		sp.pixel_count*=sp.frames;
 		png_set_IHDR(
 			png,
 			info,
@@ -1357,7 +1364,7 @@ NONS_Surface NONS_ConstSurface::clone() const{
 	NONS_SurfaceProperties dsp;
 	this->get_properties(ssp);
 	r.get_properties(dsp);
-	ssp.pixel_count*=ssp.subpictures;
+	ssp.pixel_count*=ssp.frames;
 	const uchar *src=ssp.pixels;
 	uchar *dst=dsp.pixels;
 	for (ulong a=ssp.pixel_count;a;a--){

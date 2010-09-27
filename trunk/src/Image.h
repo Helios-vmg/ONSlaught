@@ -55,7 +55,7 @@ struct NONS_SurfaceProperties_basic{
 		pitch,
 		byte_count,
 		pixel_count,
-		subpictures;
+		frames;
 	uchar offsets[4];
 	template <typename T2>
 	operator NONS_SurfaceProperties_basic<T2>() const{
@@ -70,7 +70,7 @@ struct NONS_SurfaceProperties_basic{
 		r.offsets[1]=this->offsets[1];
 		r.offsets[2]=this->offsets[2];
 		r.offsets[3]=this->offsets[3];
-		r.subpictures=this->subpictures;
+		r.frames=this->frames;
 		return r;
 	}
 	template <typename T2>
