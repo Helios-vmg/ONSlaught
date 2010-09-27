@@ -195,8 +195,7 @@ NONS_VirtualScreen::~NONS_VirtualScreen(){
 }
 
 NONS_DLLexport void NONS_VirtualScreen::blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect){
-	NONS_Surface screen=this->screens[VIRTUAL];
-	screen.over(src,dstrect,srcrect);
+	this->get_screen().over(src,dstrect,srcrect);
 }
 
 void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast){
@@ -252,14 +251,17 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 		fast=1;
 #endif
 		NONS_Surface::public_interpolation_f f=(fast)?&NONS_Surface::NN_interpolation:this->normalInterpolation;
-		NONS_Surface dst=this->screens[this->post_inter];
-		(dst.*f)(
-			this->screens[this->pre_inter],
-			&d,
-			&s,
-			this->x_multiplier,
-			this->y_multiplier
-		);
+		{
+			NONS_Surface dst=this->screens[this->post_inter];
+			(dst.*f)(
+				this->screens[this->pre_inter],
+				&d,
+				&s,
+				this->x_multiplier,
+				this->y_multiplier
+			);
+			//dst.save_bitmap(generate_filename<wchar_t>());
+		}
 		if (!this->usingFeature[ASYNC_EFFECT])
 			//SDL_UpdateRect(this->screens[REAL],d.x,d.y,d.w,d.h);
 			NONS_Surface(this->screens[REAL]).update(d.x,d.y,d.w,d.h);
@@ -269,11 +271,12 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 }
 
 NONS_DLLexport void NONS_VirtualScreen::updateWholeScreen(bool fast){
-	this->updateWithoutLock(this->screens[REAL].get_surface(),fast);
+	this->updateWithoutLock(this->get_real_screen(),fast);
 }
 
 NONS_DLLexport void NONS_VirtualScreen::updateWithoutLock(const NONS_Surface &s,bool fast){
-	s.update();
+	this->updateScreen(0,0,(ulong)this->inRect.w,(ulong)this->inRect.h,fast);
+	//s.update();
 }
 
 bool NONS_VirtualScreen::toggleFullscreen(uchar mode){

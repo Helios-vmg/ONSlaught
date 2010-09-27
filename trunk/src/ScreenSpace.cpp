@@ -162,11 +162,7 @@ void NONS_Layer::unload(){
 }
 
 bool NONS_Layer::advanceAnimation(ulong msec){
-	long frame=this->animation.advanceAnimation(msec);
-	if (frame<0)
-		return 0;
-	this->clip_rect.x=Sint16(frame*this->clip_rect.w);
-	return 1;
+	return this->animation.advanceAnimation(msec)>=0;
 }
 
 void NONS_Layer::centerAround(int x){
@@ -846,34 +842,17 @@ void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,const
 		dst.x=p->position.x;
 	if (dst.y<p->position.y)
 		dst.y=p->position.y;
-	(screenBuffer.*function)(p->data,&dst,&src);
+	long frame=p->animation.getCurrentAnimationFrame();
+	if (frame<0)
+		frame=0;
+	(screenBuffer.*function)(p->data,(ulong)frame,&dst,&src);
 }
 
 void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 	if (!rects.size())
 		return;
 ////////////////////////////////////////////////////////////////////////////////
-//#define BLEND_OPTIM(p,function) {                                 \
-	if ((p) && (p)->data && (p)->visible){                        \
-		NONS_LongRect src(                                        \
-			refresh_area.x-(p)->position.x+(p)->clip_rect.x,      \
-			refresh_area.y-(p)->position.y+(p)->clip_rect.y,      \
-			std::min(refresh_area.w,(long)(p)->clip_rect.w),      \
-			std::min(refresh_area.h,(long)(p)->clip_rect.h)       \
-		);                                                        \
-		if (src.x<(p)->clip_rect.x)                               \
-			src.x=(p)->clip_rect.x;                               \
-		if (src.y<(p)->clip_rect.y)                               \
-			src.y=(p)->clip_rect.y;                               \
-		NONS_LongRect dst=refresh_area;                           \
-		if (dst.x<(p)->position.x)                                \
-			dst.x=(p)->position.x;                                \
-		if (dst.y<(p)->position.y)                                \
-			dst.y=(p)->position.y;                                \
-		this->screenBuffer.function((p)->data,&dst,&src);         \
-	}                                                             \
-}
-#define BLEND_OPTIM(p,function) blend_optimized((p),refresh_area,this->screenBuffer,&NONS_Surface:: function)
+#define BLEND_OPTIM(p,function) blend_optimized((p),refresh_area,this->screenBuffer,&NONS_Surface::function##_frame)
 ////////////////////////////////////////////////////////////////////////////////
 	ulong minx=rects[0].x,
 		maxx=minx+rects[0].w,
@@ -924,9 +903,8 @@ void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 		BLEND_OPTIM(this->output->foregroundLayer,over);
 	}
 	BLEND_OPTIM(this->cursor,over);
-	NONS_Surface screen=this->screen->get_screen();
-	screen.over(this->screenBuffer,&refresh_area,&refresh_area);
-	screen.update(refresh_area.x,refresh_area.y,refresh_area.w,refresh_area.h);
+	this->screen->get_screen().over(this->screenBuffer,&refresh_area,&refresh_area);
+	this->screen->updateScreen(refresh_area.x,refresh_area.y,refresh_area.w,refresh_area.h);
 }
 
 ErrorCode NONS_ScreenSpace::BlendAll(ulong effect){

@@ -2035,8 +2035,8 @@ void NONS_DebuggingConsole::enter(NONS_ScreenSpace *dst){
 		screen.fill(NONS_Color::black);
 		gScriptInterpreter->getSymbolListing(this->autocompleteVector);
 		std::sort(this->autocompleteVector.begin(),this->autocompleteVector.end());
-		dst->screen->updateWithoutLock(screen);
 	}
+	dst->screen->updateWholeScreen();
 	bool ret=1;
 	std::wstring inputLine=this->partial;
 	while (this->input(inputLine,dst)){
@@ -2353,5 +2353,6 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 		);
 		screen.fill(rect,NONS_Color::white);
 	}
-	dst->screen->updateWithoutLock(screen);
+	screen.unbind();
+	dst->screen->updateWholeScreen();
 }

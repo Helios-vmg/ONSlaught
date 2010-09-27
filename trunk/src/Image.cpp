@@ -204,7 +204,7 @@ long NONS_AnimationInfo::advanceAnimation(ulong msecs){
 	return this->getCurrentAnimationFrame();
 }
 
-long NONS_AnimationInfo::getCurrentAnimationFrame(){
+long NONS_AnimationInfo::getCurrentAnimationFrame() const{
 	if (this->frame_ends.size()==1){
 		ulong frame=this->animation_time_offset/this->frame_ends.front();
 		if (frame>=this->animation_length)
@@ -326,7 +326,7 @@ public:
 		virtual long ref();
 		virtual long unref();
 	public:
-		Surface(ulong w,ulong h);
+		Surface(ulong w,ulong h,ulong frames=1);
 		Surface(const Surface &);
 		virtual ~Surface();
 		template <typename T>
@@ -338,6 +338,7 @@ public:
 			sp.pixel_count=this->h*this->w;
 			sp.byte_count=sp.pixel_count*4;
 			memcpy(sp.offsets,this->offsets,4);
+			sp.subpictures=this->frames;
 		}
 #define NONS_SurfaceManager_Surface_RELATIONAL_OP(op) bool operator op(const Surface &b) const{ return this->id op b.id; }
 		OVERLOAD_RELATIONAL_OPERATORS(NONS_SurfaceManager_Surface_RELATIONAL_OP)
@@ -372,10 +373,11 @@ public:
 	NONS_SurfaceManager():initialized(0),screen(0),svg_library(0),filelog(0){}
 	~NONS_SurfaceManager();
 	void init();
-	index_t allocate(ulong w,ulong h);
+	index_t allocate(ulong w,ulong h,ulong frames=1);
 	index_t load(const NONS_AnimationInfo &ai);
 	void process_left_right_up(NONS_AnimationInfo::TRANSPARENCY_METHODS method,index_t &i,ulong animation);
-	void process_separate_mask(index_t &i,ulong animation);
+	void process_copy(index_t &i,ulong animation);
+	void process_separate_mask(index_t &i,index_t &mask,ulong animation);
 	void process_parallel_mask(index_t &i,ulong animation);
 	index_t copy(const index_t &src);
 	index_t scale(const index_t &src,double scalex,double scaley);
@@ -392,7 +394,7 @@ public:
 	void ref(index_t &i){ i->ref(); }
 	void unref(index_t &);
 	void update(const index_t &,ulong,ulong,ulong,ulong) const;
-	void get_optimized_updates(const index_t &i,optim_t &dst){ dst=i->updates; }
+	void get_optimized_updates(index_t &i,optim_t &dst);
 private:
 	bool initialized;
 	surfaces_t surfaces;
@@ -458,8 +460,8 @@ void NONS_SurfaceManager::init(){
 	this->initialized=1;
 }
 
-NONS_SurfaceManager::index_t NONS_SurfaceManager::allocate(ulong w,ulong h){
-	this->surfaces.push_front(new Surface(w,h));
+NONS_SurfaceManager::index_t NONS_SurfaceManager::allocate(ulong w,ulong h,ulong frames){
+	this->surfaces.push_front(new Surface(w,h,frames));
 	return index_t(this->surfaces.begin());
 }
 
@@ -573,10 +575,16 @@ void NONS_SurfaceManager::process_left_right_up(NONS_AnimationInfo::TRANSPARENCY
 			p[sp.offsets[3]]=0xFF;
 		p+=4;
 	}
+	this->process_copy(i,animation);
+}
+
+void NONS_SurfaceManager::process_copy(NONS_SurfaceManager::index_t &i,ulong animation){
+	NONS_SurfaceProperties sp;
+	i->get_properties(sp);
 	uchar *temp=(uchar *)malloc(sp.byte_count);
 	ulong w2=sp.w/animation;
 	for (ulong a=0;a<animation;a++){
-		const uchar *src=sp.pixels+w2*a;
+		const uchar *src=sp.pixels+w2*4*a;
 		uchar *dst=temp+w2*sp.h*4*a;
 		for (ulong y=0;y<sp.h;y++){
 			memcpy(dst,src,w2*4);
@@ -596,7 +604,7 @@ void NONS_SurfaceManager::process_parallel_mask(NONS_SurfaceManager::index_t &i,
 	uchar *temp=(uchar *)malloc(sp.byte_count/2);
 	ulong w2=sp.w/2/animation;
 	for (ulong a=0;a<animation;a++){
-		const uchar *src=sp.pixels+w2*2*a;
+		const uchar *src=sp.pixels+w2*4*2*a;
 		uchar *dst=temp+w2*sp.h*4*a;
 		for (ulong y=0;y<sp.h;y++){
 			memcpy(dst,src,w2*4);
@@ -613,70 +621,56 @@ void NONS_SurfaceManager::process_parallel_mask(NONS_SurfaceManager::index_t &i,
 	i->frames=animation;
 }
 
-void NONS_SurfaceManager::process_separate_mask(NONS_SurfaceManager::index_t &i,ulong animation){
-	//TODO:
-	/*NONS_SurfaceProperties sp;
-	i->get_properties(sp);
-	uchar *temp=(uchar *)malloc(sp.byte_count/2);
-	ulong w2=sp.w/2/animation;
-	for (ulong a=0;a<animation;a++){
-		const uchar *src=sp.pixels+w2*2*a;
-		uchar *dst=temp+w2*sp.h*4*a;
-		for (ulong y=0;y<sp.h;y++){
-			memcpy(dst,src,w2*4);
-			const uchar *alpha=src+w2*4;
-			for (ulong x=0;x<w2;x++)
-				dst[x*4+3]=~alpha[x*4+2];
-			dst+=w2*4;
-			src+=sp.pitch;
+void NONS_SurfaceManager::process_separate_mask(NONS_SurfaceManager::index_t &i,NONS_SurfaceManager::index_t &mask,ulong animation){
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
+	mask->get_properties(ssp);
+	i->get_properties(dsp);
+	for (ulong y=0;y<dsp.h;y++){
+		uchar *dst=dsp.pixels+dsp.pitch*y;
+		for (ulong x=0;x<dsp.w;x++){
+			const uchar *src=ssp.pixels+ssp.pitch*(y%ssp.h)+4*(x%ssp.w);
+			dst[dsp.offsets[3]]=~src[ssp.offsets[2]];
+			dst+=4;
 		}
 	}
-	free(i->data);
-	i->data=temp;
-	i->w=w2;
-	i->frames=animation;*/
+	this->process_copy(i,animation);
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo &ai){
 	index_t primary=this->load_image(ai.getFilename());
 	if (!primary.good())
 		return primary;
+	index_t secondary;
 	switch (ai.method){
 		case NONS_AnimationInfo::LEFT_UP:
 		case NONS_AnimationInfo::RIGHT_UP:
 			this->process_left_right_up(ai.method,primary,ai.animation_length);
 			break;
+		case NONS_AnimationInfo::COPY_TRANS:
+			this->process_copy(primary,ai.animation_length);
+			break;
 		case NONS_AnimationInfo::SEPARATE_MASK:
-			//TODO
+			secondary=this->load_image(ai.getMaskFilename());
+			this->process_separate_mask(primary,secondary,ai.animation_length);
+			this->unref(secondary);
 			break;
 		case NONS_AnimationInfo::PARALLEL_MASK:
 			this->process_parallel_mask(primary,ai.animation_length);
 			break;
-		case NONS_AnimationInfo::COPY_TRANS:;
 	}
 	ulong n=ai.animation_length;
-	if (n>=2){
-		NONS_ConstSurfaceProperties sp;
-		primary->get_properties(sp);
-		optim_t &map=primary->updates;
-		for (ulong a=0;a<n;a++){
-			for (ulong b=a+1;b<n;b++){
-				NONS_LongRect r=this->get_update_rect(a,b,sp);
-				map[std::make_pair(a,b)]=r;
-				map[std::make_pair(b,a)]=r;
-			}
-		}
-	}
+	primary->frames=(n>=2)?n:1;
 	return primary;
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::copy(const index_t &src){
 	NONS_ConstSurfaceProperties src_sp;
 	src->get_properties(src_sp);
-	index_t i=this->allocate(src_sp.w,src_sp.h);
+	index_t i=this->allocate(src_sp.w,src_sp.h,src_sp.subpictures);
 	NONS_SurfaceProperties dst_sp;
 	i->get_properties(dst_sp);
-	memcpy(dst_sp.pixels,src_sp.pixels,dst_sp.pitch*dst_sp.h);
+	memcpy(dst_sp.pixels,src_sp.pixels,dst_sp.pixel_count*dst_sp.subpictures);
 	return i;
 }
 
@@ -697,6 +691,25 @@ void NONS_SurfaceManager::update(const NONS_SurfaceManager::index_t &i,ulong x,u
 	if (!i.good() || !i.p)
 		return;
 	SDL_UpdateRect(this->screen->screen,(Sint32)x,(Sint32)y,(Uint32)w,(Uint32)h);
+}
+
+void NONS_SurfaceManager::get_optimized_updates(NONS_SurfaceManager::index_t &i,optim_t &dst){
+	if (i->frames>1){
+		if (i->updates.empty()){
+			ulong n=i->frames;
+			optim_t &map=i->updates;
+			NONS_ConstSurfaceProperties sp;
+			i->get_properties(sp);
+			for (ulong a=0;a<n;a++){
+				for (ulong b=a+1;b<n;b++){
+					NONS_LongRect r=this->get_update_rect(a,b,sp);
+					map[std::make_pair(a,b)]=r;
+					map[std::make_pair(b,a)]=r;
+				}
+			}
+		}
+		dst=i->updates;
+	}
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
@@ -820,7 +833,7 @@ void mirror_1D(
 			p[dst_offsets[1]]=src2[src_offsets[1]];
 			p[dst_offsets[2]]=src2[src_offsets[2]];
 			p[dst_offsets[3]]=src2[src_offsets[3]];
-			*dst2=*(Uint32 *)p;
+			*(Uint32 *)dst2=*(Uint32 *)p;
 			src2+=x_advance*4;
 			dst2+=4;
 		}
@@ -836,13 +849,14 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		minus;
 	index_t dst=src;
 	bool free_src=0;
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
 	if (w<0 || h<0){
-		NONS_ConstSurfaceProperties ssp;
 		src->get_properties(ssp);
-		NONS_SurfaceProperties dsp;
-		dst=this->allocate(ssp.w,ssp.h);
+		dst=this->allocate(ssp.w,ssp.h,ssp.subpictures);
 		dst->get_properties(dsp);
-		mirror_1D(dsp.pixels,ssp.pixels,ssp.w,ssp.h,dsp.offsets,ssp.offsets,(w>=0)?1:-1,(h>=0)?1:-1);
+		ssp.h*=ssp.subpictures;
+		mirror_1D(dsp.pixels,ssp.pixels,ssp.w,ssp.h,dsp.offsets,ssp.offsets,(w>0)?1:-1,(h>0)?1:-1);
 		if (w<0)
 			w=-w;
 		if (h<0)
@@ -850,7 +864,8 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		src=dst;
 		free_src=1;
 	}
-	dst=this->allocate(w,h0);
+	dst->get_properties(dsp);
+	dst=this->allocate(w,h0,dsp.subpictures);
 	linear_interpolation_f f;
 	if ((ulong)w>=w0){
 		f=linear_interpolation1;
@@ -862,7 +877,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	f(
 		(uchar *)dst->data,
 		dst->w,
-		dst->h,
+		dst->h*dsp.subpictures,
 		4,
 		dst->w*4,
 		(uchar *)src->data,
@@ -873,7 +888,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 		((w0-minus)<<16)/(w-minus)
 	);
 	src=dst;
-	dst=this->allocate(w,h);
+	dst=this->allocate(w,h,dsp.subpictures);
 	if ((ulong)h>=h0){
 		f=linear_interpolation1;
 		minus=1;
@@ -883,7 +898,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	}
 	f(
 		(uchar *)dst->data,
-		dst->h,
+		dst->h*dsp.subpictures,
 		dst->w,
 		dst->w*4,
 		4,
@@ -971,94 +986,98 @@ struct transform_params{
 	NONS_SurfaceProperties dst_sp;
 };
 
-void transform_threaded(void *p){
-	transform_params params=*(transform_params *)p;
-	const uchar empty_pixels[4]={0};
-	params.h+=params.y0;
-	for (ulong y=params.y0;y<params.h;y++){
-		Uint32 *dst_pixel=(Uint32 *)(params.dst_sp.pixels+y*params.dst_sp.pitch);
-		bool pixels_were_copied=0;
-		long src_x0=(0-params.correct_x)*params.long_matrix[0]+(y-params.correct_y)*params.long_matrix[1],
-			src_y0=(0-params.correct_x)*params.long_matrix[2]+(y-params.correct_y)*params.long_matrix[3];
-		for (ulong x=0;x<params.dst_sp.w;++x){
-			if (params.fast){
-				long src_x=(src_x0+0x5000)>>16,
-					src_y=(src_y0+0x5000)>>16;
-				src_x0+=params.long_matrix[0];
-				src_y0+=params.long_matrix[2];
-				if (!(src_x<0 || src_y<0 || (ulong)src_x>=params.src_sp.w || (ulong)src_y>=params.src_sp.h)){
-					const uchar *src_pixel=params.src_sp.pixels+src_x*4+src_y*params.src_sp.pitch;
-					uchar p[4];
-					p[params.dst_sp.offsets[0]]=src_pixel[params.src_sp.offsets[0]];
-					p[params.dst_sp.offsets[1]]=src_pixel[params.src_sp.offsets[1]];
-					p[params.dst_sp.offsets[2]]=src_pixel[params.src_sp.offsets[2]];
-					p[params.dst_sp.offsets[3]]=src_pixel[params.src_sp.offsets[3]];
-					*dst_pixel=*(Uint32 *)p;
-					dst_pixel++;
-					pixels_were_copied=1;
-					continue;
-				}
-			}else{
-				long src_x=src_x0>>16,
-					src_y=src_y0>>16,
-					temp_x0=src_x0,
-					temp_y0=src_y0;
-				src_x0+=params.long_matrix[0];
-				src_y0+=params.long_matrix[2];
-				if (temp_x0>-0x10000 && temp_x0<long(params.src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(params.src_sp.h<<16)){
-					const uchar *sp=(const uchar *)(params.src_sp.pixels+src_y*params.src_sp.pitch+src_x*4);
-					const uchar *pixel[4]={
-						sp,
-						sp+4,
-						sp+params.src_sp.pitch,
-						sp+params.src_sp.pitch+4,
-					};
-					if (src_x<0){
-						pixel[0]=empty_pixels;
-						pixel[2]=empty_pixels;
-					}
-					if (src_y<0){
-						pixel[0]=empty_pixels;
-						pixel[1]=empty_pixels;
-					}
-					if (src_x>=(long)params.src_sp.w-1){
-						pixel[1]=empty_pixels;
-						pixel[3]=empty_pixels;
-					}
-					if (src_y>=(long)params.src_sp.h-1){
-						pixel[2]=empty_pixels;
-						pixel[3]=empty_pixels;
-					}
-
-					long fraction_x,
-						fraction_y,
-						ifraction_x,
-						ifraction_y;
-					fraction_x=GET_FRACTION(temp_x0);
-					fraction_y=GET_FRACTION(temp_y0);
-					ifraction_x=unit-fraction_x;
-					ifraction_y=unit-fraction_y;
-					uchar rgba[4];
-					long m1,m2;
 #define TRANSFORM_SET_CHANNEL(i)                                                                             \
 	m1=((pixel[0][params.src_sp.offsets[i]]*ifraction_x+pixel[1][params.src_sp.offsets[i]]*fraction_x)>>16); \
 	m2=((pixel[2][params.src_sp.offsets[i]]*ifraction_x+pixel[3][params.src_sp.offsets[i]]*fraction_x)>>16); \
 	rgba[params.dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
-					TRANSFORM_SET_CHANNEL(0);
-					TRANSFORM_SET_CHANNEL(1);
-					TRANSFORM_SET_CHANNEL(2);
-					TRANSFORM_SET_CHANNEL(3);
-					*dst_pixel++=*(Uint32 *)rgba;
-					pixels_were_copied=1;
+void transform_threaded(void *p){
+	transform_params params=*(transform_params *)p;
+	for (ulong subpicture=0;subpicture<params.src_sp.subpictures;subpicture++){
+		const uchar empty_pixels[4]={0};
+		params.h+=params.y0;
+		for (ulong y=params.y0;y<params.h;y++){
+			Uint32 *dst_pixel=(Uint32 *)(params.dst_sp.pixels+y*params.dst_sp.pitch);
+			bool pixels_were_copied=0;
+			long src_x0=(0-params.correct_x)*params.long_matrix[0]+(y-params.correct_y)*params.long_matrix[1],
+				src_y0=(0-params.correct_x)*params.long_matrix[2]+(y-params.correct_y)*params.long_matrix[3];
+			for (ulong x=0;x<params.dst_sp.w;++x){
+				if (params.fast){
+					long src_x=(src_x0+0x5000)>>16,
+						src_y=(src_y0+0x5000)>>16;
+					src_x0+=params.long_matrix[0];
+					src_y0+=params.long_matrix[2];
+					if (!(src_x<0 || src_y<0 || (ulong)src_x>=params.src_sp.w || (ulong)src_y>=params.src_sp.h)){
+						const uchar *src_pixel=params.src_sp.pixels+src_x*4+src_y*params.src_sp.pitch;
+						uchar p[4];
+						p[params.dst_sp.offsets[0]]=src_pixel[params.src_sp.offsets[0]];
+						p[params.dst_sp.offsets[1]]=src_pixel[params.src_sp.offsets[1]];
+						p[params.dst_sp.offsets[2]]=src_pixel[params.src_sp.offsets[2]];
+						p[params.dst_sp.offsets[3]]=src_pixel[params.src_sp.offsets[3]];
+						*dst_pixel=*(Uint32 *)p;
+						dst_pixel++;
+						pixels_were_copied=1;
+						continue;
+					}
+				}else{
+					long src_x=src_x0>>16,
+						src_y=src_y0>>16,
+						temp_x0=src_x0,
+						temp_y0=src_y0;
+					src_x0+=params.long_matrix[0];
+					src_y0+=params.long_matrix[2];
+					if (temp_x0>-0x10000 && temp_x0<long(params.src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(params.src_sp.h<<16)){
+						const uchar *sp=(const uchar *)(params.src_sp.pixels+src_y*params.src_sp.pitch+src_x*4);
+						const uchar *pixel[4]={
+							sp,
+							sp+4,
+							sp+params.src_sp.pitch,
+							sp+params.src_sp.pitch+4,
+						};
+						if (src_x<0){
+							pixel[0]=empty_pixels;
+							pixel[2]=empty_pixels;
+						}
+						if (src_y<0){
+							pixel[0]=empty_pixels;
+							pixel[1]=empty_pixels;
+						}
+						if (src_x>=(long)params.src_sp.w-1){
+							pixel[1]=empty_pixels;
+							pixel[3]=empty_pixels;
+						}
+						if (src_y>=(long)params.src_sp.h-1){
+							pixel[2]=empty_pixels;
+							pixel[3]=empty_pixels;
+						}
+
+						long fraction_x,
+							fraction_y,
+							ifraction_x,
+							ifraction_y;
+						fraction_x=GET_FRACTION(temp_x0);
+						fraction_y=GET_FRACTION(temp_y0);
+						ifraction_x=unit-fraction_x;
+						ifraction_y=unit-fraction_y;
+						uchar rgba[4];
+						long m1,m2;
+						TRANSFORM_SET_CHANNEL(0);
+						TRANSFORM_SET_CHANNEL(1);
+						TRANSFORM_SET_CHANNEL(2);
+						TRANSFORM_SET_CHANNEL(3);
+						*dst_pixel++=*(Uint32 *)rgba;
+						pixels_were_copied=1;
+						continue;
+					}
+				}
+				if (!pixels_were_copied){
+					dst_pixel++;
 					continue;
 				}
+				break;
 			}
-			if (!pixels_were_copied){
-				dst_pixel++;
-				continue;
-			}
-			break;
 		}
+		params.src_sp.pixels+=params.src_sp.byte_count;
+		params.dst_sp.pixels+=params.dst_sp.byte_count;
 	}
 }
 
@@ -1070,7 +1089,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,c
 	src->get_properties(src_sp);
 	ulong w,h;
 	get_final_size(src_sp,m,w,h);
-	index_t dst=this->allocate(w,h);
+	index_t dst=this->allocate(w,h,src_sp.subpictures);
 	NONS_SurfaceProperties dst_sp;
 	dst->get_properties(dst_sp);
 	ulong correct_x=src_sp.w,
@@ -1155,7 +1174,6 @@ NONS_SurfaceManager sm;
 struct NONS_Surface_Private{
 	NONS_SurfaceManager::index_t surface;
 	NONS_LongRect rect;
-	NONS_AnimationInfo animation;
 	NONS_Surface_Private(const NONS_SurfaceManager::index_t &s):surface(s){
 		if (this->surface.good()){
 			NONS_SurfaceProperties sp;
@@ -1269,6 +1287,9 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 			break;
 		NONS_ConstSurfaceProperties sp;
 		s.get_properties(sp);
+		sp.h*=sp.subpictures;
+		sp.byte_count*=sp.subpictures;
+		sp.pixel_count*=sp.subpictures;
 		png_set_IHDR(
 			png,
 			info,
@@ -1319,7 +1340,8 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 }
 
 void NONS_ConstSurface::save_bitmap(const std::wstring &filename) const{
-	write_png_file(filename,*this);
+	if (*this)
+		write_png_file(filename,*this);
 }
 
 void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
@@ -1335,8 +1357,7 @@ NONS_Surface NONS_ConstSurface::clone() const{
 	NONS_SurfaceProperties dsp;
 	this->get_properties(ssp);
 	r.get_properties(dsp);
-	if (this->data->animation.animation_length>=2)
-		ssp.pixel_count*=this->data->animation.animation_length;
+	ssp.pixel_count*=ssp.subpictures;
 	const uchar *src=ssp.pixels;
 	uchar *dst=dsp.pixels;
 	for (ulong a=ssp.pixel_count;a;a--){
@@ -1362,12 +1383,6 @@ void NONS_ConstSurface::get_optimized_updates(optim_t &dst) const{
 
 static NONS_AnimationInfo null;
 
-const NONS_AnimationInfo &NONS_ConstSurface::get_animation_info() const{
-	if (!*this)
-		return null;
-	return this->data->animation;
-}
-
 const NONS_Surface NONS_Surface::null;
 
 NONS_Surface::NONS_Surface(const NONS_CrippledSurface &original){
@@ -1387,11 +1402,14 @@ void NONS_Surface::assign(ulong w,ulong h){
 NONS_Surface &NONS_Surface::operator=(const std::wstring &name){
 	this->unbind();
 	NONS_SurfaceManager::index_t i=sm.load(name);
-	this->data=(!i.good())?0:new NONS_Surface_Private(i);
+	if (!i.good())
+		this->data=0;
+	else
+		this->data=new NONS_Surface_Private(i);
 	return *this;
 }
 	
-void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::copy_pixels_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(dr,sr,dst_rect,src_rect,*this,src))
@@ -1399,14 +1417,8 @@ void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect 
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
-	long i;
-	i=src.data->animation.getCurrentAnimationFrame();
-	i=(i<0)?0:i;
-	ssp.pixels+=i*ssp.byte_count;
+	ssp.pixels+=frame*ssp.byte_count;
 	this->get_properties(dsp);
-	i=this->data->animation.getCurrentAnimationFrame();
-	i=(i<0)?0:i;
-	dsp.pixels+=i*dsp.byte_count;
 	ssp.pixels+=sr.x*4+sr.y*ssp.pitch;
 	dsp.pixels+=dr.x*4+dr.y*dsp.pitch;
 	if (ssp.same_format(dsp)){
@@ -1429,6 +1441,10 @@ void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect 
 			}
 		}
 	}
+}
+
+void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+	this->copy_pixels_frame(src,0,dst_rect,src_rect);
 }
 
 void NONS_Surface::get_properties(NONS_SurfaceProperties &sp) const{
@@ -1596,7 +1612,6 @@ void NONS_Surface::over_frame_with_alpha(
 		long alpha) const{
 	if (!*this || !src)
 		return;
-	assert(frame<this->data->animation.animation_length);
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(dr,sr,dst_rect,src_rect,*this,src))
@@ -1609,7 +1624,7 @@ void NONS_Surface::over_frame_with_alpha(
 	over_blend(dsp,dr,ssp,sr,alpha);
 }
 
-void over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
 	this->over_frame_with_alpha(src,frame,dst_rect,src_rect);
 }
 
@@ -1725,7 +1740,6 @@ void NONS_Surface::multiply_frame(const NONS_ConstSurface &src,ulong frame,const
 	src.get_properties(ssp);
 	ssp.pixels+=frame*ssp.byte_count;
 	this->get_properties(dsp);
-	dsp.pixels+=i*dsp.byte_count;
 	multiply_blend(dsp,dr,ssp,sr);
 }
 
@@ -1773,10 +1787,8 @@ struct interpolation_parameters{
 	}
 
 NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
-	NONS_LongRect sr,
-		dr;
-	if (!fix_rects(dr,sr,dst_rect,src_rect,*this,src))
-		return;
+	NONS_LongRect sr=src.default_box(src_rect),
+		dr=this->default_box(dst_rect);
 	NONS_SurfaceProperties ssp,
 		dsp;
 	src.get_properties(ssp);
@@ -1801,6 +1813,8 @@ NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 		total[1]+=division[1];
 		p.src=&ssp;
 		p.dst=&dsp;
+		p.x=x;
+		p.y=y;
 	}
 	parameters.back().src_rect.h+=sr.h-total[0];
 	parameters.back().dst_rect.h+=dr.h-total[1];
@@ -1810,7 +1824,7 @@ NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 #else
 		threadManager.call(a-1,f,&parameters[a]);
 #endif
-	over_blend_threaded(&parameters[0]);
+	f(&parameters[0]);
 #ifndef USE_THREAD_MANAGER
 	for (ulong a=1;a<cpu_count;a++)
 		threads[a].join();
@@ -1869,11 +1883,11 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 			BILINEAR_SET_PIXEL(2);
 			BILINEAR_SET_PIXEL(3);
 
-			X+=unit;
+			X+=advance_x;
 			dst_pix+=4;
 		}
 		dst_pix=dst_pix0+dst.pitch;
-		Y+=unit;
+		Y+=advance_x;
 	}
 }
 
@@ -1915,7 +1929,7 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 						x_multiplier=FLOOR(X0)+unit-X0;
 					else
 						x_multiplier=unit;
-					ulong compound_multiplier=((y_multiplier>>8)*x_multiplier)>>8;
+					ulong compound_multiplier=((y_multiplier>>1)*(x_multiplier>>1))>>14;
 					color[0]+=ulong(pixel[src.offsets[0]])*compound_multiplier;
 					color[1]+=ulong(pixel[src.offsets[1]])*compound_multiplier;
 					color[2]+=ulong(pixel[src.offsets[2]])*compound_multiplier;
@@ -1926,10 +1940,10 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 				pixel=pixel0+src.pitch;
 				y2=FLOOR(y2)+unit;
 			}
-			dst_pix[dst.pixels[0]]=uchar(color[0]/area);
-			dst_pix[dst.pixels[1]]=uchar(color[1]/area);
-			dst_pix[dst.pixels[2]]=uchar(color[2]/area);
-			dst_pix[dst.pixels[3]]=uchar(color[3]/area);
+			dst_pix[dst.offsets[0]]=uchar(color[0]/area);
+			dst_pix[dst.offsets[1]]=uchar(color[1]/area);
+			dst_pix[dst.offsets[2]]=uchar(color[2]/area);
+			dst_pix[dst.offsets[3]]=uchar(color[3]/area);
 			dst_pix+=4;
 			X0=X1;
 			X1+=advance_x;
@@ -2021,9 +2035,9 @@ void NONS_Surface::set_base_scale(double x,double y){
 OVERLOAD_RELATIONAL_OPERATORS2(NONS_Surface,NONS_Surface_DEFINE_RELATIONAL_OP)
 OVERLOAD_RELATIONAL_OPERATORS2(NONS_CrippledSurface,NONS_Surface_DEFINE_RELATIONAL_OP)
 
-NONS_SurfaceManager::Surface::Surface(ulong w,ulong h){
+NONS_SurfaceManager::Surface::Surface(ulong w,ulong h,ulong frames){
 	this->set_id();
-	size_t n=w*h*4+1;
+	size_t n=w*h*frames*4+1;
 	this->data=(uchar *)malloc(n);
 	this->w=w;
 	this->h=h;
@@ -2032,6 +2046,7 @@ NONS_SurfaceManager::Surface::Surface(ulong w,ulong h){
 	this->offsets[1]=1;
 	this->offsets[2]=2;
 	this->offsets[3]=3;
+	this->frames=frames;
 	memset(this->data,0,n);
 }
 
@@ -2071,6 +2086,7 @@ NONS_SurfaceManager::ScreenSurface::ScreenSurface(SDL_Surface *s)
 			}
 		}
 	}
+	this->frames=1;
 }
 
 long NONS_SurfaceManager::ScreenSurface::ref(){

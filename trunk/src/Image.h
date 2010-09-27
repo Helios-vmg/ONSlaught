@@ -54,9 +54,9 @@ struct NONS_SurfaceProperties_basic{
 	ulong w,h,
 		pitch,
 		byte_count,
-		pixel_count;
+		pixel_count,
+		subpictures;
 	uchar offsets[4];
-	NONS_SurfaceProperties_basic<T>(){}
 	template <typename T2>
 	operator NONS_SurfaceProperties_basic<T2>() const{
 		NONS_SurfaceProperties_basic<T2> r;
@@ -70,6 +70,7 @@ struct NONS_SurfaceProperties_basic{
 		r.offsets[1]=this->offsets[1];
 		r.offsets[2]=this->offsets[2];
 		r.offsets[3]=this->offsets[3];
+		r.subpictures=this->subpictures;
 		return r;
 	}
 	template <typename T2>
@@ -182,7 +183,7 @@ struct NONS_AnimationInfo{
 	void parse(const std::wstring &image_string);
 	void resetAnimation();
 	long advanceAnimation(ulong msecs);
-	long getCurrentAnimationFrame();
+	long getCurrentAnimationFrame() const;
 	const std::wstring &getFilename() const{
 		return this->filename;
 	}
@@ -283,7 +284,6 @@ public:
 	NONS_Surface transform(const NONS_Matrix &m,bool fast=0) const;
 	void save_bitmap(const std::wstring &filename) const;
 	void get_optimized_updates(optim_t &dst) const;
-	const NONS_AnimationInfo &get_animation_info() const;
 };
 
 class NONS_Surface:public NONS_ConstSurface{
@@ -314,6 +314,7 @@ public:
 	void multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void multiply_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
+	void copy_pixels_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
 	void get_properties(NONS_SurfaceProperties &sp) const;
 	void fill(const NONS_Color &color) const;
 	void fill(const NONS_LongRect area,const NONS_Color &color) const;

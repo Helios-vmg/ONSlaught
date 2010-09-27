@@ -188,11 +188,11 @@ public:
 	}
 	template <typename T>
 	float convertW(T w){
-		return floor((((float)w*256.f)*this->x_multiplier)+.5f);
+		return floor((float)w*this->x_multiplier+.5f);
 	}
 	template <typename T>
 	float convertH(T h){
-		return floor((((float)h*256.f)*this->y_multiplier)+.5f);
+		return floor((float)h*this->y_multiplier+.5f);
 	}
 	NONS_DECLSPEC void updateWithoutLock(const NONS_Surface &s,bool fast=0);
 	std::wstring takeScreenshot(const std::wstring &filename=L"");

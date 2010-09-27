@@ -307,6 +307,14 @@ int main(int argc,char **argv){
 	print_version_string();
 	initialize(argc,argv);
 	{
+		NONS_Surface s=L":mtest_mask.bmp;test.bmp";
+		//NONS_Surface d(1024,768);
+		//d.bilinear_interpolation(s,0,0,1024.0/640.0,1024.0/640.0);
+		s.save_bitmap(L"0");
+		//d.save_bitmap(L"1");
+		return 0;
+	}
+	{
 		NONS_ScriptInterpreter interpreter;
 		gScriptInterpreter=&interpreter;
 		if (CLOptions.debugMode)

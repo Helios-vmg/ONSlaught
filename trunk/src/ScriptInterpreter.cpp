@@ -2199,7 +2199,7 @@ bool NONS_ScriptInterpreter::save(int file){
 		}
 		//graphic
 		{
-			this->saveGame->background=scr->Background->data.get_animation_info().getString();
+			this->saveGame->background=scr->Background->animation.getString();
 			if (!this->saveGame->background.size())
 				this->saveGame->bgColor=scr->Background->defaultShade;
 		}
@@ -2236,7 +2236,7 @@ bool NONS_ScriptInterpreter::save(int file){
 			}else{
 				if (!b){
 					NONS_SaveFile::Sprite *spr=new NONS_SaveFile::Sprite();
-					spr->string=c->data.get_animation_info().getString();
+					spr->string=c->animation.getString();
 					if (spr->string.size()){
 						this->saveGame->sprites[a]=spr;
 						b=spr;
@@ -4276,25 +4276,28 @@ ErrorCode NONS_ScriptInterpreter::command_print(NONS_Statement &stmt){
 	return ret;
 }
 
-void shake(const NONS_Surface &dst,long amplitude,ulong duration){
-	NONS_LongRect srcrect=dst.clip_rect(),
+void shake(NONS_VirtualScreen *dst,long amplitude,ulong duration){
+	NONS_LongRect srcrect=NONS_LongRect(dst->inRect),
 		dstrect=srcrect;
-	NONS_Surface copy_dst=dst.clone();
+	NONS_Surface copy_dst=dst->get_screen().clone();
 	NONS_Clock clock;
 	NONS_Clock::t start=clock.get();
 	NONS_LongRect last=dstrect;
 	while (clock.get()-start<(NONS_Clock::t)duration){
-		dst.fill(srcrect,NONS_Color::black);
-		do{
-			dstrect.x=(rand()%2)?amplitude:-amplitude;
-			dstrect.y=(rand()%2)?amplitude:-amplitude;
-		}while (dstrect.x==last.x && dstrect.y==last.y);
-		last=dstrect;
-		dst.copy_pixels(copy_dst,&dstrect,&srcrect);
-		dst.update();
+		{
+			NONS_Surface screen=dst->get_screen();
+			screen.fill(srcrect,NONS_Color::black);
+			do{
+				dstrect.x=(rand()%2)?amplitude:-amplitude;
+				dstrect.y=(rand()%2)?amplitude:-amplitude;
+			}while (dstrect.x==last.x && dstrect.y==last.y);
+			last=dstrect;
+			screen.copy_pixels(copy_dst,&dstrect,&srcrect);
+		}
+		dst->updateWholeScreen();
 	}
-	dst.copy_pixels(copy_dst);
-	dst.update();
+	dst->get_screen().copy_pixels(copy_dst);
+	dst->updateWholeScreen();
 }
 
 ErrorCode NONS_ScriptInterpreter::command_quake(NONS_Statement &stmt){
@@ -4307,7 +4310,7 @@ ErrorCode NONS_ScriptInterpreter::command_quake(NONS_Statement &stmt){
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
 	amplitude*=2;
 	amplitude=(long)this->screen->screen->convertW(amplitude);
-	shake(this->screen->screen->get_screen(),amplitude,duration);
+	shake(this->screen->screen,amplitude,duration);
 	return 0;
 }
 
@@ -4833,26 +4836,29 @@ ErrorCode NONS_ScriptInterpreter::command_shadedistance(NONS_Statement &stmt){
 	return NONS_NO_ERROR;
 }
 
-void quake(const NONS_Surface &dst,char axis,ulong amplitude,ulong duration){
+void quake(NONS_VirtualScreen *dst,char axis,ulong amplitude,ulong duration){
 	double length=(double)duration,
 		amp=(double)amplitude;
-	NONS_LongRect srcrect=dst.clip_rect(),
+	NONS_LongRect srcrect=NONS_LongRect(dst->inRect),
 		dstrect=srcrect;
-	NONS_Surface copyDst=dst.clone();
+	NONS_Surface copyDst=dst->get_screen().clone();
 	NONS_Clock clock;
 	NONS_Clock::t start=clock.get();
 	while (1){
-		NONS_Clock::t x=clock.get()-start;
-		if (x>duration)
-			break;
-		double y=sin(x*(20/length)*M_PI)*((amp/-length)*x+amplitude);
-		dst.fill(srcrect,NONS_Color::black);
-		if (axis=='x')
-			dstrect.x=(long)y;
-		else
-			dstrect.y=(long)y;
-		dst.copy_pixels(copyDst,&dstrect,&srcrect);
-		dst.update();
+		{
+			NONS_Surface screen=dst->get_screen();
+			NONS_Clock::t x=clock.get()-start;
+			if (x>duration)
+				break;
+			double y=sin(x*(20/length)*M_PI)*((amp/-length)*x+amplitude);
+			screen.fill(srcrect,NONS_Color::black);
+			if (axis=='x')
+				dstrect.x=(long)y;
+			else
+				dstrect.y=(long)y;
+			screen.copy_pixels(copyDst,&dstrect,&srcrect);
+		}
+		dst->updateWholeScreen();
 	}
 }
 
@@ -4870,7 +4876,7 @@ ErrorCode NONS_ScriptInterpreter::command_sinusoidal_quake(NONS_Statement &stmt)
 		amplitude=(long)scr->convertW(amplitude);
 	else
 		amplitude=(long)scr->convertH(amplitude);
-	quake(scr->get_real_screen(),(char)stmt.commandName[5],amplitude,duration);
+	quake(scr,(char)stmt.commandName[5],amplitude,duration);
 	return NONS_NO_ERROR;
 }
 
