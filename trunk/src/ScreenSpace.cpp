@@ -824,7 +824,7 @@ NONS_ScreenSpace::~NONS_ScreenSpace(){
 }
 
 template <typename T>
-void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,const NONS_Surface &screenBuffer,T function){
+void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,NONS_Surface &screenBuffer,T function){
 	if (!p || !p->data || !p->visible)
 		return;
 	NONS_LongRect src(

@@ -488,7 +488,7 @@ NONS_LongRect NONS_SurfaceButton::get_dimensions(){
 	return rect;
 }
 
-void NONS_SurfaceButton::mergeWithoutUpdate_inner(const NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect){
+void NONS_SurfaceButton::mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect){
 	NONS_TextButton *_this=dynamic_cast<NONS_TextButton *>(this);
 	if (_this && _this->getShadowLayer()){
 		NONS_LongRect temp=dstRect;
@@ -781,7 +781,7 @@ int NONS_TextButton::predictLineLength(std::vector<NONS_Glyph *> *arr,long start
 	return res;
 }
 
-void NONS_SpriteButton::mergeWithoutUpdate_inner(const NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect){
+void NONS_SpriteButton::mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect){
 	NONS_LongRect temp=srcRect;
 	temp.x=(!this->status)?0:temp.w;
 	NONS_Layer *layer=this->screen->layerStack[this->sprite];

@@ -174,7 +174,7 @@ struct NONS_AnimationInfo{
 	static TRANSPARENCY_METHODS default_trans;
 
 	NONS_AnimationInfo()
-		:animation_length(0),
+		:animation_length(1),
 		animation_time_offset(0),
 		valid(1){}
 	NONS_AnimationInfo(const std::wstring &image_string);
@@ -307,17 +307,17 @@ public:
 	}
 	void assign(ulong w,ulong h);
 	NONS_Surface &operator=(const std::wstring &name);
-	void over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
-	void over_with_alpha(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255) const;
-	void over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
-	void over_frame_with_alpha(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255) const;
-	void multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
-	void multiply_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
-	void copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
-	void copy_pixels_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0) const;
+	void over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
+	void over_with_alpha(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255);
+	void over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
+	void over_frame_with_alpha(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255);
+	void multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
+	void multiply_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
+	void copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
+	void copy_pixels_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
 	void get_properties(NONS_SurfaceProperties &sp) const;
-	void fill(const NONS_Color &color) const;
-	void fill(const NONS_LongRect area,const NONS_Color &color) const;
+	void fill(const NONS_Color &color);
+	void fill(const NONS_LongRect area,const NONS_Color &color);
 	void update(ulong x=0,ulong y=0,ulong w=0,ulong h=0) const;
 
 #define NONS_Surface_DECLARE_RELATIONAL_OP(type,op) bool operator op(const type &b) const;
@@ -339,7 +339,7 @@ public:
 		const NONS_LongRect *src_rect,                            \
 		double x,                                                 \
 		double y                                                  \
-	) const
+	)
 	NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(,interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(NN_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation);

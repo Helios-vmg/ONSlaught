@@ -316,12 +316,14 @@ public:
 			frames;
 		uchar offsets[4];
 		optim_t updates;
+		std::wstring primary,
+			mask;
+		NONS_AnimationInfo::TRANSPARENCY_METHODS transparency;
 		friend class NONS_SurfaceManager;
-		Surface(){ this->set_id(); }
+		Surface():transparency(NONS_AnimationInfo::COPY_TRANS){ this->set_id(); }
 		void set_id(){
-			surface_mutex.lock();
+			NONS_MutexLocker ml(surface_mutex);
 			this->id=obj_count++;
-			surface_mutex.unlock();
 		}
 		virtual long ref();
 		virtual long unref();
@@ -374,7 +376,7 @@ public:
 	~NONS_SurfaceManager();
 	void init();
 	index_t allocate(ulong w,ulong h,ulong frames=1);
-	index_t load(const NONS_AnimationInfo &ai);
+	index_t load(const NONS_AnimationInfo &ai,bool &cow);
 	void process_left_right_up(NONS_AnimationInfo::TRANSPARENCY_METHODS method,index_t &i,ulong animation);
 	void process_copy(index_t &i,ulong animation);
 	void process_separate_mask(index_t &i,index_t &mask,ulong animation);
@@ -562,7 +564,7 @@ void NONS_SurfaceManager::process_left_right_up(NONS_AnimationInfo::TRANSPARENCY
 	NONS_Color chroma;
 	const uchar *chroma_pixel=sp.pixels;
 	if (method==NONS_AnimationInfo::RIGHT_UP)
-		chroma_pixel=sp.pixels+sp.pitch-4;
+		chroma_pixel+=sp.pitch-4;
 	chroma.rgba[0]=chroma_pixel[0];
 	chroma.rgba[1]=chroma_pixel[1];
 	chroma.rgba[2]=chroma_pixel[2];
@@ -639,13 +641,28 @@ void NONS_SurfaceManager::process_separate_mask(NONS_SurfaceManager::index_t &i,
 	this->process_copy(i,animation);
 }
 
-NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo &ai){
-	index_t primary=this->load_image(ai.getFilename());
+NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo &ai,bool &cow){
+	index_t primary;
+	cow=0;
+	for (surfaces_t::iterator i=this->surfaces.begin(),e=this->surfaces.end();i!=e;++i){
+		Surface &s=**i;
+		if (
+				s.transparency==ai.method &&
+				(s.frames==1 && !ai.animation_length || s.frames==ai.animation_length) &&
+				s.primary==ai.getFilename() &&
+				(s.transparency!=NONS_AnimationInfo::SEPARATE_MASK || s.mask==ai.getMaskFilename())){
+			s.ref();
+			cow=1;
+			return i;
+		}
+	}
+	primary=this->load_image(ai.getFilename());
 	if (!primary.good())
 		return primary;
 	index_t secondary;
 	ulong n=ai.animation_length;
 	n=(n>=2)?n:1;
+	primary->primary=ai.getFilename();
 	switch (ai.method){
 		case NONS_AnimationInfo::LEFT_UP:
 		case NONS_AnimationInfo::RIGHT_UP:
@@ -660,6 +677,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo 
 				this->unref(primary);
 				return index_t();
 			}
+			primary->mask=ai.getMaskFilename();
 			this->process_separate_mask(primary,secondary,n);
 			this->unref(secondary);
 			break;
@@ -668,6 +686,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::load(const NONS_AnimationInfo 
 			break;
 	}
 	primary->frames=n;
+	primary->transparency=ai.method;
 	return primary;
 }
 
@@ -1181,7 +1200,8 @@ NONS_SurfaceManager sm;
 struct NONS_Surface_Private{
 	NONS_SurfaceManager::index_t surface;
 	NONS_LongRect rect;
-	NONS_Surface_Private(const NONS_SurfaceManager::index_t &s):surface(s){
+	bool cow;
+	NONS_Surface_Private(const NONS_SurfaceManager::index_t &s):surface(s),cow(0){
 		if (this->surface.good()){
 			NONS_SurfaceProperties sp;
 			s->get_properties(sp);
@@ -1408,19 +1428,28 @@ void NONS_Surface::assign(ulong w,ulong h){
 
 NONS_Surface &NONS_Surface::operator=(const std::wstring &name){
 	this->unbind();
-	NONS_SurfaceManager::index_t i=sm.load(name);
+	bool cow;
+	NONS_SurfaceManager::index_t i=sm.load(name,cow);
 	if (!i.good())
 		this->data=0;
-	else
+	else{
 		this->data=new NONS_Surface_Private(i);
+		this->data->cow=cow;
+	}
 	return *this;
 }
 	
-void NONS_Surface::copy_pixels_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::copy_pixels_frame(
+		const NONS_ConstSurface &src,
+		ulong frame,
+		const NONS_LongRect *dst_rect,
+		const NONS_LongRect *src_rect){
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(dr,sr,dst_rect,src_rect,*this,src))
 		return;
+	if (this->data->cow)
+		*this=this->clone();
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
@@ -1450,7 +1479,10 @@ void NONS_Surface::copy_pixels_frame(const NONS_ConstSurface &src,ulong frame,co
 	}
 }
 
-void NONS_Surface::copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::copy_pixels(
+		const NONS_ConstSurface &src,
+		const NONS_LongRect *dst_rect,
+		const NONS_LongRect *src_rect){
 	this->copy_pixels_frame(src,0,dst_rect,src_rect);
 }
 
@@ -1459,15 +1491,17 @@ void NONS_Surface::get_properties(NONS_SurfaceProperties &sp) const{
 		this->data->surface->get_properties(sp);
 }
 
-void NONS_Surface::fill(const NONS_Color &color) const{
+void NONS_Surface::fill(const NONS_Color &color){
 	if (!*this)
 		return;
 	this->fill(this->data->rect,color);
 }
 
-void NONS_Surface::fill(NONS_LongRect area,const NONS_Color &color) const{
+void NONS_Surface::fill(NONS_LongRect area,const NONS_Color &color){
 	if (!*this)
 		return;
+	if (this->data->cow)
+		*this=this->clone();
 	NONS_SurfaceProperties sp;
 	this->get_properties(sp);
 	area=area.intersect(this->data->rect);
@@ -1616,13 +1650,15 @@ void NONS_Surface::over_frame_with_alpha(
 		ulong frame,
 		const NONS_LongRect *dst_rect,
 		const NONS_LongRect *src_rect,
-		long alpha) const{
+		long alpha){
 	if (!*this || !src)
 		return;
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(dr,sr,dst_rect,src_rect,*this,src))
 		return;
+	if (this->data->cow)
+		*this=this->clone();
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
@@ -1631,15 +1667,15 @@ void NONS_Surface::over_frame_with_alpha(
 	over_blend(dsp,dr,ssp,sr,alpha);
 }
 
-void NONS_Surface::over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect){
 	this->over_frame_with_alpha(src,frame,dst_rect,src_rect);
 }
 
-void NONS_Surface::over_with_alpha(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect,long alpha) const{
+void NONS_Surface::over_with_alpha(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect,long alpha){
 	this->over_frame_with_alpha(src,0,dst_rect,src_rect,alpha);
 }
 
-void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect){
 	this->over_frame_with_alpha(src,0,dst_rect,src_rect);
 }
 
@@ -1735,13 +1771,19 @@ void multiply_blend_threaded(
 
 //------------------------------------------------------------------------------
 
-void NONS_Surface::multiply_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::multiply_frame(
+		const NONS_ConstSurface &src,
+		ulong frame,
+		const NONS_LongRect *dst_rect,
+		const NONS_LongRect *src_rect){
 	if (!*this || !src)
 		return;
 	NONS_LongRect sr,
 		dr;
 	if (!fix_rects(dr,sr,dst_rect,src_rect,*this,src))
 		return;
+	if (this->data->cow)
+		*this=this->clone();
 	NONS_ConstSurfaceProperties ssp;
 	NONS_SurfaceProperties dsp;
 	src.get_properties(ssp);
@@ -1750,7 +1792,10 @@ void NONS_Surface::multiply_frame(const NONS_ConstSurface &src,ulong frame,const
 	multiply_blend(dsp,dr,ssp,sr);
 }
 
-void NONS_Surface::multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect,const NONS_LongRect *src_rect) const{
+void NONS_Surface::multiply(
+		const NONS_ConstSurface &src,
+		const NONS_LongRect *dst_rect,
+		const NONS_LongRect *src_rect){
 	this->multiply_frame(src,0,dst_rect,src_rect);
 }
 
@@ -1796,6 +1841,8 @@ struct interpolation_parameters{
 NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 	NONS_LongRect sr=src.default_box(src_rect),
 		dr=this->default_box(dst_rect);
+	if (this->data->cow)
+		*this=this->clone();
 	NONS_SurfaceProperties ssp,
 		dsp;
 	src.get_properties(ssp);

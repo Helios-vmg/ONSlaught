@@ -232,7 +232,7 @@ protected:
 		bool status,
 		bool force=0
 	);
-	virtual void mergeWithoutUpdate_inner(const NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect)=0;
+	virtual void mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect)=0;
 };
 
 #define MOUSE_OVER(x,y,posx,posy,w,h) ((x)>=(posx) && (x)<=(posx)+(w) && (y)>=(posy) && (y)<=(posy)+(h))
@@ -266,7 +266,7 @@ public:
 	int &setPosy(){ return this->posy; }
 	NONS_LongRect get_dimensions();
 protected:
-	void mergeWithoutUpdate_inner(const NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect);
+	void mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect);
 };
 
 class NONS_GraphicButton:public NONS_SurfaceButton{
@@ -313,7 +313,7 @@ public:
 	bool MouseOver(int x,int y);
 	NONS_LongRect get_dimensions();
 protected:
-	void mergeWithoutUpdate_inner(const NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect);
+	void mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect);
 };
 
 struct NONS_ButtonLayer{
