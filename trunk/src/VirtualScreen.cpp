@@ -221,12 +221,12 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 	}
 #endif
 	if (this->usingFeature[INTERPOLATION]){
-		NONS_LongRect s(x,y,w,h),
+		NONS_Rect s((float)x,(float)y,(float)w,(float)h),
 			d(
-				(long)this->convertX(x),
-				(long)this->convertY(y),
-				(long)this->convertW(w),
-				(long)this->convertH(h)
+				this->convertX(x),
+				this->convertY(y),
+				this->convertW(w),
+				this->convertH(h)
 			);
 		/*
 		The following plus ones and minus ones are a patch to correct some weird
@@ -235,14 +235,14 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 		Basically, they move the upper-left corner one pixel up and to the left
 		without moving the bottom-right corner.
 		*/
-		if (d.x>0){
+		/*if (d.x>0){
 			d.x--;
 			d.w++;
 		}
 		if (d.y>0){
 			d.y--;
 			d.h++;
-		}
+		}*/
 		if (d.x+d.w>this->outRect.w+this->outRect.x)
 			d.w=(long)this->outRect.w-d.x+(long)this->outRect.x;
 		if (d.y+d.h>this->outRect.h+this->outRect.y)
@@ -255,8 +255,8 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 			NONS_Surface dst=this->screens[this->post_inter];
 			(dst.*f)(
 				this->screens[this->pre_inter],
-				&d,
-				&s,
+				d,
+				s,
 				this->x_multiplier,
 				this->y_multiplier
 			);
@@ -264,7 +264,7 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 		}
 		if (!this->usingFeature[ASYNC_EFFECT])
 			//SDL_UpdateRect(this->screens[REAL],d.x,d.y,d.w,d.h);
-			NONS_Surface(this->screens[REAL]).update(d.x,d.y,d.w,d.h);
+			NONS_Surface(this->screens[REAL]).update((ulong)d.x,(ulong)d.y,(ulong)d.w,(ulong)d.h);
 	}else if (!this->usingFeature[ASYNC_EFFECT])
 		//SDL_UpdateRect(this->screens[REAL],x,y,w,h);
 		NONS_Surface(this->screens[REAL]).update(x,y,w,h);

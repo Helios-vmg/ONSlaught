@@ -326,8 +326,8 @@ public:
 #define NONS_Surface_DECLARE_INTERPOLATION_F(name) \
 	void name(                                     \
 		const NONS_Surface &src,                   \
-		const NONS_LongRect *dst_rect,             \
-		const NONS_LongRect *src_rect,             \
+		const NONS_Rect &dst_rect,                 \
+		const NONS_Rect &src_rect,                 \
 		double x,                                  \
 		double y                                   \
 	)
@@ -335,8 +335,8 @@ public:
 	void extra name(                                              \
 		interpolation_f f,                                        \
 		const NONS_Surface &src,                                  \
-		const NONS_LongRect *dst_rect,                            \
-		const NONS_LongRect *src_rect,                            \
+		const NONS_Rect &dst_rect,                                \
+		const NONS_Rect &src_rect,                                \
 		double x,                                                 \
 		double y                                                  \
 	)
@@ -344,7 +344,9 @@ public:
 	NONS_Surface_DECLARE_INTERPOLATION_F(NN_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation2);
-	typedef void (NONS_Surface::*public_interpolation_f)(const NONS_Surface &,const NONS_LongRect *,const NONS_LongRect *,double,double);
+	typedef void (NONS_Surface::*public_interpolation_f)(const NONS_Surface &,const NONS_Rect &,const NONS_Rect &,double,double);
+
+	void make_critical(ulong max_copies);
 
 	//SDL-related:
 	SDL_Surface *get_SDL_screen();

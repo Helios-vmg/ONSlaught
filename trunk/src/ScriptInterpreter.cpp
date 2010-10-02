@@ -2569,23 +2569,25 @@ ErrorCode NONS_ScriptInterpreter::command_blt(NONS_Statement &stmt){
 	GET_COORDINATE(imgY,1,5);
 	GET_COORDINATE(imgW,0,6);
 	GET_COORDINATE(imgH,1,7);
-	NONS_LongRect dstRect((long)screenX,(long)screenY,(long)screenW,(long)screenH),
-		srcRect((long)imgX,(long)imgY,(long)imgW,(long)imgH);
+	NONS_Rect dstRect(screenX,screenY,screenW,screenH),
+		srcRect(imgX,imgY,imgW,imgH);
 	//void (*interpolationFunction)(SDL_Surface *,NONS_LongRect *,SDL_Surface *,NONS_LongRect *,ulong,ulong)=&nearestNeighborInterpolation;
 	double x_multiplier=1,y_multiplier=1;
 	if (imgW==screenW && imgH==screenH){
+		NONS_LongRect temp_d=NONS_LongRect(dstRect),
+			temp_s=NONS_LongRect(srcRect);
 		this->screen->screen->get_screen().over(
 			this->imageButtons->loadedGraphic,
-			&dstRect,
-			&srcRect
+			&temp_d,
+			&temp_s
 		);
 	}else{
 		x_multiplier=(double)screenW/(double)imgW;
 		y_multiplier=(double)screenH/(double)imgH;
 		this->screen->screen->get_screen().NN_interpolation(
 			this->imageButtons->loadedGraphic,
-			&dstRect,
-			&srcRect,
+			dstRect,
+			srcRect,
 			x_multiplier,
 			y_multiplier
 		);

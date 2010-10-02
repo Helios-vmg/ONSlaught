@@ -62,7 +62,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libbz2.lib"
+				AdditionalDependencies="libbz2.lib zlib.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="../../lib-win32"
 				GenerateDebugInformation="true"
@@ -138,7 +138,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libbz2.lib"
+				AdditionalDependencies="libbz2.lib zlib.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="../../lib-win32"
 				GenerateDebugInformation="true"
@@ -200,6 +200,14 @@
 			</File>
 			<File
 				RelativePath="..\..\Unicode.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\File.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\File.h"
 				>
 			</File>
 			<File

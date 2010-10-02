@@ -234,76 +234,6 @@ struct SVG_Functions{
 	bool valid;
 };
 
-class NONS_DiskCache{
-	typedef std::map<std::wstring,std::wstring,stdStringCmpCI<wchar_t> > map_t;
-	map_t cache_list;
-	ulong state;
-public:
-	NONS_DiskCache():state(0){}
-	~NONS_DiskCache();
-	void add(std::wstring filename,const NONS_ConstSurface &surface);
-	void remove(const std::wstring &filename);
-	NONS_Surface get(const std::wstring &filename);
-};
-
-NONS_DiskCache::~NONS_DiskCache(){
-	for (map_t::iterator i=this->cache_list.begin(),end=this->cache_list.end();i!=end;i++)
-		NONS_File::delete_file(i->second);
-}
-
-void NONS_DiskCache::add(std::wstring src,const NONS_ConstSurface &s){
-	toforwardslash(src);
-	map_t::iterator i=this->cache_list.find(src);
-	std::wstring dst;
-	if (i==this->cache_list.end()){
-		dst=L"__ONSlaught_cache_"+itoaw(this->state++)+L".raw";
-		this->cache_list[src]=dst;
-	}else
-		dst=i->second;
-	std::vector<uchar> buffer;
-	NONS_ConstSurfaceProperties sp;
-	s.get_properties(sp);
-	writeDWord(sp.w,buffer);
-	writeDWord(sp.h,buffer);
-	buffer.resize(buffer.size()+sp.pitch*sp.h,0);
-	memcpy(&buffer[8],sp.pixels,sp.pitch*sp.h);
-	NONS_File::write(dst,&buffer[0],buffer.size());
-}
-
-void NONS_DiskCache::remove(const std::wstring &filename){
-	map_t::iterator i=this->cache_list.find(filename);
-	if (i==this->cache_list.end())
-		return;
-	NONS_File::delete_file(i->second);
-	this->cache_list.erase(i);
-}
-
-NONS_Surface NONS_DiskCache::get(const std::wstring &filename){
-	map_t::iterator i=this->cache_list.find(filename);
-	if (i==this->cache_list.end())
-		return NONS_Surface::null;
-	size_t size;
-	uchar *buffer=NONS_File::read(i->second,size);
-	do{
-		if (!buffer)
-			break;
-		if (size<8)
-			break;
-		ulong offset=0,
-			width=readDWord(buffer,offset),
-			height=readDWord(buffer,offset);
-		if (size<8+width*height*4)
-			break;
-		NONS_Surface r(width,height);
-		NONS_SurfaceProperties sp;
-		r.get_properties(sp);
-		memcpy(sp.pixels,buffer+offset,sp.pitch*sp.h);
-		return r;
-	}while (0);
-	delete[] buffer;
-	return NONS_Surface::null;
-}
-
 class NONS_SurfaceManager{
 public:
 	class Surface{
@@ -319,8 +249,10 @@ public:
 		std::wstring primary,
 			mask;
 		NONS_AnimationInfo::TRANSPARENCY_METHODS transparency;
+		ulong svg_source;
+
 		friend class NONS_SurfaceManager;
-		Surface():transparency(NONS_AnimationInfo::COPY_TRANS){ this->set_id(); }
+		Surface():transparency(NONS_AnimationInfo::COPY_TRANS),svg_source(0){ this->set_id(); }
 		void set_id(){
 			NONS_MutexLocker ml(surface_mutex);
 			this->id=obj_count++;
@@ -361,8 +293,8 @@ public:
 		Surface *p;
 		surfaces_t::iterator i;
 		friend class NONS_SurfaceManager;
-		index_t():_good(0){}
 	public:
+		index_t():_good(0){}
 		index_t(const surfaces_t::iterator &i):_good(1),i(i),p(0){}
 		index_t(Surface *p):_good(!!p),p(p){}
 		const Surface &operator*() const{ return (this->p)?*this->p:**this->i; }
@@ -406,11 +338,25 @@ private:
 	NONS_FileLog *filelog;
 	bool fast_svg;
 	double base_scale[2];
-	NONS_DiskCache disk_cache;
+
+	class DiskCache{
+		typedef std::map<std::wstring,std::wstring,stdStringCmpCI<wchar_t> > map_t;
+		map_t cache_list;
+		ulong state;
+	public:
+		DiskCache():state(0){}
+		~DiskCache();
+		void add(std::wstring filename,const NONS_ConstSurface &surface);
+		void remove(const std::wstring &filename);
+		index_t get(const std::wstring &filename);
+	} disk_cache;
 	//1 if the image was added, 0 otherwise
 	bool addElementToCache(NONS_Surface *img);
 	index_t load_image(const std::wstring &filename);
 	NONS_LongRect get_update_rect(ulong,ulong,NONS_ConstSurfaceProperties);
+	bool have_svg(const index_t &i){
+		return i->svg_source && !this->fast_svg && this->svg_functions.SVG_have_linear_transformations();
+	}
 };
 
 ulong NONS_SurfaceManager::Surface::obj_count=0;
@@ -487,30 +433,53 @@ const int bshift=16;
 const int ashift=24;
 #endif
 
+NONS_SurfaceManager::index_t SDL_to_index_t(NONS_SurfaceManager *sm,SDL_Surface *s,bool free=1){
+	NONS_SurfaceManager::index_t r;
+	if (!s)
+		return r;
+	{
+		SDL_Surface *temp=SDL_CreateRGBSurface(SDL_SWSURFACE,s->w,s->h,32,rmask,gmask,bmask,amask);
+		SDL_SetAlpha(s,0,255);
+		SDL_BlitSurface(s,0,temp,0);
+		SDL_FreeSurface(s);
+		s=temp;
+	}
+	r=sm->allocate(s->w,s->h);
+	NONS_SurfaceProperties sp;
+	r->get_properties(sp);
+	SDL_LockSurface(s);
+	memcpy(sp.pixels,s->pixels,sp.byte_count);
+	SDL_UnlockSurface(s);
+	if (free)
+		SDL_FreeSurface(s);
+	return r;
+}
+
 NONS_SurfaceManager::index_t NONS_SurfaceManager::load_image(const std::wstring &filename){
 	NONS_DataStream *stream=general_archive.open(filename);
 	index_t r;
-	if (!stream)
-		return r;
-	SDL_RWops rw=stream->to_rwops();
-	SDL_Surface *surface=IMG_Load_RW(&rw,0);
+	do{
+		if (!stream)
+			break;
+		SDL_RWops rw=stream->to_rwops();
+		SDL_Surface *surface=IMG_Load_RW(&rw,0);
+		if (surface)
+			r=SDL_to_index_t(this,surface);
+		else if (this->svg_functions.valid){
+			if (!this->fast_svg || !(r=this->disk_cache.get(filename)).good()){
+				std::vector<uchar> buffer;
+				stream->reset();
+				stream->read_all(buffer);
+				ulong svg=this->svg_functions.SVG_load(&buffer[0],buffer.size());
+				if (svg){
+					this->svg_functions.SVG_set_scale(svg,this->base_scale[0],base_scale[1]);
+					r=SDL_to_index_t(this,this->svg_functions.SVG_render(svg));
+				}
+				r->svg_source=svg;
+			}
+		}
+	}while (0);
 	general_archive.close(stream);
-	if (!surface)
-		return r;
-	{
-		SDL_Surface *temp=SDL_CreateRGBSurface(SDL_SWSURFACE,surface->w,surface->h,32,rmask,gmask,bmask,amask);
-		SDL_SetAlpha(surface,0,255);
-		SDL_BlitSurface(surface,0,temp,0);
-		SDL_FreeSurface(surface);
-		surface=temp;
-	}
-	r=this->allocate(surface->w,surface->h);
-	NONS_SurfaceProperties sp;
-	r->get_properties(sp);
-	SDL_LockSurface(surface);
-	memcpy(sp.pixels,surface->pixels,sp.byte_count);
-	SDL_UnlockSurface(surface);
-	SDL_FreeSurface(surface);
 	return r;
 }
 
@@ -739,7 +708,12 @@ void NONS_SurfaceManager::get_optimized_updates(NONS_SurfaceManager::index_t &i,
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
-	return this->resize(src,ulong(floor(src->w*scale_x+.5)),ulong(floor(src->h*scale_y+.5)));
+	if (!this->have_svg(src))
+		return this->resize(src,ulong(floor(src->w*scale_x+.5)),ulong(floor(src->h*scale_y+.5)));
+	if (!this->svg_functions.SVG_set_scale(src->svg_source,scale_x*this->base_scale[0],scale_y*this->base_scale[1]))
+		return index_t();
+	this->svg_functions.SVG_set_rotation(src->svg_source,0);
+	return SDL_to_index_t(this,this->svg_functions.SVG_render(src->svg_source));
 }
 
 #define GET_FRACTION(x) ((((x)&(unit-1))<<16)/unit)
@@ -870,6 +844,8 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::resize(const index_t &_src,lon
 	if (!(w*h))
 		return index_t();
 	index_t src=_src;
+	if (this->have_svg(src))
+		return this->scale(src,double(w)/double(src->w),double(h)/double(src->h));
 	ulong w0=src->w,
 		h0=src->h,
 		minus;
@@ -1016,6 +992,7 @@ struct transform_params{
 	m1=((pixel[0][params.src_sp.offsets[i]]*ifraction_x+pixel[1][params.src_sp.offsets[i]]*fraction_x)>>16); \
 	m2=((pixel[2][params.src_sp.offsets[i]]*ifraction_x+pixel[3][params.src_sp.offsets[i]]*fraction_x)>>16); \
 	rgba[params.dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
+
 void transform_threaded(void *p){
 	transform_params params=*(transform_params *)p;
 	for (ulong subpicture=0;subpicture<params.src_sp.frames;subpicture++){
@@ -1108,6 +1085,16 @@ void transform_threaded(void *p){
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,const NONS_Matrix &m,bool fast){
+	if (this->have_svg(src)){
+		double matrix[4];
+		matrix[0]=m[0];
+		matrix[1]=m[1];
+		matrix[2]=m[2];
+		matrix[3]=m[3];
+		if (!this->svg_functions.SVG_set_matrix(src->svg_source,matrix))
+			return index_t();
+		return SDL_to_index_t(this,this->svg_functions.SVG_render(src->svg_source));
+	}
 	if (!m.determinant())
 		return index_t();
 	NONS_Matrix inverted_matrix=!m;
@@ -1651,7 +1638,7 @@ void NONS_Surface::over_frame_with_alpha(
 		const NONS_LongRect *dst_rect,
 		const NONS_LongRect *src_rect,
 		long alpha){
-	if (!*this || !src)
+	if (!*this || !src || !alpha)
 		return;
 	NONS_LongRect sr,
 		dr;
@@ -1806,7 +1793,7 @@ void NONS_Surface::multiply(
 struct interpolation_parameters{
 	const NONS_SurfaceProperties *dst,
 		*src;
-	NONS_LongRect dst_rect,
+	NONS_Rect dst_rect,
 		src_rect;
 	double x,y;
 };
@@ -1814,9 +1801,9 @@ struct interpolation_parameters{
 #define INTERPOLATION_SIGNATURE(x)  \
 	void x(                         \
 		NONS_SurfaceProperties dst, \
-		NONS_LongRect dst_rect,     \
+		NONS_Rect fdst_rect,        \
 		NONS_SurfaceProperties src, \
-		NONS_LongRect src_rect,     \
+		NONS_Rect fsrc_rect,        \
 		double x_multiplier,        \
 		double y_multiplier         \
 	)
@@ -1830,8 +1817,8 @@ struct interpolation_parameters{
 #define NONS_Surface_DEFINE_INTERPOLATION_F(a,b)                    \
 	void NONS_Surface::a(                                           \
 		const NONS_Surface &src,                                    \
-		const NONS_LongRect *dst_rect,                              \
-		const NONS_LongRect *src_rect,                              \
+		const NONS_Rect &dst_rect,                                  \
+		const NONS_Rect &src_rect,                                  \
 		double x,                                                   \
 		double y                                                    \
 	){                                                              \
@@ -1839,8 +1826,8 @@ struct interpolation_parameters{
 	}
 
 NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
-	NONS_LongRect sr=src.default_box(src_rect),
-		dr=this->default_box(dst_rect);
+	const NONS_Rect &sr=src_rect,
+		&dr=dst_rect;
 	if (this->data->cow)
 		*this=this->clone();
 	NONS_SurfaceProperties ssp,
@@ -1851,9 +1838,9 @@ NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
 	std::vector<interpolation_parameters> parameters(cpu_count);
-	ulong division[]={
-			ulong(float(sr.h)/float(cpu_count)),
-			ulong(float(dr.h)/float(cpu_count))
+	float division[]={
+			sr.h/float(cpu_count),
+			dr.h/float(cpu_count)
 		},total[]={0,0};
 	for (ulong a=0;a<cpu_count;a++){
 		interpolation_parameters &p=parameters[a];
@@ -1894,24 +1881,36 @@ NONS_Surface_DEFINE_INTERPOLATION_F(NN_interpolation,NN_interpolation_threaded)
 NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation,bilinear_interpolation_threaded)
 NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation2,bilinear_interpolation2_threaded)
 
+void set_rects(NONS_LongRect &lsrc_rect,NONS_LongRect &ldst_rect,const NONS_Rect &fsrc_rect,const NONS_Rect &fdst_rect){
+	lsrc_rect.x=long(fsrc_rect.x);
+	lsrc_rect.y=long(fsrc_rect.y);
+	ldst_rect.x=long(fdst_rect.x);
+	ldst_rect.y=long(fdst_rect.y);
+	lsrc_rect.w=long(fsrc_rect.x+fsrc_rect.w);
+	lsrc_rect.h=long(fsrc_rect.y+fsrc_rect.h);
+	ldst_rect.w=long(fdst_rect.x+fdst_rect.w);
+	ldst_rect.h=long(fdst_rect.y+fdst_rect.h);
+}
+
 INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 	const ulong unit=1<<16;
 	ulong advance_x=ulong(65536.0/x_multiplier),
 		advance_y=ulong(65536.0/y_multiplier);
-	src_rect.w+=src_rect.x;
-	src_rect.h+=src_rect.y;
-	dst_rect.w+=dst_rect.x;
-	dst_rect.h+=dst_rect.y;
-	long Y=dst_rect.y*advance_y;
-	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
-	for (long y=dst_rect.y;y<dst_rect.h;y++){
+	NONS_LongRect lsrc_rect,
+		ldst_rect;
+
+	set_rects(lsrc_rect,ldst_rect,fsrc_rect,fdst_rect);
+
+	long Y=long(fsrc_rect.y*65536.f);
+	uchar *dst_pix=dst.pixels+ldst_rect.y*dst.pitch+ldst_rect.x*4;
+	for (long y=ldst_rect.y;y<ldst_rect.h;y++){
 		long y0=Y>>16;
 		const uchar *src_pix=src.pixels+src.pitch*y0;
 		ulong fraction_y=GET_FRACTION(Y),
 			ifraction_y=unit-fraction_y;
-		long X=dst_rect.x*advance_x;
+		long X=long(fsrc_rect.x*65536.f);
 		uchar *dst_pix0=dst_pix;
-		for (long x=dst_rect.x;x<dst_rect.w;x++){
+		for (long x=ldst_rect.x;x<ldst_rect.w;x++){
 			long x0=X>>16;
 			ulong fraction_x=GET_FRACTION(X),
 				ifraction_x=unit-fraction_x;
@@ -1950,20 +1949,22 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 	ulong advance_x=ulong(65536.0/x_multiplier),
 		advance_y=ulong(65536.0/y_multiplier);
 	ulong area=((advance_x>>8)*advance_y)>>8;
-	src_rect.w+=src_rect.x;
-	src_rect.h+=src_rect.y;
-	dst_rect.w+=dst_rect.x;
-	dst_rect.h+=dst_rect.y;
-	ulong Y0=dst_rect.y*advance_y,
+
+	NONS_LongRect lsrc_rect,
+		ldst_rect;
+
+	set_rects(lsrc_rect,ldst_rect,fsrc_rect,fdst_rect);
+
+	ulong Y0=ulong(fsrc_rect.y*65536.f),
 		Y1=Y0+advance_y,
 		X0,X1;
-	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
-	for (long y=dst_rect.y;y<dst_rect.h;y++){
-		X0=dst_rect.x*advance_x;
+	uchar *dst_pix=dst.pixels+ldst_rect.y*dst.pitch+ldst_rect.x*4;
+	for (long y=ldst_rect.y;y<ldst_rect.h;y++){
+		X0=ulong(fsrc_rect.x*65536.f);
 		X1=X0+advance_x;
 		const uchar *src_pix=src.pixels+src.pitch*(Y0>>16);
 		uchar *dst_pix0=dst_pix;
-		for (long x=dst_rect.x;x<dst_rect.w;x++){
+		for (long x=ldst_rect.x;x<ldst_rect.w;x++){
 			const uchar *pixel=src_pix+(X0>>16)*4;
 			ulong color[4]={0};
 			for (ulong y2=Y0;y2<Y1;){
@@ -2016,23 +2017,25 @@ INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 	const ulong unit=1<<16;
 	ulong advance_x=ulong(65536.0/x_multiplier),
 		advance_y=ulong(65536.0/y_multiplier);
-	src_rect.w+=src_rect.x;
-	src_rect.h+=src_rect.y;
-	dst_rect.w+=dst_rect.x;
-	dst_rect.h+=dst_rect.y;
-	long Y=dst_rect.y*advance_y;
-	uchar *dst_pix=dst.pixels+dst_rect.y*dst.pitch+dst_rect.x*4;
-	for (long y=dst_rect.y;y<dst_rect.h;y++){
+
+	NONS_LongRect lsrc_rect,
+		ldst_rect;
+
+	set_rects(lsrc_rect,ldst_rect,fsrc_rect,fdst_rect);
+
+	long Y=long(fsrc_rect.y*65536.f);
+	uchar *dst_pix=dst.pixels+ldst_rect.y*dst.pitch+ldst_rect.x*4;
+	for (long y=ldst_rect.y;y<ldst_rect.h;y++){
 		const uchar *src_pix=src.pixels+src.pitch*(Y>>16);
-		long X=dst_rect.x*advance_x;
+		long X=long(fsrc_rect.x*65536.f);
 		uchar *dst_pix0=dst_pix;
-		for (long x=dst_rect.x;x<dst_rect.w;x++){
+		for (long x=ldst_rect.x;x<ldst_rect.w;x++){
 			*(Uint32 *)dst_pix=*(const Uint32 *)(src_pix+(X>>16)*4);
-			X+=unit;
+			X+=advance_x;
 			dst_pix+=4;
 		}
 		dst_pix=dst_pix0+dst.pitch;
-		Y+=unit;
+		Y+=advance_x;
 	}
 }
 
@@ -2191,4 +2194,67 @@ void NONS_CrippledSurface::unbind(){
 	delete this->inner;
 	this->data=0;
 	this->inner=0;
+}
+
+NONS_SurfaceManager::DiskCache::~DiskCache(){
+	for (map_t::iterator i=this->cache_list.begin(),end=this->cache_list.end();i!=end;i++)
+		NONS_File::delete_file(i->second);
+}
+
+void NONS_SurfaceManager::DiskCache::add(std::wstring src,const NONS_ConstSurface &s){
+	toforwardslash(src);
+	map_t::iterator i=this->cache_list.find(src);
+	std::wstring dst;
+	if (i==this->cache_list.end()){
+		dst=L"__ONSlaught_cache_"+itoaw(this->state++)+L".raw";
+		this->cache_list[src]=dst;
+	}else
+		dst=i->second;
+	std::vector<uchar> buffer;
+	NONS_ConstSurfaceProperties sp;
+	s.get_properties(sp);
+	writeDWord(sp.w,buffer);
+	writeDWord(sp.h,buffer);
+	buffer.resize(buffer.size()+sp.pitch*sp.h,0);
+	memcpy(&buffer[8],sp.pixels,sp.pitch*sp.h);
+	NONS_File::write(dst,&buffer[0],buffer.size());
+}
+
+void NONS_SurfaceManager::DiskCache::remove(const std::wstring &filename){
+	map_t::iterator i=this->cache_list.find(filename);
+	if (i==this->cache_list.end())
+		return;
+	NONS_File::delete_file(i->second);
+	this->cache_list.erase(i);
+}
+
+NONS_SurfaceManager::index_t NONS_SurfaceManager::DiskCache::get(const std::wstring &filename){
+	map_t::iterator i=this->cache_list.find(filename);
+	NONS_SurfaceManager::index_t r;
+
+	//NON-LOOPING WHILE FOLLOWS!
+	while (i==this->cache_list.end()){
+		std::vector<uchar> buffer;
+		{
+			NONS_File file(i->second,1);
+			if (!file)
+				break;
+			buffer.resize((size_t)file.filesize());
+			size_t read;
+			file.read(&buffer[0],read);
+		}
+		if (buffer.size()<8)
+			break;
+		ulong offset=0,
+			width=readDWord(&buffer[0],offset),
+			height=readDWord(&buffer[0],offset);
+		if (buffer.size()<8+width*height*4)
+			break;
+		r=sm.allocate(width,height);
+		NONS_SurfaceProperties sp;
+		r->get_properties(sp);
+		memcpy(sp.pixels,&buffer[offset],sp.pitch*sp.h);
+		break;
+	}
+	return r;
 }

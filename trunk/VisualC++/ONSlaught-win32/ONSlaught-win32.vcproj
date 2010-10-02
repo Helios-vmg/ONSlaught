@@ -42,9 +42,9 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../../include"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DEBUG_SCREEN_MUTEX"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DEBUG_SCREEN_MUTEX;BUILD_ONSLAUGHT"
 				MinimalRebuild="true"
-				ExceptionHandling="1"
+				ExceptionHandling="0"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				UsePrecompiledHeader="0"
@@ -63,12 +63,13 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libmikmod.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib native_midi.lib SDL.lib SDL_image.lib SDL_mixer.lib SDLmain.lib smpeg.lib timidity.lib zlib.lib winmm.lib"
+				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libmikmod.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib SDL_mixer.lib SDLmain.lib smpeg.lib timidity.lib zlib.lib"
 				OutputFile="$(OutDir)/ONSlaught_d.exe"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="../../lib-win32/MSVC"
+				AdditionalLibraryDirectories="../../lib-win32"
+				IgnoreDefaultLibraryNames="libcmt.lib"
 				GenerateDebugInformation="true"
-				SubSystem="2"
+				SubSystem="1"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -118,14 +119,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				Optimization="3"
+				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				FavorSizeOrSpeed="1"
+				FavorSizeOrSpeed="0"
 				AdditionalIncludeDirectories="../../include"
-				PreprocessorDefinitions="WIN32;NDEBUG;NONS_SVN"
-				ExceptionHandling="1"
+				PreprocessorDefinitions="WIN32;NDEBUG;NONS_SVN;BUILD_ONSLAUGHT"
+				StringPooling="true"
+				ExceptionHandling="0"
 				RuntimeLibrary="0"
-				EnableFunctionLevelLinking="true"
+				EnableFunctionLevelLinking="false"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="0"
@@ -143,10 +145,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libmikmod.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib native_midi.lib SDL.lib SDL_image.lib SDL_mixer.lib SDLmain.lib smpeg.lib timidity.lib zlib.lib winmm.lib"
-				OutputFile="$(OutDir)/ONSlaught-win32-VC++.exe"
+				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libmikmod.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib SDL_mixer.lib SDLmain.lib smpeg.lib timidity.lib zlib.lib"
+				OutputFile="$(OutDir)/ONSlaught.exe"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="../../lib-win32/MSVC"
+				AdditionalLibraryDirectories="../../lib-win32"
 				GenerateManifest="false"
 				GenerateDebugInformation="false"
 				SubSystem="2"
