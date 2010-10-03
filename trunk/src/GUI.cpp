@@ -1602,10 +1602,7 @@ ulong NONS_FT_Stream_IoFunc(FT_Stream s,ulong offset,uchar *buffer,ulong count){
 	return (ulong)a;
 }
 
-void NONS_FT_Stream_CloseFunc(FT_Stream s){
-	NONS_DataStream *stream=(NONS_DataStream *)(s->descriptor.pointer);
-	general_archive.close(stream);
-}
+void NONS_FT_Stream_CloseFunc(FT_Stream s){}
 
 NONS_Font::NONS_Font(const std::wstring &filename){
 	this->error=1;
