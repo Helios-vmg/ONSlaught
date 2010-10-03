@@ -1,10 +1,9 @@
-
-/* A Bison parser, made by GNU Bison 2.4.  */
+/* A Bison parser, made by GNU Bison 2.4.2.  */
 
 /* Skeleton interface for Bison's Yacc-like parsers in C
    
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+      Copyright (C) 1984, 1989-1990, 2000-2006, 2009-2010 Free Software
+   Foundation, Inc.
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -80,8 +79,8 @@ struct Block;
      WHILE = 264,
      IDENTIFIER = 265,
      STRING = 266,
-     CODE_BLOCK = 267,
-     INTEGER = 268,
+     INTEGER = 267,
+     CONCAT_ASSIGNMENT = 268,
      TRINARY = 269,
      BOR = 270,
      BAND = 271,

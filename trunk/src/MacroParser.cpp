@@ -169,6 +169,19 @@ void Symbol::set(const std::wstring &s){
 	}
 }
 
+void Symbol::append(const std::wstring &s){
+	switch (this->type){
+		case UNDEFINED:
+		case MACRO:
+			break;
+		case STRING:
+			this->str_val.append(s);
+			break;
+		case INTEGER:
+			this->int_val=atoi(s);
+	}
+}
+
 long Symbol::getInt(){
 	switch (this->type){
 		case MACRO:
@@ -613,41 +626,6 @@ bool partialCompare(const std::basic_string<T> &A,size_t offset,const std::basic
 	return 1;
 }
 
-std::wstring DataBlock::replace(const std::wstring &src,const SymbolTable &symbol_table){
-	if (!symbol_table.symbols.size())
-		return src;
-	const std::vector<Symbol *> &symbols=symbol_table.symbols;
-	std::wstring res;
-	for (ulong a=0;a<src.size();a++){
-		wchar_t c=src[a];
-		bool _continue=0;
-		for (ulong b=0;b<symbols.size() && !_continue;b++){
-			if (partialCompare(src,a,symbols[b]->Identifier)){
-				if (symbols[b]->type==Symbol::STRING){
-					res.append(symbols[b]->str_val);
-					a+=symbols[b]->Identifier.size()-1;
-					_continue=1;
-				}else if (symbols[b]->type==Symbol::INTEGER){
-					std::wstring temp=itoaw(symbols[b]->int_val);
-					res.append(temp);
-					a+=symbols[b]->Identifier.size()-1;
-					_continue=1;
-				}
-			}
-		}
-		if (_continue)
-			continue;
-		res.push_back(c);
-	}
-	return res;
-}
-
-std::wstring DataBlock::perform(SymbolTable symbol_table,ulong *error){
-	if (!!error)
-		*error=MACRO_NO_ERROR;
-	return DataBlock::replace(this->data,symbol_table);
-}
-
 std::wstring AssignmentStatement::perform(SymbolTable st,ulong *error){
 	ulong error2;
 	long val=this->src->evaluateToInt(&st,&error2);
@@ -664,6 +642,20 @@ std::wstring AssignmentStatement::perform(SymbolTable st,ulong *error){
 
 bool AssignmentStatement::checkSymbols(const SymbolTable &st){
 	return this->dst.checkSymbols(st,1) && this->src->checkSymbols(st);
+}
+
+std::wstring InplaceConcatStatement::perform(SymbolTable st,ulong *error){
+	ulong error2;
+	std::wstring val=this->src->evaluateToStr(&st,&error2);
+	if (error2!=MACRO_NO_ERROR){
+		if (!!error)
+			*error=error2;
+		return L"";
+	}
+	st.get(this->dst.id)->append(val);
+	if (!!error)
+		*error=MACRO_NO_ERROR;
+	return L"";
 }
 
 StringAssignmentStatement::~StringAssignmentStatement(){
@@ -686,6 +678,20 @@ std::wstring StringAssignmentStatement::perform(SymbolTable st,ulong *error){
 
 bool StringAssignmentStatement::checkSymbols(const SymbolTable &st){
 	return this->dst.checkSymbols(st,1) & this->src->checkSymbols(st);
+}
+
+std::wstring InplaceStringConcatStatement::perform(SymbolTable st,ulong *error){
+	ulong error2;
+	std::wstring val=this->src->evaluateToStr(&st,&error2);
+	if (error2!=MACRO_NO_ERROR){
+		if (!!error)
+			*error=error2;
+		return L"";
+	}
+	st.get(this->dst.id)->append(val);
+	if (!!error)
+		*error=MACRO_NO_ERROR;
+	return L"";
 }
 
 IfStructure::IfStructure(Expression *a,Block *b,Block *c){
@@ -968,6 +974,10 @@ bool Macro::checkSymbols(const SymbolTable &st){
 	return r & this->statements->checkSymbols(st2);
 }
 
+MacroFile::MacroFile(){
+	this->symbol_table.declare(L"output",std::wstring(),ULONG_MAX,0);
+}
+
 std::wstring MacroFile::call(const std::wstring &name,const std::vector<std::wstring> &parameters,ulong *error){
 	Symbol *s=this->symbol_table.get(name);
 	if (!s || s->type!=Symbol::MACRO){
@@ -975,7 +985,8 @@ std::wstring MacroFile::call(const std::wstring &name,const std::vector<std::wst
 			*error=MACRO_NO_SUCH_MACRO;
 		return L"";
 	}
-	return s->macro->perform(parameters,this->symbol_table,error);
+	s->macro->perform(parameters,this->symbol_table,error);
+	return this->symbol_table.get(L"output")->getStr();
 }
 
 bool MacroFile::checkSymbols(){
