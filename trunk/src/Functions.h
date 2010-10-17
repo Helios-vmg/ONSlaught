@@ -495,7 +495,7 @@ template <typename T1,typename T2>
 int lexcmp(const T1 *a,const T2 *b){
 	for (;*a || *b;a++,b++){
 		unsigned c=*a,
-		d=*b;
+			d=*b;
 		if (c<d)
 			return -1;
 		if (c>d)
@@ -508,7 +508,7 @@ template <typename T1,typename T2>
 int lexcmp_CI(const T1 *a,const T2 *b){
 	for (;*a || *b;a++,b++){
 		unsigned c=NONS_toupper(*a),
-		d=NONS_toupper(*b);
+			d=NONS_toupper(*b);
 		if (c<d)
 			return -1;
 		if (c>d)
@@ -521,7 +521,7 @@ template <typename T1,typename T2>
 int lexcmp_CI_bounded(const T1 *a,size_t sizeA,const T2 *b,size_t sizeB){
 	for (size_t c=0;c<sizeA && c<sizeB;a++,b++,c++){
 		unsigned d=NONS_toupper(*a),
-		e=NONS_toupper(*b);
+			e=NONS_toupper(*b);
 		if (d<e)
 			return -1;
 		if (d>e)
