@@ -288,7 +288,8 @@ void SymbolTable::addFrame(const SymbolTable &st){
 		if (st.symbols[b]->type==Symbol::MACRO)
 			continue;
 		this->symbols.push_back(new Symbol(*st.symbols[b]));
-		this->symbols.back()->initialize(st);
+		//this->symbols.back()->initialize(st);
+		this->symbols.back()->initialize(*this);
 	}
 }
 
@@ -879,7 +880,13 @@ std::wstring MacroCall::perform(SymbolTable st,ulong *error){
 			}
 		}
 	}
-	return st.get(this->id.id)->macro->perform(parameters,&st,error);
+	SymbolTable st2;
+	st2.symbols.push_back(st.get(L"output"));
+	for (size_t a=0;a<st.symbols.size();a++){
+		if (st.symbols[a]->type==Symbol::MACRO)
+			st2.symbols.push_back(st.symbols[a]);
+	}
+	return st.get(this->id.id)->macro->perform(parameters,&st2,error);
 }
 
 bool MacroCall::checkSymbols(const SymbolTable &st){
@@ -1009,6 +1016,7 @@ bool preprocess(std::wstring &dst,const std::wstring &script){
 			stream <<UniFromUTF8(temp);
 		}
 		NONS_Macro::MacroFile *MacroFile;
+		//macroParser_yydebug=1;
 		bool pointerIsValid=!macroParser_yyparse(stream,MacroFile);
 		if (pointerIsValid && MacroFile->checkSymbols() && preprocess(dst,script,*MacroFile,1)){
 			if (CLOptions.outputPreprocessedFile){

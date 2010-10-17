@@ -2499,6 +2499,9 @@ macroParser_yylex_begin:
 					case 'r':
 						temp.push_back('\n');
 						break;
+					case 't':
+                        temp.push_back('\t');
+						break;
 					case 'x':
 						{
 							std::wstring temp2;
