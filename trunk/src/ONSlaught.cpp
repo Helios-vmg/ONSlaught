@@ -44,8 +44,6 @@
 #include <windows.h>
 #endif
 
-void mainThread(void *);
-
 void useArgumentsFile(const char *filename,std::vector<std::wstring> &argv){
 	std::ifstream file(filename);
 	if (!file)
@@ -67,7 +65,7 @@ void handle_SIGTERM(int){
 }
 
 void handle_SIGINT(int){
-	exit(0);
+	std::cout <<"Forcefully terminating.\n";
 }
 
 volatile bool stopEventHandling=0;
@@ -186,8 +184,8 @@ void handleInputEvent(SDL_Event &event){
 			x=event.motion.x;
 			y=event.motion.y;
 			if (gScriptInterpreter->screen){
-				x=gScriptInterpreter->screen->screen->unconvertX(x);
-				y=gScriptInterpreter->screen->screen->unconvertY(y);
+				x=(long)gScriptInterpreter->screen->screen->unconvertX(x);
+				y=(long)gScriptInterpreter->screen->screen->unconvertY(y);
 				event.motion.x=(Uint16)x;
 				event.motion.y=(Uint16)y;
 			}
@@ -198,8 +196,8 @@ void handleInputEvent(SDL_Event &event){
 			x=event.button.x;
 			y=event.button.y;
 			if (gScriptInterpreter->screen){
-				x=gScriptInterpreter->screen->screen->unconvertX(x);
-				y=gScriptInterpreter->screen->screen->unconvertY(y);
+				x=(long)gScriptInterpreter->screen->screen->unconvertX(x);
+				y=(long)gScriptInterpreter->screen->screen->unconvertY(y);
 				event.button.x=(Uint16)x;
 				event.button.y=(Uint16)y;
 			}
@@ -248,6 +246,8 @@ void initialize(int argc,char **argv){
 	srand((unsigned int)time(0));
 	signal(SIGTERM,handle_SIGTERM);
 	signal(SIGINT,handle_SIGINT);
+	signal(SIGSEGV,handle_SIGINT);
+	signal(SIGABRT,handle_SIGINT);
 	initialize_conversion_tables();
 	//initialize lookup table/s
 	memset(integer_division_lookup,0,256);
@@ -300,6 +300,8 @@ void print_version_string(){
 		"Copyright (c) "ONSLAUGHT_COPYRIGHT_YEAR_STR", Helios (helios.vmg@gmail.com)\n"
 		"All rights reserved.\n\n\n";
 }
+
+void mainThread(void *);
 
 int main(int argc,char **argv){
 	print_version_string();

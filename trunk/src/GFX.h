@@ -42,8 +42,15 @@ enum{
 	POSTPROCESSING=1
 };
 
-typedef void(*transitionFX_f)(ulong,ulong,SDL_Surface *,SDL_Surface *,NONS_VirtualScreen *);
-#define TRANSIC_EFFECT_F(name) void name(ulong effectNo,ulong duration,SDL_Surface *src,SDL_Surface *rule,NONS_VirtualScreen *dst)
+#define TRANSIC_EFFECT_F(name)         \
+	void name(                         \
+		ulong effectNo,                \
+		ulong duration,                \
+		const NONS_ConstSurface &src,  \
+		const NONS_ConstSurface &rule, \
+		NONS_VirtualScreen &dst        \
+	)
+typedef TRANSIC_EFFECT_F((*transitionFX_f));
 
 struct NONS_GFX{
 	ulong effect;
@@ -51,7 +58,7 @@ struct NONS_GFX{
 	std::wstring rule;
 	long type;
 	bool stored;
-	SDL_Color color;
+	NONS_Color color;
 	static ulong effectblank;
 	static bool listsInitialized;
 	static std::vector<filterFX_f> filters;
@@ -60,28 +67,41 @@ struct NONS_GFX{
 	NONS_GFX(ulong effect=0,ulong duration=0,const std::wstring *rule=0);
 	NONS_GFX(const NONS_GFX &b);
 	NONS_GFX &operator=(const NONS_GFX &b);
-	static ErrorCode callEffect(ulong number,long duration,const std::wstring *rule,SDL_Surface *src,SDL_Surface *dst0,NONS_VirtualScreen *dst);
-	static ErrorCode callFilter(ulong number,const SDL_Color &color,const std::wstring &rule,SDL_Surface *src,SDL_Surface *dst);
-	ErrorCode call(SDL_Surface *src,SDL_Surface *dst0,NONS_VirtualScreen *dst);
-	void effectNothing(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectOnlyUpdate(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectRshutter(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectLshutter(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectDshutter(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectUshutter(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectRcurtain(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectLcurtain(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectDcurtain(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectUcurtain(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectCrossfade(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectRscroll(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectLscroll(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectDscroll(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectUscroll(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectHardMask(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectMosaicIn(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectMosaicOut(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
-	void effectSoftMask(SDL_Surface *src0,SDL_Surface *src1,NONS_VirtualScreen *dst);
+	static ErrorCode callEffect(
+		ulong number,
+		long duration,
+		const std::wstring *rule,
+		const NONS_ConstSurface &src,
+		const NONS_Surface &dst0,
+		NONS_VirtualScreen &dst
+	);
+	static ErrorCode callFilter(
+		ulong number,
+		const NONS_Color &color,
+		const std::wstring &rule,
+		const NONS_ConstSurface &src,
+		const NONS_Surface &dst
+	);
+	ErrorCode call(const NONS_ConstSurface &src,const NONS_Surface &dst0,NONS_VirtualScreen *dst);
+	void effectNothing(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectOnlyUpdate(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectRshutter(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectLshutter(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectDshutter(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectUshutter(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectRcurtain(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectLcurtain(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectDcurtain(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectUcurtain(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectCrossfade(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectRscroll(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectLscroll(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectDscroll(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectUscroll(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectMosaicIn(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectMosaicOut(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
 
 	static void initializeLists();
 };
@@ -94,4 +114,25 @@ struct NONS_GFXstore{
 	NONS_GFXstore();
 	~NONS_GFXstore();
 };
+
+NONS_DECLSPEC bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_VirtualScreen &d);
+NONS_DECLSPEC void effect_epilogue();
+#define EFFECT_INITIALIZE_DELAYS(base)                                      \
+	NONS_Clock clock;                                                       \
+	NONS_Clock::t delay=NONS_Clock::t(double(this->duration)/double(base)), \
+		idealtimepos=0,                                                     \
+		lastT=NONS_Clock::MAX,                                              \
+		start=clock.get()
+#define EFFECT_ITERATION_PROLOGUE(condition,action)                         \
+	idealtimepos+=delay;                                                    \
+	NONS_Clock::t t0=clock.get();                                           \
+	if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && (condition)){ \
+		{action}                                                            \
+		continue;                                                           \
+	}
+#define EFFECT_ITERATION_EPILOGUE      \
+	NONS_Clock::t t1=clock.get();      \
+	lastT=t1-t0;                       \
+	if (lastT<delay)                   \
+		SDL_Delay(Uint32(delay-lastT))
 #endif

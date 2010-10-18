@@ -422,17 +422,15 @@ void NONS_SaveFile::load(std::wstring filename){
 			this->windowFrame.y=readSignedWord(buffer,offset);
 			this->windowFrame.w=readSignedWord(buffer,offset);
 			this->windowFrame.h=readSignedWord(buffer,offset);
-			this->windowColor.r=readByte(buffer,offset);
-			this->windowColor.g=readByte(buffer,offset);
-			this->windowColor.b=readByte(buffer,offset);
+			for (int a=0;a<3;a++)
+				this->windowColor.rgba[a]=readByte(buffer,offset);
 			this->windowTransition=readDWord(buffer,offset);
 			this->windowTransitionDuration=readDWord(buffer,offset);
 			this->windowTransitionRule=UniFromUTF8(readString(buffer,offset));
 			this->hideWindow=!!readByte(buffer,offset);
 			this->fontSize=readWord(buffer,offset);
-			this->windowTextColor.r=readByte(buffer,offset);
-			this->windowTextColor.g=readByte(buffer,offset);
-			this->windowTextColor.b=readByte(buffer,offset);
+			for (int a=0;a<3;a++)
+				this->windowTextColor.rgba[a]=readByte(buffer,offset);
 			{
 				uchar style=readByte(buffer,offset);
 				this->italic=(style&1)==1;
@@ -467,15 +465,11 @@ void NONS_SaveFile::load(std::wstring filename){
 
 			offset=subheader[1];
 			this->background=UniFromUTF8(readString(buffer,offset));
-			if (this->background.size()){
-				this->bgColor.r=readByte(buffer,offset);
-				this->bgColor.g=readByte(buffer,offset);
-				this->bgColor.b=readByte(buffer,offset);
-			}else{
-				this->bgColor.r=0;
-				this->bgColor.g=0;
-				this->bgColor.b=0;
-			}
+			if (this->background.size())
+				for (int a=0;a<3;a++)
+					this->bgColor.rgba[a]=readByte(buffer,offset);
+			else
+				this->bgColor=0;
 			if (this->version>1){
 				this->char_baseline=readDWord(buffer,offset);
 				for (int a=0;a<3;a++){
@@ -530,17 +524,14 @@ void NONS_SaveFile::load(std::wstring filename){
 			this->pipelines[1].clear();
 			if (this->version<4){
 				bool monochrome=!!readByte(buffer,offset);
-				SDL_Color monochromeColor={
-					readByte(buffer,offset),
-					readByte(buffer,offset),
-					readByte(buffer,offset),
-					0
-				};
+				NONS_Color monochromeColor;
+				for (int a=0;a<3;a++)
+					monochromeColor.rgba[a]=readByte(buffer,offset);
 				bool negative=!!readByte(buffer,offset);
 				if (monochrome)
 					this->pipelines->push_back(pipelineElement(0,monochromeColor,L"",0));
 				if (negative)
-					this->pipelines->push_back(pipelineElement(1,SDL_Color(),L"",0));
+					this->pipelines->push_back(pipelineElement(1,NONS_Color::black,L"",0));
 			}else{
 				this->nega_parameter=!!readByte(buffer,offset);
 
@@ -548,9 +539,8 @@ void NONS_SaveFile::load(std::wstring filename){
 				for (ulong a=0;a<this->pipelines->size();a++){
 					pipelineElement &el=this->pipelines[0][a];
 					el.effectNo=readDWord(buffer,offset);
-					el.color.r=readByte(buffer,offset);
-					el.color.g=readByte(buffer,offset);
-					el.color.b=readByte(buffer,offset);
+					for (int a=0;a<3;a++)
+						el.color.rgba[a]=readByte(buffer,offset);
 					el.ruleStr=UniFromUTF8(readString(buffer,offset));
 				}
 
@@ -561,9 +551,8 @@ void NONS_SaveFile::load(std::wstring filename){
 				for (ulong a=0;a<this->pipelines[1].size();a++){
 					pipelineElement &el=this->pipelines[1][a];
 					el.effectNo=readDWord(buffer,offset);
-					el.color.r=readByte(buffer,offset);
-					el.color.g=readByte(buffer,offset);
-					el.color.b=readByte(buffer,offset);
+					for (int a=0;a<3;a++)
+						el.color.rgba[a]=readByte(buffer,offset);
 					el.ruleStr=UniFromUTF8(readString(buffer,offset));
 				}
 			}
@@ -732,25 +721,23 @@ bool NONS_SaveFile::save(std::wstring filename){
 		}
 		//window
 		writeDWord(buffer.size(),buffer,*screenHeader);
-		writeWord(this->textWindow.x,buffer);
-		writeWord(this->textWindow.y,buffer);
-		writeWord(this->textWindow.w,buffer);
-		writeWord(this->textWindow.h,buffer);
-		writeWord(this->windowFrame.x,buffer);
-		writeWord(this->windowFrame.y,buffer);
-		writeWord(this->windowFrame.w,buffer);
-		writeWord(this->windowFrame.h,buffer);
-		writeByte(this->windowColor.r,buffer);
-		writeByte(this->windowColor.g,buffer);
-		writeByte(this->windowColor.b,buffer);
+		writeWord((Uint16)this->textWindow.x,buffer);
+		writeWord((Uint16)this->textWindow.y,buffer);
+		writeWord((Uint16)this->textWindow.w,buffer);
+		writeWord((Uint16)this->textWindow.h,buffer);
+		writeWord((Uint16)this->windowFrame.x,buffer);
+		writeWord((Uint16)this->windowFrame.y,buffer);
+		writeWord((Uint16)this->windowFrame.w,buffer);
+		writeWord((Uint16)this->windowFrame.h,buffer);
+		for (int a=0;a<3;a++)
+			writeByte(this->windowColor.rgba[a],buffer);
 		writeDWord(this->windowTransition,buffer);
 		writeDWord(this->windowTransitionDuration,buffer);
 		writeString(this->windowTransitionRule,buffer);
 		writeByte(this->hideWindow,buffer);
 		writeWord(this->fontSize,buffer);
-		writeByte(this->windowTextColor.r,buffer);
-		writeByte(this->windowTextColor.g,buffer);
-		writeByte(this->windowTextColor.b,buffer);
+		for (int a=0;a<3;a++)
+			writeByte(this->windowTextColor.rgba[a],buffer);
 		writeByte((uchar(this->bold)<<1)|uchar(this->italic),buffer);
 		writeDWord(this->textSpeed,buffer);
 		writeByte(this->fontShadow,buffer);
@@ -776,11 +763,9 @@ bool NONS_SaveFile::save(std::wstring filename){
 		//graphics
 		writeDWord(buffer.size(),buffer,screenHeader[1]);
 		writeString(this->background,buffer);
-		if (this->background.size()){
-			writeByte(this->bgColor.r,buffer);
-			writeByte(this->bgColor.g,buffer);
-			writeByte(this->bgColor.b,buffer);
-		}
+		if (this->background.size())
+			for (int a=0;a<3;a++)
+				writeByte(this->bgColor.rgba[a],buffer);
 		writeDWord(this->char_baseline,buffer);
 		for (int a=0;a<3;a++){
 			writeString(this->characters[a].string,buffer);
@@ -850,9 +835,8 @@ bool NONS_SaveFile::save(std::wstring filename){
 		for (ulong a=0;a<this->pipelines->size();a++){
 			pipelineElement &el=this->pipelines[0][a];
 			writeDWord(el.effectNo,buffer);
-			writeByte(el.color.r,buffer);
-			writeByte(el.color.g,buffer);
-			writeByte(el.color.b,buffer);
+			for (int a=0;a<3;a++)
+				writeByte(el.color.rgba[a],buffer);
 			writeString(el.ruleStr,buffer);
 		}
 
@@ -863,9 +847,8 @@ bool NONS_SaveFile::save(std::wstring filename){
 		for (ulong a=0;a<this->pipelines[1].size();a++){
 			pipelineElement &el=this->pipelines[1][a];
 			writeDWord(el.effectNo,buffer);
-			writeByte(el.color.r,buffer);
-			writeByte(el.color.g,buffer);
-			writeByte(el.color.b,buffer);
+			for (int a=0;a<3;a++)
+				writeByte(el.color.rgba[a],buffer);
 			writeString(el.ruleStr,buffer);
 		}
 	}

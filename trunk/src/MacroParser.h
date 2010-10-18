@@ -67,6 +67,7 @@ struct Symbol{
 	void reset();
 	void set(long);
 	void set(const std::wstring &);
+	void append(const std::wstring &);
 	long getInt();
 	std::wstring getStr();
 	void initializeTo(Expression *);
@@ -84,7 +85,7 @@ struct Identifier{
 
 struct SymbolTable{
 	std::vector<Symbol *> symbols;
-	SymbolTable(){};
+	SymbolTable(){}
 	SymbolTable(const SymbolTable &a):symbols(a.symbols){}
 	bool declare(const std::wstring &,Macro *,ulong,bool check=1);
 	bool declare(const std::wstring &,const std::wstring &,ulong,bool check=1);
@@ -225,15 +226,6 @@ struct EmptyStatement:Statement{
 	bool checkSymbols(const SymbolTable &){return 1;}
 };
 
-struct DataBlock:Statement{
-	std::wstring data;
-	DataBlock(const std::wstring &a):data(a){}
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &){return 1;}
-private:
-	static std::wstring replace(const std::wstring &src,const SymbolTable &symbol_table);
-};
-
 struct AssignmentStatement:Statement{
 	Identifier dst;
 	Expression *src;
@@ -243,13 +235,23 @@ struct AssignmentStatement:Statement{
 	bool checkSymbols(const SymbolTable &);
 };
 
+struct InplaceConcatStatement:public AssignmentStatement{
+	InplaceConcatStatement(const Identifier &id,Expression *e):AssignmentStatement(id,e){}
+	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
+};
+
 struct StringAssignmentStatement:Statement{
 	Identifier dst;
 	String *src;
 	StringAssignmentStatement(const Identifier &id,String *e):dst(id),src(e){}
 	~StringAssignmentStatement();
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
+	virtual std::wstring perform(SymbolTable symbol_table,ulong *error=0);
 	bool checkSymbols(const SymbolTable &);
+};
+
+struct InplaceStringConcatStatement:public StringAssignmentStatement{
+	InplaceStringConcatStatement(const Identifier &id,String *e):StringAssignmentStatement(id,e){}
+	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
 };
 
 struct IfStructure:Statement{
@@ -318,6 +320,7 @@ struct Macro{
 
 struct MacroFile{
 	SymbolTable symbol_table;
+	MacroFile();
 	std::wstring call(const std::wstring &name,const std::vector<std::wstring> &parameters,ulong *error=0);
 	bool checkSymbols();
 };

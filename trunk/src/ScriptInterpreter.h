@@ -47,9 +47,6 @@
 #include <ctime>
 //#include <SDL/smpeg.h>
 
-extern SDL_Surface *(*rotationFunction)(SDL_Surface *,double);
-extern SDL_Surface *(*resizeFunction)(SDL_Surface *,int,int);
-
 #define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
 #define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
 #define GET_COORDINATE(dst,axis,src) {\
@@ -208,8 +205,8 @@ class NONS_ScriptInterpreter{
 	NONS_Cursor *arrowCursor;
 	NONS_Cursor *pageCursor;
 	bool hideTextDuringEffect;
-	SDL_Color selectOn;
-	SDL_Color selectOff;
+	NONS_Color selectOn,
+		selectOff;
 	std::wstring selectVoiceEntry;
 	std::wstring selectVoiceMouseOver;
 	std::wstring selectVoiceClick;
@@ -217,11 +214,11 @@ class NONS_ScriptInterpreter{
 	std::wstring trapLabel;
 	std::wstring clickStr;
 	ulong autoclick;
-	ulong timer;
+	NONS_Clock::t timer;
 	NONS_Menu *menu;
 	NONS_ButtonLayer *imageButtons;
 	bool new_if;
-	ulong btnTimer;
+	NONS_Clock::t btnTimer;
 	ulong imageButtonExpiration;
 	NONS_SaveFile *saveGame;
 	std::wstring currentBuffer;
@@ -230,7 +227,7 @@ class NONS_ScriptInterpreter{
 	std::wstring loadgosub;
 	bool useWheel,
 		useEscapeSpace;
-	SDL_Surface *screenshot;
+	NONS_Surface screenshot;
 	std::queue<NONS_ScriptLine *> commandQueue;
 	ulong base_size[2],
 		virtual_size[2];

@@ -114,10 +114,11 @@ struct Block;
 }
 %token APOSTROPHE DEFINE IF ELSE ERROR FOR WHILE
 %token <id> IDENTIFIER
-%token <str> STRING CODE_BLOCK
+%token <str> STRING
 %token <expression> INTEGER
 %type <argument> argument
 %type <expression> expr
+%type <str> string_literal
 %type <string> string
 %type <argumentVector> argument_list
 %type <stmt> stmt
@@ -126,6 +127,7 @@ struct Block;
 %type <symbol> initialization macro_definition
 %type <symbol_table> initialization_list parameter_list
 %type <stmt_list> stmt_list
+%nonassoc CONCAT_ASSIGNMENT
 %right TRINARY
 %left BOR
 %left BAND
@@ -138,11 +140,8 @@ struct Block;
 %nonassoc '(' ')'
 %left '&'
 %destructor {
-	delete (std::wstring *)$$;
-} IDENTIFIER STRING CODE_BLOCK
-%destructor {
 	delete $$;
-} expr string argument stmt block macro_definition file initialization initialization_list parameter_list 
+} IDENTIFIER STRING string_literal expr string argument stmt block macro_definition file initialization initialization_list parameter_list 
 %destructor {
 	for (ulong a=0;a<$$->size();a++)
 		delete (*$$)[a];
@@ -241,17 +240,25 @@ stmt:
 	';' {
 		$$=new NONS_Macro::EmptyStatement;
 	}|
-	CODE_BLOCK ';' {
-		$$=new NONS_Macro::DataBlock(*$1);
-		delete $1;
-	}|
 	IDENTIFIER '=' expr ';' {
 		$3->simplify();
 		$$=new NONS_Macro::AssignmentStatement(*$1,$3);
+		delete $1;
 	}|
 	IDENTIFIER '=' string ';' {
 		$3->simplify();
 		$$=new NONS_Macro::StringAssignmentStatement(*$1,$3);
+		delete $1;
+	}|
+	IDENTIFIER CONCAT_ASSIGNMENT expr ';' {
+		$3->simplify();
+		$$=new NONS_Macro::InplaceConcatStatement(*$1,$3);
+		delete $1;
+	}|
+	IDENTIFIER CONCAT_ASSIGNMENT string ';' {
+		$3->simplify();
+		$$=new NONS_Macro::InplaceStringConcatStatement(*$1,$3);
+		delete $1;
 	}|
 	IF '(' expr ')' block {
 		$3->simplify();
@@ -301,8 +308,18 @@ argument:
 		$$=$1;
 	};
 
-string:
+string_literal:
 	STRING {
+		$$=$1;
+	}|
+	string_literal STRING {
+		$$=$1;
+		$$->append(*$2);
+		delete $2;
+	};
+
+string:
+	string_literal {
 		$$=new NONS_Macro::ConstantString(*$1);
 		delete $1;
 	}|
@@ -428,6 +445,9 @@ macroParser_yylex_begin:
 					case 'r':
 						temp.push_back('\n');
 						break;
+					case 't':
+                        temp.push_back('\t');
+						break;
 					case 'x':
 						{
 							std::wstring temp2;
@@ -460,20 +480,6 @@ macroParser_yylex_begin:
 		temp.push_back(stream.get());
 		while (NONS_isidnchar(stream.peek()))
 			temp.push_back(stream.get());
-		if (temp==L"block" && stream.peek()=='{'){
-			stream.get();
-			std::wstring data,
-				String=L"}block";
-			while (!stream.eof()){
-				c=stream.get();
-				data.push_back(c);
-				if (data.size()>=6 && partialCompare(data,data.size()-6,String))
-					break;
-			}
-			data.resize(data.size()-6);
-			yylval->str=new std::wstring(data);
-			return CODE_BLOCK;
-		}
 		if (temp==L"define")
 			return DEFINE;
 		if (temp==L"if")
@@ -532,10 +538,15 @@ macroParser_yylex_begin:
 		case '%':
 			return MOD;
 		case '&':
-			if (stream.peek()!='&')
-				return c;
-			stream.get();
-			return BAND;
+			if (stream.peek()=='='){
+				stream.get();
+				return CONCAT_ASSIGNMENT;
+			}
+			if (stream.peek()=='&'){
+				stream.get();
+				return BAND;
+			}
+			return c;
 		case '|':
 			if (stream.peek()!='|')
 				return ERROR;

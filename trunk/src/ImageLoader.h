@@ -1,3 +1,4 @@
+#if 0
 /*
 * Copyright (c) 2008-2010, Helios (helios.vmg@gmail.com)
 * All rights reserved.
@@ -159,9 +160,9 @@ struct NONS_ImageLoader{
 	~NONS_ImageLoader();
 	void init();
 	ulong getCacheSize();
-	bool fetchSprite(SDL_Surface *&dst,const std::wstring &string,optim_t *rects=0);
-	bool unfetchImage(SDL_Surface *which);
-	NONS_Image *elementFromSurface(SDL_Surface *srf);
+	NONS_Surface fetchSprite(const std::wstring &string,optim_t *rects=0);
+	bool unfetchImage(const NONS_Surface &which);
+	NONS_Image *elementFromSurface(const NONS_Surface &s);
 	void printCurrent();
 private:
 	//1 if the image was added, 0 otherwise
@@ -170,4 +171,5 @@ private:
 };
 
 extern NONS_ImageLoader ImageLoader;
+#endif
 #endif

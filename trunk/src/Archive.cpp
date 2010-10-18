@@ -1280,9 +1280,11 @@ NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path){
 }
 
 bool NONS_GeneralArchive::close(NONS_DataStream *stream){
-	for (size_t a=0;a<this->archives.size();a++)
-		if (this->archives[a]->close(stream))
-			return 1;
+	if (stream){
+		for (size_t a=0;a<this->archives.size();a++)
+			if (this->archives[a]->close(stream))
+				return 1;
+	}
 	return 0;
 }
 

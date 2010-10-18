@@ -43,7 +43,7 @@ typedef unsigned char uchar;
 #define NONS_SYS_BSD (defined __bsdi__)
 #endif
 #ifndef NONS_SYS_UNIX
-#define NONS_SYS_UNIX (defined __unix__ || defined __unix)
+#define NONS_SYS_UNIX (defined __unix__ || defined __unix || (__APPLE__ && __MACH__))
 #endif
 #ifndef NONS_SYS_PSP
 #define NONS_SYS_PSP (defined PSP)
@@ -89,14 +89,6 @@ typedef ushort DWORD;
 #error "longs on this implementation are too small."
 #endif
 
-extern const int rmask;
-extern const int gmask;
-extern const int bmask;
-extern const int amask;
-extern const int rshift;
-extern const int gshift;
-extern const int bshift;
-extern const int ashift;
 extern int lastClickX;
 extern int lastClickY;
 extern NONS_DECLSPEC ulong cpu_count;

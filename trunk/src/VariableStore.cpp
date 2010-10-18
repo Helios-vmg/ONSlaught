@@ -223,7 +223,7 @@ namespace NONS_Expression{
 	NONS_Expression_DECLARE_OPERATOR(fchk){
 		CHECK_OPERANDS(1);
 		EXPECT_STRING(0);
-		long a=ImageLoader.filelog->check(OPERAND(0)->string);
+		long a=NONS_Surface::filelog_check(OPERAND(0)->string);
 		deleteTop(operands);
 		return new Value(a);
 	}

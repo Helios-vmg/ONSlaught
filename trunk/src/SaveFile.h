@@ -60,7 +60,7 @@ struct NONS_SaveFile{
 	long shadowPosX,
 		shadowPosY;
 	bool rmode;
-	SDL_Color windowTextColor;
+	NONS_Color windowTextColor;
 	struct Cursor{
 		std::wstring string;
 		bool absolute;
@@ -70,19 +70,19 @@ struct NONS_SaveFile{
 	ulong windowTransition;
 	ulong windowTransitionDuration;
 	std::wstring windowTransitionRule;
-	SDL_Rect windowFrame;
+	NONS_LongRect windowFrame;
 	ulong windowFrameColumns,
 		windowFrameRows;
 	ulong windowFontWidth,
 		windowFontHeight;
 	ulong spacing;
 	short lineSkip;
-	SDL_Color windowColor;
+	NONS_Color windowColor;
 	bool transparentWindow;
 	bool hideWindow;
 	bool hideWindow2;
 	ulong textSpeed;
-	SDL_Rect textWindow;
+	NONS_LongRect textWindow;
 	ulong char_baseline;
 	std::wstring unknownString_000;
 	std::wstring background;
@@ -150,7 +150,7 @@ struct NONS_SaveFile{
 	std::wstring currentBuffer;
 	ushort textX,
 		textY;
-	SDL_Color bgColor;
+	NONS_Color bgColor;
 	ulong spritePriority;
 	uchar musicVolume;
 	struct Channel{

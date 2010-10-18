@@ -36,36 +36,36 @@
 #include "GUI.h"
 #include "VirtualScreen.h"
 #include "GFX.h"
-#include "ImageLoader.h"
+#include "Image.h"
 #include <map>
 #include <vector>
 
 struct NONS_Layer{
 	//The actual bitmap and other stuff.
-	SDL_Surface *data;
+	NONS_Surface data;
 	//If null, it's an image layer. Otherwise it's a text layer.
 	NONS_FontCache *fontCache;
 	//Um... I think this is passed to SDL_FillRect() whenever told to do a Clear().
-	unsigned defaultShade;
+	NONS_Color defaultShade;
 	//Determines whether this layer will be included in the blend.
 	bool visible;
 	bool useDataAsDefaultShade;
-	NONS_Rect clip_rect,
+	NONS_LongRect clip_rect,
 		position;
 	uchar alpha;
 	optim_t optimized_updates;
 	NONS_AnimationInfo animation;
-	NONS_Layer(SDL_Rect *size,unsigned rgba);
-	NONS_Layer(SDL_Surface *img,unsigned rgba);
+	NONS_Layer(const NONS_LongRect &size,const NONS_Color &rgba);
+	NONS_Layer(const NONS_Surface &img,const NONS_Color &rgba);
 	NONS_Layer(const std::wstring *string);
 	~NONS_Layer();
-	void MakeTextLayer(NONS_FontCache &fc,const SDL_Color &foreground);
+	void MakeTextLayer(NONS_FontCache &fc,const NONS_Color &foreground);
 	bool load(const std::wstring *string);
-	bool load(SDL_Surface *src);
+	bool load(const NONS_Surface &src);
 	//if the parameter is true and the image isn't shared, the call has no effect
-	bool unload(bool youCantTouchThis=0);
-	void usePicAsDefaultShade(SDL_Surface *pic);
-	void setShade(uchar r,uchar g,uchar b);
+	void unload();
+	void usePicAsDefaultShade(const NONS_Surface &s);
+	void setShade(const NONS_Color &color);
 	void Clear();
 	//1 if the layer should be re-blended.
 	bool advanceAnimation(ulong msec);
@@ -107,7 +107,7 @@ struct NONS_StandardOutput{
 	long maxLogPages;
 
 	NONS_StandardOutput(NONS_Layer *fgLayer,NONS_Layer *shadowLayer,NONS_Layer *shadeLayer);
-	NONS_StandardOutput(NONS_FontCache &fc,SDL_Rect *size,SDL_Rect *frame,bool shadow=1);
+	NONS_StandardOutput(NONS_FontCache &fc,const NONS_LongRect &size,const NONS_LongRect &frame,bool shadow=1);
 	void Clear(bool eraseBuffer=1);
 	~NONS_StandardOutput();
 	void setPosition(int x,int y);
@@ -116,7 +116,7 @@ struct NONS_StandardOutput{
 	bool prepareForPrinting(std::wstring str);
 	bool print(ulong start,ulong end,NONS_VirtualScreen *dst,ulong *printedChars=0);
 	void endPrinting();
-	void ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,SDL_Color *col);
+	void ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,const NONS_Color *col);
 	float getCenterPolicy(char which);
 	void setCenterPolicy(char which,float val);
 	void setCenterPolicy(char which,long val);
@@ -129,8 +129,8 @@ struct NONS_StandardOutput{
 private:
 	int predictLineLength(std::wstring *arr,long start,int width);
 	int predictTextHeight(std::wstring *arr);
-	int setLineStart(std::wstring *arr,ulong start,SDL_Rect *frame,float center);
-	int setTextStart(std::wstring *arr,SDL_Rect *frame,float center);
+	int setLineStart(std::wstring *arr,ulong start,NONS_LongRect *frame,float center);
+	int setTextStart(std::wstring *arr,NONS_LongRect *frame,float center);
 	ulong getIndentationSize();
 	float horizontalCenterPolicy;
 	float verticalCenterPolicy;
@@ -148,7 +148,7 @@ struct NONS_GraphicBar{
 	ulong current_value,
 		total_value;
 	NONS_Rect rect;
-	SDL_Color color;
+	NONS_Color color;
 };
 
 struct NONS_ScreenSpace{
@@ -160,7 +160,7 @@ struct NONS_ScreenSpace{
 		**characters[3],
 		*cursor;
 	NONS_VirtualScreen *screen;
-	SDL_Surface *screenBuffer;
+	NONS_Surface screenBuffer;
 	NONS_StandardOutput *output;
 	NONS_GFXstore *gfx_store;
 	bool apply_monochrome_first;
@@ -173,12 +173,12 @@ struct NONS_ScreenSpace{
 	std::map<long,NONS_GraphicBar> bars;
 
 	NONS_ScreenSpace(int framesize,NONS_FontCache &fc);
-	NONS_ScreenSpace(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow);
+	NONS_ScreenSpace(const NONS_LongRect &window,const NONS_LongRect &frame,NONS_FontCache &fc,bool shadow);
 	~NONS_ScreenSpace();
 
 	ErrorCode BlendAll(ulong effect);
 	ErrorCode BlendAll(ulong effect,long timing,const std::wstring *rule);
-	void BlendOptimized(std::vector<SDL_Rect> &rects);
+	void BlendOptimized(std::vector<NONS_LongRect> &rects);
 	ErrorCode BlendNoCursor(ulong effect);
 	ErrorCode BlendNoCursor(ulong effect,long timing,const std::wstring *rule);
 	ErrorCode BlendNoText(ulong effect);
@@ -191,12 +191,12 @@ struct NONS_ScreenSpace{
 	void showText();
 	void hideTextWindow();
 	void showTextWindow();
-	void resetParameters(SDL_Rect *window,SDL_Rect *frame,NONS_FontCache &fc,bool shadow);
+	void resetParameters(const NONS_LongRect &window,const NONS_LongRect &frame,NONS_FontCache &fc,bool shadow);
 	void clear();
 	ErrorCode loadSprite(ulong n,const std::wstring &string,long x,long y,uchar alpha,bool visibility);
-	bool advanceAnimations(ulong msecs,std::vector<SDL_Rect> &rects);
+	bool advanceAnimations(ulong msecs,std::vector<NONS_LongRect> &rects);
 
-	void addBar(long barNo,ulong current_value,long x,long y,ulong w,ulong h,ulong total_value,SDL_Color &color);
+	void addBar(long barNo,ulong current_value,long x,long y,ulong w,ulong h,ulong total_value,const NONS_Color &color);
 	void clearBars();
 };
 #endif

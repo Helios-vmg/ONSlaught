@@ -84,27 +84,36 @@ class NONS_Glyph{
 	//style properties:
 	ulong size,
 		outline_size;
-	SDL_Color color,
+	NONS_Color color,
 		outline_color;
 	bool italic,
 		bold;
 	//~style properties
 	uchar *base_bitmap,
 		*outline_base_bitmap;
-	SDL_Rect bounding_box,
+	NONS_LongRect bounding_box,
 		outline_bounding_box;
 	ulong advance;
 public:
 	ulong refCount;
-	NONS_Glyph(NONS_FontCache &fc,wchar_t codepoint,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color);
+	NONS_Glyph(
+		NONS_FontCache &fc,
+		wchar_t codepoint,
+		ulong size,
+		const NONS_Color &color,
+		bool italic,
+		bool bold,
+		ulong outline_size,
+		const NONS_Color &outline_color
+	);
 	~NONS_Glyph();
 	bool operator<(const NONS_Glyph &b) const{ return this->codepoint<b.codepoint; }
-	void setColor(const SDL_Color &color){ this->color=color; }
-	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
+	void setColor(const NONS_Color &color){ this->color=color; }
+	void setOutlineColor(const NONS_Color &color){ this->outline_color=color; }
 	ulong get_advance_fixed() const{ return this->advance; }
-	const SDL_Rect &get_bounding_box() const{ return this->bounding_box; }
-	SDL_Rect get_put_bounding_box(Sint16 x,Sint16 y) const{
-		SDL_Rect ret=(!this->outline_base_bitmap)?this->bounding_box:this->outline_bounding_box;
+	const NONS_LongRect &get_bounding_box() const{ return this->bounding_box; }
+	NONS_LongRect get_put_bounding_box(long x,long y) const{
+		NONS_LongRect ret=(!this->outline_base_bitmap)?this->bounding_box:this->outline_bounding_box;
 		ret.x+=x;
 		ret.y+=y;
 		return ret;
@@ -112,7 +121,7 @@ public:
 	wchar_t get_codepoint() const{ return this->codepoint; }
 	bool needs_redraw(ulong size,bool italic,bool bold,ulong outline_size) const;
 	long get_advance();
-	void put(SDL_Surface *dst,int x,int y,uchar alpha=255);
+	void put(const NONS_Surface &dst,int x,int y,uchar alpha=255);
 	const NONS_FontCache &get_cache() const{ return this->fc; }
 	NONS_FontCache &get_cache(){ return this->fc; }
 	void done();
@@ -130,7 +139,7 @@ class NONS_FontCache{
 	NONS_Font &font;
 	ulong size,
 		outline_size;
-	SDL_Color color,
+	NONS_Color color,
 		outline_color;
 	bool italic,
 		bold;
@@ -143,13 +152,13 @@ public:
 #ifdef _DEBUG
 	std::string declared_in;
 	ulong line;
-	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color,const char *file,ulong line);
+	NONS_FontCache(NONS_Font &font,ulong size,const NONS_Color &color,bool italic,bool bold,ulong outline_size,const NONS_Color &outline_color,const char *file,ulong line);
 	NONS_FontCache(const NONS_FontCache &fc,const char *file,ulong line);
 private:
 	NONS_FontCache(const NONS_FontCache &fc);
 public:
 #else
-	NONS_FontCache(NONS_Font &font,ulong size,const SDL_Color &color,bool italic,bool bold,ulong outline_size,const SDL_Color &outline_color);
+	NONS_FontCache(NONS_Font &font,ulong size,const NONS_Color &color,bool italic,bool bold,ulong outline_size,const NONS_Color &outline_color);
 	NONS_FontCache(const NONS_FontCache &fc);
 #endif
 	~NONS_FontCache();
@@ -162,14 +171,14 @@ public:
 	}
 	void set_italic(bool i){ this->italic=i; }
 	void set_bold(bool b){ this->bold=b; }
-	void setColor(const SDL_Color &color){ this->color=color; }
-	void setOutlineColor(const SDL_Color &color){ this->outline_color=color; }
+	void setColor(const NONS_Color &color){ this->color=color; }
+	void setOutlineColor(const NONS_Color &color){ this->outline_color=color; }
 	NONS_Glyph *getGlyph(wchar_t c);
 	void done(NONS_Glyph *g);
 	const NONS_Font &get_font() const{ return this->font; }
 	NONS_Font &get_font(){ return this->font; }
 	ulong get_size() const{ return this->size; }
-	const SDL_Color &get_color() const{ return this->color; }
+	const NONS_Color &get_color() const{ return this->color; }
 	bool get_italic() const{ return this->italic; }
 	bool get_bold() const{ return this->bold; }
 };
@@ -199,15 +208,31 @@ protected:
 public:
 	NONS_Button():status(0){}
 	virtual ~NONS_Button(){}
-	virtual void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0)=0;
-	virtual void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0)=0;
+	virtual void merge(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0)=0;
+	virtual void mergeWithoutUpdate(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0)=0;
 	bool MouseOver(SDL_Event *event);
 	virtual bool MouseOver(int x,int y)=0;
-	virtual NONS_Rect get_dimensions()=0;
+	virtual NONS_LongRect get_dimensions()=0;
 protected:
-	void merge(NONS_VirtualScreen *dst,NONS_Rect &rect,int posx,int posy,SDL_Surface *original,bool status,bool force=0);
-	void mergeWithoutUpdate(NONS_VirtualScreen *dst,NONS_Rect &rect,int posx,int posy,SDL_Surface *original,bool status,bool force=0);
-	virtual void mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect)=0;
+	void merge(
+		NONS_VirtualScreen *dst,
+		const NONS_LongRect &rect,
+		int posx,
+		int posy,
+		const NONS_ConstSurface &original,
+		bool status,
+		bool force=0
+	);
+	void mergeWithoutUpdate(
+		NONS_VirtualScreen *dst,
+		const NONS_LongRect &rect,
+		int posx,
+		int posy,
+		const NONS_ConstSurface &original,
+		bool status,
+		bool force=0
+	);
+	virtual void mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect)=0;
 };
 
 #define MOUSE_OVER(x,y,posx,posy,w,h) ((x)>=(posx) && (x)<=(posx)+(w) && (y)>=(posy) && (y)<=(posy)+(h))
@@ -216,17 +241,17 @@ class NONS_SurfaceButton:public NONS_Button{
 protected:
 	NONS_Layer *offLayer,
 		*onLayer;
-	NONS_Rect box;
+	NONS_LongRect box;
 	int posx,posy,
 		limitX,limitY;
 public:
 	NONS_SurfaceButton():NONS_Button(),offLayer(0),onLayer(0),posx(0),posy(0){}
 	~NONS_SurfaceButton();
-	void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
-	void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
+	void merge(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0);
+	void mergeWithoutUpdate(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0);
 	bool MouseOver(int x,int y){
-		float posx=this->posx+this->box.x,
-			posy=this->posy+this->box.y;
+		float posx=float(this->posx+this->box.x),
+			posy=float(this->posy+this->box.y);
 		return MOUSE_OVER(x,y,posx,posy,this->box.w,this->box.h);
 	}
 	virtual void dummy()=0;
@@ -234,20 +259,20 @@ public:
 	const NONS_Layer *getOnLayer() const{ return this->onLayer; }
 	NONS_Layer *&setOffLayer(){ return this->offLayer; }
 	NONS_Layer *&setOnLayer(){ return this->onLayer; }
-	const NONS_Rect &getBox() const{ return this->box; }
+	const NONS_LongRect &getBox() const{ return this->box; }
 	int getPosx(){ return this->posx; }
 	int getPosy(){ return this->posy; }
 	int &setPosx(){ return this->posx; }
 	int &setPosy(){ return this->posy; }
-	NONS_Rect get_dimensions();
+	NONS_LongRect get_dimensions();
 protected:
-	void mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect);
+	void mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect);
 };
 
 class NONS_GraphicButton:public NONS_SurfaceButton{
 public:
-	NONS_GraphicButton(SDL_Surface *src,int posx,int posy,int width,int height,int originX,int originY);
-	void allocateLayer(NONS_Layer *&layer,SDL_Surface *src,int posx,int posy,int width,int height,int originX,int originY);
+	NONS_GraphicButton(const NONS_ConstSurface &src,int posx,int posy,int width,int height,int originX,int originY);
+	void allocateLayer(NONS_Layer *&layer,const NONS_ConstSurface &src,int posx,int posy,int width,int height,int originX,int originY);
 	void dummy(){}
 };
 
@@ -256,15 +281,24 @@ protected:
 	NONS_Layer *shadowLayer;
 	NONS_FontCache font_cache;
 public:
-	NONS_TextButton(const std::wstring &text,const NONS_FontCache &fc,float center,const SDL_Color &on,const SDL_Color &off,bool shadow,int limitX,int limitY);
+	NONS_TextButton(
+		const std::wstring &text,
+		const NONS_FontCache &fc,
+		float center,
+		const NONS_Color &on,
+		const NONS_Color &off,
+		bool shadow,
+		int limitX,
+		int limitY
+	);
 	~NONS_TextButton();
 	const NONS_Layer *getShadowLayer() const{ return this->shadowLayer; }
 	NONS_Layer *&setShadowLayer(){ return this->shadowLayer; }
 	void dummy(){}
 private:
-	SDL_Rect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY);
+	NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY);
 	void write(const std::wstring &str,int offsetX,int offsetY,float center=0);
-	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,SDL_Rect *frame,float center,int offsetX);
+	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,NONS_LongRect *frame,float center,int offsetX);
 	int predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width,int offsetX);
 };
 
@@ -274,12 +308,12 @@ protected:
 	NONS_ScreenSpace *screen;
 public:
 	NONS_SpriteButton(ulong sprite,NONS_ScreenSpace *screen):sprite(sprite),screen(screen){}
-	void merge(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
-	void mergeWithoutUpdate(NONS_VirtualScreen *dst,SDL_Surface *original,bool status,bool force=0);
+	void merge(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0);
+	void mergeWithoutUpdate(NONS_VirtualScreen *dst,const NONS_ConstSurface &original,bool status,bool force=0);
 	bool MouseOver(int x,int y);
-	NONS_Rect get_dimensions();
+	NONS_LongRect get_dimensions();
 protected:
-	void mergeWithoutUpdate_inner(NONS_VirtualScreen *dst,SDL_Rect *dstRect,SDL_Rect *srcRect);
+	void mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect);
 };
 
 struct NONS_ButtonLayer{
@@ -290,10 +324,10 @@ struct NONS_ButtonLayer{
 	std::wstring voiceMouseOver;
 	std::wstring voiceClick;
 	NONS_Audio *audio;
-	SDL_Rect boundingBox;
+	NONS_LongRect boundingBox;
 	bool exitable;
 	NONS_Menu *menu;
-	SDL_Surface *loadedGraphic;
+	NONS_Surface loadedGraphic;
 	struct{
 		bool Wheel,
 			btnArea,
@@ -307,12 +341,12 @@ struct NONS_ButtonLayer{
 			ZXC;
 	} inputOptions;
 	bool return_on_down;
-	NONS_ButtonLayer(SDL_Surface *img,NONS_ScreenSpace *screen);
+	NONS_ButtonLayer(const NONS_Surface &img,NONS_ScreenSpace *screen);
 	NONS_ButtonLayer(const NONS_FontCache &fc,NONS_ScreenSpace *screen,bool exitable,NONS_Menu *menu);
 	~NONS_ButtonLayer();
 	void makeTextButtons(const std::vector<std::wstring> &arr,
-		const SDL_Color &on,
-		const SDL_Color &off,
+		const NONS_Color &on,
+		const NONS_Color &off,
 		bool shadow,
 		std::wstring *entry,
 		std::wstring *mouseover,
@@ -341,17 +375,17 @@ struct NONS_ButtonLayer{
 	int getUserInput(ulong expiration=0);
 	ulong countActualButtons();
 private:
-	bool react_to_movement(int &mouseOver,SDL_Event *event,SDL_Surface *screenCopy);
-	void react_to_updown(int &mouseOver,SDLKey key,SDL_Surface *screenCopy);
-	bool react_to_click(int &mouseOver,SDL_Surface *screenCopy);
+	bool react_to_movement(int &mouseOver,SDL_Event *event,const NONS_ConstSurface &screenCopy);
+	void react_to_updown(int &mouseOver,SDLKey key,const NONS_ConstSurface &screenCopy);
+	bool react_to_click(int &mouseOver,const NONS_ConstSurface &screenCopy);
 };
 
 struct NONS_Menu{
 	std::vector<std::wstring> strings;
 	std::vector<std::wstring> commands;
-	SDL_Color off;
-	SDL_Color on;
-	SDL_Color nofile;
+	NONS_Color off,
+		on,
+		nofile;
 	bool shadow;
 	NONS_ButtonLayer *buttons;
 	ushort slots;
@@ -361,7 +395,7 @@ struct NONS_Menu{
 	NONS_FontCache *font_cache,
 		*default_font_cache;
 	long fontsize,spacing,lineskip;
-	SDL_Color shadeColor;
+	NONS_Color shadeColor;
 	std::wstring stringSave;
 	std::wstring stringLoad;
 	std::wstring stringSlot;
@@ -392,7 +426,7 @@ private:
 };
 
 struct NONS_Lookback{
-	SDL_Color foreground;
+	NONS_Color foreground;
 	NONS_StandardOutput *output;
 	NONS_Button *up,
 		*down;
@@ -400,17 +434,25 @@ struct NONS_Lookback{
 	//surfaces>=2: down button
 	//surfaces%2!=0: on state
 	//surfaces%2==0: off state
-	SDL_Surface *surfaces[4];
+	NONS_Surface surfaces[4];
 	//bool use_sprites;
 	//ulong up,down;
-	NONS_Lookback(NONS_StandardOutput *output,uchar r,uchar g,uchar b);
+	NONS_Lookback(NONS_StandardOutput *output,const NONS_Color &color);
 	~NONS_Lookback();
 	bool setUpButtons(const std::wstring &upon,const std::wstring &upoff,const std::wstring &downon,const std::wstring &downoff);
 	bool setUpButtons(ulong up,ulong down,NONS_ScreenSpace *screen);
 	int display(NONS_VirtualScreen *dst);
 	void reset(NONS_StandardOutput *output);
 private:
-	bool changePage(int dir,long &currentPage,SDL_Surface *copyDst,NONS_VirtualScreen *dst,SDL_Surface *preBlit,uchar &visibility,int &mouseOver);
+	bool changePage(
+		int dir,
+		long &currentPage,
+		const NONS_ConstSurface &copyDst,
+		NONS_VirtualScreen *dst,
+		const NONS_ConstSurface &preBlit,
+		uchar &visibility,
+		int &mouseOver
+	);
 	void resetButtons();
 	void setUpButtons();
 };
