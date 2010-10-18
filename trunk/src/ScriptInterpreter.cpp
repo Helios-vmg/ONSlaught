@@ -46,7 +46,6 @@ NONS_DLLexport volatile bool forceSkip=0;
 NONS_ScriptInterpreter *gScriptInterpreter=0;
 
 #undef ABS
-#include "SDL_bilinear.h"
 
 NONS_DefineFlag ALLOW_IN_DEFINE;
 NONS_RunFlag ALLOW_IN_RUN;

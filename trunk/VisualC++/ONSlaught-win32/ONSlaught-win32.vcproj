@@ -200,12 +200,11 @@
 <File RelativePath="..\..\src\INIParser.tab.cpp"></File>
 <File RelativePath="..\..\src\INIfile.cpp"></File>
 <File RelativePath="..\..\src\IOFunctions.cpp"></File>
-<File RelativePath="..\..\src\ImageLoader.cpp"></File>
+<File RelativePath="..\..\src\Image.cpp"></File>
 <File RelativePath="..\..\src\LZMA.c"></File>
 <File RelativePath="..\..\src\MacroParser.cpp"></File>
 <File RelativePath="..\..\src\MacroParser.tab.cpp"></File>
 <File RelativePath="..\..\src\ONSlaught.cpp"></File>
-<File RelativePath="..\..\src\SDL_bilinear.c"></File>
 <File RelativePath="..\..\src\SJIS.table.cpp"></File>
 <File RelativePath="..\..\src\SaveFile.cpp"></File>
 <File RelativePath="..\..\src\ScreenSpace.cpp"></File>
@@ -229,11 +228,10 @@
 <File RelativePath="..\..\src\INIParser.tab.hpp"></File>
 <File RelativePath="..\..\src\INIfile.h"></File>
 <File RelativePath="..\..\src\IOFunctions.h"></File>
-<File RelativePath="..\..\src\ImageLoader.h"></File>
+<File RelativePath="..\..\src\Image.h"></File>
 <File RelativePath="..\..\src\LZMA.h"></File>
 <File RelativePath="..\..\src\MacroParser.h"></File>
 <File RelativePath="..\..\src\MacroParser.tab.hpp"></File>
-<File RelativePath="..\..\src\SDL_bilinear.h"></File>
 <File RelativePath="..\..\src\SaveFile.h"></File>
 <File RelativePath="..\..\src\ScreenSpace.h"></File>
 <File RelativePath="..\..\src\Script.h"></File>

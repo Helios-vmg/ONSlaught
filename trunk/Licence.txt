@@ -56,22 +56,12 @@ src/sha1.h
 
 --------------------------------------------------------------------------------
 
-                         Lesser General Public Licence
-
-maimairel:
-src/SDL_bilinear.c
-src/SDL_bilinear.h
-
---------------------------------------------------------------------------------
-
                              General Public Licence
                             (with special exception)
 
 Bison:
 src/INIParser.tab.cpp
 src/INIParser.tab.hpp
-src/commandPreParser.tab.cpp
-src/commandPreParser.tab.hpp
 src/MacroParser.tab.cpp
 src/MacroParser.tab.hpp
 src/ExpressionParser.tab.cpp

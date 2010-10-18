@@ -36,7 +36,6 @@
 #include "ScreenSpace.h"
 #include "Script.h"
 #include "INIfile.h"
-#include "ImageLoader.h"
 #include "SaveFile.h"
 #include "IOFunctions.h"
 #include "enums.h"

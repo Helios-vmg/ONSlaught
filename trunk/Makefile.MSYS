@@ -5,7 +5,7 @@ NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 -lSDL_mixer -ltimidity -lS
 PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static-libgcc -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
 RC = windres
 RCFLAGS = -J rc -O coff
-INPUTS = objs/SJIS.table.o objs/ScriptInterpreter.o objs/GUI.o objs/MacroParser.tab.o objs/ExpressionParser.tab.o objs/INIParser.tab.o objs/Archive.o objs/Functions.o objs/VirtualScreen.o objs/GFX.o objs/ScreenSpace.o objs/MacroParser.o objs/LZMA.o objs/VariableStore.o objs/Script.o objs/SaveFile.o objs/ImageLoader.o objs/IOFunctions.o objs/Audio.o objs/CommandLineOptions.o objs/SDL_bilinear.o objs/sha1.o objs/ONSlaught.o objs/ThreadManager.o objs/ErrorCodes.o objs/ConfigFile.o objs/FileLog.o objs/INIfile.o objs/LibraryLoader.o 
+INPUTS = objs/SJIS.table.o objs/ScriptInterpreter.o objs/MacroParser.tab.o objs/GUI.o objs/Image.o objs/ExpressionParser.tab.o objs/INIParser.tab.o objs/Archive.o objs/ScreenSpace.o objs/MacroParser.o objs/LZMA.o objs/VariableStore.o objs/Script.o objs/SaveFile.o objs/GFX.o objs/IOFunctions.o objs/VirtualScreen.o objs/Functions.o objs/Audio.o objs/CommandLineOptions.o objs/sha1.o objs/ONSlaught.o objs/ThreadManager.o objs/ErrorCodes.o objs/ConfigFile.o objs/FileLog.o objs/INIfile.o objs/LibraryLoader.o 
 
 all: objs bin-win32/ONSlaught.exe bin-win32/plugin.dll
 
@@ -29,21 +29,17 @@ objs/SJIS.table.o: src/SJIS.table.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ScriptInterpreter.o: src/ScriptInterpreter.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/MacroParser.tab.o: src/MacroParser.tab.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/GUI.o: src/GUI.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/MacroParser.tab.o: src/MacroParser.tab.cpp
+objs/Image.o: src/Image.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ExpressionParser.tab.o: src/ExpressionParser.tab.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/INIParser.tab.o: src/INIParser.tab.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/Archive.o: src/Archive.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/Functions.o: src/Functions.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/VirtualScreen.o: src/VirtualScreen.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/GFX.o: src/GFX.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ScreenSpace.o: src/ScreenSpace.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
@@ -57,15 +53,17 @@ objs/Script.o: src/Script.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/SaveFile.o: src/SaveFile.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ImageLoader.o: src/ImageLoader.cpp
+objs/GFX.o: src/GFX.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/IOFunctions.o: src/IOFunctions.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/VirtualScreen.o: src/VirtualScreen.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/Functions.o: src/Functions.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/Audio.o: src/Audio.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/CommandLineOptions.o: src/CommandLineOptions.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/SDL_bilinear.o: src/SDL_bilinear.c
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/sha1.o: src/sha1.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
