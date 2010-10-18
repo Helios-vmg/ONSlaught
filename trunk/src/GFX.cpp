@@ -35,7 +35,6 @@
 #include "ImageLoader.h"
 #include "Plugin/LibraryLoader.h"
 #include <cmath>
-#include <cfloat>
 #include <iostream>
 
 #if defined _DEBUG
@@ -169,7 +168,7 @@ void NONS_GFX::effectOnlyUpdate(const NONS_ConstSurface &src,const NONS_ConstSur
 	dst.updateWholeScreen();
 }
 
-bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_VirtualScreen &d){
+NONS_DECLSPEC bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_VirtualScreen &d){
 	NONS_Surface screen=d.get_screen();
 	NONS_LongRect a=s.clip_rect(),
 		b=screen.clip_rect();
@@ -185,26 +184,7 @@ bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_Vi
 	return 1;
 }
 
-#define EFFECT_INITIALIZE_DELAYS(base)                           \
-	NONS_Clock clock;                                            \
-	NONS_Clock::t delay=long(float(this->duration)/float(base)), \
-		idealtimepos=0,                                          \
-		lastT=DBL_MAX,                                           \
-		start=clock.get()
-#define EFFECT_ITERATION_PROLOGUE(condition,action)                         \
-	idealtimepos+=delay;                                                    \
-	NONS_Clock::t t0=clock.get();                                           \
-	if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && (condition)){ \
-		{action}                                                            \
-		continue;                                                           \
-	}
-#define EFFECT_ITERATION_EPILOGUE      \
-	NONS_Clock::t t1=clock.get();      \
-	lastT=t1-t0;                       \
-	if (lastT<delay)                   \
-		SDL_Delay(Uint32(delay-lastT))
-
-void effect_epilogue(){
+NONS_DECLSPEC void effect_epilogue(){
 	if (!CURRENTLYSKIPPING && NONS_GFX::effectblank)
 		waitNonCancellable(NONS_GFX::effectblank);
 }

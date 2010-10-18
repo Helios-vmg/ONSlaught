@@ -243,7 +243,7 @@ public:
 class NONS_Surface;
 typedef std::map<std::pair<ulong,ulong>,NONS_LongRect> optim_t;
 
-class NONS_ConstSurface{
+class NONS_DECLSPEC NONS_ConstSurface{
 protected:
 	NONS_Surface_Private *data;
 	friend class NONS_CrippledSurface;
@@ -286,7 +286,7 @@ public:
 	void get_optimized_updates(optim_t &dst) const;
 };
 
-class NONS_Surface:public NONS_ConstSurface{
+class NONS_DECLSPEC NONS_Surface:public NONS_ConstSurface{
 	typedef void(*interpolation_f)(void*);
 	NONS_Surface(int){}
 public:

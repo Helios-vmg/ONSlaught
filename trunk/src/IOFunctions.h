@@ -247,12 +247,13 @@ public:
 	~NONS_TemporaryFile();
 };
 
-class NONS_Clock{
+class NONS_DECLSPEC NONS_Clock{
 #if NONS_SYS_WINDOWS
 	void *data;
 #endif
 public:
 	typedef double t;
+	static t MAX;
 #if NONS_SYS_WINDOWS
 	NONS_Clock();
 	~NONS_Clock();

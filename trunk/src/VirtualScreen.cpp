@@ -29,6 +29,7 @@
 
 #include "VirtualScreen.h"
 #include "Functions.h"
+#include "IOFunctions.h"
 #include "ThreadManager.h"
 #include "CommandLineOptions.h"
 #include "Plugin/LibraryLoader.h"
@@ -53,44 +54,29 @@ void pipelineElement::operator=(const pipelineElement &o){
 }
 
 void _asyncEffectThread(void *param){
-	//TODO:
-#if 0
 	NONS_VirtualScreen *vs=(NONS_VirtualScreen *)param;
 	ulong effectNo=vs->aeffect_no;
 	ulong freq=vs->aeffect_freq;
-	surfaceData srcData,
-		dstData;
-	{
-		NONS_MutexLocker ml(screenMutex);
-		srcData=vs->screens[PRE_ASYNC];
-		dstData=vs->screens[REAL];
-	}
 	ulong ms=1000/freq;
 	void *userData=0;
 	if (vs->initializers[effectNo])
 		userData=vs->initializers[effectNo](effectNo);
 	asyncEffect_f effect=vs->effects[effectNo];
+	NONS_Clock clock;
 	while (!vs->killAsyncEffect){
-		ulong t0=clock.get();
+		NONS_Clock::t t0=clock.get();
 		{
-			NONS_MutexLocker ml(screenMutex);
-			SDL_LockSurface(vs->screens[PRE_ASYNC]);
-			SDL_LockSurface(vs->screens[REAL]);
-			dstData.pixels=(uchar *)vs->screens[REAL]->pixels;
-			bool refresh=effect(effectNo+1,srcData,dstData,userData);
-			SDL_UnlockSurface(vs->screens[REAL]);
-			SDL_UnlockSurface(vs->screens[PRE_ASYNC]);
-			if (refresh)
-				SDL_UpdateRect(vs->screens[REAL],0,0,0,0);
+			NONS_Surface dst=vs->get_real_screen();
+			if (effect(effectNo+1,vs->get_preasync_surface(),dst,userData))
+				dst.update();
 		}
-		ulong t1=clock.get();
+		NONS_Clock::t t1=clock.get();
 		t1-=t0;
 		if (t1<ms)
-			SDL_Delay(ms-t1);
+			SDL_Delay(Uint32(ms-t1));
 	}
 	if (vs->uninitializers[effectNo])
 		vs->uninitializers[effectNo](effectNo,userData);
-#endif
 }
 
 SDL_Surface *allocate_screen(ulong w,ulong h,bool fullscreen){
@@ -199,27 +185,16 @@ NONS_DLLexport void NONS_VirtualScreen::blitToScreen(NONS_Surface &src,NONS_Long
 }
 
 void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast){
-	//NONS_MutexLocker ml(screenMutex);
-	//TODO:
-#if 0
 	if (this->usingFeature[OVERALL_FILTER]){
-		NONS_Surface src=*this->screens[VIRTUAL],
+		NONS_Surface src=this->screens[VIRTUAL],
 			dst=this->screens[this->post_filter];
-		SDL_LockSurface(src);
-		SDL_LockSurface(dst);
 		for (ulong a=0;a<this->filterPipeline.size();a++){
-			if (a==1){
-				SDL_UnlockSurface(src);
+			if (a==1)
 				src=this->screens[this->post_filter];
-				SDL_LockSurface(src);
-			}
 			pipelineElement &el=this->filterPipeline[a];
-			this->filters[el.effectNo](el.effectNo+1,el.color,src,el.rule,dst,x,y,w,h);
+			this->filters[el.effectNo](el.effectNo+1,el.color,src,el.rule,dst,NONS_LongRect(x,y,w,h));
 		}
-		SDL_UnlockSurface(dst);
-		SDL_UnlockSurface(src);
 	}
-#endif
 	if (this->usingFeature[INTERPOLATION]){
 		NONS_Rect s((float)x,(float)y,(float)w,(float)h),
 			d(
@@ -228,21 +203,6 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 				this->convertW(w),
 				this->convertH(h)
 			);
-		/*
-		The following plus ones and minus ones are a patch to correct some weird
-		errors. I'd really like to have the patience to track down the real
-		source of the bug, but I don't.
-		Basically, they move the upper-left corner one pixel up and to the left
-		without moving the bottom-right corner.
-		*/
-		/*if (d.x>0){
-			d.x--;
-			d.w++;
-		}
-		if (d.y>0){
-			d.y--;
-			d.h++;
-		}*/
 		if (d.x+d.w>this->outRect.w+this->outRect.x)
 			d.w=(long)this->outRect.w-d.x+(long)this->outRect.x;
 		if (d.y+d.h>this->outRect.h+this->outRect.y)
@@ -276,7 +236,6 @@ NONS_DLLexport void NONS_VirtualScreen::updateWholeScreen(bool fast){
 
 NONS_DLLexport void NONS_VirtualScreen::updateWithoutLock(const NONS_Surface &s,bool fast){
 	this->updateScreen(0,0,(ulong)this->inRect.w,(ulong)this->inRect.h,fast);
-	//s.update();
 }
 
 bool NONS_VirtualScreen::toggleFullscreen(uchar mode){

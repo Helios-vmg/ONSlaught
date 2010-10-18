@@ -29,9 +29,21 @@
 
 #include "Plugin.h"
 #include "../Functions.h"
+#include "../IOFunctions.h"
 #include <iostream>
 #include <vector>
 
+#ifdef EFFECT_INITIALIZE_DELAYS
+#undef EFFECT_INITIALIZE_DELAYS
+#endif
+#define EFFECT_INITIALIZE_DELAYS(base)                                \
+	NONS_Clock clock;                                                 \
+	NONS_Clock::t delay=NONS_Clock::t(double(duration)/double(base)), \
+		idealtimepos=0,                                               \
+		lastT=NONS_Clock::MAX,                                        \
+		start=clock.get()
+
+//TODO: Update comments.
 /*
 	Available functions:
 		void manualBlit(SDL_Surface *src, SDL_Rect *srcRect, SDL_Surface *dst, SDL_Rect *dstRect, manualBlitAlpha_t alpha=255);
@@ -247,28 +259,34 @@ Asynchronous effect function (#03):
 		shouldn't be called from here, either.
 */
 ASYNC_EFFECT_F(asyncExample){
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
+	src.get_properties(ssp);
+	dst.get_properties(dsp);
 	ulong *n=(ulong *)userData;
-	uchar *pos_src=srcData.pixels;
-	uchar *pos_dst=dstData.pixels;
-	for (ulong y=0;y<dstData.h;y++){
-		uchar *pos_src0=pos_src;
+	const uchar *pos_src=ssp.pixels;
+	uchar *pos_dst=dsp.pixels;
+	for (ulong y=0;y<dsp.h;y++){
+		const uchar *pos_src0=pos_src;
 		uchar *pos_dst0=pos_dst;
 		if (y!=*n){
-			for (ulong x=0;x<dstData.w;x++){
+			for (ulong x=0;x<dsp.w;x++){
 				ulong v=rand()&0xFF;
 				//c = c*7/8 + v*1/8 (It's an alpha blend with the noise layer at 12.5% alpha.)
-				pos_dst[dstData.Roffset]=uchar((ulong(pos_src[srcData.Roffset])*7+v)>>3);
-				pos_dst[dstData.Goffset]=uchar((ulong(pos_src[srcData.Goffset])*7+v)>>3);
-				pos_dst[dstData.Boffset]=uchar((ulong(pos_src[srcData.Boffset])*7+v)>>3);
-				pos_src+=srcData.advance;
-				pos_dst+=dstData.advance;
+				pos_dst[dsp.offsets[0]]=uchar((ulong(pos_src[ssp.offsets[0]])*7+v)>>3);
+				pos_dst[dsp.offsets[1]]=uchar((ulong(pos_src[ssp.offsets[1]])*7+v)>>3);
+				pos_dst[dsp.offsets[2]]=uchar((ulong(pos_src[ssp.offsets[2]])*7+v)>>3);
+				//(The alpha remains the same.)
+				pos_dst[dsp.offsets[3]]=pos_src[ssp.offsets[3]];
+				pos_src+=4;
+				pos_dst+=4;
 			}
 		}else
-			memset(pos_dst,0xFF,dstData.pitch);
-		pos_src=pos_src0+srcData.pitch;
-		pos_dst=pos_dst0+dstData.pitch;
+			memset(pos_dst,0xFF,dsp.pitch);
+		pos_src=pos_src0+ssp.pitch;
+		pos_dst=pos_dst0+dsp.pitch;
 	}
-	*n=(*n+2)%dstData.h;
+	*n=(*n+2)%dsp.h;
 	return 1;
 }
 
@@ -311,32 +329,36 @@ Filter effect function (#04):
 		function performs the exact same effect.
 		Depending on what commands were used in the script, src and dst may actually always point to
 		the same surface. However, this shouldn't be relied on.
-		The function is always calle from the main thread, so it's allowed to use threading
+		The function is always called from the main thread, so it's allowed to use threading
 		functions to speed up its execution. However, the function is, to my knowledge, never
 		called from performance-critical sections.
 */
 FILTER_EFFECT_F(filterExample){
 	//Obtain information about the surfaces.
-	surfaceData srcData=src,
-		dstData=dst;
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
+	src.get_properties(ssp);
+	dst.get_properties(dsp);
 	//Advance pointers to the top-left corner of the rectangle being filtered.
-	srcData.pixels+=x*srcData.advance+y*srcData.pitch;
-	dstData.pixels+=x*dstData.advance+y*dstData.pitch;
-	for (y=0;y<h;y++){
-		uchar *pos00=srcData.pixels;
-		uchar *pos10=dstData.pixels;
-		for (ulong x=0;x<w;x++){
+	ssp.pixels+=area.x*4+area.y*ssp.pitch;
+	dsp.pixels+=area.x*4+area.y*dsp.pitch;
+	for (long y=0;y<area.h;y++){
+		const uchar *pos00=ssp.pixels;
+		uchar *pos10=dsp.pixels;
+		for (long x=0;x<area.w;x++){
 			//This is a faster version of c=255-c.
-			dstData.pixels[dstData.Roffset]=~srcData.pixels[srcData.Roffset];
-			dstData.pixels[dstData.Goffset]=~srcData.pixels[srcData.Goffset];
-			dstData.pixels[dstData.Boffset]=~srcData.pixels[srcData.Boffset];
+			dsp.pixels[dsp.offsets[0]]=~ssp.pixels[ssp.offsets[0]];
+			dsp.pixels[dsp.offsets[1]]=~ssp.pixels[ssp.offsets[1]];
+			dsp.pixels[dsp.offsets[2]]=~ssp.pixels[ssp.offsets[2]];
+			//(The alpha remains the same.)
+			dsp.pixels[dsp.offsets[3]]=ssp.pixels[ssp.offsets[3]];
 			//Move pointers to the next pixel.
-			srcData.pixels+=srcData.advance;
-			dstData.pixels+=dstData.advance;
+			ssp.pixels+=4;
+			dsp.pixels+=4;
 		}
 		//Move pointers to the next row, relative from the start of the current row.
-		srcData.pixels=pos00+srcData.pitch;
-		dstData.pixels=pos10+dstData.pitch;
+		ssp.pixels=pos00+ssp.pitch;
+		dsp.pixels=pos10+dsp.pitch;
 	}
 }
 
@@ -366,52 +388,21 @@ Transition effect function (#05):
 		for more complex and expensive effects.
 */
 TRANSIC_EFFECT_F(transitionExample){
-	//If the user is pressing CTRL or exit was requested...
-	if (CURRENTLYSKIPPING){
-		//...blit the source to the screen in one step...
-		dst->blitToScreen(src,0,0);
-		//...and update the screen.
-		dst->updateWholeScreen();
-		return;
-	}
-	SDL_Rect rect={0,0,1,src->h};
-	long w=src->w;
-	//Each for step should last this long.
-	float delay=float(duration)/float(w);
-	long idealtimepos=0,
-		lastT=9999,
-		start=SDL_GetTicks();
+	NONS_LongRect src_rect;
+	effect_standard_check(src_rect,src,dst);
+	NONS_LongRect rect(0,0,1,src_rect.h);
+	long w=src_rect.w;
+	EFFECT_INITIALIZE_DELAYS(w);
 	for (long a=0;a<w;a++){
-		idealtimepos+=(long)delay;
-		long t0=SDL_GetTicks();
-		//If we're behind schedule or the user is pressing CTRL or exit was requested, and we're not
-		//at the last step (because the screen should be written to at least once)...
-		if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && a<w-1){
-			//...skip this step.
-			rect.w++;
-			continue;
-		}
+		EFFECT_ITERATION_PROLOGUE(a<w-1,rect.w++;);
 		{
-			//Lock the screen.
-			//Because as many as three different threads could be trying to access the screen at any
-			//given time, all attempts to use any element of dst->screens should be locked. If this
-			//Isn't done, the program could crash, say, when the user tries to take a screenshot or
-			//go to fullscreen.
-			NONS_MutexLocker ml(screenMutex);
-			//dst->screens[VIRTUAL] is the only place that should be written to. Writing to any other
-			//element of dst->screens could crash the engine.
-			manualBlit(src,&rect,dst->screens[VIRTUAL],&rect);
-			//Thanks to resource acquisition is initialization (RAII), we don't need to explictly unlock
-			//the mutex. Merely leaving this block will destruct 'ml', unlocking the mutex.
+			NONS_Surface screen=dst.get_screen();
+			screen.copy_pixels(src,&rect,&rect);
 		}
-		dst->updateScreen(rect.x,rect.y,rect.w,rect.h);
+		dst.updateScreen(rect.x,rect.y,rect.w,rect.h);
 		rect.x+=rect.w;
 		rect.w=1;
-		long t1=SDL_GetTicks();
-		lastT=t1-t0;
-		//If running this step took less time than necessary...
-		if (lastT<delay)
-			//...wait the rest of the delay.
-			SDL_Delay(Uint32(delay-lastT));
+		EFFECT_ITERATION_EPILOGUE;
 	}
+	effect_epilogue();
 }

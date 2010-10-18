@@ -42,8 +42,15 @@ enum{
 	POSTPROCESSING=1
 };
 
-typedef void(*transitionFX_f)(ulong,ulong,const NONS_ConstSurface &,const NONS_ConstSurface &,NONS_VirtualScreen &);
-#define TRANSIC_EFFECT_F(name) void name(ulong effectNo,ulong duration,SDL_Surface *src,SDL_Surface *rule,NONS_VirtualScreen &dst)
+#define TRANSIC_EFFECT_F(name)         \
+	void name(                         \
+		ulong effectNo,                \
+		ulong duration,                \
+		const NONS_ConstSurface &src,  \
+		const NONS_ConstSurface &rule, \
+		NONS_VirtualScreen &dst        \
+	)
+typedef TRANSIC_EFFECT_F((*transitionFX_f));
 
 struct NONS_GFX{
 	ulong effect;
@@ -107,4 +114,25 @@ struct NONS_GFXstore{
 	NONS_GFXstore();
 	~NONS_GFXstore();
 };
+
+NONS_DECLSPEC bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_VirtualScreen &d);
+NONS_DECLSPEC void effect_epilogue();
+#define EFFECT_INITIALIZE_DELAYS(base)                                      \
+	NONS_Clock clock;                                                       \
+	NONS_Clock::t delay=NONS_Clock::t(double(this->duration)/double(base)), \
+		idealtimepos=0,                                                     \
+		lastT=NONS_Clock::MAX,                                              \
+		start=clock.get()
+#define EFFECT_ITERATION_PROLOGUE(condition,action)                         \
+	idealtimepos+=delay;                                                    \
+	NONS_Clock::t t0=clock.get();                                           \
+	if ((t0-start-idealtimepos>lastT || CURRENTLYSKIPPING) && (condition)){ \
+		{action}                                                            \
+		continue;                                                           \
+	}
+#define EFFECT_ITERATION_EPILOGUE      \
+	NONS_Clock::t t1=clock.get();      \
+	lastT=t1-t0;                       \
+	if (lastT<delay)                   \
+		SDL_Delay(Uint32(delay-lastT))
 #endif

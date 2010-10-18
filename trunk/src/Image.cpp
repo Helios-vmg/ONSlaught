@@ -1320,23 +1320,25 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 		if (setjmp(png_jmpbuf(png)))
 			break;
 
-		std::vector<uchar> consistent(sp.byte_count);
-		memcpy(&consistent[0],sp.pixels,sp.byte_count);
-		for (ulong a=0;a<consistent.size();a+=4){
-			uchar p[4];
-			p[0]=consistent[a+sp.offsets[0]];
-			p[1]=consistent[a+sp.offsets[1]];
-			p[2]=consistent[a+sp.offsets[2]];
-			p[3]=consistent[a+sp.offsets[3]];
-			consistent[0]=p[0];
-			consistent[1]=p[1];
-			consistent[2]=p[2];
-			consistent[3]=p[3];
+		if (sp.offsets[0]!=0 || sp.offsets[1]!=1 || sp.offsets[2]!=2 || sp.offsets[3]!=3){
+			std::vector<uchar> consistent(sp.byte_count);
+			uchar *consistent_p=&consistent[0];
+			for (ulong a=0;a<sp.byte_count;a+=4){
+				consistent_p[a]=sp.pixels[a+sp.offsets[0]];
+				consistent_p[a+1]=sp.pixels[a+sp.offsets[1]];
+				consistent_p[a+2]=sp.pixels[a+sp.offsets[2]];
+				consistent_p[a+3]=sp.pixels[a+sp.offsets[3]];
+			}
+			std::vector<const uchar *> pointers(sp.h);
+			for (ulong a=0;a<pointers.size();a++)
+				pointers[a]=consistent_p+sp.pitch*a;
+			png_write_image(png,(png_bytepp)&pointers[0]);
+		}else{
+			std::vector<const uchar *> pointers(sp.h);
+			for (ulong a=0;a<pointers.size();a++)
+				pointers[a]=sp.pixels+sp.pitch*a;
+			png_write_image(png,(png_bytepp)&pointers[0]);
 		}
-		std::vector<const uchar *> pointers(sp.h);
-		for (ulong a=0;a<pointers.size();a++)
-			pointers[a]=&consistent[sp.pitch*a];
-		png_write_image(png,(png_bytepp)&pointers[0]);
 		if (setjmp(png_jmpbuf(png)))
 			break;
 		png_write_end(png,0);

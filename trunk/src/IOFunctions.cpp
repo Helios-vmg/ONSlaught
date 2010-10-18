@@ -33,6 +33,7 @@
 #include <iostream>
 #include <ctime>
 #include <cassert>
+#include <cfloat>
 #if NONS_SYS_WINDOWS
 #include <windows.h>
 #elif NONS_SYS_UNIX
@@ -783,6 +784,8 @@ NONS_TemporaryFile::~NONS_TemporaryFile(){
 	this->file.close();
 	NONS_File::delete_file(this->name);
 }
+
+NONS_Clock::t NONS_Clock::MAX=DBL_MAX;
 
 #if NONS_SYS_WINDOWS
 NONS_Clock::NONS_Clock(){

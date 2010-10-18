@@ -39,15 +39,30 @@
 #include <string>
 #include <set>
 
-struct surfaceData;
-typedef void(*filterFX_f)(ulong,NONS_Color,const NONS_ConstSurface &,const NONS_ConstSurface &,const NONS_Surface &,NONS_LongRect);
-typedef void *(*asyncInit_f)(ulong);
-typedef bool(*asyncEffect_f)(ulong,surfaceData,surfaceData,void *);
-typedef void(*asyncUninit_f)(ulong,void *);
-#define FILTER_EFFECT_F(name) void name(ulong effectNo,NONS_Color color,const NONS_ConstSurface &src,const NONS_ConstSurface &rule,const NONS_Surface &dst,NONS_LongRect area)
-#define ASYNC_EFFECT_INIT_F(name) void *name(ulong effectNo)
-#define ASYNC_EFFECT_F(name) bool name(ulong effectNo,surfaceData srcData,surfaceData dstData,void *userData)
-#define ASYNC_EFFECT_UNINIT_F(name) void name(ulong effectNo,void *userData)
+#define FILTER_EFFECT_F(name)          \
+	void name(                         \
+		ulong effectNo,                \
+		NONS_Color color,              \
+		const NONS_ConstSurface &src,  \
+		const NONS_ConstSurface &rule, \
+		const NONS_Surface &dst,       \
+		NONS_LongRect area             \
+	)
+#define ASYNC_EFFECT_INIT_F(name) \
+	void *name(ulong effectNo)
+#define ASYNC_EFFECT_F(name)          \
+	bool name(                        \
+		ulong effectNo,               \
+		const NONS_ConstSurface &src, \
+		const NONS_Surface &dst,      \
+		void *userData                \
+	)
+#define ASYNC_EFFECT_UNINIT_F(name) \
+	void name(ulong effectNo,void *userData)
+typedef FILTER_EFFECT_F((*filterFX_f));
+typedef ASYNC_EFFECT_INIT_F((*asyncInit_f));
+typedef ASYNC_EFFECT_F((*asyncEffect_f));
+typedef ASYNC_EFFECT_UNINIT_F((*asyncUninit_f));
 
 struct asyncFXfunctionSet{
 	asyncInit_f initializer;
@@ -166,6 +181,7 @@ public:
 	NONS_DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
 	NONS_DECLSPEC void updateWholeScreen(bool fast=0);
 	NONS_Surface get_screen(){ return this->screens[VIRTUAL]; }
+	NONS_Surface get_preasync_surface(){ return this->screens[PRE_ASYNC]; }
 	NONS_Surface get_real_screen(){ return this->screens[REAL]; }
 	//If 0, to window; if 1, to fullscreen; if 2, toggle.
 	bool toggleFullscreen(uchar mode=2);
