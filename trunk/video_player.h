@@ -96,7 +96,49 @@ typedef struct{
 } C_play_video_params;
 #define C_PLAY_VIDEO_PARAMS_VERSION 1
 
-#define PLAYBACK_FUNCTION_PARAMETERS void *parameters
+#define VIDEO_CONSTRUCTOR_PARAMETERS void
+#define VIDEO_CONSTRUCTOR_NAME new_player
+#define VIDEO_CONSTRUCTOR_NAME_STRING "new_player"
+#define VIDEO_CONSTRUCTOR_SIGNATURE \
+	EXTERN_C VIDEO_DECLSPEC void *VIDEO_CONSTRUCTOR_NAME(VIDEO_CONSTRUCTOR_PARAMETERS)
+
+/*
+ * video_constructor_fp:
+ *
+ * Description (new_player()):
+ *     Constructs a new video player object that will hold all internal state
+ *     and returns a pointer to it. Free this object by calling
+ *     delete_player().
+ *
+ * Parameters:
+ *     None.
+ * Returns:
+ *     A generic pointer to the new object. 
+ *
+ */
+typedef void *(*video_constructor_fp)(VIDEO_CONSTRUCTOR_PARAMETERS);
+VIDEO_CONSTRUCTOR_SIGNATURE;
+
+#define VIDEO_DESTRUCTOR_PARAMETERS void *player
+#define VIDEO_DESTRUCTOR_NAME delete_player
+#define VIDEO_DESTRUCTOR_NAME_STRING "delete_player"
+#define VIDEO_DESTRUCTOR_SIGNATURE \
+	EXTERN_C VIDEO_DECLSPEC void VIDEO_DESTRUCTOR_NAME(VIDEO_DESTRUCTOR_PARAMETERS)
+
+/*
+ * video_destructor_fp:
+ *
+ * Description (delete_player()):
+ *     Destructs a video player object constructed by new_player().
+ *
+ * Parameters:
+ *     A generic pointer to the object that will be freed.
+ *
+ */
+typedef void (*video_destructor_fp)(VIDEO_DESTRUCTOR_PARAMETERS);
+VIDEO_DESTRUCTOR_SIGNATURE;
+
+#define PLAYBACK_FUNCTION_PARAMETERS void *player,void *parameters
 #define PLAYBACK_FUNCTION_NAME C_play_video
 #define PLAYBACK_FUNCTION_NAME_STRING "C_play_video"
 #define PLAYBACK_FUNCTION_SIGNATURE \
@@ -130,9 +172,11 @@ typedef struct{
  *     the size of the video, and the kind of codec and container used.
  *
  * Parameters:
+ *     void *player
+ *         The pointer returned by new_player.
  *     void *parameters
- *         This is the only parameter the function takes. It should be a
- *         pointer to a C_play_video_params structure. See below for details.
+ *         It should be a pointer to a C_play_video_params structure. See below
+ *         for details.
  * Returns:
  *     0 if the function failed, anything else otherwise.
  *

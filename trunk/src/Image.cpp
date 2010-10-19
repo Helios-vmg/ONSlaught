@@ -1144,10 +1144,9 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,c
 }
 
 void NONS_SurfaceManager::assign_screen(SDL_Surface *s){
-	if (!this->screen){
-		delete this->screen;
+	if (!this->screen)
 		this->screen=new ScreenSurface(s);
-	}else
+	else
 		*this->screen=ScreenSurface(s);
 }
 

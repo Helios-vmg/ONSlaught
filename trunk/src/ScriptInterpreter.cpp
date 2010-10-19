@@ -929,6 +929,16 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		}                                                \
 	}
 	play_video_TRY_GET_FUNCTION(
+		video_constructor_fp,
+		new_player,
+		VIDEO_CONSTRUCTOR_NAME_STRING
+	);
+	play_video_TRY_GET_FUNCTION(
+		video_destructor_fp,
+		delete_player,
+		VIDEO_DESTRUCTOR_NAME_STRING
+	);
+	play_video_TRY_GET_FUNCTION(
 		video_playback_fp,
 		C_play_video,
 		PLAYBACK_FUNCTION_NAME_STRING
@@ -995,7 +1005,9 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		//because it won't be able to open the audio device.
 		delete this->audio;
 #endif
-		success=!!C_play_video(&parameters);
+		void *player=new_player();
+		success=!!C_play_video(player,&parameters);
+		delete_player(player);
 #if NONS_SYS_UNIX
 		//Restore audio.
 		this->audio=new NONS_Audio(CLOptions.musicDirectory);

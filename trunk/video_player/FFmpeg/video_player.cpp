@@ -25,20 +25,24 @@
 */
 
 #include "../../video_player.h"
+#include "../../src/Thread.h"
 #include "../common.h"
-#include <SDL/SDL_gfxPrimitives.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <queue>
 #include <vector>
 #include <set>
 #include <memory>
+#include <climits>
+extern "C"{
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+}
 #include <al.h>
 #include <alc.h>
-
-#include <queue>
-#include <climits>
-#include "../../src/Thread.h"
+#include <SDL/SDL_gfxPrimitives.h>
 
 #if NONS_SYS_WINDOWS
 #include <windows.h>
@@ -48,7 +52,26 @@
 #include <time.h>
 #endif
 
-typedef unsigned long ulong;
+//#define USE_OVERLAY
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+const int rmask=0xFF000000;
+const int gmask=0x00FF0000;
+const int bmask=0x0000FF00;
+const int amask=0x000000FF;
+const int rshift=24;
+const int gshift=16;
+const int bshift=8;
+const int ashift=0;
+#else
+const int rmask=0x000000FF;
+const int gmask=0x0000FF00;
+const int bmask=0x00FF0000;
+const int amask=0xFF000000;
+const int rshift=0;
+const int gshift=8;
+const int bshift=16;
+const int ashift=24;
+#endif
 
 #if NONS_SYS_WINDOWS
 #include <cassert>
@@ -123,7 +146,6 @@ void VirtualConsole::put(const char *str,size_t size){
 	WriteFile(this->near_end,str,size,&l,0);
 }
 
-static VirtualConsole *vc[10]={0};
 #define VC_AUDIO_DECODE 0
 #define VC_VIDEO_DECODE 1
 #define VC_AUDIO_RENDER 2
@@ -131,19 +153,19 @@ static VirtualConsole *vc[10]={0};
 #endif
 
 template <typename T>
-class TSqueue{
+class thread_safe_queue{
 	std::queue<T> queue;
 	NONS_Mutex mutex;
 public:
 	ulong max_size;
-	TSqueue(){
+	thread_safe_queue(){
 		this->max_size=ULONG_MAX;
 	}
-	TSqueue(const TSqueue &b){
+	thread_safe_queue(const thread_safe_queue &b){
 		NONS_MutexLocker ml(b.mutex);
 		this->queue=b.queue;
 	}
-	const TSqueue &operator=(const TSqueue &b){
+	const thread_safe_queue &operator=(const thread_safe_queue &b){
 		NONS_MutexLocker ml[]={
 			b.mutex,
 			this->mutex
@@ -206,12 +228,6 @@ std::basic_string<T> itoa(T2 n,unsigned w=0){
 	return stream.str();
 }
 
-extern "C"{
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
-}
-
 #define AUDIO_QUEUE_MAX_SIZE 5
 #define FRAME_QUEUE_MAX_SIZE 5
 #define AUDIO_QUEUE_REFILL_WAIT 25
@@ -222,46 +238,15 @@ extern "C"{
 #endif
 static const int64_t AV_NOPTS_VALUE=0x8000000000000000LL;
 
-typedef unsigned long ulong;
-typedef unsigned char uchar;
-
 struct Packet{
 	bool free_packet;
 	AVPacket packet;
     int64_t dts,
 		pts;
-	Packet(AVPacket *packet){
-		this->free_packet=!!packet;
-		if (this->free_packet){
-			this->packet=*packet;
-			this->dts=this->packet.dts;
-			this->pts=this->packet.pts;
-		}else
-			memset(&this->packet,0,sizeof(this->packet));
-	}
-	~Packet(){
-		if (this->free_packet)
-			av_free_packet(&this->packet);
-
-	}
-	double compute_time(AVStream *stream,AVFrame *frame){
-		double ret;
-		if ((this->dts!=AV_NOPTS_VALUE))
-			ret=(double)this->dts;
-		else if (frame->opaque && *(int64_t *)frame->opaque!=AV_NOPTS_VALUE)
-			ret=(double)*(int64_t *)frame->opaque;
-		else
-			ret=0;
-		return ret*av_q2d(stream->time_base);
-	}
-	double compute_time(AVStream *stream){
-		double ret;
-		if ((this->dts!=AV_NOPTS_VALUE))
-			ret=(double)this->dts;
-		else
-			ret=0;
-		return ret*av_q2d(stream->time_base);
-	}
+	Packet(AVPacket *packet);
+	~Packet();
+	double compute_time(AVStream *stream,AVFrame *frame);
+	double compute_time(AVStream *stream);
 private:
 	Packet(const Packet &){}
 	Packet &operator=(const Packet &){ return *this; }
@@ -278,7 +263,6 @@ struct audioBuffer{
 		this->quit=0;
 		this->size=size;
 		this->start_reading=0;
-		//size*=sizeof(int16_t);
 		this->buffer=new int16_t[size];
 		memcpy(this->buffer,src,size*sizeof(int16_t));
 		this->for_copy=for_copy;
@@ -307,7 +291,6 @@ struct audioBuffer{
 		memcpy(dst,this->buffer+this->start_reading,size*sizeof(int16_t));
 		this->start_reading+=size;
 		if (this->start_reading>=this->size){
-			//av_free(this->buffer);
 			delete[] this->buffer;
 			this->buffer=0;
 			return 1;
@@ -316,10 +299,7 @@ struct audioBuffer{
 	}
 };
 
-static ulong global_time=0,
-	start_time=0,
-	real_global_time=0,
-	real_start_time=0;
+struct video_player;
 
 class AudioOutput{
 	ALCdevice *device;
@@ -333,232 +313,20 @@ class AudioOutput{
 	ulong current;
 	int16_t *buffers[n];
 	size_t buffers_size;
-	TSqueue<audioBuffer> *incoming_queue;
+	thread_safe_queue<audioBuffer> *incoming_queue;
 	volatile bool stop_thread;
+	void running_thread(video_player *);
+	static bool fill(int16_t *buffer,size_t size,thread_safe_queue<audioBuffer> *queue,ulong &time);
 public:
 	bool good,
 		expect_buffers;
-	AudioOutput(ulong channels,ulong frequency){
-		this->stop_thread=0;
-		this->buffers_size=frequency/10*channels;
-		for (ulong a=0;a<n;a++){
-			this->buffers[a]=new int16_t[this->buffers_size];
-			memset(this->buffers[a],0,this->buffers_size*sizeof(int16_t));
-		}
-		this->device=0;
-		this->context=0;
-		this->good=0;
-		this->device=alcOpenDevice(0);
-		if (!this->device)
-			return;
-		this->context=alcCreateContext(this->device,0);
-		if (!this->context)
-			return;
-		alcMakeContextCurrent(this->context);
-		this->frequency=frequency;
-		switch (channels){
-			case 1:
-				this->format=AL_FORMAT_MONO16;
-				break;
-			case 2:
-				this->format=AL_FORMAT_STEREO16;
-				break;
-			case 4:
-				this->format=alGetEnumValue("AL_FORMAT_QUAD16");
-				break;
-			case 6:
-				this->format=alGetEnumValue("AL_FORMAT_51CHN16");
-				break;
-		}
-		alGenSources(1,&this->source);
-		this->good=1;
-		alGenBuffers(n,this->ALbuffers);
-		this->current=0;
-	}
-	~AudioOutput(){
-		this->stop_thread=1;
-		this->thread.join();
-		alcMakeContextCurrent(0);
-		for (ulong a=0;a<n;a++)
-			delete[] this->buffers[a];
-		if (this->context){
-			alDeleteSources(1,&this->source);
-			alDeleteBuffers(n,this->ALbuffers);
-			alcDestroyContext(this->context);
-		}
-		if (this->device)
-			alcCloseDevice(this->device);
-	}
-	TSqueue<audioBuffer> *startThread(){
-		this->incoming_queue=new TSqueue<audioBuffer>;
-		this->incoming_queue->max_size=30;
-		this->thread.call(member_bind(&AudioOutput::running_thread,this),1);
-		return this->incoming_queue;
-	}
-	void stopThread(bool join){
-		this->stop_thread=1;
-		if (join)
-			this->thread.join();
-	}
-private:
-	static void running_thread_support(void *p){
-		((AudioOutput *)p)->running_thread();
-	}
-	void running_thread(){
-		if (this->expect_buffers){
-			while (this->incoming_queue->is_empty());
-			for (ulong a=0;a<this->n;a++){
-				this->current=a;
-				ulong t;
-				fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
-				alBufferData(
-					this->ALbuffers[this->current],
-					this->format,
-					this->buffers[this->current],
-					this->buffers_size*sizeof(int16_t),
-					this->frequency
-				);
-				alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
-			}
-			this->current=0;
-		}
-
-		real_start_time=start_time=SDL_GetTicks();
-		if (this->expect_buffers)
-			this->play();
-		while (!this->stop_thread){
-			SDL_Delay(10);
-			ulong now=SDL_GetTicks();
-			global_time=now-start_time;
-			real_global_time=now-real_start_time;
-			if (!this->expect_buffers)
-				continue;
-			ALint buffers_finished=0,
-				queued;
-			alGetSourcei(this->source,AL_BUFFERS_PROCESSED,&buffers_finished);
-			alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
-			bool call_play=0;
-			ulong count=0;
-			if (buffers_finished==this->n){
-				call_play=1;
-#if NONS_SYS_WINDOWS
-				vc[VC_AUDIO_RENDER]->put("Critical point!\n");
-#endif
-			}
-			if (!call_play){
-				ALint state;
-				alGetSourcei(this->source,AL_SOURCE_STATE,&state);
-				if (state!=AL_PLAYING){
-#if NONS_SYS_WINDOWS
-					vc[VC_AUDIO_RENDER]->put("The source has stopped playing!\n");
-#endif
-					call_play=1;
-					buffers_finished=this->n;
-				}
-			}
-			for (;buffers_finished;buffers_finished--,count++){
-				ALuint temp;
-				alSourceUnqueueBuffers(this->source,1,&temp);
-				bool loop=1;
-				ulong t;
-				fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
-				//correct time
-				if (t+100*(buffers_finished)!=global_time)
-					start_time=now-t+100*(buffers_finished);
-				alBufferData(
-					this->ALbuffers[this->current],
-					this->format,
-					this->buffers[this->current],
-					this->buffers_size*sizeof(int16_t),
-					this->frequency
-				);
-				alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
-				this->current=(this->current+1)%n;
-			}
-			if (call_play){
-#if NONS_SYS_WINDOWS
-				vc[VC_AUDIO_RENDER]->put("count: "+itoa<char>(count)+"\n");
-#endif
-				this->play();
-			}
-		}
-		this->wait_until_stop();
-		delete this->incoming_queue;
-		this->incoming_queue=0;
-	}
-	static bool fill(int16_t *buffer,size_t size,TSqueue<audioBuffer> *queue,ulong &time){
-		bool ret=1,
-			time_unset=1;
-		queue->lock();
-		if (queue->is_empty()){
-			memset(buffer,0,size*sizeof(int16_t));
-			ret=0;
-		}else{
-			audioBuffer *buffer2=&queue->peek();
-			if (buffer2->quit){
-				memset(buffer,0,size*sizeof(int16_t));
-			}else{
-				size_t write_at=0,
-					read_size;
-				while (write_at<size){
-					read_size=size-write_at;
-					if (buffer2->read_into_buffer(buffer+write_at,read_size)){
-						if (time_unset){
-							time=buffer2->time_offset;
-							time_unset=0;
-						}
-						queue->pop();
-						if (queue->is_empty())
-							break;
-						buffer2=&queue->peek();
-					}
-					write_at+=read_size;
-				}
-				if (write_at<size){
-					memset(buffer+write_at,0,(size-write_at)*sizeof(int16_t));
-					ret=0;
-				}
-			}
-		}
-		queue->unlock();
-		return ret;
-	}
-public:
-	void play(){
-		ALint state;
-		alGetSourcei(this->source,AL_SOURCE_STATE,&state);
-		if (state!=AL_PLAYING)
-			alSourcePlay(this->source);
-	}
-	void wait_until_stop(){
-		ALint state;
-		do
-			alGetSourcei(this->source,AL_SOURCE_STATE,&state);
-		while (state==AL_PLAYING);
-	}
+	AudioOutput(ulong channels,ulong frequency);
+	~AudioOutput();
+	thread_safe_queue<audioBuffer> *startThread(video_player *vp);
+	void stopThread(bool join);
+	void play();
+	void wait_until_stop();
 };
-
-//#define USE_OVERLAY
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-const int rmask=0xFF000000;
-const int gmask=0x00FF0000;
-const int bmask=0x0000FF00;
-const int amask=0x000000FF;
-const int rshift=24;
-const int gshift=16;
-const int bshift=8;
-const int ashift=0;
-#else
-const int rmask=0x000000FF;
-const int gmask=0x0000FF00;
-const int bmask=0x00FF0000;
-const int amask=0xFF000000;
-const int rshift=0;
-const int gshift=8;
-const int bshift=16;
-const int ashift=24;
-#endif
-static bool debug_messages=0;
 
 class CompleteVideoFrame{
 	SDL_Overlay *overlay;
@@ -570,273 +338,10 @@ class CompleteVideoFrame{
 public:
 	uint64_t repeat;
 	double pts;
-	CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts,NONS_Mutex &mutex)
-			:mutex(mutex){
-		this->overlay=0;
-		ulong width,height;
-		float screenRatio=float(screen->w)/float(screen->h),
-			videoRatio;
-		if (videoStream->sample_aspect_ratio.num)
-			videoRatio=
-				float(videoStream->codec->width*videoStream->sample_aspect_ratio.num)/
-				float(videoStream->codec->height*videoStream->sample_aspect_ratio.den);
-		else if (videoStream->codec->sample_aspect_ratio.num)
-			videoRatio=
-				float(videoStream->codec->width*videoStream->codec->sample_aspect_ratio.num)/
-				float(videoStream->codec->height*videoStream->codec->sample_aspect_ratio.den);
-		else
-			videoRatio=float(videoStream->codec->width)/float(videoStream->codec->height);
-		if (screenRatio<videoRatio){ //widescreen
-			width=screen->w;
-			height=ulong(float(screen->w)/videoRatio);
-		}else if (screenRatio>videoRatio){ //"narrowscreen"
-			width=ulong(float(screen->h)*videoRatio);
-			height=screen->h;
-		}else{
-			width=screen->w;
-			height=screen->h;
-		}
-		this->mutex.lock();
-		this->overlay=SDL_CreateYUVOverlay(width,height,SDL_YV12_OVERLAY,(SDL_Surface *)screen);
-		this->mutex.unlock();
-		this->frameRect.x=Sint16((screen->w-width)/2);
-		this->frameRect.y=Sint16((screen->h-height)/2);
-		this->frameRect.w=(Uint16)width;
-		this->frameRect.h=(Uint16)height;
-		SDL_LockYUVOverlay(this->overlay);
-		AVPicture pict;
-		pict.data[0]=this->overlay->pixels[0];
-		pict.data[1]=this->overlay->pixels[2];
-		pict.data[2]=this->overlay->pixels[1];
-		pict.linesize[0]=this->overlay->pitches[0];
-		pict.linesize[1]=this->overlay->pitches[2];
-		pict.linesize[2]=this->overlay->pitches[1];
-		SwsContext *sc=sws_getContext(
-			videoStream->codec->width,videoStream->codec->height,videoStream->codec->pix_fmt,
-			this->overlay->w,this->overlay->h,PIX_FMT_YUV420P,
-			SWS_FAST_BILINEAR,
-			0,0,0
-		);
-		sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoStream->codec->height,pict.data,pict.linesize);
-		sws_freeContext(sc);
-//The UNIX build of FFmpeg already performs color correction.
-#if !NONS_SYS_UNIX
-		{
-			//apply color correction
-			const int min=16,
-				max=235;
-#if 0
-			Uint8 *row=this->overlay->pixels[0],
-				*end=row+this->overlay->w*this->overlay->h;
-			ulong w=this->overlay->w,
-				h=this->overlay->h;
-			for (ulong y=0;y<h;y++){
-				Uint8 *pixel=row;
-				for (ulong x=w-y*w/h;x<w;x++){
-					int a=pixel[x];
-					if (a<min)
-						a=0;
-					else if (a>max)
-						a=255;
-					else
-						a=(a-min)*255/(max-min);
-					pixel[x]=(Uint8)a;
-				}
-				row+=w;
-			}
-#else
-			Uint8 *pixels=this->overlay->pixels[0],
-				*end=pixels+this->overlay->w*this->overlay->h;
-			for (;pixels!=end;pixels++){
-				int a=*pixels;
-				if (a<min)
-					a=0;
-				else if (a>max)
-					a=255;
-				else
-					a=(a-min)*255/(max-min);
-				*pixels=(Uint8)a;
-			}
-#endif
-		}
-#endif
-		SDL_UnlockYUVOverlay(this->overlay);
-		this->old_screen=(SDL_Surface *)screen;
-		this->pts=pts;
-		this->repeat=videoFrame->repeat_pict;
-	}
-	~CompleteVideoFrame(){
-		if (!!this->overlay){
-			this->mutex.lock();
-			SDL_FreeYUVOverlay(this->overlay);
-			this->mutex.unlock();
-		}
-	}
-	void blit(volatile SDL_Surface *currentScreen){
-		if (this->old_screen==currentScreen){
-			if (debug_messages){
-				std::string s=seconds_to_time_format(this->pts);
-				//s.push_back('\n');
-				//s.append(seconds_to_time_format(double(real_global_time)/1000.0));
-				//s.append(" "+itoa<char>(real_global_time-this->pts*1000.0,4));
-				blit_font(this->overlay,s.c_str(),0,0);
-			}
-			this->mutex.lock();
-			SDL_DisplayYUVOverlay(this->overlay,&this->frameRect);
-			this->mutex.unlock();
-		}
-	}
+	CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts,NONS_Mutex &mutex);
+	~CompleteVideoFrame();
+	void blit(volatile SDL_Surface *currentScreen,video_player *);
 	const SDL_Rect &frame(){ return this->frameRect; }
-};
-
-static volatile bool stop_playback=0;
-static volatile SDL_Surface *global_screen=0;
-
-struct video_display_thread_params{
-	TSqueue<CompleteVideoFrame *> *queue;
-	AudioOutput *aoutput;
-	void *user_data;
-	std::vector<C_play_video_params::trigger_callback_pair> *callback_pairs;
-};
-
-void video_display_thread(void *p){
-	video_display_thread_params params=*(video_display_thread_params *)p;
-	delete (video_display_thread_params *)p;
-
-	SDL_Color white={0xFF,0xFF,0xFF,0xFF},
-		black={0,0,0,0xFF};
-	while (!stop_playback){
-		SDL_Delay(10);
-		double current_time=double(global_time)/1000.0;
-		if (params.queue->is_empty())
-			continue;
-		for (ulong a=0;a<params.callback_pairs->size();a++){
-			if (*(*params.callback_pairs)[a].trigger){
-				*(*params.callback_pairs)[a].trigger=0;
-				global_screen=(*params.callback_pairs)[a].callback(global_screen,params.user_data);
-			}
-		}
-
-		CompleteVideoFrame *frame=(CompleteVideoFrame *)params.queue->peek();
-
-		/*
-		if (debug_messages){
-			std::stringstream stream;
-			stream <<frame->pts<<'\t'<<current_time<<" ("<<SDL_GetTicks()<<'-'<<start_time<<'='<<global_time<<')'<<std::endl;
-			threadsafe_print(stream.str());
-		}
-		*/
-
-		while (frame->pts<=current_time){
-			frame->blit(global_screen);
-			delete params.queue->pop();
-			if (params.queue->is_empty())
-				break;
-			frame=(CompleteVideoFrame *)params.queue->peek();
-		}
-	}
-	while (!params.queue->is_empty()){
-		CompleteVideoFrame *frame=params.queue->pop();
-		if (frame)
-			delete frame;
-	}
-}
-
-uint64_t global_pts=AV_NOPTS_VALUE;
-
-namespace this_player{
-	int get_buffer(struct AVCodecContext *c,AVFrame *pic){
-		int ret=avcodec_default_get_buffer(c,pic);
-		int64_t *pts=new int64_t;
-		*pts=global_pts;
-		pic->opaque=pts;
-		return ret;
-	}
-	void release_buffer(struct AVCodecContext *c, AVFrame *pic) {
-	  if (pic)
-		  delete (int64_t *)pic->opaque;
-	  avcodec_default_release_buffer(c, pic);
-	}
-}
-
-struct decode_audio_params{
-	AVCodecContext *audioCC;
-	AVStream *audioS;
-	TSqueue<Packet *> *packet_queue;
-	AudioOutput *output;
-};
-
-void decode_audio(void *p){
-	decode_audio_params params=*(decode_audio_params *)p;
-	delete (decode_audio_params *)p;
-
-	const size_t output_s=AVCODEC_MAX_AUDIO_FRAME_SIZE*2;
-	static int16_t audioOutputBuffer[output_s];
-
-	TSqueue<audioBuffer> *queue=params.output->startThread();
-
-	if (!params.audioCC)
-		return;
-
-	params.audioCC->get_buffer=this_player::get_buffer;
-	params.audioCC->release_buffer=this_player::release_buffer;
-	while (1){
-		Packet *packet=0;
-#if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Waiting for packet.\n");
-#endif
-		while (params.packet_queue->is_empty() && !stop_playback){
-			SDL_Delay(10);
-		}
-		if (stop_playback)
-			break;
-#if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Popping queue.\n");
-#endif
-		packet=params.packet_queue->pop();
-
-		uint8_t *packet_data=packet->packet.data;
-		size_t packet_data_s=packet->packet.size,
-			write_at=0,
-			buffer_size=0;
-#if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Decoding packet.\n");
-#endif
-		while (packet_data_s){
-			int bytes_decoded=output_s,
-				bytes_extracted;
-			bytes_extracted=avcodec_decode_audio3(params.audioCC,audioOutputBuffer+write_at,&bytes_decoded,&packet->packet);
-			if (bytes_extracted<0)
-				break;
-			packet_data+=bytes_extracted;
-			if (packet_data_s>=(size_t)bytes_extracted)
-				packet_data_s-=bytes_extracted;
-			else
-				packet_data_s=0;
-			buffer_size+=bytes_decoded/sizeof(int16_t);
-		}
-#if NONS_SYS_WINDOWS
-		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
-#endif
-		queue->push(audioBuffer(audioOutputBuffer,buffer_size,1,packet->compute_time(params.audioS)));
-		delete packet;
-	}
-	params.output->stopThread(0);
-
-	while (!params.packet_queue->is_empty()){
-		Packet *packet=params.packet_queue->pop();
-		if (packet)
-			delete packet;
-	}
-}
-
-struct decode_video_params{
-	AVCodecContext *videoCC;
-	AVStream *videoS;
-	TSqueue<Packet *> *packet_queue;
-	AudioOutput *aoutput;
-	void *user_data;
-	std::vector<C_play_video_params::trigger_callback_pair> *callback_pairs;
 };
 
 struct cmp_pCompleteVideoFrame{
@@ -844,92 +349,6 @@ struct cmp_pCompleteVideoFrame{
 		return A->pts>B->pts;
 	}
 };
-
-void decode_video(void *p){
-	decode_video_params params=*(decode_video_params *)p;
-	delete (decode_video_params *)p;
-
-	AVFrame *videoFrame=avcodec_alloc_frame();
-	std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame> preQueue;
-	TSqueue<CompleteVideoFrame *> frameQueue;
-	frameQueue.max_size=FRAME_QUEUE_MAX_SIZE;
-	NONS_Thread display;
-	NONS_Mutex overlay_mutex;
-	{
-		video_display_thread_params *temp=new video_display_thread_params;
-		temp->queue=&frameQueue;
-		temp->aoutput=params.aoutput;
-		temp->user_data=params.user_data;
-		temp->callback_pairs=params.callback_pairs;
-		display.call(video_display_thread,temp);
-	}
-
-	params.videoCC->get_buffer=this_player::get_buffer;
-	params.videoCC->release_buffer=this_player::release_buffer;
-	double max_pts=-9999;
-	bool msg=0;
-	while (1){
-		Packet *packet;
-		if (stop_playback)
-			break;
-		if (params.packet_queue->is_empty()){
-			if (!msg){
-#if NONS_SYS_WINDOWS
-				vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Queue is empty. Nothing to do.\n");
-#endif
-				msg=1;
-			}
-			SDL_Delay(10);
-			continue;
-		}
-		msg=0;
-#if NONS_SYS_WINDOWS
-		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Popping queue.\n");
-#endif
-		packet=params.packet_queue->pop();
-		int frameFinished;
-		global_pts=packet->pts;
-#if NONS_SYS_WINDOWS
-		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Decoding packet.\n");
-#endif
-		//avcodec_decode_video(params.videoCC,videoFrame,&frameFinished,packet->data,packet->size);
-		avcodec_decode_video2(params.videoCC,videoFrame,&frameFinished,&packet->packet);
-		double pts=packet->compute_time(params.videoS,videoFrame);
-		if (frameFinished){
-			CompleteVideoFrame *new_frame=new CompleteVideoFrame(global_screen,params.videoS,videoFrame,pts,overlay_mutex);
-			if (new_frame->pts>max_pts){
-				max_pts=new_frame->pts;
-				while (!preQueue.empty()){
-					std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame>::iterator first=preQueue.begin();
-#if NONS_SYS_WINDOWS
-					vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
-#endif
-					frameQueue.push(*first);
-					preQueue.erase(first);
-				}
-			}
-			preQueue.insert(new_frame);
-		}
-		delete packet;
-	}
-	av_free(videoFrame);
-	display.join();
-	while (!frameQueue.is_empty()){
-		CompleteVideoFrame *frame=frameQueue.pop();
-		if (frame)
-			delete frame;
-	}
-	while (!preQueue.empty()){
-		std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame>::iterator first=preQueue.begin();
-		delete *first;
-		preQueue.erase(first);
-	}
-	while (!params.packet_queue->is_empty()){
-		Packet *packet=params.packet_queue->pop();
-		if (packet)
-			delete packet;
-	}
-}
 
 #include "../C_play_video.cpp"
 
@@ -978,7 +397,618 @@ struct auto_codec_context{
 	}
 };
 
-play_video_SIGNATURE{
+struct video_player{
+#if NONS_SYS_WINDOWS
+	VirtualConsole *vc[3];
+#endif
+	ulong global_time,
+		start_time,
+		real_global_time,
+		real_start_time;
+	bool debug_messages;
+	volatile bool stop_playback;
+	volatile SDL_Surface *global_screen;
+	uint64_t global_pts;
+	typedef thread_safe_queue<Packet *> packet_queue;
+
+	video_player():global_pts(AV_NOPTS_VALUE){
+#if NONS_SYS_WINDOWS
+		this->vc[0]=new VirtualConsole("audio_decode",7);
+		this->vc[1]=new VirtualConsole("video_decode",7);
+		this->vc[2]=new VirtualConsole("audio_render",7);
+#endif
+	}
+	~video_player(){
+		for (size_t a=0;a<3;a++)
+			delete this->vc[a];
+	}
+	void video_display_thread(thread_safe_queue<CompleteVideoFrame *> *queue,AudioOutput *aoutput,void *user_data,cb_vector *callback_pairs);
+	struct get_buffer_struct{
+		int64_t pts;
+		video_player *vp;
+	};
+	static int get_buffer(struct AVCodecContext *c,AVFrame *pic);
+	static void release_buffer(struct AVCodecContext *c, AVFrame *pic);
+	void decode_audio(AVCodecContext *audioCC,AVStream *audioS,packet_queue *packet_queue,AudioOutput *output);
+	void decode_video(AVCodecContext *videoCC,AVStream *videoS,packet_queue *packet_queue,AudioOutput *aoutput,void *user_data,cb_vector *callback_pairs);
+	bool play_video(
+		SDL_Surface *screen,
+		const char *input,
+		volatile int *stop,
+		void *user_data,
+		int print_debug,
+		std::string &exception_string,
+		cb_vector &callback_pairs,
+		file_protocol fp);
+};
+
+AudioOutput::AudioOutput(ulong channels,ulong frequency){
+	this->stop_thread=0;
+	this->buffers_size=frequency/10*channels;
+	for (ulong a=0;a<n;a++){
+		this->buffers[a]=new int16_t[this->buffers_size];
+		memset(this->buffers[a],0,this->buffers_size*sizeof(int16_t));
+	}
+	this->device=0;
+	this->context=0;
+	this->good=0;
+	this->device=alcOpenDevice(0);
+	if (!this->device)
+		return;
+	this->context=alcCreateContext(this->device,0);
+	if (!this->context)
+		return;
+	alcMakeContextCurrent(this->context);
+	this->frequency=frequency;
+	switch (channels){
+		case 1:
+			this->format=AL_FORMAT_MONO16;
+			break;
+		case 2:
+			this->format=AL_FORMAT_STEREO16;
+			break;
+		case 4:
+			this->format=alGetEnumValue("AL_FORMAT_QUAD16");
+			break;
+		case 6:
+			this->format=alGetEnumValue("AL_FORMAT_51CHN16");
+			break;
+	}
+	alGenSources(1,&this->source);
+	this->good=1;
+	alGenBuffers(n,this->ALbuffers);
+	this->current=0;
+}
+
+AudioOutput::~AudioOutput(){
+	this->stop_thread=1;
+	this->thread.join();
+	alcMakeContextCurrent(0);
+	for (ulong a=0;a<n;a++)
+		delete[] this->buffers[a];
+	if (this->context){
+		alDeleteSources(1,&this->source);
+		alDeleteBuffers(n,this->ALbuffers);
+		alcDestroyContext(this->context);
+	}
+	if (this->device)
+		alcCloseDevice(this->device);
+}
+
+thread_safe_queue<audioBuffer> *AudioOutput::startThread(video_player *vp){
+	this->incoming_queue=new thread_safe_queue<audioBuffer>;
+	this->incoming_queue->max_size=30;
+	this->thread.call(member_bind(&AudioOutput::running_thread,this,vp),1);
+	return this->incoming_queue;
+}
+
+void AudioOutput::stopThread(bool join){
+	this->stop_thread=1;
+	if (join)
+		this->thread.join();
+}
+
+void AudioOutput::running_thread(video_player *vp){
+	if (this->expect_buffers){
+		while (this->incoming_queue->is_empty());
+		for (ulong a=0;a<this->n;a++){
+			this->current=a;
+			ulong t;
+			fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
+			alBufferData(
+				this->ALbuffers[this->current],
+				this->format,
+				this->buffers[this->current],
+				this->buffers_size*sizeof(int16_t),
+				this->frequency
+			);
+			alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
+		}
+		this->current=0;
+	}
+
+	vp->real_start_time=vp->start_time=SDL_GetTicks();
+	if (this->expect_buffers)
+		this->play();
+	while (!this->stop_thread){
+		SDL_Delay(10);
+		ulong now=SDL_GetTicks();
+		vp->global_time=now-vp->start_time;
+		vp->real_global_time=now-vp->real_start_time;
+		if (!this->expect_buffers)
+			continue;
+		ALint buffers_finished=0,
+			queued;
+		alGetSourcei(this->source,AL_BUFFERS_PROCESSED,&buffers_finished);
+		alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
+		bool call_play=0;
+		ulong count=0;
+		if (buffers_finished==this->n){
+			call_play=1;
+#if NONS_SYS_WINDOWS
+			vp->vc[VC_AUDIO_RENDER]->put("Critical point!\n");
+#endif
+		}
+		if (!call_play){
+			ALint state;
+			alGetSourcei(this->source,AL_SOURCE_STATE,&state);
+			if (state!=AL_PLAYING){
+#if NONS_SYS_WINDOWS
+				vp->vc[VC_AUDIO_RENDER]->put("The source has stopped playing!\n");
+#endif
+				call_play=1;
+				buffers_finished=this->n;
+			}
+		}
+		for (;buffers_finished;buffers_finished--,count++){
+			ALuint temp;
+			alSourceUnqueueBuffers(this->source,1,&temp);
+			bool loop=1;
+			ulong t;
+			fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
+			//correct time
+			if (t+100*(buffers_finished)!=vp->global_time)
+				vp->start_time=now-t+100*(buffers_finished);
+			alBufferData(
+				this->ALbuffers[this->current],
+				this->format,
+				this->buffers[this->current],
+				this->buffers_size*sizeof(int16_t),
+				this->frequency
+			);
+			alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
+			this->current=(this->current+1)%n;
+		}
+		if (call_play){
+#if NONS_SYS_WINDOWS
+			vp->vc[VC_AUDIO_RENDER]->put("count: "+itoa<char>(count)+"\n");
+#endif
+			this->play();
+		}
+	}
+	this->wait_until_stop();
+	delete this->incoming_queue;
+	this->incoming_queue=0;
+}
+
+bool AudioOutput::fill(int16_t *buffer,size_t size,thread_safe_queue<audioBuffer> *queue,ulong &time){
+	bool ret=1,
+		time_unset=1;
+	queue->lock();
+	if (queue->is_empty()){
+		memset(buffer,0,size*sizeof(int16_t));
+		ret=0;
+	}else{
+		audioBuffer *buffer2=&queue->peek();
+		if (buffer2->quit){
+			memset(buffer,0,size*sizeof(int16_t));
+		}else{
+			size_t write_at=0,
+				read_size;
+			while (write_at<size){
+				read_size=size-write_at;
+				if (buffer2->read_into_buffer(buffer+write_at,read_size)){
+					if (time_unset){
+						time=buffer2->time_offset;
+						time_unset=0;
+					}
+					queue->pop();
+					if (queue->is_empty())
+						break;
+					buffer2=&queue->peek();
+				}
+				write_at+=read_size;
+			}
+			if (write_at<size){
+				memset(buffer+write_at,0,(size-write_at)*sizeof(int16_t));
+				ret=0;
+			}
+		}
+	}
+	queue->unlock();
+	return ret;
+}
+
+void AudioOutput::play(){
+	ALint state;
+	alGetSourcei(this->source,AL_SOURCE_STATE,&state);
+	if (state!=AL_PLAYING)
+		alSourcePlay(this->source);
+}
+
+void AudioOutput::wait_until_stop(){
+	ALint state;
+	do
+		alGetSourcei(this->source,AL_SOURCE_STATE,&state);
+	while (state==AL_PLAYING);
+}
+
+CompleteVideoFrame::CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts,NONS_Mutex &mutex)
+		:mutex(mutex){
+	this->overlay=0;
+	ulong width,height;
+	float screenRatio=float(screen->w)/float(screen->h),
+		videoRatio;
+	if (videoStream->sample_aspect_ratio.num)
+		videoRatio=
+			float(videoStream->codec->width*videoStream->sample_aspect_ratio.num)/
+			float(videoStream->codec->height*videoStream->sample_aspect_ratio.den);
+	else if (videoStream->codec->sample_aspect_ratio.num)
+		videoRatio=
+			float(videoStream->codec->width*videoStream->codec->sample_aspect_ratio.num)/
+			float(videoStream->codec->height*videoStream->codec->sample_aspect_ratio.den);
+	else
+		videoRatio=float(videoStream->codec->width)/float(videoStream->codec->height);
+	if (screenRatio<videoRatio){ //widescreen
+		width=screen->w;
+		height=ulong(float(screen->w)/videoRatio);
+	}else if (screenRatio>videoRatio){ //"narrowscreen"
+		width=ulong(float(screen->h)*videoRatio);
+		height=screen->h;
+	}else{
+		width=screen->w;
+		height=screen->h;
+	}
+	this->mutex.lock();
+	this->overlay=SDL_CreateYUVOverlay(width,height,SDL_YV12_OVERLAY,(SDL_Surface *)screen);
+	this->mutex.unlock();
+	this->frameRect.x=Sint16((screen->w-width)/2);
+	this->frameRect.y=Sint16((screen->h-height)/2);
+	this->frameRect.w=(Uint16)width;
+	this->frameRect.h=(Uint16)height;
+	SDL_LockYUVOverlay(this->overlay);
+	AVPicture pict;
+	pict.data[0]=this->overlay->pixels[0];
+	pict.data[1]=this->overlay->pixels[2];
+	pict.data[2]=this->overlay->pixels[1];
+	pict.linesize[0]=this->overlay->pitches[0];
+	pict.linesize[1]=this->overlay->pitches[2];
+	pict.linesize[2]=this->overlay->pitches[1];
+	SwsContext *sc=sws_getContext(
+		videoStream->codec->width,videoStream->codec->height,videoStream->codec->pix_fmt,
+		this->overlay->w,this->overlay->h,PIX_FMT_YUV420P,
+		SWS_FAST_BILINEAR,
+		0,0,0
+	);
+	sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoStream->codec->height,pict.data,pict.linesize);
+	sws_freeContext(sc);
+//The UNIX build of FFmpeg already performs color correction.
+#if !NONS_SYS_UNIX
+	{
+		//apply color correction
+		const int min=16,
+			max=235;
+#if 0
+		Uint8 *row=this->overlay->pixels[0],
+			*end=row+this->overlay->w*this->overlay->h;
+		ulong w=this->overlay->w,
+			h=this->overlay->h;
+		for (ulong y=0;y<h;y++){
+			Uint8 *pixel=row;
+			for (ulong x=w-y*w/h;x<w;x++){
+				int a=pixel[x];
+				if (a<min)
+					a=0;
+				else if (a>max)
+					a=255;
+				else
+					a=(a-min)*255/(max-min);
+				pixel[x]=(Uint8)a;
+			}
+			row+=w;
+		}
+#else
+		Uint8 *pixels=this->overlay->pixels[0],
+			*end=pixels+this->overlay->w*this->overlay->h;
+		for (;pixels!=end;pixels++){
+			int a=*pixels;
+			if (a<min)
+				a=0;
+			else if (a>max)
+				a=255;
+			else
+				a=(a-min)*255/(max-min);
+			*pixels=(Uint8)a;
+		}
+#endif
+	}
+#endif
+	SDL_UnlockYUVOverlay(this->overlay);
+	this->old_screen=(SDL_Surface *)screen;
+	this->pts=pts;
+	this->repeat=videoFrame->repeat_pict;
+}
+
+CompleteVideoFrame::~CompleteVideoFrame(){
+	if (!!this->overlay){
+		this->mutex.lock();
+		SDL_FreeYUVOverlay(this->overlay);
+		this->mutex.unlock();
+	}
+}
+
+void CompleteVideoFrame::blit(volatile SDL_Surface *currentScreen,video_player *vp){
+	if (this->old_screen==currentScreen){
+		if (vp->debug_messages){
+			std::string s=seconds_to_time_format(this->pts);
+			//s.push_back('\n');
+			//s.append(seconds_to_time_format(double(real_global_time)/1000.0));
+			//s.append(" "+itoa<char>(real_global_time-this->pts*1000.0,4));
+			blit_font(this->overlay,s.c_str(),0,0);
+		}
+		this->mutex.lock();
+		SDL_DisplayYUVOverlay(this->overlay,&this->frameRect);
+		this->mutex.unlock();
+	}
+}
+
+Packet::Packet(AVPacket *packet){
+	this->free_packet=!!packet;
+	if (this->free_packet){
+		this->packet=*packet;
+		this->dts=this->packet.dts;
+		this->pts=this->packet.pts;
+	}else
+		memset(&this->packet,0,sizeof(this->packet));
+}
+
+Packet::~Packet(){
+	if (this->free_packet)
+		av_free_packet(&this->packet);
+
+}
+
+double Packet::compute_time(AVStream *stream,AVFrame *frame){
+	double ret;
+	if (this->dts!=AV_NOPTS_VALUE)
+		ret=(double)this->dts;
+	else{
+		ret=0;
+		if (frame->opaque){
+			int64_t pts=((video_player::get_buffer_struct *)frame->opaque)->pts;
+			if (pts!=AV_NOPTS_VALUE)
+				ret=(double)pts;
+		}
+	}
+	return ret*av_q2d(stream->time_base);
+}
+
+double Packet::compute_time(AVStream *stream){
+	double ret;
+	if ((this->dts!=AV_NOPTS_VALUE))
+		ret=(double)this->dts;
+	else
+		ret=0;
+	return ret*av_q2d(stream->time_base);
+}
+
+void video_player::video_display_thread(thread_safe_queue<CompleteVideoFrame *> *queue,AudioOutput *aoutput,void *user_data,cb_vector *callback_pairs){
+	SDL_Color white={0xFF,0xFF,0xFF,0xFF},
+		black={0,0,0,0xFF};
+	while (!stop_playback){
+		SDL_Delay(10);
+		double current_time=double(global_time)/1000.0;
+		if (queue->is_empty())
+			continue;
+		for (ulong a=0;a<callback_pairs->size();a++){
+			if (*(*callback_pairs)[a].trigger){
+				*(*callback_pairs)[a].trigger=0;
+				global_screen=(*callback_pairs)[a].callback(global_screen,user_data);
+			}
+		}
+
+		CompleteVideoFrame *frame=(CompleteVideoFrame *)queue->peek();
+
+		/*
+		if (debug_messages){
+			std::stringstream stream;
+			stream <<frame->pts<<'\t'<<current_time<<" ("<<SDL_GetTicks()<<'-'<<start_time<<'='<<global_time<<')'<<std::endl;
+			threadsafe_print(stream.str());
+		}
+		*/
+
+		while (frame->pts<=current_time){
+			frame->blit(global_screen,this);
+			delete queue->pop();
+			if (queue->is_empty())
+				break;
+			frame=(CompleteVideoFrame *)queue->peek();
+		}
+	}
+	while (!queue->is_empty()){
+		CompleteVideoFrame *frame=queue->pop();
+		if (frame)
+			delete frame;
+	}
+}
+
+int video_player::get_buffer(struct AVCodecContext *c,AVFrame *pic){
+	int ret=avcodec_default_get_buffer(c,pic);
+	get_buffer_struct *gbs=(get_buffer_struct *)c->opaque;
+	gbs->pts=gbs->vp->global_pts;
+	return ret;
+}
+
+void video_player::release_buffer(struct AVCodecContext *c, AVFrame *pic) {
+	if (pic)
+		delete (get_buffer_struct *)pic->opaque;
+	avcodec_default_release_buffer(c, pic);
+}
+
+void video_player::decode_audio(AVCodecContext *audioCC,AVStream *audioS,packet_queue *packet_queue,AudioOutput *output){
+	const size_t output_s=AVCODEC_MAX_AUDIO_FRAME_SIZE*2;
+	int16_t audioOutputBuffer[output_s];
+
+	thread_safe_queue<audioBuffer> *queue=output->startThread(this);
+
+	if (!audioCC)
+		return;
+
+	{
+		get_buffer_struct *gbs=new get_buffer_struct;
+		gbs->vp=this;
+		audioCC->opaque=gbs;
+	}
+	audioCC->get_buffer=get_buffer;
+	audioCC->release_buffer=release_buffer;
+	while (1){
+		Packet *packet=0;
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Waiting for packet.\n");
+#endif
+		while (packet_queue->is_empty() && !stop_playback)
+			SDL_Delay(10);
+		if (stop_playback)
+			break;
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Popping queue.\n");
+#endif
+		packet=packet_queue->pop();
+
+		uint8_t *packet_data=packet->packet.data;
+		size_t packet_data_s=packet->packet.size,
+			write_at=0,
+			buffer_size=0;
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Decoding packet.\n");
+#endif
+		while (packet_data_s){
+			int bytes_decoded=output_s,
+				bytes_extracted;
+			bytes_extracted=avcodec_decode_audio3(audioCC,audioOutputBuffer+write_at,&bytes_decoded,&packet->packet);
+			if (bytes_extracted<0)
+				break;
+			packet_data+=bytes_extracted;
+			if (packet_data_s>=(size_t)bytes_extracted)
+				packet_data_s-=bytes_extracted;
+			else
+				packet_data_s=0;
+			buffer_size+=bytes_decoded/sizeof(int16_t);
+		}
+#if NONS_SYS_WINDOWS
+		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
+#endif
+		queue->push(audioBuffer(audioOutputBuffer,buffer_size,1,packet->compute_time(audioS)));
+		delete packet;
+	}
+	output->stopThread(0);
+
+	while (!packet_queue->is_empty()){
+		Packet *packet=packet_queue->pop();
+		if (packet)
+			delete packet;
+	}
+}
+
+void video_player::decode_video(AVCodecContext *videoCC,AVStream *videoS,packet_queue *packet_queue,AudioOutput *aoutput,void *user_data,cb_vector *callback_pairs){
+	AVFrame *videoFrame=avcodec_alloc_frame();
+	std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame> preQueue;
+	thread_safe_queue<CompleteVideoFrame *> frameQueue;
+	frameQueue.max_size=FRAME_QUEUE_MAX_SIZE;
+	NONS_Mutex overlay_mutex;
+	NONS_Thread display(member_bind(&video_player::video_display_thread,this,&frameQueue,aoutput,user_data,callback_pairs));
+
+	{
+		get_buffer_struct *gbs=new get_buffer_struct;
+		gbs->vp=this;
+		videoCC->opaque=gbs;
+	}
+	videoCC->get_buffer=get_buffer;
+	videoCC->release_buffer=release_buffer;
+	double max_pts=-9999;
+	bool msg=0;
+	while (1){
+		Packet *packet;
+		if (stop_playback)
+			break;
+		if (packet_queue->is_empty()){
+			if (!msg){
+#if NONS_SYS_WINDOWS
+				vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Queue is empty. Nothing to do.\n");
+#endif
+				msg=1;
+			}
+			SDL_Delay(10);
+			continue;
+		}
+		msg=0;
+#if NONS_SYS_WINDOWS
+		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Popping queue.\n");
+#endif
+		packet=packet_queue->pop();
+		int frameFinished;
+		global_pts=packet->pts;
+#if NONS_SYS_WINDOWS
+		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Decoding packet.\n");
+#endif
+		//avcodec_decode_video(videoCC,videoFrame,&frameFinished,packet->data,packet->size);
+		avcodec_decode_video2(videoCC,videoFrame,&frameFinished,&packet->packet);
+		double pts=packet->compute_time(videoS,videoFrame);
+		if (frameFinished){
+			CompleteVideoFrame *new_frame=new CompleteVideoFrame(global_screen,videoS,videoFrame,pts,overlay_mutex);
+			if (new_frame->pts>max_pts){
+				max_pts=new_frame->pts;
+				while (!preQueue.empty()){
+					std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame>::iterator first=preQueue.begin();
+#if NONS_SYS_WINDOWS
+					vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
+#endif
+					frameQueue.push(*first);
+					preQueue.erase(first);
+				}
+			}
+			preQueue.insert(new_frame);
+		}
+		delete packet;
+	}
+	av_free(videoFrame);
+	display.join();
+	while (!frameQueue.is_empty()){
+		CompleteVideoFrame *frame=frameQueue.pop();
+		if (frame)
+			delete frame;
+	}
+	while (!preQueue.empty()){
+		std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame>::iterator first=preQueue.begin();
+		delete *first;
+		preQueue.erase(first);
+	}
+	while (!packet_queue->is_empty()){
+		Packet *packet=packet_queue->pop();
+		if (packet)
+			delete packet;
+	}
+}
+
+bool video_player::play_video(
+		SDL_Surface *screen,
+		const char *input,
+		volatile int *stop,
+		void *user_data,
+		int print_debug,
+		std::string &exception_string,
+		cb_vector &callback_pairs,
+		file_protocol fp){
 	stop_playback=0;
 	debug_messages=!!print_debug;
 	global_screen=screen;
@@ -986,13 +1016,6 @@ play_video_SIGNATURE{
 	AVFormatContext *avfc;
 	SDL_FillRect(screen,0,0);
 	SDL_UpdateRect(screen,0,0,0,0);
-#if NONS_SYS_WINDOWS
-	std::auto_ptr<VirtualConsole> auto_vc[]={
-		std::auto_ptr<VirtualConsole>(vc[0]=new VirtualConsole("audio_decode",7)),
-		std::auto_ptr<VirtualConsole>(vc[1]=new VirtualConsole("video_decode",7)),
-		std::auto_ptr<VirtualConsole>(vc[2]=new VirtualConsole("audio_render",7))
-	};
-#endif
 
 	ByteIOContext bioc;
 	std::vector<uchar> io_buffer(4096+FF_INPUT_BUFFER_PADDING_SIZE);
@@ -1085,30 +1108,12 @@ play_video_SIGNATURE{
 		output.expect_buffers=useAudio;
 
 		AVPacket packet;
-		NONS_Thread audio_decoder;
-		TSqueue<Packet *> audio_packets;
-		{
-			decode_audio_params *params=new decode_audio_params;
-			params->audioCC=audioCC;
-			params->audioS=avfc->streams[audioStream];
-			params->packet_queue=&audio_packets;
-			params->output=&output;
-			audio_decoder.call(decode_audio,params,1);
-		}
-		NONS_Thread video_decoder;
-		TSqueue<Packet *> video_packets;
-		{
-			decode_video_params *params=new decode_video_params;
-			params->videoCC=videoCC;
-			params->videoS=avfc->streams[videoStream];
-			params->packet_queue=&video_packets;
-			params->aoutput=&output;
-			params->user_data=user_data;
-			params->callback_pairs=&callback_pairs;
-			video_decoder.call(decode_video,params);
-		}
+		packet_queue audio_packets,
+			video_packets;
 		video_packets.max_size=25;
 		audio_packets.max_size=200;
+		NONS_Thread audio_decoder(member_bind(&video_player::decode_audio,this,audioCC,avfc->streams[audioStream],&audio_packets,&output),1);
+		NONS_Thread video_decoder(member_bind(&video_player::decode_video,this,videoCC,avfc->streams[videoStream],&video_packets,&output,user_data,&callback_pairs));
 		for (ulong a=0;av_read_frame(avfc,&packet)>=0;a++){
 			if (*stop){
 				av_free_packet(&packet);
@@ -1129,6 +1134,27 @@ play_video_SIGNATURE{
 		output.wait_until_stop();
 	}
 	return 1;
+}
+
+VIDEO_CONSTRUCTOR_SIGNATURE{
+	return new video_player;
+}
+
+VIDEO_DESTRUCTOR_SIGNATURE{
+	delete (video_player *)player;
+}
+
+play_video_SIGNATURE{
+	return ((video_player *)player)->play_video(
+		screen,
+		input,
+		stop,
+		user_data,
+		print_debug,
+		exception_string,
+		callback_pairs,
+		fp
+	);
 }
 
 PLAYER_TYPE_FUNCTION_SIGNATURE{

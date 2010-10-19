@@ -24,24 +24,26 @@
 * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define play_video_SIGNATURE bool play_video(\
-		SDL_Surface *screen,\
-		const char *input,\
-		volatile int *stop,\
-		void *user_data,\
-		int print_debug,\
-		std::string &exception_string,\
-		std::vector<C_play_video_params::trigger_callback_pair> &callback_pairs,\
-		file_protocol fp\
+#define play_video_SIGNATURE bool play_video( \
+		void *player,                         \
+		SDL_Surface *screen,                  \
+		const char *input,                    \
+		volatile int *stop,                   \
+		void *user_data,                      \
+		int print_debug,                      \
+		std::string &exception_string,        \
+		cb_vector &callback_pairs,            \
+		file_protocol fp                      \
 	)
+typedef std::vector<C_play_video_params::trigger_callback_pair> cb_vector;
 
 play_video_SIGNATURE;
 
 typedef C_play_video_params C_play_video_params_1;
 typedef C_play_video_params C_play_video_params_latest;
-typedef bool (*versioned_play_video_f)(void *);
+typedef bool (*versioned_play_video_f)(void *,void *);
 
-bool play_video_1(void *void_params){
+bool play_video_1(void *player,void *void_params){
 	C_play_video_params_1 *params=(C_play_video_params_1 *)void_params;
 	if (params->exception_string)
 		*params->exception_string=0;
@@ -51,6 +53,7 @@ bool play_video_1(void *void_params){
 		params->pairs+params->trigger_callback_pairs_n
 	);
 	if (play_video(
+			player,
 			params->screen,
 			params->input,
 			params->stop,
@@ -76,5 +79,5 @@ PLAYBACK_FUNCTION_SIGNATURE{
 	version--;
 	if (version>=sizeof(functions)/sizeof(*functions))
 		return 0;
-	return functions[version](parameters);
+	return functions[version](player,parameters);
 }
