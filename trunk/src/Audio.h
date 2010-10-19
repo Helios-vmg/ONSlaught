@@ -80,8 +80,8 @@ struct NONS_SoundCache{
 	void GarbageCollector();
 	NONS_Mutex mutex;
 private:
-	NONS_Thread thread;
 	bool kill_thread;
+	NONS_Thread thread;
 };
 
 class NONS_Music{

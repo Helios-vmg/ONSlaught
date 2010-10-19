@@ -202,6 +202,12 @@ private:
 class NONS_Matrix{
 	double matrix[4];
 public:
+	NONS_Matrix(){
+		this->matrix[0]=
+		this->matrix[1]=
+		this->matrix[2]=
+		this->matrix[3]=0.0;
+	}
 	NONS_Matrix(double a,double b,double c,double d){
 		this->matrix[0]=a;
 		this->matrix[1]=b;
@@ -282,12 +288,12 @@ public:
 	NONS_Surface rotate(double alpha) const;
 	//Copies the surface while applying a linear transformation to it.
 	NONS_Surface transform(const NONS_Matrix &m,bool fast=0) const;
-	void save_bitmap(const std::wstring &filename) const;
+	void save_bitmap(const std::wstring &filename,bool fill_alpha=0) const;
 	void get_optimized_updates(optim_t &dst) const;
 };
 
 class NONS_DECLSPEC NONS_Surface:public NONS_ConstSurface{
-	typedef void(*interpolation_f)(void*);
+	typedef void (*interpolation_f)(NONS_SurfaceProperties,NONS_Rect,NONS_SurfaceProperties,NONS_Rect,double,double);
 	NONS_Surface(int){}
 public:
 	static const NONS_Surface null;
@@ -325,9 +331,9 @@ public:
 
 #define NONS_Surface_DECLARE_INTERPOLATION_F(name) \
 	void name(                                     \
-		const NONS_Surface &src,                   \
-		const NONS_Rect &dst_rect,                 \
-		const NONS_Rect &src_rect,                 \
+		NONS_Surface src,                   \
+		NONS_Rect dst_rect,                 \
+		NONS_Rect src_rect,                 \
 		double x,                                  \
 		double y                                   \
 	)
@@ -344,13 +350,13 @@ public:
 	NONS_Surface_DECLARE_INTERPOLATION_F(NN_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation2);
-	typedef void (NONS_Surface::*public_interpolation_f)(const NONS_Surface &,const NONS_Rect &,const NONS_Rect &,double,double);
+	typedef void (NONS_Surface::*public_interpolation_f)(NONS_Surface,NONS_Rect,NONS_Rect,double,double);
 
 	void make_critical(ulong max_copies);
 
 	//SDL-related:
-	SDL_Surface *get_SDL_screen();
-	static NONS_Surface assign_screen(SDL_Surface *);
+	SDL_Surface *get_SDL_screen() const;
+	static NONS_Surface assign_screen(SDL_Surface *,bool get_screen=1);
 	static NONS_Surface get_screen();
 	static void init_loader();
 	static bool filelog_check(const std::wstring &string);

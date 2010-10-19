@@ -33,13 +33,9 @@
 #include "Archive.h"
 #include <iostream>
 
-void GC(void *param){
-	((NONS_SoundCache *)param)->GarbageCollector();
-}
-
 NONS_SoundCache::NONS_SoundCache(){
 	this->kill_thread=0;
-	this->thread.call(GC,this);
+	this->thread.call(member_bind(&NONS_SoundCache::GarbageCollector,this));
 }
 
 NONS_SoundCache::~NONS_SoundCache(){

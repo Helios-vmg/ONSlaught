@@ -32,7 +32,6 @@
 #include "GFX.h"
 #include "IOFunctions.h"
 #include "ThreadManager.h"
-#include "ImageLoader.h"
 #include "Plugin/LibraryLoader.h"
 #include <cmath>
 #include <iostream>
@@ -515,27 +514,20 @@ void NONS_GFX::effectUscroll(const NONS_ConstSurface &src,const NONS_ConstSurfac
 	effect_epilogue();
 }
 
-struct EHM_parameters{
-	NONS_ConstSurfaceProperties src0;
-	NONS_SurfaceProperties src1,dst;
-	long a;
-};
-
-void effectHardMask_threaded(void *parameters){
-	EHM_parameters p=*(EHM_parameters *)parameters;
-	for (ulong y=0;y<p.src0.h;y++){
-		for (ulong x=0;x<p.src0.w;x++){
-			uchar *b1=p.src1.pixels+p.src1.offsets[2];
-			if (*b1<=p.a){
-				p.dst.pixels[p.dst.offsets[0]]=p.src0.pixels[p.src0.offsets[0]];
-				p.dst.pixels[p.dst.offsets[1]]=p.src0.pixels[p.src0.offsets[1]];
-				p.dst.pixels[p.dst.offsets[2]]=p.src0.pixels[p.src0.offsets[2]];
-				p.dst.pixels[p.dst.offsets[3]]=p.src0.pixels[p.src0.offsets[3]];
+void effectHardMask_threaded(NONS_ConstSurfaceProperties src0,NONS_SurfaceProperties src1,NONS_SurfaceProperties dst,long a){
+	for (ulong y=0;y<src0.h;y++){
+		for (ulong x=0;x<src0.w;x++){
+			uchar *b1=src1.pixels+src1.offsets[2];
+			if (*b1<=a){
+				dst.pixels[dst.offsets[0]]=src0.pixels[src0.offsets[0]];
+				dst.pixels[dst.offsets[1]]=src0.pixels[src0.offsets[1]];
+				dst.pixels[dst.offsets[2]]=src0.pixels[src0.offsets[2]];
+				dst.pixels[dst.offsets[3]]=src0.pixels[src0.offsets[3]];
 				*b1=0xFF;
 			}
-			p.src0.pixels+=4;
-			p.src1.pixels+=4;
-			p.dst.pixels+=4;
+			src0.pixels+=4;
+			src1.pixels+=4;
+			dst.pixels+=4;
 		}
 	}
 }
@@ -563,21 +555,25 @@ void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
-	std::vector<EHM_parameters> parameters(cpu_count);
+	BINDER_TYPEDEF_4(function_parameters,NONS_ConstSurfaceProperties,NONS_SurfaceProperties,NONS_SurfaceProperties,long);
+	std::vector<function_parameters> parameters(cpu_count);
 	//prepare for threading
 	ulong division=ulong(float(src_rect.h)/float(cpu_count));
 	ulong total=0;
-	src0.get_properties(parameters[0].src0);
-	mask_copy.get_properties(parameters[0].src1);
-	parameters[0].src0.h=division;
+	src0.get_properties(parameters[0].pt0);
+	mask_copy.get_properties(parameters[0].pt1);
+	parameters.front().f=effectHardMask_threaded;
+	parameters.front().pt0.h=division;
+	parameters.front().p=4;
+	parameters.front().free_after_first_use=0;
 	for (ulong a=0;a<cpu_count;a++){
-		EHM_parameters &p=parameters[a];
+		function_parameters &p=parameters[a];
 		if (a>0)
-			p=parameters[0];
-		p.src0.pixels+=p.src0.pitch*a*division;
-		p.src1.pixels+=p.src1.pitch*a*division;
+			p=parameters.front();
+		p.pt0.pixels+=p.pt0.pitch*a*division;
+		p.pt1.pixels+=p.pt1.pitch*a*division;
 	}
-	parameters.back().src0.h=src_rect.h-division*(cpu_count-1);
+	parameters.back().pt0.h=src_rect.h-division*(cpu_count-1);
 
 	EFFECT_INITIALIZE_DELAYS(256);
 	for (long a=0;a<256;a++){
@@ -586,18 +582,18 @@ void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 			NONS_Surface screen=dst.get_screen();
 			screen.get_properties(screen_sp);
 			for (ulong b=0;b<cpu_count;b++){
-				EHM_parameters &p=parameters[b];
-				p.a=a;
-				p.dst=screen_sp;
-				p.dst.pixels+=p.dst.pitch*b*division;
+				function_parameters &p=parameters[b];
+				p.pt3=a;
+				p.pt2=screen_sp;
+				p.pt2.pixels+=p.pt2.pitch*b*division;
 			}
 			for (ulong b=1;b<cpu_count;b++)
 #ifndef USE_THREAD_MANAGER
-				threads[b].call(effectHardMask_threaded,&parameters[b]);
+				threads[b].call(&parameters[b]);
 #else
-				threadManager.call(b-1,effectHardMask_threaded,&parameters[b]);
+				threadManager.call(b-1,&parameters[b]);
 #endif
-			effectHardMask_threaded(&parameters[0]);
+			parameters.front().call();
 #ifndef USE_THREAD_MANAGER
 			for (ulong b=1;b<cpu_count;b++)
 				threads[b].join();
@@ -611,27 +607,26 @@ void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 	effect_epilogue();
 }
 
-void effectSoftMask_threaded(void *parameters){
-	EHM_parameters p=*(EHM_parameters *)parameters;
-	for (ulong y=0;y<p.src0.h;y++){
-		for (ulong x=0;x<p.src0.w;x++){
-			uchar *b1=p.src1.pixels+2;
-			if ((long)*b1<=p.a){
-				long alpha=p.a-(long)*b1;
+void effectSoftMask_threaded(NONS_ConstSurfaceProperties src0,NONS_SurfaceProperties src1,NONS_SurfaceProperties dst,long a){
+	for (ulong y=0;y<src0.h;y++){
+		for (ulong x=0;x<src0.w;x++){
+			uchar *b1=src1.pixels+2;
+			if ((long)*b1<=a){
+				long alpha=a-(long)*b1;
 				if (alpha<0)
 					alpha=0;
 				else if (alpha>255)
 					alpha=255;
-				p.dst.pixels[p.dst.offsets[0]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[0]],p.dst.pixels[p.dst.offsets[0]],alpha);
-				p.dst.pixels[p.dst.offsets[1]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[1]],p.dst.pixels[p.dst.offsets[1]],alpha);
-				p.dst.pixels[p.dst.offsets[2]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[2]],p.dst.pixels[p.dst.offsets[2]],alpha);
-				p.dst.pixels[p.dst.offsets[3]]=(uchar)APPLY_ALPHA(p.src0.pixels[p.src0.offsets[3]],p.dst.pixels[p.dst.offsets[3]],alpha);
-				if ((long)*b1<p.a-255)
+				dst.pixels[dst.offsets[0]]=(uchar)APPLY_ALPHA(src0.pixels[src0.offsets[0]],dst.pixels[dst.offsets[0]],alpha);
+				dst.pixels[dst.offsets[1]]=(uchar)APPLY_ALPHA(src0.pixels[src0.offsets[1]],dst.pixels[dst.offsets[1]],alpha);
+				dst.pixels[dst.offsets[2]]=(uchar)APPLY_ALPHA(src0.pixels[src0.offsets[2]],dst.pixels[dst.offsets[2]],alpha);
+				dst.pixels[dst.offsets[3]]=(uchar)APPLY_ALPHA(src0.pixels[src0.offsets[3]],dst.pixels[dst.offsets[3]],alpha);
+				if ((long)*b1<a-255)
 					*b1=0;
 			}
-			p.src0.pixels+=4;
-			p.src1.pixels+=4;
-			p.dst.pixels+=4;
+			src0.pixels+=4;
+			src1.pixels+=4;
+			dst.pixels+=4;
 		}
 	}
 }
@@ -645,22 +640,25 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
-	std::vector<EHM_parameters> parameters(cpu_count);
+	BINDER_TYPEDEF_4(function_parameters,NONS_ConstSurfaceProperties,NONS_SurfaceProperties,NONS_SurfaceProperties,long);
+	std::vector<function_parameters> parameters(cpu_count);
 	NONS_SurfaceProperties screen_sp;
 	//prepare for threading
 	ulong division=ulong(float(src_rect.h)/float(cpu_count));
 	ulong total=0;
-	src0.get_properties(parameters[0].src0);
-	mask_copy.get_properties(parameters[0].src1);
-	parameters[0].src0.h=division;
+	src0.get_properties(parameters[0].pt0);
+	mask_copy.get_properties(parameters[0].pt1);
+	parameters.front().pt0.h=division;
+	parameters.front().f=effectSoftMask_threaded;
+	parameters.front().free_after_first_use=0;
 	for (ulong a=0;a<cpu_count;a++){
-		EHM_parameters &p=parameters[a];
+		function_parameters &p=parameters[a];
 		if (a>0)
-			p=parameters[0];
-		p.src0.pixels+=p.src0.pitch*a*division;
-		p.src1.pixels+=p.src1.pitch*a*division;
+			p=parameters.front();
+		p.pt0.pixels+=p.pt0.pitch*a*division;
+		p.pt1.pixels+=p.pt1.pitch*a*division;
 	}
-	parameters.back().src0.h=src_rect.h-division*(cpu_count-1);
+	parameters.back().pt0.h=src_rect.h-division*(cpu_count-1);
 
 	EFFECT_INITIALIZE_DELAYS(512);
 #ifdef BENCHMARK_EFFECTS
@@ -672,19 +670,19 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 			NONS_Surface screen=dst.get_screen();
 			screen.get_properties(screen_sp);
 			for (ulong b=0;b<cpu_count;b++){
-				EHM_parameters &p=parameters[b];
-				p.a=a;
-				p.dst=screen_sp;
-				p.dst.pixels+=p.dst.pitch*b*division;
+				function_parameters &p=parameters[b];
+				p.pt3=a;
+				p.pt2=screen_sp;
+				p.pt2.pixels+=p.pt2.pitch*b*division;
 			}
 			screen.copy_pixels(dst_copy);
 			for (ulong b=1;b<cpu_count;b++)
 #ifndef USE_THREAD_MANAGER
-				threads[b].call(effectSoftMask_threaded,&parameters[b]);
+				threads[b].call(&parameters[b]);
 #else
-				threadManager.call(b-1,effectSoftMask_threaded,&parameters[b]);
+				threadManager.call(b-1,&parameters[b]);
 #endif
-			effectSoftMask_threaded(&parameters[0]);
+			parameters.front().call();
 #ifndef USE_THREAD_MANAGER
 			for (ulong b=1;b<cpu_count;b++)
 				threads[b].join();

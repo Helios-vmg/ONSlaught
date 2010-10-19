@@ -30,7 +30,6 @@
 #include "VariableStore.h"
 #include "IOFunctions.h"
 #include "CommandLineOptions.h"
-#include "ImageLoader.h"
 #include <cstdarg>
 #include <iostream>
 

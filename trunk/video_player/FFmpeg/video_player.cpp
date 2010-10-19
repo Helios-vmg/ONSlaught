@@ -38,6 +38,7 @@
 
 #include <queue>
 #include <climits>
+#include "../../src/Thread.h"
 
 #if NONS_SYS_WINDOWS
 #include <windows.h>
@@ -129,73 +130,6 @@ static VirtualConsole *vc[10]={0};
 #define VC_VIDEO_RENDER 3
 #endif
 
-class NONS_Event{
-	bool initialized;
-#if NONS_SYS_WINDOWS
-	HANDLE event;
-#elif NONS_SYS_UNIX
-	sem_t sem;
-#endif
-public:
-	NONS_Event():initialized(0){}
-	void init();
-	~NONS_Event();
-	void set();
-	void reset();
-	void wait();
-};
-
-typedef void (*NONS_ThreadedFunctionPointer)(void *);
-class NONS_Thread{
-	struct threadStruct{ NONS_ThreadedFunctionPointer f; void *d; };
-#if NONS_SYS_WINDOWS
-	HANDLE thread;
-	static DWORD __stdcall runningThread(void *);
-#elif NONS_SYS_UNIX
-	pthread_t thread;
-	static void *runningThread(void *);
-#endif
-	bool called;
-public:
-	NONS_Thread():called(0){}
-	NONS_Thread(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority=0);
-	~NONS_Thread();
-	void call(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority=0);
-	void join();
-};
-
-class NONS_Mutex{
-#if NONS_SYS_WINDOWS
-	void *mutex;
-#elif NONS_SYS_UNIX
-	pthread_mutex_t mutex;
-#endif
-	NONS_Mutex(const NONS_Mutex &){}
-	const NONS_Mutex &operator=(const NONS_Mutex &){ return *this; }
-public:
-	NONS_Mutex();
-	~NONS_Mutex();
-	void lock();
-	void unlock();
-	bool try_lock();
-#ifdef NONS_Mutex_USE_MUTEX
-	bool timed_lock(ulong ms);
-#endif
-};
-
-class NONS_MutexLocker{
-	NONS_Mutex &mutex;
-	NONS_MutexLocker(const NONS_MutexLocker &m):mutex(m.mutex){}
-	void operator=(const NONS_MutexLocker &){}
-public:
-	NONS_MutexLocker(NONS_Mutex &m):mutex(m){
-		this->mutex.lock();
-	}
-	~NONS_MutexLocker(){
-		this->mutex.unlock();
-	}
-};
-
 template <typename T>
 class TSqueue{
 	std::queue<T> queue;
@@ -260,153 +194,6 @@ public:
 		this->queue.pop();
 	}
 };
-
-void NONS_Event::init(){
-#if NONS_SYS_WINDOWS
-	this->event=CreateEvent(0,0,0,0);
-#elif NONS_SYS_UNIX
-	sem_init(&this->sem,0,0);
-#endif
-	this->initialized=1;
-}
-
-NONS_Event::~NONS_Event(){
-	if (!this->initialized)
-		return;
-#if NONS_SYS_WINDOWS
-	CloseHandle(this->event);
-#elif NONS_SYS_UNIX
-	sem_destroy(&this->sem);
-#endif
-}
-
-void NONS_Event::set(){
-#if NONS_SYS_WINDOWS
-	SetEvent(this->event);
-#elif NONS_SYS_UNIX
-	sem_post(&this->sem);
-#endif
-}
-
-void NONS_Event::reset(){
-#if NONS_SYS_WINDOWS
-	ResetEvent(this->event);
-#endif
-}
-
-void NONS_Event::wait(){
-#if NONS_SYS_WINDOWS
-	WaitForSingleObject(this->event,INFINITE);
-#elif NONS_SYS_UNIX
-	sem_wait(&this->sem);
-#endif
-}
-
-NONS_Thread::NONS_Thread(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority){
-	this->called=0;
-	this->call(function,data,give_highest_priority);
-}
-
-NONS_Thread::~NONS_Thread(){
-	if (!this->called)
-		return;
-	this->join();
-#if NONS_SYS_WINDOWS
-	CloseHandle(this->thread);
-#endif
-}
-
-void NONS_Thread::call(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority){
-	if (this->called)
-		return;
-	threadStruct *ts=new threadStruct;
-	ts->f=function;
-	ts->d=data;
-#if NONS_SYS_WINDOWS
-	this->thread=CreateThread(0,0,(LPTHREAD_START_ROUTINE)runningThread,ts,0,0);
-	if (give_highest_priority)
-		SetThreadPriority(this->thread,THREAD_PRIORITY_HIGHEST);
-#elif NONS_SYS_UNIX
-	pthread_attr_t attr,
-		*pattr=0;
-	if (give_highest_priority){
-		pattr=&attr;
-		pthread_attr_init(pattr);
-		sched_param params;
-		pthread_attr_getschedparam(pattr,&params);
-		int policy;
-		pthread_attr_getschedpolicy(pattr,&policy);
-		params.sched_priority=sched_get_priority_max(policy);
-		pthread_attr_setschedparam(pattr,&params);
-	}
-	pthread_create(&this->thread,pattr,runningThread,ts);
-	if (give_highest_priority)
-		pthread_attr_destroy(pattr);
-#endif
-	this->called=1;
-}
-
-void NONS_Thread::join(){
-	if (!this->called)
-		return;
-#if NONS_SYS_WINDOWS
-	WaitForSingleObject(this->thread,INFINITE);
-#elif NONS_SYS_UNIX
-	pthread_join(this->thread,0);
-#endif
-	this->called=0;
-}
-
-#if NONS_SYS_WINDOWS
-DWORD WINAPI
-#elif NONS_SYS_UNIX
-void *
-#endif
-NONS_Thread::runningThread(void *p){
-	NONS_ThreadedFunctionPointer f=((threadStruct *)p)->f;
-	void *d=((threadStruct *)p)->d;
-	delete (threadStruct *)p;
-	f(d);
-	return 0;
-}
-
-NONS_Mutex::NONS_Mutex(){
-#if NONS_SYS_WINDOWS
-	this->mutex=new CRITICAL_SECTION;
-	InitializeCriticalSection((CRITICAL_SECTION *)this->mutex);
-#elif NONS_SYS_UNIX
-	pthread_mutexattr_t attr;
-	pthread_mutexattr_init(&attr);
-	pthread_mutexattr_settype(&attr,PTHREAD_MUTEX_RECURSIVE);
-	pthread_mutex_init(&this->mutex,&attr);
-	pthread_mutexattr_destroy(&attr);
-#endif
-}
-
-NONS_Mutex::~NONS_Mutex(){
-#if NONS_SYS_WINDOWS
-	DeleteCriticalSection((CRITICAL_SECTION *)this->mutex);
-	delete (CRITICAL_SECTION *)this->mutex;
-#elif NONS_SYS_UNIX
-	pthread_mutex_destroy(&this->mutex);
-#endif
-}
-
-void NONS_Mutex::lock(){
-#if NONS_SYS_WINDOWS
-	EnterCriticalSection((CRITICAL_SECTION *)this->mutex);
-#elif NONS_SYS_UNIX
-	pthread_mutex_lock(&this->mutex);
-#endif
-}
-
-void NONS_Mutex::unlock(){
-#if NONS_SYS_WINDOWS
-	LeaveCriticalSection((CRITICAL_SECTION *)this->mutex);
-#elif NONS_SYS_UNIX
-	pthread_mutex_unlock(&this->mutex);
-#endif
-}
 
 template <typename T,typename T2>
 std::basic_string<T> itoa(T2 n,unsigned w=0){
@@ -605,7 +392,7 @@ public:
 	TSqueue<audioBuffer> *startThread(){
 		this->incoming_queue=new TSqueue<audioBuffer>;
 		this->incoming_queue->max_size=30;
-		this->thread.call(running_thread_support,this,1);
+		this->thread.call(member_bind(&AudioOutput::running_thread,this),1);
 		return this->incoming_queue;
 	}
 	void stopThread(bool join){

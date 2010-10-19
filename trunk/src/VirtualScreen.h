@@ -185,7 +185,7 @@ public:
 	NONS_Surface get_real_screen(){ return this->screens[REAL]; }
 	//If 0, to window; if 1, to fullscreen; if 2, toggle.
 	bool toggleFullscreen(uchar mode=2);
-	SDL_Surface *toggleFullscreenFromVideo();
+	SDL_Surface *toggleFullscreenFromVideo(const NONS_Surface &s);
 	template <typename T>
 	float convertX(T x){
 		return (float)this->convertW(x)+this->outRect.x;
@@ -212,7 +212,6 @@ public:
 	}
 	NONS_DECLSPEC void updateWithoutLock(const NONS_Surface &s,bool fast=0);
 	std::wstring takeScreenshot(const std::wstring &filename=L"");
-	void takeScreenshotFromVideo();
 	void initEffectList();
 	ErrorCode callEffect(ulong effectNo,ulong frequency);
 	void stopEffect();

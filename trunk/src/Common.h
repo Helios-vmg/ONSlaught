@@ -53,8 +53,10 @@ typedef unsigned char uchar;
 typedef void *HANDLE;
 #ifdef BUILD_ONSLAUGHT
 #define NONS_DECLSPEC __declspec(dllexport)
-#else
+#elif IMPORT_FROM_ONSLAUGHT
 #define NONS_DECLSPEC __declspec(dllimport)
+#else
+#define NONS_DECLSPEC
 #endif
 #define NONS_DLLexport __declspec(dllexport)
 #define NONS_DLLimport __declspec(dllimport)

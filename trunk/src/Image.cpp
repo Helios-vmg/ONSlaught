@@ -980,42 +980,36 @@ void get_final_size(const NONS_ConstSurfaceProperties &src,const NONS_Matrix &m,
 	h=ulong(maxy-miny);
 }
 
-struct transform_params{
-	bool fast;
+#define TRANSFORM_SET_CHANNEL(i)                                                               \
+	m1=((pixel[0][src_sp.offsets[i]]*ifraction_x+pixel[1][src_sp.offsets[i]]*fraction_x)>>16); \
+	m2=((pixel[2][src_sp.offsets[i]]*ifraction_x+pixel[3][src_sp.offsets[i]]*fraction_x)>>16); \
+	rgba[dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
+
+void transform_threaded(bool fast,NONS_Matrix matrix,ulong y0,ulong h,ulong correct_x,ulong correct_y,NONS_SurfaceProperties dst_sp,NONS_ConstSurfaceProperties src_sp){
 	long long_matrix[4];
-	ulong y0,h,correct_x,correct_y;
-	NONS_ConstSurfaceProperties src_sp;
-	NONS_SurfaceProperties dst_sp;
-};
-
-#define TRANSFORM_SET_CHANNEL(i)                                                                             \
-	m1=((pixel[0][params.src_sp.offsets[i]]*ifraction_x+pixel[1][params.src_sp.offsets[i]]*fraction_x)>>16); \
-	m2=((pixel[2][params.src_sp.offsets[i]]*ifraction_x+pixel[3][params.src_sp.offsets[i]]*fraction_x)>>16); \
-	rgba[params.dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
-
-void transform_threaded(void *p){
-	transform_params params=*(transform_params *)p;
-	for (ulong subpicture=0;subpicture<params.src_sp.frames;subpicture++){
+	for (int a=0;a<4;a++)
+		long_matrix[a]=long(matrix[a]*65536.0);
+	for (ulong subpicture=0;subpicture<src_sp.frames;subpicture++){
 		const uchar empty_pixels[4]={0};
-		params.h+=params.y0;
-		for (ulong y=params.y0;y<params.h;y++){
-			Uint32 *dst_pixel=(Uint32 *)(params.dst_sp.pixels+y*params.dst_sp.pitch);
+		h+=y0;
+		for (ulong y=y0;y<h;y++){
+			Uint32 *dst_pixel=(Uint32 *)(dst_sp.pixels+y*dst_sp.pitch);
 			bool pixels_were_copied=0;
-			long src_x0=(0-params.correct_x)*params.long_matrix[0]+(y-params.correct_y)*params.long_matrix[1],
-				src_y0=(0-params.correct_x)*params.long_matrix[2]+(y-params.correct_y)*params.long_matrix[3];
-			for (ulong x=0;x<params.dst_sp.w;++x){
-				if (params.fast){
+			long src_x0=(0-correct_x)*long_matrix[0]+(y-correct_y)*long_matrix[1],
+				src_y0=(0-correct_x)*long_matrix[2]+(y-correct_y)*long_matrix[3];
+			for (ulong x=0;x<dst_sp.w;++x){
+				if (fast){
 					long src_x=(src_x0+0x5000)>>16,
 						src_y=(src_y0+0x5000)>>16;
-					src_x0+=params.long_matrix[0];
-					src_y0+=params.long_matrix[2];
-					if (!(src_x<0 || src_y<0 || (ulong)src_x>=params.src_sp.w || (ulong)src_y>=params.src_sp.h)){
-						const uchar *src_pixel=params.src_sp.pixels+src_x*4+src_y*params.src_sp.pitch;
+					src_x0+=long_matrix[0];
+					src_y0+=long_matrix[2];
+					if (!(src_x<0 || src_y<0 || (ulong)src_x>=src_sp.w || (ulong)src_y>=src_sp.h)){
+						const uchar *src_pixel=src_sp.pixels+src_x*4+src_y*src_sp.pitch;
 						uchar p[4];
-						p[params.dst_sp.offsets[0]]=src_pixel[params.src_sp.offsets[0]];
-						p[params.dst_sp.offsets[1]]=src_pixel[params.src_sp.offsets[1]];
-						p[params.dst_sp.offsets[2]]=src_pixel[params.src_sp.offsets[2]];
-						p[params.dst_sp.offsets[3]]=src_pixel[params.src_sp.offsets[3]];
+						p[dst_sp.offsets[0]]=src_pixel[src_sp.offsets[0]];
+						p[dst_sp.offsets[1]]=src_pixel[src_sp.offsets[1]];
+						p[dst_sp.offsets[2]]=src_pixel[src_sp.offsets[2]];
+						p[dst_sp.offsets[3]]=src_pixel[src_sp.offsets[3]];
 						*dst_pixel=*(Uint32 *)p;
 						dst_pixel++;
 						pixels_were_copied=1;
@@ -1026,15 +1020,15 @@ void transform_threaded(void *p){
 						src_y=src_y0>>16,
 						temp_x0=src_x0,
 						temp_y0=src_y0;
-					src_x0+=params.long_matrix[0];
-					src_y0+=params.long_matrix[2];
-					if (temp_x0>-0x10000 && temp_x0<long(params.src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(params.src_sp.h<<16)){
-						const uchar *sp=(const uchar *)(params.src_sp.pixels+src_y*params.src_sp.pitch+src_x*4);
+					src_x0+=long_matrix[0];
+					src_y0+=long_matrix[2];
+					if (temp_x0>-0x10000 && temp_x0<long(src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(src_sp.h<<16)){
+						const uchar *sp=(const uchar *)(src_sp.pixels+src_y*src_sp.pitch+src_x*4);
 						const uchar *pixel[4]={
 							sp,
 							sp+4,
-							sp+params.src_sp.pitch,
-							sp+params.src_sp.pitch+4,
+							sp+src_sp.pitch,
+							sp+src_sp.pitch+4,
 						};
 						if (src_x<0){
 							pixel[0]=empty_pixels;
@@ -1044,11 +1038,11 @@ void transform_threaded(void *p){
 							pixel[0]=empty_pixels;
 							pixel[1]=empty_pixels;
 						}
-						if (src_x>=(long)params.src_sp.w-1){
+						if (src_x>=(long)src_sp.w-1){
 							pixel[1]=empty_pixels;
 							pixel[3]=empty_pixels;
 						}
-						if (src_y>=(long)params.src_sp.h-1){
+						if (src_y>=(long)src_sp.h-1){
 							pixel[2]=empty_pixels;
 							pixel[3]=empty_pixels;
 						}
@@ -1079,8 +1073,8 @@ void transform_threaded(void *p){
 				break;
 			}
 		}
-		params.src_sp.pixels+=params.src_sp.byte_count;
-		params.dst_sp.pixels+=params.dst_sp.byte_count;
+		src_sp.pixels+=src_sp.byte_count;
+		dst_sp.pixels+=dst_sp.byte_count;
 	}
 }
 
@@ -1108,36 +1102,37 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,c
 	ulong correct_x=src_sp.w,
 		correct_y=src_sp.h;
 	get_corrected(correct_x,correct_y,m);
-	long long_matrix[4];
 	const uchar empty_pixels[4]={0};
-	for (int a=0;a<4;a++)
-		long_matrix[a]=long(inverted_matrix[a]*65536.0);
 
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
+	BINDER_TYPEDEF_8(transform_params,bool,NONS_Matrix,ulong,ulong,ulong,ulong,NONS_SurfaceProperties,NONS_ConstSurfaceProperties);
 	std::vector<transform_params> parameters(cpu_count);
 	ulong division=ulong(float(dst_sp.h)/float(cpu_count));
+	parameters.front().p=8;
+	parameters.front().f=transform_threaded;
+	parameters.front().free_after_first_use=0;
 	for (ulong a=0;a<cpu_count;a++){
 		transform_params &p=parameters[a];
-		p.correct_x=correct_x;
-		p.correct_y=correct_y;
-		p.dst_sp=dst_sp;
-		p.src_sp=src_sp;
-		p.fast=fast;
-		p.h=division;
-		for (int b=0;b<4;b++)
-			p.long_matrix[b]=long_matrix[b];
-		p.y0=division*a;
+		p=parameters.front();
+		p.pt4=correct_x;
+		p.pt5=correct_y;
+		p.pt6=dst_sp;
+		p.pt7=src_sp;
+		p.pt0=fast;
+		p.pt3=division;
+		p.pt1=inverted_matrix;
+		p.pt2=division*a;
 	}
-	parameters.back().h+=dst_sp.h-division*cpu_count;
+	parameters.back().pt3+=dst_sp.h-division*cpu_count;
 	for (ulong a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(transform_threaded,&parameters[a]);
+		threads[a].call(&parameters[a]);
 #else
-		threadManager.call(a-1,transform_threaded,&parameters[a]);
+		threadManager.call(a-1,&parameters[a]);
 #endif
-	transform_threaded(&parameters[0]);
+	parameters.front().call();
 #ifndef USE_THREAD_MANAGER
 	for (ulong a=1;a<cpu_count;a++)
 		threads[a].join();
@@ -1149,8 +1144,11 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,c
 }
 
 void NONS_SurfaceManager::assign_screen(SDL_Surface *s){
-	delete this->screen;
-	this->screen=new ScreenSurface(s);
+	if (!this->screen){
+		delete this->screen;
+		this->screen=new ScreenSurface(s);
+	}else
+		*this->screen=ScreenSurface(s);
 }
 
 NONS_SurfaceManager::index_t NONS_SurfaceManager::get_screen(){
@@ -1282,17 +1280,17 @@ void flush_png(png_structp){}
 
 #include <csetjmp>
 
-bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
+bool write_png_file(std::wstring filename,NONS_ConstSurface s,bool fill_alpha){
 	bool ret=0;
 	if (!s)
 		return ret;
 	png_structp png=0;
 	png_infop info=0;
 	do{
-		png_structp png=png_create_write_struct(PNG_LIBPNG_VER_STRING,0,0,0);
+		png=png_create_write_struct(PNG_LIBPNG_VER_STRING,0,0,0);
 		if (!png)
 			break;
-		png_infop info=png_create_info_struct(png);
+		info=png_create_info_struct(png);
 		if (!info || setjmp(png_jmpbuf(png)))
 			break;
 		std::vector<uchar> v;
@@ -1315,19 +1313,22 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 			PNG_COMPRESSION_TYPE_DEFAULT,
 			PNG_FILTER_TYPE_DEFAULT
 		);
-		png_set_compression_level(png,5);
+		png_set_compression_level(png,9);
 		png_write_info(png, info);
 		if (setjmp(png_jmpbuf(png)))
 			break;
 
-		if (sp.offsets[0]!=0 || sp.offsets[1]!=1 || sp.offsets[2]!=2 || sp.offsets[3]!=3){
+		if (sp.offsets[0]!=0 || sp.offsets[1]!=1 || sp.offsets[2]!=2 || sp.offsets[3]!=3 || fill_alpha){
 			std::vector<uchar> consistent(sp.byte_count);
 			uchar *consistent_p=&consistent[0];
 			for (ulong a=0;a<sp.byte_count;a+=4){
 				consistent_p[a]=sp.pixels[a+sp.offsets[0]];
 				consistent_p[a+1]=sp.pixels[a+sp.offsets[1]];
 				consistent_p[a+2]=sp.pixels[a+sp.offsets[2]];
-				consistent_p[a+3]=sp.pixels[a+sp.offsets[3]];
+				if (!fill_alpha)
+					consistent_p[a+3]=sp.pixels[a+sp.offsets[3]];
+				else
+					consistent_p[a+3]=255;
 			}
 			std::vector<const uchar *> pointers(sp.h);
 			for (ulong a=0;a<pointers.size();a++)
@@ -1355,9 +1356,10 @@ bool write_png_file(std::wstring filename,const NONS_ConstSurface &s){
 	return ret;
 }
 
-void NONS_ConstSurface::save_bitmap(const std::wstring &filename) const{
-	if (*this)
-		write_png_file(filename,*this);
+void NONS_ConstSurface::save_bitmap(const std::wstring &filename,bool fill_alpha) const{
+	if (!*this)
+		return;
+	NONS_Thread(bind(write_png_file,filename,this->clone(),fill_alpha)).unbind();
 }
 
 void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
@@ -1519,20 +1521,13 @@ void NONS_Surface::update(ulong x,ulong y,ulong w,ulong h) const{
 // OVER
 //------------------------------------------------------------------------------
 
-struct over_blend_parameters{
-	const NONS_SurfaceProperties *dst;
-	const NONS_ConstSurfaceProperties *src;
+void over_blend_threaded(
+	NONS_SurfaceProperties dst,
 	NONS_LongRect dst_rect,
-		src_rect;
-	long alpha;
-};
-
-void over_blend_threaded(NONS_SurfaceProperties dst,
-		NONS_LongRect dst_rect,
-		NONS_ConstSurfaceProperties src,
-		NONS_LongRect src_rect,
-		long alpha);
-void over_blend_threaded(void *parameters);
+	NONS_ConstSurfaceProperties src,
+	NONS_LongRect src_rect,
+	long alpha
+);
 
 void over_blend(
 		const NONS_SurfaceProperties &dst,
@@ -1547,40 +1542,40 @@ void over_blend(
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
+	BINDER_TYPEDEF_5(over_blend_parameters,NONS_SurfaceProperties,NONS_LongRect,NONS_ConstSurfaceProperties,NONS_LongRect,long);
 	std::vector<over_blend_parameters> parameters(cpu_count);
 	ulong division=ulong(float(src_rect.h)/float(cpu_count));
 	ulong total=0;
+	parameters.front().f=over_blend_threaded;
+	parameters.front().free_after_first_use=0;
+	parameters.front().p=5;
 	for (ulong a=0;a<cpu_count;a++){
 		over_blend_parameters &p=parameters[a];
-		p.src_rect=src_rect;
-		p.src_rect.y+=a*division;
-		p.src_rect.h=division;
-		p.dst_rect=dst_rect;
-		p.dst_rect.y+=a*division;
+		p=parameters.front();
+		p.pt3=src_rect;
+		p.pt3.y+=a*division;
+		p.pt3.h=division;
+		p.pt1=dst_rect;
+		p.pt1.y+=a*division;
 		total+=division;
-		p.src=&src;
-		p.dst=&dst;
-		p.alpha=alpha;
+		p.pt2=src;
+		p.pt0=dst;
+		p.pt4=alpha;
 	}
-	parameters.back().src_rect.h+=src_rect.h-total;
+	parameters.back().pt3.h+=src_rect.h-total;
 	for (ulong a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(over_blend_threaded,&parameters[a]);
+		threads[a].call(&parameters[a]);
 #else
-		threadManager.call(a-1,over_blend_threaded,&parameters[a]);
+		threadManager.call(a-1,&parameters[a]);
 #endif
-	over_blend_threaded(&parameters[0]);
+	parameters.front().call();
 #ifndef USE_THREAD_MANAGER
 	for (ulong a=1;a<cpu_count;a++)
 		threads[a].join();
 #else
 	threadManager.waitAll();
 #endif
-}
-
-void over_blend_threaded(void *parameters){
-	over_blend_parameters *p=(over_blend_parameters *)parameters;
-	over_blend_threaded(*p->dst,p->dst_rect,*p->src,p->src_rect,p->alpha);
 }
 
 uchar integer_division_lookup[0x10000];
@@ -1672,11 +1667,12 @@ void NONS_Surface::over(const NONS_ConstSurface &src,const NONS_LongRect *dst_re
 // MULTIPLY
 //------------------------------------------------------------------------------
 
-void multiply_blend_threaded(NONS_SurfaceProperties dst,
-		NONS_LongRect dst_rect,
-		NONS_ConstSurfaceProperties src,
-		NONS_LongRect src_rect);
-void multiply_blend_threaded(void *parameters);
+void multiply_blend_threaded(
+	NONS_SurfaceProperties dst,
+	NONS_LongRect dst_rect,
+	NONS_ConstSurfaceProperties src,
+	NONS_LongRect src_rect
+);
 
 void multiply_blend(
 		const NONS_SurfaceProperties &dst,
@@ -1690,39 +1686,39 @@ void multiply_blend(
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
+	BINDER_TYPEDEF_4(over_blend_parameters,NONS_SurfaceProperties,NONS_LongRect,NONS_ConstSurfaceProperties,NONS_LongRect);
 	std::vector<over_blend_parameters> parameters(cpu_count);
 	ulong division=ulong(float(src_rect.h)/float(cpu_count));
 	ulong total=0;
+	parameters.front().f=multiply_blend_threaded;
+	parameters.front().free_after_first_use=0;
+	parameters.front().p=4;
 	for (ulong a=0;a<cpu_count;a++){
 		over_blend_parameters &p=parameters[a];
-		p.src_rect=src_rect;
-		p.src_rect.y+=a*division;
-		p.src_rect.h=division;
-		p.dst_rect=dst_rect;
-		p.dst_rect.y+=a*division;
+		p=parameters.front();
+		p.pt3=src_rect;
+		p.pt3.y+=a*division;
+		p.pt3.h=division;
+		p.pt1=dst_rect;
+		p.pt1.y+=a*division;
 		total+=division;
-		p.src=&src;
-		p.dst=&dst;
+		p.pt2=src;
+		p.pt0=dst;
 	}
-	parameters.back().src_rect.h+=src_rect.h-total;
+	parameters.back().pt3.h+=src_rect.h-total;
 	for (ulong a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(multiply_blend_threaded,&parameters[a]);
+		threads[a].call(&parameters[a]);
 #else
-		threadManager.call(a-1,multiply_blend_threaded,&parameters[a]);
+		threadManager.call(a-1,&parameters[a]);
 #endif
-	multiply_blend_threaded(&parameters[0]);
+	parameters.front().call();
 #ifndef USE_THREAD_MANAGER
 	for (ulong a=1;a<cpu_count;a++)
 		threads[a].join();
 #else
 	threadManager.waitAll();
 #endif
-}
-
-void multiply_blend_threaded(void *parameters){
-	over_blend_parameters *p=(over_blend_parameters *)parameters;
-	multiply_blend_threaded(*p->dst,p->dst_rect,*p->src,p->src_rect);
 }
 
 void multiply_blend_threaded(
@@ -1792,6 +1788,7 @@ void NONS_Surface::multiply(
 // BILINEAR INTERPOLATION
 //------------------------------------------------------------------------------
 
+#if 0
 struct interpolation_parameters{
 	const NONS_SurfaceProperties *dst,
 		*src;
@@ -1799,6 +1796,7 @@ struct interpolation_parameters{
 		src_rect;
 	double x,y;
 };
+#endif
 
 #define INTERPOLATION_SIGNATURE(x)  \
 	void x(                         \
@@ -1809,79 +1807,16 @@ struct interpolation_parameters{
 		double x_multiplier,        \
 		double y_multiplier         \
 	)
-#define DECLARE_INTERPOLATION_F(a)                                          \
-	INTERPOLATION_SIGNATURE(a);                                             \
-	void a(void *parameters){                                               \
-		interpolation_parameters *p=(interpolation_parameters *)parameters; \
-		a(*p->dst,p->dst_rect,*p->src,p->src_rect,p->x,p->y);               \
+#define NONS_Surface_DEFINE_INTERPOLATION_F(a,b)          \
+	void NONS_Surface::a(                                 \
+		NONS_Surface src,                           \
+		NONS_Rect dst_rect,                         \
+		NONS_Rect src_rect,                         \
+		double x,                                         \
+		double y                                          \
+	){                                                    \
+		this->interpolation(b,src,dst_rect,src_rect,x,y); \
 	}
-
-#define NONS_Surface_DEFINE_INTERPOLATION_F(a,b)                    \
-	void NONS_Surface::a(                                           \
-		const NONS_Surface &src,                                    \
-		const NONS_Rect &dst_rect,                                  \
-		const NONS_Rect &src_rect,                                  \
-		double x,                                                   \
-		double y                                                    \
-	){                                                              \
-		this->interpolation(b,src,dst_rect,src_rect,x,y);           \
-	}
-
-NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
-	const NONS_Rect &sr=src_rect,
-		&dr=dst_rect;
-	if (this->data->cow)
-		*this=this->clone();
-	NONS_SurfaceProperties ssp,
-		dsp;
-	src.get_properties(ssp);
-	this->get_properties(dsp);
-#ifndef USE_THREAD_MANAGER
-	std::vector<NONS_Thread> threads(cpu_count);
-#endif
-	std::vector<interpolation_parameters> parameters(cpu_count);
-	float division[]={
-			sr.h/float(cpu_count),
-			dr.h/float(cpu_count)
-		},total[]={0,0};
-	for (ulong a=0;a<cpu_count;a++){
-		interpolation_parameters &p=parameters[a];
-		p.src_rect=sr;
-		p.src_rect.y+=a*division[0];
-		p.src_rect.h=division[0];
-		p.dst_rect=dr;
-		p.dst_rect.y+=a*division[1];
-		p.dst_rect.h=division[1];
-		total[0]+=division[0];
-		total[1]+=division[1];
-		p.src=&ssp;
-		p.dst=&dsp;
-		p.x=x;
-		p.y=y;
-	}
-	parameters.back().src_rect.h+=sr.h-total[0];
-	parameters.back().dst_rect.h+=dr.h-total[1];
-	for (ulong a=1;a<cpu_count;a++)
-#ifndef USE_THREAD_MANAGER
-		threads[a].call(f,&parameters[a]);
-#else
-		threadManager.call(a-1,f,&parameters[a]);
-#endif
-	f(&parameters[0]);
-#ifndef USE_THREAD_MANAGER
-	for (ulong a=1;a<cpu_count;a++)
-		threads[a].join();
-#else
-	threadManager.waitAll();
-#endif
-}
-
-DECLARE_INTERPOLATION_F(bilinear_interpolation_threaded)
-DECLARE_INTERPOLATION_F(bilinear_interpolation2_threaded)
-DECLARE_INTERPOLATION_F(NN_interpolation_threaded)
-NONS_Surface_DEFINE_INTERPOLATION_F(NN_interpolation,NN_interpolation_threaded)
-NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation,bilinear_interpolation_threaded)
-NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation2,bilinear_interpolation2_threaded)
 
 void set_rects(NONS_LongRect &lsrc_rect,NONS_LongRect &ldst_rect,const NONS_Rect &fsrc_rect,const NONS_Rect &fdst_rect){
 	lsrc_rect.x=long(fsrc_rect.x);
@@ -2043,15 +1978,73 @@ INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 
 //------------------------------------------------------------------------------
 
-SDL_Surface *NONS_Surface::get_SDL_screen(){
+NONS_Surface_DEFINE_INTERPOLATION_F(NN_interpolation,NN_interpolation_threaded)
+NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation,bilinear_interpolation_threaded)
+NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation2,bilinear_interpolation2_threaded)
+
+NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
+	const NONS_Rect &sr=src_rect,
+		&dr=dst_rect;
+	if (this->data->cow)
+		*this=this->clone();
+	NONS_SurfaceProperties ssp,
+		dsp;
+	src.get_properties(ssp);
+	this->get_properties(dsp);
+#ifndef USE_THREAD_MANAGER
+	std::vector<NONS_Thread> threads(cpu_count);
+#endif
+	BINDER_TYPEDEF_6(interpolation_parameters,NONS_SurfaceProperties,NONS_Rect,NONS_SurfaceProperties,NONS_Rect,double,double);
+	std::vector<interpolation_parameters> parameters(cpu_count);
+	float division[]={
+			sr.h/float(cpu_count),
+			dr.h/float(cpu_count)
+		},total[]={0,0};
+	parameters.front().f=f;
+	parameters.front().free_after_first_use=0;
+	parameters.front().p=6;
+	for (ulong a=0;a<cpu_count;a++){
+		interpolation_parameters &p=parameters[a];
+		p=parameters.front();
+		p.pt3=sr;
+		p.pt3.y+=a*division[0];
+		p.pt3.h=division[0];
+		p.pt1=dr;
+		p.pt1.y+=a*division[1];
+		p.pt1.h=division[1];
+		total[0]+=division[0];
+		total[1]+=division[1];
+		p.pt2=ssp;
+		p.pt0=dsp;
+		p.pt4=x;
+		p.pt5=y;
+	}
+	parameters.back().pt3.h+=sr.h-total[0];
+	parameters.back().pt1.h+=dr.h-total[1];
+	for (ulong a=1;a<cpu_count;a++)
+#ifndef USE_THREAD_MANAGER
+		threads[a].call(&parameters[a]);
+#else
+		threadManager.call(a-1,&parameters[a]);
+#endif
+	parameters.front().call();
+#ifndef USE_THREAD_MANAGER
+	for (ulong a=1;a<cpu_count;a++)
+		threads[a].join();
+#else
+	threadManager.waitAll();
+#endif
+}
+
+SDL_Surface *NONS_Surface::get_SDL_screen() const{
 	if (!*this)
 		return 0;
 	return sm.get_screen(this->data->surface);
 }
 
-NONS_Surface NONS_Surface::assign_screen(SDL_Surface *s){
+NONS_Surface NONS_Surface::assign_screen(SDL_Surface *s,bool gs){
 	sm.assign_screen(s);
-	return get_screen();
+	return (gs)?get_screen():NONS_Surface::null;
 }
 
 NONS_Surface NONS_Surface::get_screen(){

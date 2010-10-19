@@ -312,7 +312,7 @@ int main(int argc,char **argv){
 		if (CLOptions.debugMode)
 			console.init();
 
-		NONS_Thread thread(mainThread,0);
+		NONS_Thread thread(mainThread);
 		SDL_Event event;
 		while (!stopEventHandling){
 			while (SDL_PollEvent(&event) && !stopEventHandling)

@@ -826,41 +826,33 @@ void NONS_ScriptInterpreter::queue(NONS_ScriptLine *line){
 
 #include "../video_player.h"
 
-struct playback_input_thread_params{
-	bool allow_quit;
-	int *stop;
-	int *toggle_fullscreen;
-	int *take_screenshot;
-};
-
 extern bool video_playback;
 
-void playback_input_thread(void *p){
-	playback_input_thread_params params=*(playback_input_thread_params *)p;
+void playback_input_thread(bool allow_quit,int *stop,int *toggle_fullscreen,int *take_screenshot){
 	NONS_EventQueue queue;
 	video_playback=1;
-	while (!*params.stop){
-		while (!queue.empty() && !*params.stop){
+	while (!*stop){
+		while (!queue.empty() && !*stop){
 			SDL_Event event=queue.pop();
 			switch (event.type){
 				case SDL_QUIT:
-					*params.stop=1;
+					*stop=1;
 					break;
 				case SDL_KEYDOWN:
 					switch (event.key.keysym.sym){
 						case SDLK_ESCAPE:
-							if (params.allow_quit)
-								*params.stop=1;
+							if (allow_quit)
+								*stop=1;
 							break;
 						case SDLK_f:
-							*params.toggle_fullscreen=1;
+							*toggle_fullscreen=1;
 							break;
 						case SDLK_RETURN:
 							if (CHECK_FLAG(event.key.keysym.mod,KMOD_ALT))
-								*params.toggle_fullscreen=1;
+								*toggle_fullscreen=1;
 							break;
 						case SDLK_F12:
-							*params.take_screenshot=1;
+							*take_screenshot=1;
 						default:
 							break;
 					}
@@ -875,16 +867,16 @@ void playback_input_thread(void *p){
 
 struct video_playback_params{
 	NONS_VirtualScreen *vs;
+	NONS_Surface screen;
 };
 
 SDL_Surface *playback_fullscreen_callback(volatile SDL_Surface *screen,void *user_data){
-	video_playback_params params=*(video_playback_params *)user_data;
-	return params.vs->toggleFullscreenFromVideo();
+	video_playback_params *params=(video_playback_params *)user_data;
+	return params->vs->toggleFullscreenFromVideo(params->screen);
 }
 
 SDL_Surface *playback_screenshot_callback(volatile SDL_Surface *screen,void *user_data){
-	video_playback_params params=*(video_playback_params *)user_data;
-	params.vs->takeScreenshotFromVideo();
+	((video_playback_params *)user_data)->screen.save_bitmap(generate_filename<wchar_t>(),1);
 	return (SDL_Surface *)screen;
 }
 
@@ -971,14 +963,11 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		int stop=0,
 			toggle_fullscreen=0,
 			take_screenshot=0;
-		playback_input_thread_params thread_params={
-			skippable,
-			&stop,
-			&toggle_fullscreen,
-			&take_screenshot
+		video_playback_params playback_params={
+			this->screen->screen,
+			screen
 		};
-		video_playback_params playback_params={ this->screen->screen };
-		NONS_Thread input_thread(playback_input_thread,&thread_params);
+		NONS_Thread input_thread(bind(playback_input_thread,skippable,&stop,&toggle_fullscreen,&take_screenshot));
 		C_play_video_params::trigger_callback_pair pairs[]={
 			{&toggle_fullscreen,playback_fullscreen_callback},
 			{&take_screenshot,playback_screenshot_callback}

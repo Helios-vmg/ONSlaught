@@ -33,7 +33,6 @@
 #include "ThreadManager.h"
 #include "CommandLineOptions.h"
 #include "Plugin/LibraryLoader.h"
-#include "ImageLoader.h"
 #include <iostream>
 #include <cmath>
 
@@ -53,8 +52,7 @@ void pipelineElement::operator=(const pipelineElement &o){
 	this->ruleStr=o.ruleStr;
 }
 
-void _asyncEffectThread(void *param){
-	NONS_VirtualScreen *vs=(NONS_VirtualScreen *)param;
+void asyncEffectThread(NONS_VirtualScreen *vs){
 	ulong effectNo=vs->aeffect_no;
 	ulong freq=vs->aeffect_freq;
 	ulong ms=1000/freq;
@@ -261,14 +259,15 @@ bool NONS_VirtualScreen::toggleFullscreen(uchar mode){
 	return this->fullscreen;
 }
 
-SDL_Surface *NONS_VirtualScreen::toggleFullscreenFromVideo(){
+SDL_Surface *NONS_VirtualScreen::toggleFullscreenFromVideo(const NONS_Surface &s){
 	this->fullscreen=!this->fullscreen;
 	ulong w,h;
 	this->screens[REAL].get_dimensions(w,h);
 	bool tempCopy=0;
 	if (!this->usingFeature[INTERPOLATION] && !this->usingFeature[ASYNC_EFFECT])
 		tempCopy=1;
-	NONS_Surface screen=NONS_Surface::assign_screen(allocate_screen(w,h,this->fullscreen));
+	NONS_Surface::assign_screen(allocate_screen(w,h,this->fullscreen),0);
+	const NONS_Surface &screen=s;
 	this->screens[REAL]=NONS_CrippledSurface(screen);
 	if (tempCopy){
 		if (!this->usingFeature[OVERALL_FILTER])
@@ -286,10 +285,6 @@ std::wstring NONS_VirtualScreen::takeScreenshot(const std::wstring &name){
 		filename=name;
 	NONS_Surface(this->screens[REAL]).save_bitmap(filename);
 	return filename;
-}
-
-void NONS_VirtualScreen::takeScreenshotFromVideo(void){
-	NONS_Surface(this->screens[REAL]).save_bitmap(generate_filename<wchar_t>());
 }
 
 void NONS_VirtualScreen::initEffectList(){
@@ -328,7 +323,7 @@ ErrorCode NONS_VirtualScreen::callEffect(ulong effectNo,ulong frequency){
 	}
 	this->aeffect_no=effectNo;
 	this->aeffect_freq=frequency;
-	this->asyncEffectThread.call(_asyncEffectThread,this);
+	this->asyncEffectThread.call(bind(::asyncEffectThread,this));
 	return NONS_NO_ERROR;
 }
 
@@ -470,19 +465,11 @@ void NONS_VirtualScreen::printCurrentState(){
 	std::cout <<3<<std::endl;
 }
 
-struct filterParameters{
-	ulong effectNo;
-	NONS_Color color;
-	NONS_ConstSurface src;
-	NONS_Surface dst;
-	NONS_LongRect rect;
-};
-
 #define RED_MONOCHROME(x) ((x)*3/10)
 #define GREEN_MONOCHROME(x) ((x)*59/100)
 #define BLUE_MONOCHROME(x) ((x)*11/100)
 
-void effectMonochrome_threaded(const NONS_Surface &dst,const NONS_ConstSurface &src,const NONS_LongRect &rect,const NONS_Color &color){
+void effectMonochrome_threaded(NONS_Surface dst,NONS_ConstSurface src,NONS_LongRect rect,NONS_Color color){
 	NONS_ConstSurfaceProperties src_p;
 	NONS_SurfaceProperties dst_p;
 	src.get_properties(src_p);
@@ -515,11 +502,6 @@ void effectMonochrome_threaded(const NONS_Surface &dst,const NONS_ConstSurface &
 	}
 }
 
-void effectMonochrome_threaded(void *parameters){
-	filterParameters *p=(filterParameters *)parameters;
-	effectMonochrome_threaded(p->dst,p->src,p->rect,p->color);
-}
-
 FILTER_EFFECT_F(effectMonochrome){
 	if (!dst)
 		return;
@@ -531,27 +513,32 @@ FILTER_EFFECT_F(effectMonochrome){
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
-	std::vector<filterParameters> parameters(cpu_count);
+	BINDER_TYPEDEF_4(monochrome_parameters,NONS_Surface,NONS_ConstSurface,NONS_LongRect,NONS_Color);
+	std::vector<monochrome_parameters> parameters(cpu_count);
 	ulong division=ulong(float(dstRect.h)/float(cpu_count)),
 		total=0;
+	parameters.front().f=effectMonochrome_threaded;
+	parameters.front().free_after_first_use=0;
+	parameters.front().p=4;
 	for (ushort a=0;a<cpu_count;a++){
-		filterParameters &p=parameters[a];
-		p.rect=dstRect;
-		p.rect.y+=a*division;
-		p.rect.h=division;
+		monochrome_parameters &p=parameters[a];
+		p=parameters.front();
+		p.pt0=dst;
+		p.pt1=src;
+		p.pt2=dstRect;
+		p.pt2.y+=a*division;
+		p.pt2.h=division;
 		total+=division;
-		p.src=src;
-		p.dst=dst;
-		p.color=color;
+		p.pt3=color;
 	}
-	parameters.back().rect.h+=dstRect.h-total;
+	parameters.back().pt2.h+=dstRect.h-total;
 	for (ushort a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(effectMonochrome_threaded,&parameters[a]);
+		threads[a].call(&parameters[a]);
 #else
-		threadManager.call(a-1,effectMonochrome_threaded,&parameters[a]);
+		threadManager.call(a-1,&parameters[a]);
 #endif
-	effectMonochrome_threaded(&parameters[0]);
+	parameters.front().call();
 #ifndef USE_THREAD_MANAGER
 	for (ushort a=1;a<cpu_count;a++)
 		threads[a].join();
@@ -560,7 +547,7 @@ FILTER_EFFECT_F(effectMonochrome){
 #endif
 }
                             
-void effectNegative_threaded(const NONS_Surface &dst,const NONS_ConstSurface &src,NONS_LongRect &rect){
+void effectNegative_threaded(NONS_Surface dst,NONS_ConstSurface src,NONS_LongRect rect){
 	NONS_ConstSurfaceProperties src_p;
 	NONS_SurfaceProperties dst_p;
 	src.get_properties(src_p);
@@ -585,43 +572,42 @@ void effectNegative_threaded(const NONS_Surface &dst,const NONS_ConstSurface &sr
 	}
 }
 
-void effectNegative_threaded(void *parameters){
-	filterParameters *p=(filterParameters *)parameters;
-	effectNegative_threaded(p->dst,p->src,p->rect);
-}
-
 FILTER_EFFECT_F(effectNegative){
 	if (!dst)
 		return;
 	NONS_LongRect &dstRect=area;
 	if (cpu_count==1){
-		effectNegative_threaded(dst,src,dstRect);
+		effectMonochrome_threaded(dst,src,dstRect,color);
 		return;
 	}
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
 #endif
-	std::vector<filterParameters> parameters(cpu_count);
+	BINDER_TYPEDEF_3(negative_parameters,NONS_Surface,NONS_ConstSurface,NONS_LongRect);
+	std::vector<negative_parameters> parameters(cpu_count);
 	ulong division=ulong(float(dstRect.h)/float(cpu_count)),
 		total=0;
+	parameters.front().f=effectNegative_threaded;
+	parameters.front().free_after_first_use=0;
+	parameters.front().p=3;
 	for (ushort a=0;a<cpu_count;a++){
-		filterParameters &p=parameters[a];
-		p.rect=dstRect;
-		p.rect.y+=a*division;
-		p.rect.h=division;
+		negative_parameters &p=parameters[a];
+		p=parameters.front();
+		p.pt0=dst;
+		p.pt1=src;
+		p.pt2=dstRect;
+		p.pt2.y+=a*division;
+		p.pt2.h=division;
 		total+=division;
-		p.src=src;
-		p.dst=dst;
-		p.color=color;
 	}
-	parameters.back().rect.h+=dstRect.h-total;
+	parameters.back().pt2.h+=dstRect.h-total;
 	for (ushort a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(effectMonochrome_threaded,&parameters[a]);
+		threads[a].call(&parameters[a]);
 #else
-		threadManager.call(a-1,effectMonochrome_threaded,&parameters[a]);
+		threadManager.call(a-1,&parameters[a]);
 #endif
-	effectMonochrome_threaded(&parameters[0]);
+	parameters.front().call();
 #ifndef USE_THREAD_MANAGER
 	for (ushort a=1;a<cpu_count;a++)
 		threads[a].join();
