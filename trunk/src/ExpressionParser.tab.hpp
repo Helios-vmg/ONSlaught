@@ -33,6 +33,8 @@
 
 /* "%code requires" blocks.  */
 
+/* Line 1685 of yacc.c  */
+#line 47 "ExpressionParser.ypp"
 
 	#include <set>
 	#include <vector>
@@ -49,6 +51,8 @@
 
 
 
+/* Line 1685 of yacc.c  */
+#line 56 "ExpressionParser.tab.hpp"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -90,12 +94,16 @@
 typedef union YYSTYPE
 {
 
+/* Line 1685 of yacc.c  */
+#line 84 "ExpressionParser.ypp"
 
 	NONS_Expression::Expression *obj;
 	ulong position;
 
 
 
+/* Line 1685 of yacc.c  */
+#line 107 "ExpressionParser.tab.hpp"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -107,6 +115,8 @@ typedef union YYSTYPE
 
 /* "%code provides" blocks.  */
 
+/* Line 1685 of yacc.c  */
+#line 61 "ExpressionParser.ypp"
 
 	#include <sstream>
 	extern int expressionParser_yydebug;
@@ -132,3 +142,5 @@ typedef union YYSTYPE
 
 
 
+/* Line 1685 of yacc.c  */
+#line 147 "ExpressionParser.tab.hpp"

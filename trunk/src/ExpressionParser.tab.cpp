@@ -74,6 +74,8 @@
 
 /* Copy the first part of user declarations.  */
 
+/* Line 189 of yacc.c  */
+#line 29 "ExpressionParser.ypp"
 
 #include "ExpressionParser.tab.hpp"
 #include "ScriptInterpreter.h"
@@ -81,6 +83,8 @@
 #include "IOFunctions.h"
 
 
+/* Line 189 of yacc.c  */
+#line 88 "ExpressionParser.tab.cpp"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -102,6 +106,8 @@
 
 /* "%code requires" blocks.  */
 
+/* Line 209 of yacc.c  */
+#line 47 "ExpressionParser.ypp"
 
 	#include <set>
 	#include <vector>
@@ -118,6 +124,8 @@
 
 
 
+/* Line 209 of yacc.c  */
+#line 129 "ExpressionParser.tab.cpp"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -159,12 +167,16 @@
 typedef union YYSTYPE
 {
 
+/* Line 214 of yacc.c  */
+#line 84 "ExpressionParser.ypp"
 
 	NONS_Expression::Expression *obj;
 	ulong position;
 
 
 
+/* Line 214 of yacc.c  */
+#line 180 "ExpressionParser.tab.cpp"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -173,6 +185,8 @@ typedef union YYSTYPE
 
 /* "%code provides" blocks.  */
 
+/* Line 261 of yacc.c  */
+#line 61 "ExpressionParser.ypp"
 
 	#include <sstream>
 	extern int expressionParser_yydebug;
@@ -198,10 +212,14 @@ typedef union YYSTYPE
 
 
 
+/* Line 261 of yacc.c  */
+#line 217 "ExpressionParser.tab.cpp"
 
 /* Copy the second part of user declarations.  */
 
 
+/* Line 264 of yacc.c  */
+#line 223 "ExpressionParser.tab.cpp"
 
 #ifdef short
 # undef short
@@ -1237,67 +1255,99 @@ yydestruct (yymsg, yytype, yyvaluep, stream, store, res, ppd)
     {
       case 7: /* "INTEGER" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1267 "ExpressionParser.tab.cpp"
 	break;
       case 8: /* "STRING" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1279 "ExpressionParser.tab.cpp"
 	break;
       case 9: /* "INTEGER_ARRAY" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1291 "ExpressionParser.tab.cpp"
 	break;
       case 44: /* "integer" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1303 "ExpressionParser.tab.cpp"
 	break;
       case 45: /* "integer_array" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1315 "ExpressionParser.tab.cpp"
 	break;
       case 46: /* "string" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1327 "ExpressionParser.tab.cpp"
 	break;
       case 47: /* "expr" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1339 "ExpressionParser.tab.cpp"
 	break;
       case 48: /* "dereference_parameter" */
 
+/* Line 1009 of yacc.c  */
+#line 105 "ExpressionParser.ypp"
 	{
 	if ((yyvaluep->obj))
 		delete (yyvaluep->obj);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1351 "ExpressionParser.tab.cpp"
 	break;
 
       default:
@@ -1603,6 +1653,8 @@ yyreduce:
     {
         case 5:
 
+/* Line 1464 of yacc.c  */
+#line 117 "ExpressionParser.ypp"
     {
 		res=(yyvsp[(1) - (1)].obj);
 	;}
@@ -1610,6 +1662,8 @@ yyreduce:
 
   case 6:
 
+/* Line 1464 of yacc.c  */
+#line 120 "ExpressionParser.ypp"
     {
 		res=(yyvsp[(1) - (1)].obj);
 	;}
@@ -1617,6 +1671,8 @@ yyreduce:
 
   case 7:
 
+/* Line 1464 of yacc.c  */
+#line 123 "ExpressionParser.ypp"
     {
 		YYABORT;
 	;}
@@ -1624,6 +1680,8 @@ yyreduce:
 
   case 8:
 
+/* Line 1464 of yacc.c  */
+#line 128 "ExpressionParser.ypp"
     {
 		ppd->res.push_back((yyvsp[(2) - (3)].obj));
 		ppd->then_position=(yyvsp[(3) - (3)].position);
@@ -1633,6 +1691,8 @@ yyreduce:
 
   case 9:
 
+/* Line 1464 of yacc.c  */
+#line 135 "ExpressionParser.ypp"
     {
 		ppd->res.push_back((yyvsp[(2) - (6)].obj));
 		ppd->res.push_back((yyvsp[(4) - (6)].obj));
@@ -1643,6 +1703,8 @@ yyreduce:
 
   case 10:
 
+/* Line 1464 of yacc.c  */
+#line 141 "ExpressionParser.ypp"
     {
 		ppd->res.push_back((yyvsp[(2) - (8)].obj));
 		ppd->res.push_back((yyvsp[(4) - (8)].obj));
@@ -1654,6 +1716,8 @@ yyreduce:
 
   case 11:
 
+/* Line 1464 of yacc.c  */
+#line 150 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
 	;}
@@ -1661,6 +1725,8 @@ yyreduce:
 
   case 12:
 
+/* Line 1464 of yacc.c  */
+#line 153 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::eval,(yyvsp[(3) - (4)].obj),0);
 	;}
@@ -1668,6 +1734,8 @@ yyreduce:
 
   case 13:
 
+/* Line 1464 of yacc.c  */
+#line 156 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::atoi,(yyvsp[(3) - (4)].obj),0);
 	;}
@@ -1675,6 +1743,8 @@ yyreduce:
 
   case 14:
 
+/* Line 1464 of yacc.c  */
+#line 159 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::integer_dereference,(yyvsp[(2) - (2)].obj),0);
 	;}
@@ -1682,6 +1752,8 @@ yyreduce:
 
   case 15:
 
+/* Line 1464 of yacc.c  */
+#line 164 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::array_indexing,(yyvsp[(2) - (2)].obj),0);
 	;}
@@ -1689,6 +1761,8 @@ yyreduce:
 
   case 16:
 
+/* Line 1464 of yacc.c  */
+#line 167 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(1) - (4)].obj);
 		(yyval.obj)->operands.push_back((yyvsp[(3) - (4)].obj));
@@ -1697,6 +1771,8 @@ yyreduce:
 
   case 17:
 
+/* Line 1464 of yacc.c  */
+#line 171 "ExpressionParser.ypp"
     {
 		(yyval.obj)=0;
 		YYABORT;
@@ -1705,6 +1781,8 @@ yyreduce:
 
   case 18:
 
+/* Line 1464 of yacc.c  */
+#line 177 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
 	;}
@@ -1712,6 +1790,8 @@ yyreduce:
 
   case 19:
 
+/* Line 1464 of yacc.c  */
+#line 180 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::string_dereference,(yyvsp[(2) - (2)].obj),0);
 	;}
@@ -1719,6 +1799,8 @@ yyreduce:
 
   case 20:
 
+/* Line 1464 of yacc.c  */
+#line 183 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::itoa,(yyvsp[(3) - (4)].obj),0);
 	;}
@@ -1726,6 +1808,8 @@ yyreduce:
 
   case 21:
 
+/* Line 1464 of yacc.c  */
+#line 186 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(2) - (3)].obj);
 	;}
@@ -1733,6 +1817,8 @@ yyreduce:
 
   case 22:
 
+/* Line 1464 of yacc.c  */
+#line 189 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::concat,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1740,6 +1826,8 @@ yyreduce:
 
   case 23:
 
+/* Line 1464 of yacc.c  */
+#line 194 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
 	;}
@@ -1747,6 +1835,8 @@ yyreduce:
 
   case 24:
 
+/* Line 1464 of yacc.c  */
+#line 197 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
 	;}
@@ -1754,6 +1844,8 @@ yyreduce:
 
   case 25:
 
+/* Line 1464 of yacc.c  */
+#line 200 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::add,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1761,6 +1853,8 @@ yyreduce:
 
   case 26:
 
+/* Line 1464 of yacc.c  */
+#line 203 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::sub,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1768,6 +1862,8 @@ yyreduce:
 
   case 27:
 
+/* Line 1464 of yacc.c  */
+#line 206 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::mul,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1775,6 +1871,8 @@ yyreduce:
 
   case 28:
 
+/* Line 1464 of yacc.c  */
+#line 209 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::div,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1782,6 +1880,8 @@ yyreduce:
 
   case 29:
 
+/* Line 1464 of yacc.c  */
+#line 212 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::equals,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1789,6 +1889,8 @@ yyreduce:
 
   case 30:
 
+/* Line 1464 of yacc.c  */
+#line 215 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::nequals,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1796,6 +1898,8 @@ yyreduce:
 
   case 31:
 
+/* Line 1464 of yacc.c  */
+#line 218 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lower,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1803,6 +1907,8 @@ yyreduce:
 
   case 32:
 
+/* Line 1464 of yacc.c  */
+#line 221 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::greatereq,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1810,6 +1916,8 @@ yyreduce:
 
   case 33:
 
+/* Line 1464 of yacc.c  */
+#line 224 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::greater,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1817,6 +1925,8 @@ yyreduce:
 
   case 34:
 
+/* Line 1464 of yacc.c  */
+#line 227 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lowereq,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1824,6 +1934,8 @@ yyreduce:
 
   case 35:
 
+/* Line 1464 of yacc.c  */
+#line 230 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::fchk,(yyvsp[(2) - (2)].obj),0);
 	;}
@@ -1831,6 +1943,8 @@ yyreduce:
 
   case 36:
 
+/* Line 1464 of yacc.c  */
+#line 234 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lchk,(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1838,6 +1952,8 @@ yyreduce:
 
   case 37:
 
+/* Line 1464 of yacc.c  */
+#line 237 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::lchk,(yyvsp[(2) - (2)].obj),0);
 	;}
@@ -1845,6 +1961,8 @@ yyreduce:
 
   case 38:
 
+/* Line 1464 of yacc.c  */
+#line 240 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::or_operator,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1852,6 +1970,8 @@ yyreduce:
 
   case 39:
 
+/* Line 1464 of yacc.c  */
+#line 243 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::and_operator,(yyvsp[(1) - (3)].obj),(yyvsp[(3) - (3)].obj),0);
 	;}
@@ -1859,6 +1979,8 @@ yyreduce:
 
   case 40:
 
+/* Line 1464 of yacc.c  */
+#line 246 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(2) - (2)].obj);
 	;}
@@ -1866,6 +1988,8 @@ yyreduce:
 
   case 41:
 
+/* Line 1464 of yacc.c  */
+#line 249 "ExpressionParser.ypp"
     {
 		(yyval.obj)=new NONS_Expression::Expression(NONS_Expression::neg,(yyvsp[(2) - (2)].obj),0);
 	;}
@@ -1873,6 +1997,8 @@ yyreduce:
 
   case 42:
 
+/* Line 1464 of yacc.c  */
+#line 252 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(2) - (3)].obj);
 	;}
@@ -1880,6 +2006,8 @@ yyreduce:
 
   case 43:
 
+/* Line 1464 of yacc.c  */
+#line 256 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(1) - (1)].obj);
 	;}
@@ -1887,6 +2015,8 @@ yyreduce:
 
   case 44:
 
+/* Line 1464 of yacc.c  */
+#line 259 "ExpressionParser.ypp"
     {
 		(yyval.obj)=(yyvsp[(2) - (3)].obj);
 	;}
@@ -1894,6 +2024,8 @@ yyreduce:
 
 
 
+/* Line 1464 of yacc.c  */
+#line 2029 "ExpressionParser.tab.cpp"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -2104,6 +2236,8 @@ yyreturn:
 
 
 
+/* Line 1684 of yacc.c  */
+#line 262 "ExpressionParser.ypp"
 
 
 #define DOUBLEOP(character,ret_value) if (c==(character)){\
@@ -2214,6 +2348,9 @@ expressionParser_yylex_000:
 						case 'n':
 						case 'r':
 							temp.push_back('\n');
+							break;
+						case 't':
+							temp.push_back('\t');
 							break;
 						case 'x':
 							{
