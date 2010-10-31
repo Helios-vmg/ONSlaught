@@ -1,3 +1,6 @@
+# This file is used to generate Binder.h. To use it, run
+# python binder.py > Binder.h
+
 import math
 
 def binder_constructor(n):
