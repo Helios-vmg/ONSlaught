@@ -73,7 +73,8 @@ const int bshift=16;
 const int ashift=24;
 #endif
 
-#if NONS_SYS_WINDOWS
+#define ENABLE_VIRTUAL_CONSOLE 1
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 #include <cassert>
 
 class VirtualConsole{
@@ -398,7 +399,7 @@ struct auto_codec_context{
 };
 
 struct video_player{
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 	VirtualConsole *vc[3];
 #endif
 	ulong global_time,
@@ -412,15 +413,17 @@ struct video_player{
 	typedef thread_safe_queue<Packet *> packet_queue;
 
 	video_player():global_pts(AV_NOPTS_VALUE){
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		this->vc[0]=new VirtualConsole("audio_decode",7);
 		this->vc[1]=new VirtualConsole("video_decode",7);
 		this->vc[2]=new VirtualConsole("audio_render",7);
 #endif
 	}
 	~video_player(){
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		for (size_t a=0;a<3;a++)
 			delete this->vc[a];
+#endif
 	}
 	void video_display_thread(thread_safe_queue<CompleteVideoFrame *> *queue,AudioOutput *aoutput,void *user_data,cb_vector *callback_pairs);
 	struct get_buffer_struct{
@@ -545,7 +548,7 @@ void AudioOutput::running_thread(video_player *vp){
 		ulong count=0;
 		if (buffers_finished==this->n){
 			call_play=1;
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 			vp->vc[VC_AUDIO_RENDER]->put("Critical point!\n");
 #endif
 		}
@@ -553,7 +556,7 @@ void AudioOutput::running_thread(video_player *vp){
 			ALint state;
 			alGetSourcei(this->source,AL_SOURCE_STATE,&state);
 			if (state!=AL_PLAYING){
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 				vp->vc[VC_AUDIO_RENDER]->put("The source has stopped playing!\n");
 #endif
 				call_play=1;
@@ -580,7 +583,7 @@ void AudioOutput::running_thread(video_player *vp){
 			this->current=(this->current+1)%n;
 		}
 		if (call_play){
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 			vp->vc[VC_AUDIO_RENDER]->put("count: "+itoa<char>(count)+"\n");
 #endif
 			this->play();
@@ -807,7 +810,7 @@ void video_player::video_display_thread(thread_safe_queue<CompleteVideoFrame *> 
 		black={0,0,0,0xFF};
 	while (!stop_playback){
 		SDL_Delay(10);
-		double current_time=double(global_time)/1000.0;
+		double current_time=double(this->global_time)/1000.0;
 		if (queue->is_empty())
 			continue;
 		for (ulong a=0;a<callback_pairs->size();a++){
@@ -857,7 +860,8 @@ void video_player::release_buffer(struct AVCodecContext *c, AVFrame *pic) {
 
 void video_player::decode_audio(AVCodecContext *audioCC,AVStream *audioS,packet_queue *packet_queue,AudioOutput *output){
 	const size_t output_s=AVCODEC_MAX_AUDIO_FRAME_SIZE*2;
-	int16_t audioOutputBuffer[output_s];
+	std::vector<int16_t> audioOutputBuffer_vector(output_s);
+	int16_t *audioOutputBuffer=&audioOutputBuffer_vector[0];
 
 	thread_safe_queue<audioBuffer> *queue=output->startThread(this);
 
@@ -873,14 +877,14 @@ void video_player::decode_audio(AVCodecContext *audioCC,AVStream *audioS,packet_
 	audioCC->release_buffer=release_buffer;
 	while (1){
 		Packet *packet=0;
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Waiting for packet.\n");
 #endif
 		while (packet_queue->is_empty() && !stop_playback)
 			SDL_Delay(10);
 		if (stop_playback)
 			break;
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Popping queue.\n");
 #endif
 		packet=packet_queue->pop();
@@ -889,12 +893,12 @@ void video_player::decode_audio(AVCodecContext *audioCC,AVStream *audioS,packet_
 		size_t packet_data_s=packet->packet.size,
 			write_at=0,
 			buffer_size=0;
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Decoding packet.\n");
 #endif
 		while (packet_data_s){
 			int bytes_decoded=output_s,
-				bytes_extracted;
+				bytes_extracted=-1;
 			bytes_extracted=avcodec_decode_audio3(audioCC,audioOutputBuffer+write_at,&bytes_decoded,&packet->packet);
 			if (bytes_extracted<0)
 				break;
@@ -905,7 +909,7 @@ void video_player::decode_audio(AVCodecContext *audioCC,AVStream *audioS,packet_
 				packet_data_s=0;
 			buffer_size+=bytes_decoded/sizeof(int16_t);
 		}
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
 #endif
 		queue->push(audioBuffer(audioOutputBuffer,buffer_size,1,packet->compute_time(audioS)));
@@ -943,7 +947,7 @@ void video_player::decode_video(AVCodecContext *videoCC,AVStream *videoS,packet_
 			break;
 		if (packet_queue->is_empty()){
 			if (!msg){
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 				vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Queue is empty. Nothing to do.\n");
 #endif
 				msg=1;
@@ -952,13 +956,13 @@ void video_player::decode_video(AVCodecContext *videoCC,AVStream *videoS,packet_
 			continue;
 		}
 		msg=0;
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Popping queue.\n");
 #endif
 		packet=packet_queue->pop();
 		int frameFinished;
 		global_pts=packet->pts;
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 		vc[VC_VIDEO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_video(): Decoding packet.\n");
 #endif
 		//avcodec_decode_video(videoCC,videoFrame,&frameFinished,packet->data,packet->size);
@@ -970,7 +974,7 @@ void video_player::decode_video(AVCodecContext *videoCC,AVStream *videoS,packet_
 				max_pts=new_frame->pts;
 				while (!preQueue.empty()){
 					std::set<CompleteVideoFrame *,cmp_pCompleteVideoFrame>::iterator first=preQueue.begin();
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
 					vc[VC_AUDIO_DECODE]->put("["+itoa<char>(real_global_time,8)+"] decode_audio(): Pushing frame.\n");
 #endif
 					frameQueue.push(*first);
@@ -1012,22 +1016,23 @@ bool video_player::play_video(
 	stop_playback=0;
 	debug_messages=!!print_debug;
 	global_screen=screen;
+	this->global_time=0;
 	av_register_all();
 	AVFormatContext *avfc;
 	SDL_FillRect(screen,0,0);
 	SDL_UpdateRect(screen,0,0,0,0);
 
 	ByteIOContext bioc;
-	std::vector<uchar> io_buffer(4096+FF_INPUT_BUFFER_PADDING_SIZE);
+	std::vector<uchar> io_buffer((1<<12)+FF_INPUT_BUFFER_PADDING_SIZE);
 	init_put_byte(&bioc,&io_buffer[0],io_buffer.size(),0,&fp,protocol::read,0,protocol::seek);
 
 	AVInputFormat *aif;
 	{
 		AVProbeData pd;
 		pd.filename=input;
-		std::vector<uchar> temp(pd.buf_size=1<<12);
+		std::vector<uchar> temp((1<<12)+AVPROBE_PADDING_SIZE);
 		pd.buf=&temp[0];
-		fp.read(fp.data,pd.buf,temp.size());
+		pd.buf_size=fp.read(fp.data,pd.buf,1<<12);
 		aif=av_probe_input_format(&pd,1);
 	}
 	
