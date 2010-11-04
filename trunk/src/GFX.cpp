@@ -780,10 +780,14 @@ void NONS_GFX::effectMosaicOut(const NONS_ConstSurface &src,const NONS_ConstSurf
 }
 
 NONS_GFXstore::NONS_GFXstore(){
-	this->effects[0]=new NONS_GFX();
-	this->effects[0]->stored=1;
-	this->effects[1]=new NONS_GFX(1);
-	this->effects[1]->stored=1;
+	NONS_GFX *temp[]={
+		new NONS_GFX(),
+		new NONS_GFX(1)
+	};
+	temp[0]->stored=1;
+	temp[1]->stored=1;
+	this->effects[0]=temp[0];
+	this->effects[1]=temp[1];
 }
 
 NONS_GFXstore::~NONS_GFXstore(){
