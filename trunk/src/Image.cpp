@@ -2098,6 +2098,8 @@ NONS_SurfaceManager::Surface::Surface(ulong w,ulong h,ulong frames){
 	this->offsets[2]=2;
 	this->offsets[3]=3;
 	this->frames=frames;
+	this->transparency=NONS_AnimationInfo::COPY_TRANS;
+	this->svg_source=0;
 	memset(this->data,0,n);
 }
 
