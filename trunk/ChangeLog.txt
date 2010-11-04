@@ -5,6 +5,9 @@ Newly implemented commands:
 
 Bug fixes:
   * Plugged memory leak in various routines.
+  * Fixed minor bugs in video playback code.
+  * Added missing \t escape sequence to expression parser.
+  * Fixed stack overflow in video player.
 
 
 20100714

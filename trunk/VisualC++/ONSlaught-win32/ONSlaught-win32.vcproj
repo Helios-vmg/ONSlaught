@@ -210,12 +210,14 @@
 <File RelativePath="..\..\src\ScreenSpace.cpp"></File>
 <File RelativePath="..\..\src\Script.cpp"></File>
 <File RelativePath="..\..\src\ScriptInterpreter.cpp"></File>
+<File RelativePath="..\..\src\Thread.cpp"></File>
 <File RelativePath="..\..\src\ThreadManager.cpp"></File>
 <File RelativePath="..\..\src\VariableStore.cpp"></File>
 <File RelativePath="..\..\src\VirtualScreen.cpp"></File>
 <File RelativePath="..\..\src\sha1.cpp"></File>
 <File RelativePath="..\..\src\Archive.h"></File>
 <File RelativePath="..\..\src\Audio.h"></File>
+<File RelativePath="..\..\src\Binder.h"></File>
 <File RelativePath="..\..\src\CommandLineOptions.h"></File>
 <File RelativePath="..\..\src\Common.h"></File>
 <File RelativePath="..\..\src\ConfigFile.h"></File>
@@ -236,6 +238,7 @@
 <File RelativePath="..\..\src\ScreenSpace.h"></File>
 <File RelativePath="..\..\src\Script.h"></File>
 <File RelativePath="..\..\src\ScriptInterpreter.h"></File>
+<File RelativePath="..\..\src\Thread.h"></File>
 <File RelativePath="..\..\src\ThreadManager.h"></File>
 <File RelativePath="..\..\src\VariableStore.h"></File>
 <File RelativePath="..\..\src\VirtualScreen.h"></File>

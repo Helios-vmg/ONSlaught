@@ -24,8 +24,8 @@ src/SJIS.table.cpp
 src/ScriptInterpreter.cpp
 src/MacroParser.tab.cpp
 src/GUI.cpp
-src/Image.cpp
 src/ExpressionParser.tab.cpp
+src/Image.cpp
 src/INIParser.tab.cpp
 src/Archive.cpp
 src/ScreenSpace.cpp
@@ -38,15 +38,16 @@ src/GFX.cpp
 src/IOFunctions.cpp
 src/VirtualScreen.cpp
 src/Functions.cpp
-src/Audio.cpp
 src/CommandLineOptions.cpp
+src/Audio.cpp
 src/sha1.cpp
 src/ONSlaught.cpp
-src/ThreadManager.cpp
 src/ErrorCodes.cpp
+src/Thread.cpp
 src/ConfigFile.cpp
 src/FileLog.cpp
 src/INIfile.cpp
+src/ThreadManager.cpp
 src/Plugin/LibraryLoader.cpp 
 )
 
