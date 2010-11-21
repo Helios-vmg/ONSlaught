@@ -1266,10 +1266,6 @@ uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &b
 	return res;
 }
 
-uchar *NONS_GeneralArchive::getFileBufferWithoutFS(const std::wstring &filepath,size_t &buffersize){
-	return this->getFileBuffer(filepath,buffersize,0);
-}
-
 NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path){
 	for (size_t a=0;a<this->archives.size();a++){
 		NONS_DataStream *stream=this->archives[a]->open(path);

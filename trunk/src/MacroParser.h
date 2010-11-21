@@ -30,299 +30,69 @@
 #ifndef NONS_MACROPARSER_H
 #define NONS_MACROPARSER_H
 #include "Common.h"
-#include "MacroParser.tab.hpp"
-#include <vector>
+#include "enums.h"
 #include <string>
-#include <set>
+#include <vector>
+#include <queue>
+
+class cheap_input_stream{
+	const std::wstring *source;
+	std::vector<wchar_t> characters_put_back;
+	size_t offset;
+	cheap_input_stream(const cheap_input_stream &){}
+	cheap_input_stream &operator=(const cheap_input_stream &){}
+public:
+	cheap_input_stream(const std::wstring &);
+	int peek() const;
+	int get();
+	bool eof() const{ return !this->characters_put_back.size() && this->offset>=this->source->size(); }
+	void putback(wchar_t c){ this->characters_put_back.push_back(c); }
+	std::wstring getline();
+};
 
 namespace NONS_Macro{
+class interpreter_state;
 
-struct Macro;
-struct Expression;
-struct String;
-struct SymbolTable;
-struct Identifier;
-
-struct Symbol{
-	enum{
-		UNDEFINED,
-		MACRO,
-		INTEGER,
-		STRING
-	} type;
-	std::wstring Identifier;
-	ulong declared_on_line;
-	Macro *macro;
-	long int_val;
-	std::wstring str_val;
-	Expression *int_initialization;
-	String *str_initialization;
-	bool has_been_checked;
-	Symbol(const std::wstring &,NONS_Macro::Macro *,ulong);
-	Symbol(const std::wstring &,ulong);
-	Symbol(const std::wstring &,const std::wstring &,ulong);
-	Symbol(const std::wstring &,long,ulong);
-	Symbol(const Symbol &);
-	~Symbol();
-	void reset();
-	void set(long);
-	void set(const std::wstring &);
-	void append(const std::wstring &);
-	long getInt();
-	std::wstring getStr();
-	void initializeTo(Expression *);
-	void initializeTo(String *);
-	ulong initialize(const SymbolTable &);
-	bool checkSymbols(const SymbolTable &);
+struct file_element{
+	virtual std::wstring to_string(interpreter_state * =0)=0;
 };
 
-struct Identifier{
-	std::wstring id;
-	ulong referenced_on_line;
-	Identifier(const std::wstring &a,ulong b):id(a),referenced_on_line(b){}
-	bool checkSymbols(const SymbolTable &st,bool expectedVariable);
+struct text:public file_element{
+	std::wstring str;
+	std::wstring to_string(interpreter_state * =0){ return this->str; }
+	text(const std::wstring &s):str(s){}
 };
 
-struct SymbolTable{
-	std::vector<Symbol *> symbols;
-	SymbolTable(){}
-	SymbolTable(const SymbolTable &a):symbols(a.symbols){}
-	bool declare(const std::wstring &,Macro *,ulong,bool check=1);
-	bool declare(const std::wstring &,const std::wstring &,ulong,bool check=1);
-	bool declare(const std::wstring &,long,ulong,bool check=1);
-	bool declare(Symbol *,bool check=1);
-	void addFrame(const SymbolTable &);
-	Symbol *get(const std::wstring &) const;
-	void resetAll();
-	bool checkSymbols();
-	bool checkIntersection(const SymbolTable &) const;
+struct file;
+
+struct push:public file_element{
+	std::wstring str,
+		indentation;
+	std::wstring to_string(interpreter_state * =0);
+	push(const std::wstring &s,const std::wstring &i=L""):str(s),indentation(i){}
 };
 
-enum ErrorCode{
-	MACRO_NO_ERROR=0,
-	MACRO_NO_SUCH_MACRO,
-	MACRO_NO_SYMBOL_FOUND,
-	MACRO_NUMBER_EXPECTED
+struct call:public file_element{
+	std::wstring identifier;
+	std::vector<std::wstring> parameters;
+	std::wstring to_string(interpreter_state * =0);
+	call(const std::wstring &s):identifier(s){}
+	call(const std::wstring &s,const std::vector<std::wstring> &v):identifier(s),parameters(v){}
 };
 
-struct Argument{
-	virtual ~Argument(){}
-	virtual bool simplify()=0;
-	virtual std::wstring evaluateToStr(const SymbolTable * =0,ulong * =0)=0;
-	virtual long evaluateToInt(const SymbolTable * =0,ulong * =0)=0;
-	virtual bool checkSymbols(const SymbolTable &)=0;
+struct file{
+	std::vector<file_element *> list;
+	std::wstring to_string(interpreter_state * =0);
 };
-
-struct Expression:Argument{
-	virtual Expression *clone()=0;
-	virtual ~Expression(){}
 };
-
-Expression *simplifyExpression(Expression *);
-
-struct ConstantExpression:Expression{
-	long val;
-	ConstantExpression(long a):val(a){}
-	ConstantExpression(const ConstantExpression &b):val(b.val){}
-	Expression *clone(){
-		return this?new ConstantExpression(*this):0;
-	}
-	bool simplify(){
-		return 1;
-	}
-	std::wstring evaluateToStr(const SymbolTable * =0,ulong *error=0);
-	long evaluateToInt(const SymbolTable * =0,ulong *error=0);
-	bool checkSymbols(const SymbolTable &){return 1;}
-};
-
-struct VariableExpression:Expression{
-	Identifier id;
-	Symbol *s;
-	VariableExpression(const Identifier &a):id(a),s(0){}
-	VariableExpression(const VariableExpression &b):id(b.id),s(b.s){}
-	Expression *clone(){
-		return this?new VariableExpression(*this):0;
-	}
-	bool simplify(){return 0;};
-	std::wstring evaluateToStr(const SymbolTable * =0,ulong *error=0);
-	long evaluateToInt(const SymbolTable * =0,ulong *error=0);
-	bool checkSymbols(const SymbolTable &st);
-};
-
-struct FullExpression:Expression{
-	yytokentype operation;
-	Expression *operands[3];
-	FullExpression(yytokentype,Expression * =0,Expression * =0,Expression * =0);
-	FullExpression(const FullExpression &b);
-	Expression *clone(){
-		return this?new FullExpression(*this):0;
-	}
-	~FullExpression();
-	bool simplify();
-	std::wstring evaluateToStr(const SymbolTable * =0,ulong *error=0);
-	long evaluateToInt(const SymbolTable * =0,ulong *error=0);
-	bool checkSymbols(const SymbolTable &st);
-};
-
-struct String:Argument{
-	virtual String *clone()=0;
-	virtual ~String(){}
-};
-
-String *simplifyString(String *);
-
-struct ConstantString:String{
-	std::wstring val;
-	ConstantString(const std::wstring &a):val(a){}
-	ConstantString(const ConstantString &a):val(a.val){}
-	String *clone(){
-		return this?new ConstantString(*this):0;
-	}
-	bool simplify(){return 1;}
-	std::wstring evaluateToStr(const SymbolTable * =0,ulong *error=0);
-	long evaluateToInt(const SymbolTable * =0,ulong *error=0);
-	bool checkSymbols(const SymbolTable &){return 1;}
-};
-
-struct VariableString:String{
-	Identifier id;
-	VariableString(const Identifier &a):id(a){}
-	VariableString(const VariableString &a):id(a.id){}
-	String *clone(){
-		return this?new VariableString(*this):0;
-	}
-	bool simplify(){return 0;}
-	std::wstring evaluateToStr(const SymbolTable * =0,ulong *error=0);
-	long evaluateToInt(const SymbolTable * =0,ulong *error=0);
-	bool checkSymbols(const SymbolTable &st);
-};
-
-struct StringConcatenation:String{
-	String *operands[2];
-	StringConcatenation(String *,String *);
-	StringConcatenation(const StringConcatenation &a);
-	String *clone(){
-		return this?new StringConcatenation(*this):0;
-	}
-	~StringConcatenation();
-	bool simplify();
-	std::wstring evaluateToStr(const SymbolTable * =0,ulong *error=0);
-	long evaluateToInt(const SymbolTable * =0,ulong *error=0);
-	bool checkSymbols(const SymbolTable &st);
-};
-
-struct Block;
-struct MacroFile;
-
-struct Statement{
-	virtual ~Statement(){}
-	virtual std::wstring perform(SymbolTable,ulong * =0)=0;
-	virtual bool checkSymbols(const SymbolTable &)=0;
-};
-
-struct EmptyStatement:Statement{
-	EmptyStatement(){}
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &){return 1;}
-};
-
-struct AssignmentStatement:Statement{
-	Identifier dst;
-	Expression *src;
-	AssignmentStatement(const Identifier &id,Expression *e):dst(id),src(e){}
-	~AssignmentStatement(){delete this->src;}
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &);
-};
-
-struct InplaceConcatStatement:public AssignmentStatement{
-	InplaceConcatStatement(const Identifier &id,Expression *e):AssignmentStatement(id,e){}
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-};
-
-struct StringAssignmentStatement:Statement{
-	Identifier dst;
-	String *src;
-	StringAssignmentStatement(const Identifier &id,String *e):dst(id),src(e){}
-	~StringAssignmentStatement();
-	virtual std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &);
-};
-
-struct InplaceStringConcatStatement:public StringAssignmentStatement{
-	InplaceStringConcatStatement(const Identifier &id,String *e):StringAssignmentStatement(id,e){}
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-};
-
-struct IfStructure:Statement{
-	Expression *condition;
-	Block *true_block,
-		*false_block;
-	IfStructure(Expression *,Block *,Block * =0);
-	~IfStructure();
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &);
-};
-
-struct WhileStructure:Statement{
-	Expression *condition;
-	Block *block;
-	WhileStructure(Expression *,NONS_Macro::Block *);
-	~WhileStructure();
-	std::wstring perform(SymbolTable *symbol_table,ulong *error=0);
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &);
-};
-
-struct ForStructure:Statement{
-	Identifier forIndex;
-	Expression *start,
-		*end,
-		*step;
-	Block *block;
-	ForStructure(const Identifier &,Expression *,Expression *,Expression *,NONS_Macro::Block *);
-	~ForStructure();
-	std::wstring perform(SymbolTable *symbol_table,ulong *error=0);
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &);
-};
-
-struct MacroCall:Statement{
-	Identifier id;
-	std::vector<Argument *> *arguments;
-	MacroCall(const Identifier &a,std::vector<Argument *> *b=0):id(a),arguments(b){}
-	~MacroCall();
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0);
-	bool checkSymbols(const SymbolTable &);
-};
-
-struct Block{
-	std::vector<Statement *> *statements;
-	SymbolTable *symbol_table;
-	Block(std::vector<Statement *> * =0,SymbolTable * =0);
-	~Block();
-	std::wstring perform(SymbolTable *symbol_table,ulong *error=0,bool doNotAddFrame=0);
-	std::wstring perform(SymbolTable symbol_table,ulong *error=0,bool doNotAddFrame=0);
-	void addStatement(Statement *);
-	//void addStatements(std::vector<Statement *> *);
-	bool checkSymbols(const SymbolTable &,bool doNotAddFrame=0);
-};
-
-struct Macro{
-	SymbolTable *parameters;
-	Block *statements;
-	Macro(Block *,SymbolTable * =0);
-	~Macro();
-	std::wstring perform(const std::vector<std::wstring> &parameters,SymbolTable *st,ulong *error=0);
-	std::wstring perform(const std::vector<std::wstring> &parameters,SymbolTable st,ulong *error=0);
-	bool checkSymbols(const SymbolTable &);
-};
-
-struct MacroFile{
-	SymbolTable symbol_table;
-	MacroFile();
-	std::wstring call(const std::wstring &name,const std::vector<std::wstring> &parameters,ulong *error=0);
-	bool checkSymbols();
-};
-}
+DECLARE_ENUM(ParserState)
+	NIL,
+	TEXT,
+	CALL,
+	TEXT_IN_BLOCK,
+	AFTER_CALL,
+	AFTER_PUSH,
+	AFTER_KEYWORD_LINE,
+	AFTER_LONG_CALL_HEADER
+DECLARE_ENUM_CLOSE;
 #endif

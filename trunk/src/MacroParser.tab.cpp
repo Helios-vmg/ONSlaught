@@ -60,7 +60,7 @@
 #define YYPULL 1
 
 /* Using locations.  */
-#define YYLSP_NEEDED 1
+#define YYLSP_NEEDED 0
 
 /* Substitute the variable and function names.  */
 #define yyparse         macroParser_yyparse
@@ -70,23 +70,9 @@
 #define yychar          macroParser_yychar
 #define yydebug         macroParser_yydebug
 #define yynerrs         macroParser_yynerrs
-#define yylloc          macroParser_yylloc
+
 
 /* Copy the first part of user declarations.  */
-
-
-#include "Functions.h"
-#include "MacroParser.h"
-
-template <typename T>
-bool partialCompare(const std::basic_string<T> &A,size_t offset,const std::basic_string<T> &B){
-	if (A.size()-offset<B.size())
-		return 0;
-	for (size_t a=offset,b=0;b<B.size();a++,b++)
-		if (A[a]!=B[b])
-			return 0;
-	return 1;
-}
 
 
 
@@ -111,32 +97,11 @@ bool partialCompare(const std::basic_string<T> &A,size_t offset,const std::basic
 /* "%code requires" blocks.  */
 
 
-#include "Common.h"
-#include <set>
-#include <vector>
 #include <string>
+#include <sstream>
+#include "Functions.h"
+#include "MacroParser.h"
 #undef ERROR
-
-namespace NONS_Macro{
-struct Identifier;
-struct StringOperation;
-struct Argument;
-struct Expression;
-struct String;
-struct ConstantExpression;
-struct VariableExpression;
-struct FullExpression;
-struct ConstantString;
-struct VariableString;
-struct StringConcatenation;
-struct Statement;
-struct Macro;
-struct MacroFile;
-struct Symbol;
-struct SymbolTable;
-struct Block;
-}
-
 
 
 
@@ -147,34 +112,18 @@ struct Block;
    /* Put the tokens into the symbol table, so that GDB and other debuggers
       know about them.  */
    enum yytokentype {
-     APOSTROPHE = 258,
-     DEFINE = 259,
-     IF = 260,
-     ELSE = 261,
-     ERROR = 262,
-     FOR = 263,
-     WHILE = 264,
-     IDENTIFIER = 265,
-     STRING = 266,
-     INTEGER = 267,
-     CONCAT_ASSIGNMENT = 268,
-     TRINARY = 269,
-     BOR = 270,
-     BAND = 271,
-     BNOT = 272,
-     NOT_EQUALS = 273,
-     EQUALS = 274,
-     LT_EQUALS = 275,
-     GT_EQUALS = 276,
-     LOWER_THAN = 277,
-     GREATER_THAN = 278,
-     MINUS = 279,
-     PLUS = 280,
-     MOD = 281,
-     DIV = 282,
-     MUL = 283,
-     NEG = 284,
-     POS = 285
+     NEWLINE = 258,
+     PUSH = 259,
+     CALL = 260,
+     PARAMS = 261,
+     END_KEY = 262,
+     COMMA_KEY = 263,
+     POP = 264,
+     ERROR = 265,
+     END = 266,
+     TEXT = 267,
+     IDENTIFIER = 268,
+     STRING = 269
    };
 #endif
 
@@ -185,19 +134,14 @@ typedef union YYSTYPE
 {
 
 
-	NONS_Macro::Identifier *id;
 	std::wstring *str;
-	std::vector<std::wstring> *stringVector;
-	NONS_Macro::Argument *argument;
-	NONS_Macro::String *string;
-	NONS_Macro::Expression *expression;
-	std::vector<NONS_Macro::Argument *> *argumentVector;
-	NONS_Macro::Statement *stmt;
-	NONS_Macro::MacroFile *macro_file;
-	NONS_Macro::Symbol *symbol;
-	NONS_Macro::SymbolTable *symbol_table;
-	NONS_Macro::Block *block;
-	std::vector<NONS_Macro::Statement *> *stmt_list;
+	NONS_Macro::file *file;
+	std::vector<NONS_Macro::file_element *> *fe_list;
+	NONS_Macro::file_element *file_element;
+	NONS_Macro::text *text;
+	NONS_Macro::push *push;
+	NONS_Macro::call *call;
+	std::vector<std::wstring> *params;
 
 
 
@@ -207,39 +151,25 @@ typedef union YYSTYPE
 # define YYSTYPE_IS_DECLARED 1
 #endif
 
-#if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED
-typedef struct YYLTYPE
-{
-  int first_line;
-  int first_column;
-  int last_line;
-  int last_column;
-} YYLTYPE;
-# define yyltype YYLTYPE /* obsolescent; will be withdrawn */
-# define YYLTYPE_IS_DECLARED 1
-# define YYLTYPE_IS_TRIVIAL 1
-#endif
-
 /* "%code provides" blocks.  */
 
 
-	#include <sstream>
 	int macroParser_yyparse(
-		std::wstringstream &stream,
-		NONS_Macro::MacroFile *&result
+		cheap_input_stream &stream,
+		ParserState::ParserState &state,
+		NONS_Macro::file *&file
 	);
 	int macroParser_yylex(
 		YYSTYPE *yylval,
-		YYLTYPE *yylloc,
-		std::wstringstream &stream
+		cheap_input_stream &stream,
+		ParserState::ParserState &state
 	);
-	void macroParser_yyerror(
-		YYLTYPE *yylloc,
-		std::wstringstream &,
-		NONS_Macro::MacroFile *&result,
-		//NONS_Macro::SymbolTable &SymbolTable,
+	inline void macroParser_yyerror(
+		cheap_input_stream &,
+		ParserState::ParserState &,
+		NONS_Macro::file *file,
 		char const *
-	);
+	){}
 	extern int macroParser_yydebug;
 
 
@@ -405,15 +335,13 @@ void free (void *); /* INFRINGES ON USER NAME SPACE */
 
 #if (! defined yyoverflow \
      && (! defined __cplusplus \
-	 || (defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL \
-	     && defined YYSTYPE_IS_TRIVIAL && YYSTYPE_IS_TRIVIAL)))
+	 || (defined YYSTYPE_IS_TRIVIAL && YYSTYPE_IS_TRIVIAL)))
 
 /* A type that is properly aligned for any stack member.  */
 union yyalloc
 {
   yytype_int16 yyss_alloc;
   YYSTYPE yyvs_alloc;
-  YYLTYPE yyls_alloc;
 };
 
 /* The size of the maximum gap between one aligned stack and the next.  */
@@ -422,8 +350,8 @@ union yyalloc
 /* The size of an array large to enough to hold all stacks, each with
    N elements.  */
 # define YYSTACK_BYTES(N) \
-     ((N) * (sizeof (yytype_int16) + sizeof (YYSTYPE) + sizeof (YYLTYPE)) \
-      + 2 * YYSTACK_GAP_MAXIMUM)
+     ((N) * (sizeof (yytype_int16) + sizeof (YYSTYPE)) \
+      + YYSTACK_GAP_MAXIMUM)
 
 /* Copy COUNT objects from FROM to TO.  The source and destination do
    not overlap.  */
@@ -462,22 +390,22 @@ union yyalloc
 #endif
 
 /* YYFINAL -- State number of the termination state.  */
-#define YYFINAL  4
+#define YYFINAL  19
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   432
+#define YYLAST   55
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  43
+#define YYNTOKENS  18
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  15
+#define YYNNTS  17
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  61
+#define YYNRULES  32
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  130
+#define YYNSTATES  58
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   285
+#define YYMAXUTOK   269
 
 #define YYTRANSLATE(YYX)						\
   ((unsigned int) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
@@ -488,16 +416,16 @@ static const yytype_uint8 yytranslate[] =
        0,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,    33,     2,
-      31,    32,     2,     2,    34,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,    42,    40,
-       2,    39,     2,    41,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+      15,    16,     2,     2,    17,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,    37,     2,    38,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,    35,     2,    36,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -511,9 +439,7 @@ static const yytype_uint8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
-       5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
-      15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
-      25,    26,    27,    28,    29,    30
+       5,     6,     7,     8,     9,    10,    11,    12,    13,    14
 };
 
 #if YYDEBUG
@@ -521,54 +447,34 @@ static const yytype_uint8 yytranslate[] =
    YYRHS.  */
 static const yytype_uint8 yyprhs[] =
 {
-       0,     0,     3,     5,     7,     8,    11,    15,    22,    24,
-      28,    30,    34,    41,    42,    45,    47,    51,    53,    57,
-      61,    63,    68,    73,    78,    83,    89,    97,   103,   115,
-     118,   124,   126,   130,   132,   134,   136,   139,   141,   145,
-     149,   153,   157,   159,   161,   167,   171,   175,   178,   182,
-     186,   190,   194,   198,   202,   206,   210,   214,   218,   222,
-     225,   228
+       0,     0,     3,     5,     7,     9,    11,    13,    15,    17,
+      20,    22,    26,    30,    32,    34,    36,    39,    43,    45,
+      48,    53,    59,    65,    71,    76,    78,    80,    81,    83,
+      85,    89,    91
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int8 yyrhs[] =
 {
-      44,     0,    -1,    45,    -1,     7,    -1,    -1,    45,    46,
-      -1,     4,    10,    48,    -1,     4,    10,    31,    47,    32,
-      48,    -1,    10,    -1,    47,    34,    10,    -1,    52,    -1,
-      35,    49,    36,    -1,    37,    50,    38,    35,    49,    36,
-      -1,    -1,    49,    52,    -1,    51,    -1,    50,    34,    51,
-      -1,    10,    -1,    10,    39,    57,    -1,    10,    39,    56,
-      -1,    40,    -1,    10,    39,    57,    40,    -1,    10,    39,
-      56,    40,    -1,    10,    13,    57,    40,    -1,    10,    13,
-      56,    40,    -1,     5,    31,    57,    32,    48,    -1,     5,
-      31,    57,    32,    48,     6,    48,    -1,     9,    31,    57,
-      32,    48,    -1,     8,    31,    10,    40,    57,    40,    57,
-      40,    57,    32,    48,    -1,    10,    40,    -1,    10,    31,
-      53,    32,    40,    -1,    54,    -1,    53,    34,    54,    -1,
-      56,    -1,    57,    -1,    11,    -1,    55,    11,    -1,    55,
-      -1,    10,    33,    10,    -1,    10,    33,    56,    -1,    56,
-      33,    10,    -1,    56,    33,    56,    -1,    12,    -1,    10,
-      -1,    57,    41,    57,    42,    57,    -1,    57,    15,    57,
-      -1,    57,    16,    57,    -1,    17,    57,    -1,    57,    19,
-      57,    -1,    57,    18,    57,    -1,    57,    23,    57,    -1,
-      57,    22,    57,    -1,    57,    21,    57,    -1,    57,    20,
-      57,    -1,    57,    25,    57,    -1,    57,    24,    57,    -1,
-      57,    28,    57,    -1,    57,    27,    57,    -1,    57,    26,
-      57,    -1,    25,    57,    -1,    24,    57,    -1,    31,    57,
-      32,    -1
+      19,     0,    -1,    20,    -1,    10,    -1,    23,    -1,    25,
+      -1,    27,    -1,    30,    -1,     3,    -1,    22,     3,    -1,
+      21,    -1,    21,    22,    23,    -1,    25,    22,    23,    -1,
+      26,    -1,    28,    -1,    24,    -1,    25,    24,    -1,    23,
+      22,    25,    -1,    12,    -1,    26,    12,    -1,     4,     3,
+      26,     7,    -1,     4,    14,     3,    26,     7,    -1,     5,
+      13,    15,    32,    16,    -1,     5,    13,    15,     6,    16,
+      -1,    29,     3,    34,     7,    -1,    14,    -1,     9,    -1,
+      -1,    33,    -1,    31,    -1,    33,    17,    31,    -1,    26,
+      -1,    34,     8,     3,    26,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
-static const yytype_uint16 yyrline[] =
+static const yytype_uint8 yyrline[] =
 {
-       0,   154,   154,   157,   163,   166,   172,   176,   182,   187,
-     194,   198,   201,   206,   209,   215,   219,   225,   228,   233,
-     240,   243,   248,   253,   258,   263,   267,   271,   275,   282,
-     286,   292,   296,   302,   306,   312,   315,   322,   326,   331,
-     335,   339,   344,   347,   351,   354,   357,   360,   363,   366,
-     369,   372,   375,   378,   381,   384,   387,   390,   393,   396,
-     399,   402
+       0,    94,    94,    98,   103,   108,   115,   118,   123,   124,
+     127,   131,   135,   142,   145,   150,   154,   158,   165,   169,
+     177,   181,   188,   196,   203,   209,   213,   219,   222,   227,
+     232,   239,   244
 };
 #endif
 
@@ -577,15 +483,13 @@ static const yytype_uint16 yyrline[] =
    First, the terminals, then, starting at YYNTOKENS, nonterminals.  */
 static const char *const yytname[] =
 {
-  "$end", "error", "$undefined", "APOSTROPHE", "DEFINE", "IF", "ELSE",
-  "ERROR", "FOR", "WHILE", "IDENTIFIER", "STRING", "INTEGER",
-  "CONCAT_ASSIGNMENT", "TRINARY", "BOR", "BAND", "BNOT", "NOT_EQUALS",
-  "EQUALS", "LT_EQUALS", "GT_EQUALS", "LOWER_THAN", "GREATER_THAN",
-  "MINUS", "PLUS", "MOD", "DIV", "MUL", "NEG", "POS", "'('", "')'", "'&'",
-  "','", "'{'", "'}'", "'['", "']'", "'='", "';'", "'?'", "':'", "$accept",
-  "begin", "file", "macro_definition", "parameter_list", "block",
-  "stmt_list", "initialization_list", "initialization", "stmt",
-  "argument_list", "argument", "string_literal", "string", "expr", 0
+  "$end", "error", "$undefined", "NEWLINE", "PUSH", "CALL", "PARAMS",
+  "END_KEY", "COMMA_KEY", "POP", "ERROR", "END", "TEXT", "IDENTIFIER",
+  "STRING", "'('", "')'", "','", "$accept", "begin", "file",
+  "newline_separated_support", "newline", "newline_separated",
+  "not_separated_support", "not_separated", "text", "push", "call",
+  "long_call_header", "long_call", "parameter", "parameter_list",
+  "non_empty_parameter_list", "long_parameter_list", 0
 };
 #endif
 
@@ -595,35 +499,26 @@ static const char *const yytname[] =
 static const yytype_uint16 yytoknum[] =
 {
        0,   256,   257,   258,   259,   260,   261,   262,   263,   264,
-     265,   266,   267,   268,   269,   270,   271,   272,   273,   274,
-     275,   276,   277,   278,   279,   280,   281,   282,   283,   284,
-     285,    40,    41,    38,    44,   123,   125,    91,    93,    61,
-      59,    63,    58
+     265,   266,   267,   268,   269,    40,    41,    44
 };
 # endif
 
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    43,    44,    44,    45,    45,    46,    46,    47,    47,
-      48,    48,    48,    49,    49,    50,    50,    51,    51,    51,
-      52,    52,    52,    52,    52,    52,    52,    52,    52,    52,
-      52,    53,    53,    54,    54,    55,    55,    56,    56,    56,
-      56,    56,    57,    57,    57,    57,    57,    57,    57,    57,
-      57,    57,    57,    57,    57,    57,    57,    57,    57,    57,
-      57,    57
+       0,    18,    19,    19,    20,    20,    21,    21,    22,    22,
+      23,    23,    23,    24,    24,    25,    25,    25,    26,    26,
+      27,    27,    28,    29,    30,    31,    31,    32,    32,    33,
+      33,    34,    34
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
 static const yytype_uint8 yyr2[] =
 {
-       0,     2,     1,     1,     0,     2,     3,     6,     1,     3,
-       1,     3,     6,     0,     2,     1,     3,     1,     3,     3,
-       1,     4,     4,     4,     4,     5,     7,     5,    11,     2,
-       5,     1,     3,     1,     1,     1,     2,     1,     3,     3,
-       3,     3,     1,     1,     5,     3,     3,     2,     3,     3,
-       3,     3,     3,     3,     3,     3,     3,     3,     3,     2,
-       2,     3
+       0,     2,     1,     1,     1,     1,     1,     1,     1,     2,
+       1,     3,     3,     1,     1,     1,     2,     3,     1,     2,
+       4,     5,     5,     5,     4,     1,     1,     0,     1,     1,
+       3,     1,     4
 };
 
 /* YYDEFACT[STATE-NAME] -- Default rule to reduce with in state
@@ -631,53 +526,39 @@ static const yytype_uint8 yyr2[] =
    means the default is an error.  */
 static const yytype_uint8 yydefact[] =
 {
-       4,     3,     0,     2,     1,     0,     5,     0,     0,     0,
-       0,     0,     0,    13,     0,    20,     6,    10,     0,     0,
-       0,     0,     0,     0,    29,     8,     0,     0,    17,     0,
-      15,    43,    42,     0,     0,     0,     0,     0,     0,     0,
-      43,    35,    37,     0,     0,     0,    31,    33,    34,     0,
-       0,     0,     0,    11,    14,     0,     0,     0,    47,    60,
-      59,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-      36,     0,    24,    23,     0,     0,    22,    21,     7,     9,
-      19,    18,    16,    13,    61,    45,    46,    49,    48,    53,
-      52,    51,    50,    55,    54,    58,    57,    56,    25,     0,
-       0,    27,    38,    39,    40,    41,    30,    32,     0,     0,
-       0,     0,    12,    26,    44,     0,     0,     0,     0,    28
+       0,     0,     0,     3,    18,     0,     2,    10,     4,    15,
+       5,    13,     6,    14,     0,     7,     0,     0,     0,     1,
+       8,     0,     0,     0,     0,    16,    19,     0,     0,     0,
+      27,     9,    11,     0,     0,    17,     0,    12,    31,     0,
+      20,     0,     0,    26,    25,    29,     0,    28,    27,    24,
+       0,    21,    23,    22,     0,     0,    30,    32
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-      -1,     2,     3,     6,    26,    16,    27,    29,    30,    17,
-      45,    46,    42,    47,    48
+      -1,     5,     6,     7,    22,     8,     9,    33,    11,    12,
+      13,    14,    15,    45,    46,    47,    39
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
    STATE-NUM.  */
-#define YYPACT_NINF -48
-static const yytype_int16 yypact[] =
+#define YYPACT_NINF -17
+static const yytype_int8 yypact[] =
 {
-      23,   -48,    32,    53,   -48,    52,   -48,    60,    40,    45,
-      57,    -4,    63,   -48,    79,   -48,   -48,   -48,   401,    80,
-     401,   397,   397,   397,   -48,   -48,     9,     2,    54,    -5,
-     -48,   -48,   -48,   401,   401,   401,   401,   126,    56,   150,
-      61,   -48,    87,    27,   174,    29,   -48,    66,   330,    42,
-     201,    69,    91,   -48,   -48,   397,    79,    70,   365,    71,
-      71,   228,   401,   401,   401,   401,   401,   401,   401,   401,
-     401,   401,   401,   401,   401,    69,   401,   401,    69,     3,
-     -48,    76,   -48,   -48,    67,   397,   -48,   -48,   -48,   -48,
-      66,   330,   -48,   -48,   -48,   354,   365,   376,   376,    -2,
-      -2,    -2,    -2,    -7,    -7,    71,    71,    71,   104,    98,
-     252,   -48,    61,   -48,    61,   -48,   -48,   -48,    75,    69,
-     401,   401,   -48,   -48,   330,   279,   401,   306,    69,   -48
+      10,     3,    -8,   -17,   -17,    21,   -17,    39,    39,   -17,
+       7,    13,   -17,   -17,    41,   -17,    33,    43,    32,   -17,
+     -17,     4,     4,    35,     4,   -17,   -17,    33,    11,    33,
+      24,   -17,    39,     7,    39,     7,    34,    39,    13,    27,
+     -17,    25,    36,   -17,   -17,   -17,    37,    38,    22,   -17,
+      47,   -17,   -17,   -17,    22,    33,   -17,    13
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-     -48,   -48,   -48,   -48,   -48,   -47,    34,   -48,    72,   -26,
-     -48,    44,   -48,   -15,   -18
+     -17,   -17,   -17,   -17,    -6,    19,    -7,     2,   -16,   -17,
+     -17,   -17,   -17,    -3,   -17,   -17,   -17
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
@@ -687,117 +568,34 @@ static const yytype_int8 yypgoto[] =
 #define YYTABLE_NINF -1
 static const yytype_uint8 yytable[] =
 {
-      37,    54,    39,    44,    88,    50,    43,     8,    49,    21,
-       9,    10,    11,   112,    41,    58,    59,    60,    61,    72,
-      73,    74,    70,    71,    72,    73,    74,    22,   108,    56,
-       1,   111,     4,    57,    76,    23,    24,    91,    53,    76,
-      90,    51,    15,    52,    95,    96,    97,    98,    99,   100,
-     101,   102,   103,   104,   105,   106,   107,     5,   109,   110,
-      81,    84,     7,    85,   113,     8,   115,    82,     9,    10,
-      11,    18,   123,    25,     8,    81,    19,     9,    10,    11,
-       8,   129,    86,     9,    10,    11,   114,    41,    20,    28,
-      38,    12,    54,    55,    79,    13,    77,    14,    80,    81,
-      15,    89,   124,   125,    13,    93,    14,   116,   127,    15,
-     119,   122,    76,    62,    63,    15,    64,    65,    66,    67,
-      68,    69,    70,    71,    72,    73,    74,   118,    92,   117,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,    76,
-     120,    62,    63,     0,    64,    65,    66,    67,    68,    69,
-      70,    71,    72,    73,    74,     0,     0,     0,    75,     0,
-       0,     0,     0,     0,     0,    62,    63,    76,    64,    65,
-      66,    67,    68,    69,    70,    71,    72,    73,    74,     0,
-       0,     0,    78,     0,     0,     0,     0,     0,     0,    62,
-      63,    76,    64,    65,    66,    67,    68,    69,    70,    71,
-      72,    73,    74,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,    83,    76,    62,    63,     0,    64,
-      65,    66,    67,    68,    69,    70,    71,    72,    73,    74,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,    87,    76,    62,    63,     0,    64,    65,    66,    67,
-      68,    69,    70,    71,    72,    73,    74,     0,     0,     0,
-      94,     0,     0,     0,     0,     0,     0,    62,    63,    76,
-      64,    65,    66,    67,    68,    69,    70,    71,    72,    73,
-      74,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,   121,    76,    62,    63,     0,    64,    65,    66,
-      67,    68,    69,    70,    71,    72,    73,    74,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,   126,
-      76,    62,    63,     0,    64,    65,    66,    67,    68,    69,
-      70,    71,    72,    73,    74,     0,     0,     0,   128,     0,
-       0,     0,     0,     0,     0,    62,    63,    76,    64,    65,
-      66,    67,    68,    69,    70,    71,    72,    73,    74,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-      63,    76,    64,    65,    66,    67,    68,    69,    70,    71,
-      72,    73,    74,    64,    65,    66,    67,    68,    69,    70,
-      71,    72,    73,    74,     0,    76,    66,    67,    68,    69,
-      70,    71,    72,    73,    74,     0,    76,    40,    41,    32,
-       0,    31,     0,    32,    33,     0,     0,    76,    33,     0,
-       0,    34,    35,     0,     0,    34,    35,     0,    36,     0,
-       0,     0,    36
+      28,    21,    10,    25,    24,    18,    16,    31,     1,     2,
+      20,    38,    23,    41,     1,     2,     4,    17,    40,     4,
+       3,    19,     4,    26,    35,    26,    25,    24,    25,    24,
+      42,    43,    51,    43,    49,    50,    44,    26,    44,    57,
+      32,    34,    20,    37,    27,     4,    29,    30,    36,    48,
+      55,    56,    52,    53,     0,    54
 };
 
-static const yytype_int16 yycheck[] =
+static const yytype_int8 yycheck[] =
 {
-      18,    27,    20,    21,    51,    23,    21,     5,    23,    13,
-       8,     9,    10,    10,    11,    33,    34,    35,    36,    26,
-      27,    28,    24,    25,    26,    27,    28,    31,    75,    34,
-       7,    78,     0,    38,    41,    39,    40,    55,    36,    41,
-      55,    32,    40,    34,    62,    63,    64,    65,    66,    67,
-      68,    69,    70,    71,    72,    73,    74,     4,    76,    77,
-      33,    32,    10,    34,    79,     5,    81,    40,     8,     9,
-      10,    31,   119,    10,     5,    33,    31,     8,     9,    10,
-       5,   128,    40,     8,     9,    10,    10,    11,    31,    10,
-      10,    31,   118,    39,    33,    35,    40,    37,    11,    33,
-      40,    10,   120,   121,    35,    35,    37,    40,   126,    40,
-       6,    36,    41,    15,    16,    40,    18,    19,    20,    21,
-      22,    23,    24,    25,    26,    27,    28,    93,    56,    85,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    41,
-      42,    15,    16,    -1,    18,    19,    20,    21,    22,    23,
-      24,    25,    26,    27,    28,    -1,    -1,    -1,    32,    -1,
-      -1,    -1,    -1,    -1,    -1,    15,    16,    41,    18,    19,
-      20,    21,    22,    23,    24,    25,    26,    27,    28,    -1,
-      -1,    -1,    32,    -1,    -1,    -1,    -1,    -1,    -1,    15,
-      16,    41,    18,    19,    20,    21,    22,    23,    24,    25,
-      26,    27,    28,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    -1,    40,    41,    15,    16,    -1,    18,
-      19,    20,    21,    22,    23,    24,    25,    26,    27,    28,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    40,    41,    15,    16,    -1,    18,    19,    20,    21,
-      22,    23,    24,    25,    26,    27,    28,    -1,    -1,    -1,
-      32,    -1,    -1,    -1,    -1,    -1,    -1,    15,    16,    41,
-      18,    19,    20,    21,    22,    23,    24,    25,    26,    27,
-      28,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    40,    41,    15,    16,    -1,    18,    19,    20,
-      21,    22,    23,    24,    25,    26,    27,    28,    -1,    -1,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    40,
-      41,    15,    16,    -1,    18,    19,    20,    21,    22,    23,
-      24,    25,    26,    27,    28,    -1,    -1,    -1,    32,    -1,
-      -1,    -1,    -1,    -1,    -1,    15,    16,    41,    18,    19,
-      20,    21,    22,    23,    24,    25,    26,    27,    28,    -1,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      16,    41,    18,    19,    20,    21,    22,    23,    24,    25,
-      26,    27,    28,    18,    19,    20,    21,    22,    23,    24,
-      25,    26,    27,    28,    -1,    41,    20,    21,    22,    23,
-      24,    25,    26,    27,    28,    -1,    41,    10,    11,    12,
-      -1,    10,    -1,    12,    17,    -1,    -1,    41,    17,    -1,
-      -1,    24,    25,    -1,    -1,    24,    25,    -1,    31,    -1,
-      -1,    -1,    31
+      16,     7,     0,    10,    10,    13,     3,     3,     4,     5,
+       3,    27,     5,    29,     4,     5,    12,    14,     7,    12,
+      10,     0,    12,    12,    22,    12,    33,    33,    35,    35,
+       6,     9,     7,     9,     7,     8,    14,    12,    14,    55,
+      21,    22,     3,    24,     3,    12,     3,    15,    13,    15,
+       3,    54,    16,    16,    -1,    17
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,     7,    44,    45,     0,     4,    46,    10,     5,     8,
-       9,    10,    31,    35,    37,    40,    48,    52,    31,    31,
-      31,    13,    31,    39,    40,    10,    47,    49,    10,    50,
-      51,    10,    12,    17,    24,    25,    31,    57,    10,    57,
-      10,    11,    55,    56,    57,    53,    54,    56,    57,    56,
-      57,    32,    34,    36,    52,    39,    34,    38,    57,    57,
-      57,    57,    15,    16,    18,    19,    20,    21,    22,    23,
-      24,    25,    26,    27,    28,    32,    41,    40,    32,    33,
-      11,    33,    40,    40,    32,    34,    40,    40,    48,    10,
-      56,    57,    51,    35,    32,    57,    57,    57,    57,    57,
-      57,    57,    57,    57,    57,    57,    57,    57,    48,    57,
-      57,    48,    10,    56,    10,    56,    40,    54,    49,     6,
-      42,    40,    36,    48,    57,    57,    40,    57,    32,    48
+       0,     4,     5,    10,    12,    19,    20,    21,    23,    24,
+      25,    26,    27,    28,    29,    30,     3,    14,    13,     0,
+       3,    22,    22,     5,    22,    24,    12,     3,    26,     3,
+      15,     3,    23,    25,    23,    25,    13,    23,    26,    34,
+       7,    26,     6,     9,    14,    31,    32,    33,    15,     7,
+       8,     7,    16,    16,    17,     3,    31,    26
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -839,7 +637,7 @@ do								\
     }								\
   else								\
     {								\
-      yyerror (&yylloc, stream, result, YY_("syntax error: cannot back up")); \
+      yyerror (stream, state, file, YY_("syntax error: cannot back up")); \
       YYERROR;							\
     }								\
 while (YYID (0))
@@ -894,9 +692,9 @@ while (YYID (0))
 /* YYLEX -- calling `yylex' with the right arguments.  */
 
 #ifdef YYLEX_PARAM
-# define YYLEX yylex (&yylval, &yylloc, YYLEX_PARAM)
+# define YYLEX yylex (&yylval, YYLEX_PARAM)
 #else
-# define YYLEX yylex (&yylval, &yylloc, stream)
+# define YYLEX yylex (&yylval, stream, state)
 #endif
 
 /* Enable debugging if requested.  */
@@ -919,7 +717,7 @@ do {									  \
     {									  \
       YYFPRINTF (stderr, "%s ", Title);					  \
       yy_symbol_print (stderr,						  \
-		  Type, Value, Location, stream, result); \
+		  Type, Value, stream, state, file); \
       YYFPRINTF (stderr, "\n");						  \
     }									  \
 } while (YYID (0))
@@ -933,23 +731,23 @@ do {									  \
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, std::wstringstream &stream, NONS_Macro::MacroFile *&result)
+yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, cheap_input_stream &stream, ParserState::ParserState &state, NONS_Macro::file *&file)
 #else
 static void
-yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp, stream, result)
+yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, state, file)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
-    YYLTYPE const * const yylocationp;
-    std::wstringstream &stream;
-    NONS_Macro::MacroFile *&result;
+    cheap_input_stream &stream;
+    ParserState::ParserState &state;
+    NONS_Macro::file *&file;
 #endif
 {
   if (!yyvaluep)
     return;
-  YYUSE (yylocationp);
   YYUSE (stream);
-  YYUSE (result);
+  YYUSE (state);
+  YYUSE (file);
 # ifdef YYPRINT
   if (yytype < YYNTOKENS)
     YYPRINT (yyoutput, yytoknum[yytype], *yyvaluep);
@@ -971,16 +769,16 @@ yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp, stream, result)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, std::wstringstream &stream, NONS_Macro::MacroFile *&result)
+yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, cheap_input_stream &stream, ParserState::ParserState &state, NONS_Macro::file *&file)
 #else
 static void
-yy_symbol_print (yyoutput, yytype, yyvaluep, yylocationp, stream, result)
+yy_symbol_print (yyoutput, yytype, yyvaluep, stream, state, file)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
-    YYLTYPE const * const yylocationp;
-    std::wstringstream &stream;
-    NONS_Macro::MacroFile *&result;
+    cheap_input_stream &stream;
+    ParserState::ParserState &state;
+    NONS_Macro::file *&file;
 #endif
 {
   if (yytype < YYNTOKENS)
@@ -988,9 +786,7 @@ yy_symbol_print (yyoutput, yytype, yyvaluep, yylocationp, stream, result)
   else
     YYFPRINTF (yyoutput, "nterm %s (", yytname[yytype]);
 
-  YY_LOCATION_PRINT (yyoutput, *yylocationp);
-  YYFPRINTF (yyoutput, ": ");
-  yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp, stream, result);
+  yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, state, file);
   YYFPRINTF (yyoutput, ")");
 }
 
@@ -1033,15 +829,15 @@ do {								\
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_reduce_print (YYSTYPE *yyvsp, YYLTYPE *yylsp, int yyrule, std::wstringstream &stream, NONS_Macro::MacroFile *&result)
+yy_reduce_print (YYSTYPE *yyvsp, int yyrule, cheap_input_stream &stream, ParserState::ParserState &state, NONS_Macro::file *&file)
 #else
 static void
-yy_reduce_print (yyvsp, yylsp, yyrule, stream, result)
+yy_reduce_print (yyvsp, yyrule, stream, state, file)
     YYSTYPE *yyvsp;
-    YYLTYPE *yylsp;
     int yyrule;
-    std::wstringstream &stream;
-    NONS_Macro::MacroFile *&result;
+    cheap_input_stream &stream;
+    ParserState::ParserState &state;
+    NONS_Macro::file *&file;
 #endif
 {
   int yynrhs = yyr2[yyrule];
@@ -1055,7 +851,7 @@ yy_reduce_print (yyvsp, yylsp, yyrule, stream, result)
       YYFPRINTF (stderr, "   $%d = ", yyi + 1);
       yy_symbol_print (stderr, yyrhs[yyprhs[yyrule] + yyi],
 		       &(yyvsp[(yyi + 1) - (yynrhs)])
-		       , &(yylsp[(yyi + 1) - (yynrhs)])		       , stream, result);
+		       		       , stream, state, file);
       YYFPRINTF (stderr, "\n");
     }
 }
@@ -1063,7 +859,7 @@ yy_reduce_print (yyvsp, yylsp, yyrule, stream, result)
 # define YY_REDUCE_PRINT(Rule)		\
 do {					\
   if (yydebug)				\
-    yy_reduce_print (yyvsp, yylsp, Rule, stream, result); \
+    yy_reduce_print (yyvsp, Rule, stream, state, file); \
 } while (YYID (0))
 
 /* Nonzero means print parse trace.  It is left uninitialized so that
@@ -1314,22 +1110,22 @@ yysyntax_error (char *yyresult, int yystate, int yychar)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, YYLTYPE *yylocationp, std::wstringstream &stream, NONS_Macro::MacroFile *&result)
+yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, cheap_input_stream &stream, ParserState::ParserState &state, NONS_Macro::file *&file)
 #else
 static void
-yydestruct (yymsg, yytype, yyvaluep, yylocationp, stream, result)
+yydestruct (yymsg, yytype, yyvaluep, stream, state, file)
     const char *yymsg;
     int yytype;
     YYSTYPE *yyvaluep;
-    YYLTYPE *yylocationp;
-    std::wstringstream &stream;
-    NONS_Macro::MacroFile *&result;
+    cheap_input_stream &stream;
+    ParserState::ParserState &state;
+    NONS_Macro::file *&file;
 #endif
 {
   YYUSE (yyvaluep);
-  YYUSE (yylocationp);
   YYUSE (stream);
-  YYUSE (result);
+  YYUSE (state);
+  YYUSE (file);
 
   if (!yymsg)
     yymsg = "Deleting";
@@ -1337,112 +1133,122 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, stream, result)
 
   switch (yytype)
     {
-      case 10: /* "IDENTIFIER" */
-
-	{
-	delete (yyvaluep->id);
-};
-
-	break;
-      case 11: /* "STRING" */
+      case 12: /* "TEXT" */
 
 	{
 	delete (yyvaluep->str);
 };
 
 	break;
-      case 45: /* "file" */
-
-	{
-	delete (yyvaluep->macro_file);
-};
-
-	break;
-      case 46: /* "macro_definition" */
-
-	{
-	delete (yyvaluep->symbol);
-};
-
-	break;
-      case 47: /* "parameter_list" */
-
-	{
-	delete (yyvaluep->symbol_table);
-};
-
-	break;
-      case 48: /* "block" */
-
-	{
-	delete (yyvaluep->block);
-};
-
-	break;
-      case 49: /* "stmt_list" */
-
-	{
-	for (ulong a=0;a<(yyvaluep->stmt_list)->size();a++)
-		delete (*(yyvaluep->stmt_list))[a];
-	delete (yyvaluep->stmt_list);
-};
-
-	break;
-      case 50: /* "initialization_list" */
-
-	{
-	delete (yyvaluep->symbol_table);
-};
-
-	break;
-      case 51: /* "initialization" */
-
-	{
-	delete (yyvaluep->symbol);
-};
-
-	break;
-      case 52: /* "stmt" */
-
-	{
-	delete (yyvaluep->stmt);
-};
-
-	break;
-      case 53: /* "argument_list" */
-
-	{
-	for (ulong a=0;a<(yyvaluep->argumentVector)->size();a++)
-		delete (*(yyvaluep->argumentVector))[a];
-	delete (yyvaluep->argumentVector);
-};
-
-	break;
-      case 54: /* "argument" */
-
-	{
-	delete (yyvaluep->argument);
-};
-
-	break;
-      case 55: /* "string_literal" */
+      case 13: /* "IDENTIFIER" */
 
 	{
 	delete (yyvaluep->str);
 };
 
 	break;
-      case 56: /* "string" */
+      case 14: /* "STRING" */
 
 	{
-	delete (yyvaluep->string);
+	delete (yyvaluep->str);
 };
 
 	break;
-      case 57: /* "expr" */
+      case 20: /* "file" */
 
 	{
-	delete (yyvaluep->expression);
+	delete (yyvaluep->file);
+};
+
+	break;
+      case 21: /* "newline_separated_support" */
+
+	{
+	delete (yyvaluep->file_element);
+};
+
+	break;
+      case 23: /* "newline_separated" */
+
+	{
+	delete (yyvaluep->fe_list);
+};
+
+	break;
+      case 24: /* "not_separated_support" */
+
+	{
+	delete (yyvaluep->file_element);
+};
+
+	break;
+      case 25: /* "not_separated" */
+
+	{
+	delete (yyvaluep->fe_list);
+};
+
+	break;
+      case 26: /* "text" */
+
+	{
+	delete (yyvaluep->text);
+};
+
+	break;
+      case 27: /* "push" */
+
+	{
+	delete (yyvaluep->push);
+};
+
+	break;
+      case 28: /* "call" */
+
+	{
+	delete (yyvaluep->call);
+};
+
+	break;
+      case 29: /* "long_call_header" */
+
+	{
+	delete (yyvaluep->call);
+};
+
+	break;
+      case 30: /* "long_call" */
+
+	{
+	delete (yyvaluep->call);
+};
+
+	break;
+      case 31: /* "parameter" */
+
+	{
+	delete (yyvaluep->str);
+};
+
+	break;
+      case 32: /* "parameter_list" */
+
+	{
+	delete (yyvaluep->params);
+};
+
+	break;
+      case 33: /* "non_empty_parameter_list" */
+
+	{
+	delete (yyvaluep->params);
+};
+
+	break;
+      case 34: /* "long_parameter_list" */
+
+	{
+	delete (yyvaluep->params);
 };
 
 	break;
@@ -1461,7 +1267,7 @@ int yyparse ();
 #endif
 #else /* ! YYPARSE_PARAM */
 #if defined __STDC__ || defined __cplusplus
-int yyparse (std::wstringstream &stream, NONS_Macro::MacroFile *&result);
+int yyparse (cheap_input_stream &stream, ParserState::ParserState &state, NONS_Macro::file *&file);
 #else
 int yyparse ();
 #endif
@@ -1489,12 +1295,13 @@ yyparse (YYPARSE_PARAM)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 int
-yyparse (std::wstringstream &stream, NONS_Macro::MacroFile *&result)
+yyparse (cheap_input_stream &stream, ParserState::ParserState &state, NONS_Macro::file *&file)
 #else
 int
-yyparse (stream, result)
-    std::wstringstream &stream;
-    NONS_Macro::MacroFile *&result;
+yyparse (stream, state, file)
+    cheap_input_stream &stream;
+    ParserState::ParserState &state;
+    NONS_Macro::file *&file;
 #endif
 #endif
 {
@@ -1503,9 +1310,6 @@ int yychar;
 
 /* The semantic value of the lookahead symbol.  */
 YYSTYPE yylval;
-
-/* Location data for the lookahead symbol.  */
-YYLTYPE yylloc;
 
     /* Number of syntax errors so far.  */
     int yynerrs;
@@ -1517,7 +1321,6 @@ YYLTYPE yylloc;
     /* The stacks and their tools:
        `yyss': related to states.
        `yyvs': related to semantic values.
-       `yyls': related to locations.
 
        Refer to the stacks thru separate pointers, to allow yyoverflow
        to reallocate them elsewhere.  */
@@ -1532,14 +1335,6 @@ YYLTYPE yylloc;
     YYSTYPE *yyvs;
     YYSTYPE *yyvsp;
 
-    /* The location stack.  */
-    YYLTYPE yylsa[YYINITDEPTH];
-    YYLTYPE *yyls;
-    YYLTYPE *yylsp;
-
-    /* The locations where the error started and ended.  */
-    YYLTYPE yyerror_range[2];
-
     YYSIZE_T yystacksize;
 
   int yyn;
@@ -1549,7 +1344,6 @@ YYLTYPE yylloc;
   /* The variables used to return semantic value and location from the
      action routines.  */
   YYSTYPE yyval;
-  YYLTYPE yyloc;
 
 #if YYERROR_VERBOSE
   /* Buffer for error messages, and its allocated size.  */
@@ -1558,7 +1352,7 @@ YYLTYPE yylloc;
   YYSIZE_T yymsg_alloc = sizeof yymsgbuf;
 #endif
 
-#define YYPOPSTACK(N)   (yyvsp -= (N), yyssp -= (N), yylsp -= (N))
+#define YYPOPSTACK(N)   (yyvsp -= (N), yyssp -= (N))
 
   /* The number of symbols on the RHS of the reduced rule.
      Keep to zero when no symbol should be popped.  */
@@ -1567,7 +1361,6 @@ YYLTYPE yylloc;
   yytoken = 0;
   yyss = yyssa;
   yyvs = yyvsa;
-  yyls = yylsa;
   yystacksize = YYINITDEPTH;
 
   YYDPRINTF ((stderr, "Starting parse\n"));
@@ -1583,13 +1376,6 @@ YYLTYPE yylloc;
      The wasted elements are never initialized.  */
   yyssp = yyss;
   yyvsp = yyvs;
-  yylsp = yyls;
-
-#if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
-  /* Initialize the default location before parsing starts.  */
-  yylloc.first_line   = yylloc.last_line   = 1;
-  yylloc.first_column = yylloc.last_column = 1;
-#endif
 
   goto yysetstate;
 
@@ -1616,7 +1402,6 @@ YYLTYPE yylloc;
 	   memory.  */
 	YYSTYPE *yyvs1 = yyvs;
 	yytype_int16 *yyss1 = yyss;
-	YYLTYPE *yyls1 = yyls;
 
 	/* Each stack pointer address is followed by the size of the
 	   data in use in that stack, in bytes.  This used to be a
@@ -1625,10 +1410,8 @@ YYLTYPE yylloc;
 	yyoverflow (YY_("memory exhausted"),
 		    &yyss1, yysize * sizeof (*yyssp),
 		    &yyvs1, yysize * sizeof (*yyvsp),
-		    &yyls1, yysize * sizeof (*yylsp),
 		    &yystacksize);
 
-	yyls = yyls1;
 	yyss = yyss1;
 	yyvs = yyvs1;
       }
@@ -1651,7 +1434,6 @@ YYLTYPE yylloc;
 	  goto yyexhaustedlab;
 	YYSTACK_RELOCATE (yyss_alloc, yyss);
 	YYSTACK_RELOCATE (yyvs_alloc, yyvs);
-	YYSTACK_RELOCATE (yyls_alloc, yyls);
 #  undef YYSTACK_RELOCATE
 	if (yyss1 != yyssa)
 	  YYSTACK_FREE (yyss1);
@@ -1661,7 +1443,6 @@ YYLTYPE yylloc;
 
       yyssp = yyss + yysize - 1;
       yyvsp = yyvs + yysize - 1;
-      yylsp = yyls + yysize - 1;
 
       YYDPRINTF ((stderr, "Stack size increased to %lu\n",
 		  (unsigned long int) yystacksize));
@@ -1737,7 +1518,7 @@ yybackup:
 
   yystate = yyn;
   *++yyvsp = yylval;
-  *++yylsp = yylloc;
+
   goto yynewstate;
 
 
@@ -1768,22 +1549,21 @@ yyreduce:
      GCC warning that YYVAL may be used uninitialized.  */
   yyval = yyvsp[1-yylen];
 
-  /* Default location.  */
-  YYLLOC_DEFAULT (yyloc, (yylsp - yylen), yylen);
+
   YY_REDUCE_PRINT (yyn);
   switch (yyn)
     {
         case 2:
 
     {
-		result=(yyvsp[(1) - (1)].macro_file);
+		file=(yyvsp[(1) - (1)].file);
+		YYACCEPT;
 	;}
     break;
 
   case 3:
 
     {
-		result=0;
 		YYABORT;
 	;}
     break;
@@ -1791,450 +1571,224 @@ yyreduce:
   case 4:
 
     {
-		(yyval.macro_file)=new NONS_Macro::MacroFile;
+		(yyval.file)=new NONS_Macro::file;
+		(yyval.file)->list=*(yyvsp[(1) - (1)].fe_list);
+		delete (yyvsp[(1) - (1)].fe_list);
 	;}
     break;
 
   case 5:
 
     {
-		(yyval.macro_file)=(yyvsp[(1) - (2)].macro_file);
-		(yyval.macro_file)->symbol_table.declare((yyvsp[(2) - (2)].symbol),0);
+		(yyval.file)=new NONS_Macro::file;
+		(yyval.file)->list=*(yyvsp[(1) - (1)].fe_list);
+		delete (yyvsp[(1) - (1)].fe_list);
 	;}
     break;
 
   case 6:
 
     {
-		(yyval.symbol)=new NONS_Macro::Symbol((yyvsp[(2) - (3)].id)->id,new NONS_Macro::Macro((yyvsp[(3) - (3)].block)),(yylsp[(2) - (3)]).first_line);
-		delete (yyvsp[(2) - (3)].id);
+		(yyval.file_element)=(yyvsp[(1) - (1)].push);
 	;}
     break;
 
   case 7:
 
     {
-		(yyval.symbol)=new NONS_Macro::Symbol((yyvsp[(2) - (6)].id)->id,new NONS_Macro::Macro((yyvsp[(6) - (6)].block),(yyvsp[(4) - (6)].symbol_table)),(yylsp[(2) - (6)]).first_line);
-		delete (yyvsp[(2) - (6)].id);
-	;}
-    break;
-
-  case 8:
-
-    {
-		(yyval.symbol_table)=new NONS_Macro::SymbolTable;
-		(yyval.symbol_table)->declare((yyvsp[(1) - (1)].id)->id,L"",(yylsp[(1) - (1)]).first_line,0);
-		delete (yyvsp[(1) - (1)].id);
-	;}
-    break;
-
-  case 9:
-
-    {
-		(yyval.symbol_table)=(yyvsp[(1) - (3)].symbol_table);
-		(yyval.symbol_table)->declare((yyvsp[(3) - (3)].id)->id,L"",(yylsp[(3) - (3)]).first_line,0);
-		delete (yyvsp[(3) - (3)].id);
+		(yyval.file_element)=(yyvsp[(1) - (1)].call);
 	;}
     break;
 
   case 10:
 
     {
-		(yyval.block)=new NONS_Macro::Block;
-		(yyval.block)->addStatement((yyvsp[(1) - (1)].stmt));
+		(yyval.fe_list)=new std::vector<NONS_Macro::file_element *>;
+		(yyval.fe_list)->push_back((yyvsp[(1) - (1)].file_element));
 	;}
     break;
 
   case 11:
 
     {
-		(yyval.block)=new NONS_Macro::Block((yyvsp[(2) - (3)].stmt_list));
+		(yyval.fe_list)=(yyvsp[(3) - (3)].fe_list);
+		(yyval.fe_list)->insert((yyval.fe_list)->begin(),(yyvsp[(1) - (3)].file_element));
 	;}
     break;
 
   case 12:
 
     {
-		(yyval.block)=new NONS_Macro::Block((yyvsp[(5) - (6)].stmt_list),(yyvsp[(2) - (6)].symbol_table));
+		(yyval.fe_list)=(yyvsp[(1) - (3)].fe_list);
+		append(*(yyval.fe_list),*(yyvsp[(3) - (3)].fe_list));
+		delete (yyvsp[(3) - (3)].fe_list);
 	;}
     break;
 
   case 13:
 
     {
-		(yyval.stmt_list)=new std::vector<NONS_Macro::Statement *>;
+		(yyval.file_element)=(yyvsp[(1) - (1)].text);
 	;}
     break;
 
   case 14:
 
     {
-		(yyval.stmt_list)=(yyvsp[(1) - (2)].stmt_list);
-		(yyval.stmt_list)->push_back((yyvsp[(2) - (2)].stmt));
+		(yyval.file_element)=(yyvsp[(1) - (1)].call);
 	;}
     break;
 
   case 15:
 
     {
-		(yyval.symbol_table)=new NONS_Macro::SymbolTable;
-		(yyval.symbol_table)->declare((yyvsp[(1) - (1)].symbol));
+		(yyval.fe_list)=new std::vector<NONS_Macro::file_element *>;
+		(yyval.fe_list)->push_back((yyvsp[(1) - (1)].file_element));
 	;}
     break;
 
   case 16:
 
     {
-		(yyval.symbol_table)=(yyvsp[(1) - (3)].symbol_table);
-		(yyval.symbol_table)->declare((yyvsp[(3) - (3)].symbol),0);
+		(yyval.fe_list)=(yyvsp[(1) - (2)].fe_list);
+		(yyval.fe_list)->push_back((yyvsp[(2) - (2)].file_element));
 	;}
     break;
 
   case 17:
 
     {
-		(yyval.symbol)=new NONS_Macro::Symbol((yyvsp[(1) - (1)].id)->id,(long)0,(yylsp[(1) - (1)]).first_line);
+		(yyval.fe_list)=(yyvsp[(1) - (3)].fe_list);
+		append(*(yyval.fe_list),*(yyvsp[(3) - (3)].fe_list));
+		delete (yyvsp[(3) - (3)].fe_list);
 	;}
     break;
 
   case 18:
 
     {
-		(yyval.symbol)=new NONS_Macro::Symbol((yyvsp[(1) - (3)].id)->id,(long)0,(yylsp[(1) - (3)]).first_line);
-		(yyvsp[(3) - (3)].expression)->simplify();
-		(yyval.symbol)->initializeTo((yyvsp[(3) - (3)].expression));
+		(yyval.text)=new NONS_Macro::text(*(yyvsp[(1) - (1)].str));
+		delete (yyvsp[(1) - (1)].str);
 	;}
     break;
 
   case 19:
 
     {
-		(yyval.symbol)=new NONS_Macro::Symbol((yyvsp[(1) - (3)].id)->id,L"",(yylsp[(1) - (3)]).first_line);
-		(yyvsp[(3) - (3)].string)->simplify();
-		(yyval.symbol)->initializeTo((yyvsp[(3) - (3)].string));
+		(yyval.text)=(yyvsp[(1) - (2)].text);
+		(yyval.text)->str.push_back('\n');
+		(yyval.text)->str.append(*(yyvsp[(2) - (2)].str));
+		delete (yyvsp[(2) - (2)].str);
 	;}
     break;
 
   case 20:
 
     {
-		(yyval.stmt)=new NONS_Macro::EmptyStatement;
+		(yyval.push)=new NONS_Macro::push((yyvsp[(3) - (4)].text)->to_string());
+		delete (yyvsp[(3) - (4)].text);
 	;}
     break;
 
   case 21:
 
     {
-		(yyvsp[(3) - (4)].expression)->simplify();
-		(yyval.stmt)=new NONS_Macro::AssignmentStatement(*(yyvsp[(1) - (4)].id),(yyvsp[(3) - (4)].expression));
-		delete (yyvsp[(1) - (4)].id);
+		(yyval.push)=new NONS_Macro::push((yyvsp[(4) - (5)].text)->to_string(),*(yyvsp[(2) - (5)].str));
+		delete (yyvsp[(2) - (5)].str);
+		delete (yyvsp[(4) - (5)].text);
 	;}
     break;
 
   case 22:
 
     {
-		(yyvsp[(3) - (4)].string)->simplify();
-		(yyval.stmt)=new NONS_Macro::StringAssignmentStatement(*(yyvsp[(1) - (4)].id),(yyvsp[(3) - (4)].string));
-		delete (yyvsp[(1) - (4)].id);
+		(yyval.call)=new NONS_Macro::call(*(yyvsp[(2) - (5)].str),*(yyvsp[(4) - (5)].params));
+		delete (yyvsp[(2) - (5)].str);
+		delete (yyvsp[(4) - (5)].params);
+		state=ParserState::AFTER_CALL;
 	;}
     break;
 
   case 23:
 
     {
-		(yyvsp[(3) - (4)].expression)->simplify();
-		(yyval.stmt)=new NONS_Macro::InplaceConcatStatement(*(yyvsp[(1) - (4)].id),(yyvsp[(3) - (4)].expression));
-		delete (yyvsp[(1) - (4)].id);
+		(yyval.call)=new NONS_Macro::call(*(yyvsp[(2) - (5)].str));
+		state=ParserState::AFTER_LONG_CALL_HEADER;
+		delete (yyvsp[(2) - (5)].str);
 	;}
     break;
 
   case 24:
 
     {
-		(yyvsp[(3) - (4)].string)->simplify();
-		(yyval.stmt)=new NONS_Macro::InplaceStringConcatStatement(*(yyvsp[(1) - (4)].id),(yyvsp[(3) - (4)].string));
-		delete (yyvsp[(1) - (4)].id);
+		append(((yyval.call)=(yyvsp[(1) - (4)].call))->parameters,*(yyvsp[(3) - (4)].params));
+		delete (yyvsp[(3) - (4)].params);
 	;}
     break;
 
   case 25:
 
     {
-		(yyvsp[(3) - (5)].expression)->simplify();
-		(yyval.stmt)=new NONS_Macro::IfStructure((yyvsp[(3) - (5)].expression),(yyvsp[(5) - (5)].block));
+		(yyval.str)=new std::wstring(*(yyvsp[(1) - (1)].str));
+		delete (yyvsp[(1) - (1)].str);
 	;}
     break;
 
   case 26:
 
     {
-		(yyvsp[(3) - (7)].expression)->simplify();
-		(yyval.stmt)=new NONS_Macro::IfStructure((yyvsp[(3) - (7)].expression),(yyvsp[(5) - (7)].block),(yyvsp[(7) - (7)].block));
+		(yyval.str)=new std::wstring;
+		(yyval.str)->push_back(0);
 	;}
     break;
 
   case 27:
 
     {
-		(yyvsp[(3) - (5)].expression)->simplify();
-		(yyval.stmt)=new NONS_Macro::WhileStructure((yyvsp[(3) - (5)].expression),(yyvsp[(5) - (5)].block));
+		(yyval.params)=new std::vector<std::wstring>;
 	;}
     break;
 
   case 28:
 
     {
-		(yyvsp[(5) - (11)].expression)->simplify();
-		(yyvsp[(7) - (11)].expression)->simplify();
-		(yyvsp[(9) - (11)].expression)->simplify();
-		(yyval.stmt)=new NONS_Macro::ForStructure(*(yyvsp[(3) - (11)].id),(yyvsp[(5) - (11)].expression),(yyvsp[(7) - (11)].expression),(yyvsp[(9) - (11)].expression),(yyvsp[(11) - (11)].block));
-		delete (yyvsp[(3) - (11)].id);
+		(yyval.params)=(yyvsp[(1) - (1)].params);
 	;}
     break;
 
   case 29:
 
     {
-		(yyval.stmt)=new NONS_Macro::MacroCall(*(yyvsp[(1) - (2)].id));
-		delete (yyvsp[(1) - (2)].id);
+		(yyval.params)=new std::vector<std::wstring>;
+		(yyval.params)->push_back(*(yyvsp[(1) - (1)].str));
+		delete (yyvsp[(1) - (1)].str);
 	;}
     break;
 
   case 30:
 
     {
-		(yyval.stmt)=new NONS_Macro::MacroCall(*(yyvsp[(1) - (5)].id),(yyvsp[(3) - (5)].argumentVector));
-		delete (yyvsp[(1) - (5)].id);
+		(yyval.params)=(yyvsp[(1) - (3)].params);
+		(yyval.params)->push_back(*(yyvsp[(3) - (3)].str));
+		delete (yyvsp[(3) - (3)].str);
 	;}
     break;
 
   case 31:
 
     {
-		(yyval.argumentVector)=new std::vector<NONS_Macro::Argument *>;
-		(yyval.argumentVector)->push_back((yyvsp[(1) - (1)].argument));
+		(yyval.params)=new std::vector<std::wstring>;
+		(yyval.params)->push_back((yyvsp[(1) - (1)].text)->to_string());
+		delete (yyvsp[(1) - (1)].text);
 	;}
     break;
 
   case 32:
 
     {
-		(yyval.argumentVector)=(yyvsp[(1) - (3)].argumentVector);
-		(yyval.argumentVector)->push_back((yyvsp[(3) - (3)].argument));
-	;}
-    break;
-
-  case 33:
-
-    {
-		(yyvsp[(1) - (1)].string)->simplify();
-		(yyval.argument)=(yyvsp[(1) - (1)].string);
-	;}
-    break;
-
-  case 34:
-
-    {
-		(yyvsp[(1) - (1)].expression)->simplify();
-		(yyval.argument)=(yyvsp[(1) - (1)].expression);
-	;}
-    break;
-
-  case 35:
-
-    {
-		(yyval.str)=(yyvsp[(1) - (1)].str);
-	;}
-    break;
-
-  case 36:
-
-    {
-		(yyval.str)=(yyvsp[(1) - (2)].str);
-		(yyval.str)->append(*(yyvsp[(2) - (2)].str));
-		delete (yyvsp[(2) - (2)].str);
-	;}
-    break;
-
-  case 37:
-
-    {
-		(yyval.string)=new NONS_Macro::ConstantString(*(yyvsp[(1) - (1)].str));
-		delete (yyvsp[(1) - (1)].str);
-	;}
-    break;
-
-  case 38:
-
-    {
-		(yyval.string)=new NONS_Macro::StringConcatenation(new NONS_Macro::VariableString(*(yyvsp[(1) - (3)].id)),new NONS_Macro::VariableString(*(yyvsp[(3) - (3)].id)));
-		delete (yyvsp[(1) - (3)].id);
-		delete (yyvsp[(3) - (3)].id);
-	;}
-    break;
-
-  case 39:
-
-    {
-		(yyval.string)=new NONS_Macro::StringConcatenation(new NONS_Macro::VariableString(*(yyvsp[(1) - (3)].id)),(yyvsp[(3) - (3)].string));
-		delete (yyvsp[(1) - (3)].id);
-	;}
-    break;
-
-  case 40:
-
-    {
-		(yyval.string)=new NONS_Macro::StringConcatenation((yyvsp[(1) - (3)].string),new NONS_Macro::VariableString(*(yyvsp[(3) - (3)].id)));
-		delete (yyvsp[(3) - (3)].id);
-	;}
-    break;
-
-  case 41:
-
-    {
-		(yyval.string)=new NONS_Macro::StringConcatenation((yyvsp[(1) - (3)].string),(yyvsp[(3) - (3)].string));
-	;}
-    break;
-
-  case 42:
-
-    {
-		(yyval.expression)=(yyvsp[(1) - (1)].expression);
-	;}
-    break;
-
-  case 43:
-
-    {
-		(yyval.expression)=new NONS_Macro::VariableExpression(*(yyvsp[(1) - (1)].id));
-		delete (yyvsp[(1) - (1)].id);
-	;}
-    break;
-
-  case 44:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(TRINARY,(yyvsp[(1) - (5)].expression),(yyvsp[(3) - (5)].expression),(yyvsp[(5) - (5)].expression));
-	;}
-    break;
-
-  case 45:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(BOR,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 46:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(BAND,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 47:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(BNOT,(yyvsp[(2) - (2)].expression));
-	;}
-    break;
-
-  case 48:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(EQUALS,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 49:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(NOT_EQUALS,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 50:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(GREATER_THAN,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 51:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(LOWER_THAN,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 52:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(GT_EQUALS,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 53:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(LT_EQUALS,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 54:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(PLUS,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 55:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(MINUS,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 56:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(MUL,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 57:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(DIV,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 58:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(MOD,(yyvsp[(1) - (3)].expression),(yyvsp[(3) - (3)].expression));
-	;}
-    break;
-
-  case 59:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(MOD ,(yyvsp[(2) - (2)].expression));
-	;}
-    break;
-
-  case 60:
-
-    {
-		(yyval.expression)=new NONS_Macro::FullExpression(MINUS,(yyvsp[(2) - (2)].expression));
-	;}
-    break;
-
-  case 61:
-
-    {
-		(yyval.expression)=(yyvsp[(2) - (3)].expression);
+		(yyval.params)=(yyvsp[(1) - (4)].params);
+		(yyval.params)->push_back((yyvsp[(4) - (4)].text)->to_string());
+		delete (yyvsp[(4) - (4)].text);
 	;}
     break;
 
@@ -2249,7 +1803,6 @@ yyreduce:
   YY_STACK_PRINT (yyss, yyssp);
 
   *++yyvsp = yyval;
-  *++yylsp = yyloc;
 
   /* Now `shift' the result of the reduction.  Determine what state
      that goes to, based on the state we popped back to and the rule
@@ -2275,7 +1828,7 @@ yyerrlab:
     {
       ++yynerrs;
 #if ! YYERROR_VERBOSE
-      yyerror (&yylloc, stream, result, YY_("syntax error"));
+      yyerror (stream, state, file, YY_("syntax error"));
 #else
       {
 	YYSIZE_T yysize = yysyntax_error (0, yystate, yychar);
@@ -2299,11 +1852,11 @@ yyerrlab:
 	if (0 < yysize && yysize <= yymsg_alloc)
 	  {
 	    (void) yysyntax_error (yymsg, yystate, yychar);
-	    yyerror (&yylloc, stream, result, yymsg);
+	    yyerror (stream, state, file, yymsg);
 	  }
 	else
 	  {
-	    yyerror (&yylloc, stream, result, YY_("syntax error"));
+	    yyerror (stream, state, file, YY_("syntax error"));
 	    if (yysize != 0)
 	      goto yyexhaustedlab;
 	  }
@@ -2311,7 +1864,7 @@ yyerrlab:
 #endif
     }
 
-  yyerror_range[0] = yylloc;
+
 
   if (yyerrstatus == 3)
     {
@@ -2327,7 +1880,7 @@ yyerrlab:
       else
 	{
 	  yydestruct ("Error: discarding",
-		      yytoken, &yylval, &yylloc, stream, result);
+		      yytoken, &yylval, stream, state, file);
 	  yychar = YYEMPTY;
 	}
     }
@@ -2348,7 +1901,6 @@ yyerrorlab:
   if (/*CONSTCOND*/ 0)
      goto yyerrorlab;
 
-  yyerror_range[0] = yylsp[1-yylen];
   /* Do not reclaim the symbols of the rule which action triggered
      this YYERROR.  */
   YYPOPSTACK (yylen);
@@ -2382,9 +1934,9 @@ yyerrlab1:
       if (yyssp == yyss)
 	YYABORT;
 
-      yyerror_range[0] = *yylsp;
+
       yydestruct ("Error: popping",
-		  yystos[yystate], yyvsp, yylsp, stream, result);
+		  yystos[yystate], yyvsp, stream, state, file);
       YYPOPSTACK (1);
       yystate = *yyssp;
       YY_STACK_PRINT (yyss, yyssp);
@@ -2392,11 +1944,6 @@ yyerrlab1:
 
   *++yyvsp = yylval;
 
-  yyerror_range[1] = yylloc;
-  /* Using YYLLOC is tempting, but would change the location of
-     the lookahead.  YYLOC is available though.  */
-  YYLLOC_DEFAULT (yyloc, (yyerror_range - 1), 2);
-  *++yylsp = yyloc;
 
   /* Shift the error token.  */
   YY_SYMBOL_PRINT ("Shifting", yystos[yyn], yyvsp, yylsp);
@@ -2424,7 +1971,7 @@ yyabortlab:
 | yyexhaustedlab -- memory exhaustion comes here.  |
 `-------------------------------------------------*/
 yyexhaustedlab:
-  yyerror (&yylloc, stream, result, YY_("memory exhausted"));
+  yyerror (stream, state, file, YY_("memory exhausted"));
   yyresult = 2;
   /* Fall through.  */
 #endif
@@ -2432,7 +1979,7 @@ yyexhaustedlab:
 yyreturn:
   if (yychar != YYEMPTY)
      yydestruct ("Cleanup: discarding lookahead",
-		 yytoken, &yylval, &yylloc, stream, result);
+		 yytoken, &yylval, stream, state, file);
   /* Do not reclaim the symbols of the rule which action triggered
      this YYABORT or YYACCEPT.  */
   YYPOPSTACK (yylen);
@@ -2440,7 +1987,7 @@ yyreturn:
   while (yyssp != yyss)
     {
       yydestruct ("Cleanup: popping",
-		  yystos[*yyssp], yyvsp, yylsp, stream, result);
+		  yystos[*yyssp], yyvsp, stream, state, file);
       YYPOPSTACK (1);
     }
 #ifndef yyoverflow
@@ -2459,183 +2006,192 @@ yyreturn:
 
 
 
-int macroParser_yylex(YYSTYPE *yylval,YYLTYPE *yylloc,std::wstringstream &stream){
-macroParser_yylex_begin:
+void putback(cheap_input_stream &stream,const std::wstring &s,ulong start_at=0,ulong length=std::wstring::npos){
+	for (size_t a=((length==std::wstring::npos)?s.size():start_at+length);a>start_at;a--)
+		stream.putback(s[a-1]);
+}
+
+bool read_identifier(std::wstring &dst,const std::wstring &src,ulong offset){
+	if (!NONS_isid1char(src[offset]))
+		return 0;
+	ulong end=offset+1;
+	for (;NONS_isidnchar(src[end]);end++);
+	dst=src.substr(offset,end-offset);
+	return 1;
+}
+
+bool read_identifier(std::wstring &dst,cheap_input_stream &stream){
+	dst.clear();
+	wchar_t c=stream.peek();
+	if (stream.eof() || !NONS_isid1char(c))
+		return 0;
+	do
+		dst.push_back(stream.get());
+	while (NONS_isidnchar(stream.peek()) && !stream.eof());
+	return 1;
+}
+
+int return_full_line(YYSTYPE *yylval,cheap_input_stream &stream,const std::wstring &s,ParserState::ParserState state){
+	if (state==ParserState::TEXT)
+		stream.putback('\n');
+	yylval->str=new std::wstring(s);
+	return TEXT;
+}
+
+int identify_keyword(const std::wstring &s){
+	if (s==L"call")
+		return CALL;
+	if (s==L"push")
+		return PUSH;
+	if (s==L"end")
+		return END_KEY;
+	if (s==L"comma")
+		return COMMA_KEY;
+	if (s==L"pop")
+		return POP;
+	if (s==L"params")
+		return PARAMS;
+	return ERROR;
+}
+
+int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::ParserState &state){
 	wchar_t c;
-	while (!stream.eof() && iswhitespace((wchar_t)stream.peek())){
-		c=stream.get();
-		if (c==10){
-			yylloc->first_line++;
-		}else if (c==13){
-			c=stream.peek();
-			if (c==10)
+	c=stream.peek();
+	switch (c){
+		case '\n':
+			if (state==ParserState::TEXT){
 				stream.get();
-			yylloc->first_line++;
-		}
+				break;
+			}else if (state==ParserState::TEXT_IN_BLOCK)
+				break;
+			else if (state==ParserState::AFTER_CALL){
+				state=ParserState::TEXT;
+				break;
+			}
+			else if (state==ParserState::NIL){
+				state=ParserState::TEXT;
+				yylval->str=new std::wstring;
+				return TEXT;
+			}
+			else if (state==ParserState::AFTER_KEYWORD_LINE){
+				state=ParserState::TEXT;
+			}else if (state==ParserState::AFTER_PUSH || state==ParserState::AFTER_LONG_CALL_HEADER)
+				state=ParserState::TEXT_IN_BLOCK;
+			stream.get();
+			return NEWLINE;
+		case '(':
+		case ')':
+			return stream.get();
 	}
 	if (stream.eof())
 		return 0;
-	c=stream.peek();
-	if (NONS_isdigit(c)){
-		std::wstring temp;
-		while (NONS_isdigit(c=stream.peek()))
-			temp.push_back(stream.get());
-		yylval->expression=new NONS_Macro::ConstantExpression(atoi(temp));
-		return INTEGER;
+	if (state==ParserState::TEXT || state==ParserState::TEXT_IN_BLOCK){
+		std::wstring s=stream.getline();
+		if (state==ParserState::TEXT){
+			size_t semicolon_hash=s.find(L";#");
+			if (semicolon_hash!=s.npos){
+				if (semicolon_hash){
+					yylval->str=new std::wstring(s.substr(0,semicolon_hash));
+					stream.putback('\n');
+					putback(stream,s,semicolon_hash);
+					return TEXT;
+				}
+				std::wstring type;
+				if (!read_identifier(type,s,2)){
+					state=ParserState::TEXT;
+					return return_full_line(yylval,stream,s,state);
+				}
+				int keyword=identify_keyword(type);
+				if (keyword==ERROR){
+					state=ParserState::TEXT;
+					return return_full_line(yylval,stream,s,state);
+				}
+				state=(keyword==CALL)?ParserState::CALL:((keyword==PUSH)?ParserState::AFTER_PUSH:ParserState::NIL);
+				stream.putback('\n');
+				putback(stream,s,2+type.size());
+				return keyword;
+			}
+		}else{
+			if (s==L";#comma"){
+				state=ParserState::AFTER_LONG_CALL_HEADER;
+				stream.putback('\n');
+				return COMMA_KEY;
+			}
+			if (s==L";#end"){
+				state=ParserState::AFTER_KEYWORD_LINE;
+				stream.putback('\n');
+				return END_KEY;
+			}
+		}
+		return return_full_line(yylval,stream,s,state);
 	}
-	if (c=='\"'){
+	while (!stream.eof() && ((c=stream.peek())==' ' || c=='\t'))
 		stream.get();
-		std::wstring temp;
-		while ((wchar_t)stream.peek()!=c && !stream.eof()){
-			wchar_t character=stream.get();
-			if (character=='\\'){
-				character=stream.get();
-				switch (character){
+	if (stream.eof())
+		return 0;
+	if (c=='\"'){
+		wchar_t quote=stream.get();
+		std::wstring s;
+		while (stream.peek()!=quote && !stream.eof()){
+			c=stream.get();
+			if (c!='\\'){
+				s.push_back(c);
+			}else{
+				switch (c=stream.get()){
 					case '\\':
 					case '\"':
-						temp.push_back(character);
+						s.push_back(c);
 						break;
 					case 'n':
 					case 'r':
-						temp.push_back('\n');
-						break;
 					case 't':
-                        temp.push_back('\t');
+						s.push_back('\n');
 						break;
 					case 'x':
 						{
-							std::wstring temp2;
+							std::wstring temp;
 							for (ulong a=0;NONS_ishexa(stream.peek()) && a<4;a++)
-								temp2.push_back(stream.get());
-							if (temp2.size()<4)
+								temp.push_back(stream.get());
+							if (temp.size()<4)
 								return ERROR;
 							wchar_t a=0;
-							for (size_t b=0;b<temp2.size();b++)
-								a=(a<<4)+HEX2DEC(temp2[b]);
-							temp.push_back(a?a:32);
+							for (size_t b=0;b<temp.size();b++)
+								a=(a<<4)+HEX2DEC(temp[b]);
+							s.push_back(a?a:32);
 						}
 						break;
 					default:
 						return ERROR;
 				}
-			}else
-				temp.push_back(character);
+			}
 		}
-		if ((wchar_t)stream.peek()!='\"')
-			//handleErrors(NONS_UNMATCHED_QUOTES,0,"yylex",1);
-			return ERROR;
-		else
+		if (stream.peek()==quote){
+			yylval->str=new std::wstring(s);
 			stream.get();
-		yylval->str=new std::wstring(temp);
-		return STRING;
+			return STRING;
+		}
+		return ERROR;
 	}
-	if (NONS_isid1char(c) || c=='^'){
-		std::wstring temp;
-		temp.push_back(stream.get());
-		while (NONS_isidnchar(stream.peek()))
-			temp.push_back(stream.get());
-		if (temp==L"define")
-			return DEFINE;
-		if (temp==L"if")
-			return IF;
-		if (temp==L"else")
-			return ELSE;
-		if (temp==L"for")
-			return FOR;
-		if (temp==L"while")
-			return WHILE;
-		yylval->id=new NONS_Macro::Identifier(temp,yylloc->first_line);
+	if (c=='#'){
+		stream.get();
+		std::wstring identifier;
+		if (!read_identifier(identifier,stream))
+			return ERROR;
+		int keyword=identify_keyword(identifier);
+		if (keyword==PARAMS)
+			state=ParserState::TEXT_IN_BLOCK;
+		return keyword;
+	}
+	if (NONS_isid1char(c)){
+		std::wstring identifier;
+		if (!read_identifier(identifier,stream))
+			return ERROR;
+		int key=identify_keyword(identifier);
+		if (key!=ERROR)
+			return key;
+		yylval->str=new std::wstring(identifier);
 		return IDENTIFIER;
 	}
-	stream.get();
-	switch (c){
-		case '\'':
-			return APOSTROPHE;
-		case '+':
-			return PLUS;
-		case '-':
-			return MINUS;
-		case '*':
-			return MUL;
-		case '/':
-			switch (stream.peek()){
-				case '*':
-					stream.get();
-					while (!stream.eof()){
-						c=stream.get();
-						if (c=='*' && stream.peek()=='/'){
-							stream.get();
-							goto macroParser_yylex_begin;
-						}
-						if (c==10){
-							yylloc->first_line++;
-						}else if (c==13){
-							c=stream.peek();
-							if (c==10)
-								stream.get();
-							yylloc->first_line++;
-						}
-					}
-					return 0;
-				case '/':
-					stream.get();
-					while (!stream.eof()){
-						c=stream.peek();
-						if (c==10 || c==13)
-							goto macroParser_yylex_begin;
-						stream.get();
-					}
-					return 0;
-				default:
-					return DIV;
-			}
-		case '%':
-			return MOD;
-		case '&':
-			if (stream.peek()=='='){
-				stream.get();
-				return CONCAT_ASSIGNMENT;
-			}
-			if (stream.peek()=='&'){
-				stream.get();
-				return BAND;
-			}
-			return c;
-		case '|':
-			if (stream.peek()!='|')
-				return ERROR;
-			stream.get();
-			return BOR;
-		case '!':
-			if (stream.peek()=='='){
-				stream.get();
-				return NOT_EQUALS;
-			}
-			return BNOT;
-		case '<':
-			if (stream.peek()=='='){
-				stream.get();
-				return LT_EQUALS;
-			}
-			return LOWER_THAN;
-		case '>':
-			if (stream.peek()=='='){
-				stream.get();
-				return GT_EQUALS;
-			}
-			return GREATER_THAN;
-		case '=':
-			if (stream.peek()!='=')
-				return c;
-			stream.get();
-			return EQUALS;
-		default:
-			return c;
-	}
-}
-
-void macroParser_yyerror(YYLTYPE *yylloc,std::wstringstream &,NONS_Macro::MacroFile *&/*,NONS_Macro::SymbolTable &*/,char const *s){
-	/*if (!retrievedVar)
-		handleErrors(NONS_UNDEFINED_ERROR,0,"yyparse",1,UniFromISO88591(s));*/
+	return stream.get();
 }
 

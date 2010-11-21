@@ -814,4 +814,11 @@ Parameters:
 		used.
 */
 void do_alpha_blend(uchar *r1,uchar *g1,uchar *b1,uchar *a1,long r0,long g0,long b0,long a0,bool alpha1,bool alpha0,uchar alpha);
+
+template <typename T>
+void append(std::vector<T> &dst,const std::vector<T> &src){
+	size_t n=dst.size();
+	dst.resize(n+src.size());
+	std::copy(src.begin(),src.end(),dst.begin()+n);
+}
 #endif

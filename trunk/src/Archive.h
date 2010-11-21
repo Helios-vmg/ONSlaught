@@ -171,7 +171,9 @@ struct NONS_GeneralArchive{
 	void init();
 	uchar *getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem=1);
 	//Same as above, but doesn't try the file system
-	uchar *getFileBufferWithoutFS(const std::wstring &filepath,size_t &buffersize);
+	uchar *getFileBufferWithoutFS(const std::wstring &filepath,size_t &buffersize){
+		return this->getFileBuffer(filepath,buffersize,0);
+	}
 	NONS_DataStream *open(const std::wstring &path);
 	bool close(NONS_DataStream *stream);
 	bool exists(const std::wstring &filepath);

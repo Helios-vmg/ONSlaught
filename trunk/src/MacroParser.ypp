@@ -26,561 +26,414 @@
 * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-%{
-#include "Functions.h"
-#include "MacroParser.h"
 
-template <typename T>
-bool partialCompare(const std::basic_string<T> &A,size_t offset,const std::basic_string<T> &B){
-	if (A.size()-offset<B.size())
-		return 0;
-	for (size_t a=offset,b=0;b<B.size();a++,b++)
-		if (A[a]!=B[b])
-			return 0;
-	return 1;
-}
-%}
-%parse-param {std::wstringstream &stream}
-%parse-param {NONS_Macro::MacroFile *&result}
-//%parse-param {NONS_Macro::SymbolTable &SymbolTable}
-%lex-param {std::wstringstream &stream}
+%parse-param {cheap_input_stream &stream}
+%parse-param {ParserState::ParserState &state}
+%parse-param {NONS_Macro::file *&file}
+%lex-param {cheap_input_stream &stream}
+%lex-param {ParserState::ParserState &state}
 %pure-parser
 %defines
 %debug
 %file-prefix="MacroParser"
 %name-prefix="macroParser_yy"
 %code requires {
-#include "Common.h"
-#include <set>
-#include <vector>
 #include <string>
+#include <sstream>
+#include "Functions.h"
+#include "MacroParser.h"
 #undef ERROR
-
-namespace NONS_Macro{
-struct Identifier;
-struct StringOperation;
-struct Argument;
-struct Expression;
-struct String;
-struct ConstantExpression;
-struct VariableExpression;
-struct FullExpression;
-struct ConstantString;
-struct VariableString;
-struct StringConcatenation;
-struct Statement;
-struct Macro;
-struct MacroFile;
-struct Symbol;
-struct SymbolTable;
-struct Block;
-}
-
 }
 %code provides {
-	#include <sstream>
 	int macroParser_yyparse(
-		std::wstringstream &stream,
-		NONS_Macro::MacroFile *&result
+		cheap_input_stream &stream,
+		ParserState::ParserState &state,
+		NONS_Macro::file *&file
 	);
 	int macroParser_yylex(
 		YYSTYPE *yylval,
-		YYLTYPE *yylloc,
-		std::wstringstream &stream
+		cheap_input_stream &stream,
+		ParserState::ParserState &state
 	);
-	void macroParser_yyerror(
-		YYLTYPE *yylloc,
-		std::wstringstream &,
-		NONS_Macro::MacroFile *&result,
-		//NONS_Macro::SymbolTable &SymbolTable,
+	inline void macroParser_yyerror(
+		cheap_input_stream &,
+		ParserState::ParserState &,
+		NONS_Macro::file *file,
 		char const *
-	);
+	){}
 	extern int macroParser_yydebug;
 }
 %union {
-	NONS_Macro::Identifier *id;
 	std::wstring *str;
-	std::vector<std::wstring> *stringVector;
-	NONS_Macro::Argument *argument;
-	NONS_Macro::String *string;
-	NONS_Macro::Expression *expression;
-	std::vector<NONS_Macro::Argument *> *argumentVector;
-	NONS_Macro::Statement *stmt;
-	NONS_Macro::MacroFile *macro_file;
-	NONS_Macro::Symbol *symbol;
-	NONS_Macro::SymbolTable *symbol_table;
-	NONS_Macro::Block *block;
-	std::vector<NONS_Macro::Statement *> *stmt_list;
+	NONS_Macro::file *file;
+	std::vector<NONS_Macro::file_element *> *fe_list;
+	NONS_Macro::file_element *file_element;
+	NONS_Macro::text *text;
+	NONS_Macro::push *push;
+	NONS_Macro::call *call;
+	std::vector<std::wstring> *params;
 }
-%token APOSTROPHE DEFINE IF ELSE ERROR FOR WHILE
-%token <id> IDENTIFIER
-%token <str> STRING
-%token <expression> INTEGER
-%type <argument> argument
-%type <expression> expr
-%type <str> string_literal
-%type <string> string
-%type <argumentVector> argument_list
-%type <stmt> stmt
-%type <block> block
-%type <macro_file> file
-%type <symbol> initialization macro_definition
-%type <symbol_table> initialization_list parameter_list
-%type <stmt_list> stmt_list
-%nonassoc CONCAT_ASSIGNMENT
-%right TRINARY
-%left BOR
-%left BAND
-%right BNOT
-%left EQUALS NOT_EQUALS
-%left GREATER_THAN LOWER_THAN GT_EQUALS LT_EQUALS
-%left PLUS MINUS
-%left MUL DIV MOD
-%right POS NEG
-%nonassoc '(' ')'
-%left '&'
-%destructor {
-	delete $$;
-} IDENTIFIER STRING string_literal expr string argument stmt block macro_definition file initialization initialization_list parameter_list 
-%destructor {
-	for (ulong a=0;a<$$->size();a++)
-		delete (*$$)[a];
-	delete $$;
-} argument_list stmt_list
+%token NEWLINE PUSH CALL PARAMS END_KEY COMMA_KEY POP ERROR END
+%token <str> TEXT IDENTIFIER STRING
+%type <str> parameter
+%type <file> file;
+%type <fe_list> newline_separated not_separated
+%type <file_element> newline_separated_support not_separated_support
+%type <text> text
+%type <push> push
+%type <call> call long_call long_call_header
+%type <params> parameter_list long_parameter_list non_empty_parameter_list
 %start begin
+%destructor {
+	delete $$;
+} TEXT IDENTIFIER STRING file text push call long_call long_call_header parameter parameter_list long_parameter_list non_empty_parameter_list newline_separated not_separated newline_separated_support not_separated_support
+
 %%
 
 begin:
 	file {
-		result=$1;
+		file=$1;
+		YYACCEPT;
 	}|
 	ERROR {
-		result=0;
 		YYABORT;
 	};
 
 file:
-	{
-		$$=new NONS_Macro::MacroFile;
+	newline_separated {
+		$$=new NONS_Macro::file;
+		$$->list=*$1;
+		delete $1;
 	}|
-	file macro_definition {
-		$$=$1;
-		$$->symbol_table.declare($2,0);
+	not_separated {
+		$$=new NONS_Macro::file;
+		$$->list=*$1;
+		delete $1;
 	};
 
-macro_definition:
-	DEFINE IDENTIFIER block {
-		$$=new NONS_Macro::Symbol($2->id,new NONS_Macro::Macro($3),@2.first_line);
-		delete $2;
+newline_separated_support:
+	push {
+		$$=$1;
 	}|
-	DEFINE IDENTIFIER '(' parameter_list ')' block {
-		$$=new NONS_Macro::Symbol($2->id,new NONS_Macro::Macro($6,$4),@2.first_line);
+	long_call {
+		$$=$1;
+	};
+
+newline:
+	NEWLINE |
+	newline NEWLINE ;
+
+newline_separated:
+	newline_separated_support {
+		$$=new std::vector<NONS_Macro::file_element *>;
+		$$->push_back($1);
+	}|
+	newline_separated_support newline newline_separated {
+		$$=$3;
+		$$->insert($$->begin(),$1);
+	}|
+	not_separated newline newline_separated {
+		$$=$1;
+		append(*$$,*$3);
+		delete $3;
+	};
+
+not_separated_support:
+	text {
+		$$=$1;
+	}|
+	call {
+		$$=$1;
+	};
+
+not_separated:
+	not_separated_support {
+		$$=new std::vector<NONS_Macro::file_element *>;
+		$$->push_back($1);
+	}|
+	not_separated not_separated_support {
+		$$=$1;
+		$$->push_back($2);
+	}|
+	newline_separated newline not_separated {
+		$$=$1;
+		append(*$$,*$3);
+		delete $3;
+	};
+
+text:
+	TEXT {
+		$$=new NONS_Macro::text(*$1);
+		delete $1;
+	}|
+	text TEXT {
+		$$=$1;
+		$$->str.push_back('\n');
+		$$->str.append(*$2);
 		delete $2;
+	};
+
+push:
+	PUSH NEWLINE text END_KEY {
+		$$=new NONS_Macro::push($3->to_string());
+		delete $3;
+	}|
+	PUSH STRING NEWLINE text END_KEY {
+		$$=new NONS_Macro::push($4->to_string(),*$2);
+		delete $2;
+		delete $4;
+	};
+
+call:
+	CALL IDENTIFIER '(' parameter_list ')' {
+		$$=new NONS_Macro::call(*$2,*$4);
+		delete $2;
+		delete $4;
+		state=ParserState::AFTER_CALL;
+	};
+
+long_call_header:
+	CALL IDENTIFIER '(' PARAMS ')' {
+		$$=new NONS_Macro::call(*$2);
+		state=ParserState::AFTER_LONG_CALL_HEADER;
+		delete $2;
+	};
+
+long_call:
+	long_call_header NEWLINE long_parameter_list END_KEY {
+		append(($$=$1)->parameters,*$3);
+		delete $3;
+	};
+
+parameter:
+	STRING {
+		$$=new std::wstring(*$1);
+		delete $1;
+	}|
+	POP {
+		$$=new std::wstring;
+		$$->push_back(0);
 	};
 
 parameter_list:
-	IDENTIFIER {
-		$$=new NONS_Macro::SymbolTable;
-		$$->declare($1->id,L"",@1.first_line,0);
-		delete $1;
-	}|
-	parameter_list ',' IDENTIFIER {
-		$$=$1;
-		$$->declare($3->id,L"",@3.first_line,0);
-		delete $3;
-	};
-
-block:
-	stmt {
-		$$=new NONS_Macro::Block;
-		$$->addStatement($1);
-	}|
-	'{' stmt_list '}' {
-		$$=new NONS_Macro::Block($2);
-	}|
-	'[' initialization_list ']' '{' stmt_list '}' {
-		$$=new NONS_Macro::Block($5,$2);
-	};
-
-stmt_list:
 	{
-		$$=new std::vector<NONS_Macro::Statement *>;
+		$$=new std::vector<std::wstring>;
 	}|
-	stmt_list stmt {
+	non_empty_parameter_list {
 		$$=$1;
-		$$->push_back($2);
-	};
-	
-initialization_list:
-	initialization {
-		$$=new NONS_Macro::SymbolTable;
-		$$->declare($1);
-	}|
-	initialization_list ',' initialization {
-		$$=$1;
-		$$->declare($3,0);
 	};
 
-initialization:
-	IDENTIFIER {
-		$$=new NONS_Macro::Symbol($1->id,(long)0,@1.first_line);
-	}|
-	IDENTIFIER '=' expr {
-		$$=new NONS_Macro::Symbol($1->id,(long)0,@1.first_line);
-		$3->simplify();
-		$$->initializeTo($3);
-	}|
-	IDENTIFIER '=' string {
-		$$=new NONS_Macro::Symbol($1->id,L"",@1.first_line);
-		$3->simplify();
-		$$->initializeTo($3);
-	};
-
-stmt:
-	';' {
-		$$=new NONS_Macro::EmptyStatement;
-	}|
-	IDENTIFIER '=' expr ';' {
-		$3->simplify();
-		$$=new NONS_Macro::AssignmentStatement(*$1,$3);
+non_empty_parameter_list:
+	parameter {
+		$$=new std::vector<std::wstring>;
+		$$->push_back(*$1);
 		delete $1;
 	}|
-	IDENTIFIER '=' string ';' {
-		$3->simplify();
-		$$=new NONS_Macro::StringAssignmentStatement(*$1,$3);
-		delete $1;
-	}|
-	IDENTIFIER CONCAT_ASSIGNMENT expr ';' {
-		$3->simplify();
-		$$=new NONS_Macro::InplaceConcatStatement(*$1,$3);
-		delete $1;
-	}|
-	IDENTIFIER CONCAT_ASSIGNMENT string ';' {
-		$3->simplify();
-		$$=new NONS_Macro::InplaceStringConcatStatement(*$1,$3);
-		delete $1;
-	}|
-	IF '(' expr ')' block {
-		$3->simplify();
-		$$=new NONS_Macro::IfStructure($3,$5);
-	}|
-	IF '(' expr ')' block ELSE block {
-		$3->simplify();
-		$$=new NONS_Macro::IfStructure($3,$5,$7);
-	}|
-	WHILE '(' expr ')' block {
-		$3->simplify();
-		$$=new NONS_Macro::WhileStructure($3,$5);
-	}|
-	FOR '(' IDENTIFIER ';' expr ';' expr ';' expr ')' block {
-		$5->simplify();
-		$7->simplify();
-		$9->simplify();
-		$$=new NONS_Macro::ForStructure(*$3,$5,$7,$9,$11);
+	non_empty_parameter_list ',' parameter {
+		$$=$1;
+		$$->push_back(*$3);
 		delete $3;
-	}|
-	IDENTIFIER ';' {
-		$$=new NONS_Macro::MacroCall(*$1);
-		delete $1;
-	}|
-	IDENTIFIER '(' argument_list ')' ';' {
-		$$=new NONS_Macro::MacroCall(*$1,$3);
-		delete $1;
 	};
 
-argument_list:
-	argument {
-		$$=new std::vector<NONS_Macro::Argument *>;
-		$$->push_back($1);
-	}|
-	argument_list ',' argument {
-		$$=$1;
-		$$->push_back($3);
-	};
-
-argument:
-	string {
-		$1->simplify();
-		$$=$1;
-	}|
-	expr {
-		$1->simplify();
-		$$=$1;
-	};
-
-string_literal:
-	STRING {
-		$$=$1;
-	}|
-	string_literal STRING {
-		$$=$1;
-		$$->append(*$2);
-		delete $2;
-	};
-
-string:
-	string_literal {
-		$$=new NONS_Macro::ConstantString(*$1);
+long_parameter_list:
+	text {
+		$$=new std::vector<std::wstring>;
+		$$->push_back($1->to_string());
 		delete $1;
 	}|
-	IDENTIFIER '&' IDENTIFIER {
-		$$=new NONS_Macro::StringConcatenation(new NONS_Macro::VariableString(*$1),new NONS_Macro::VariableString(*$3));
-		delete $1;
-		delete $3;
-	}|
-	IDENTIFIER '&' string {
-		$$=new NONS_Macro::StringConcatenation(new NONS_Macro::VariableString(*$1),$3);
-		delete $1;
-	}|
-	string '&' IDENTIFIER {
-		$$=new NONS_Macro::StringConcatenation($1,new NONS_Macro::VariableString(*$3));
-		delete $3;
-	}|
-	string '&' string {
-		$$=new NONS_Macro::StringConcatenation($1,$3);
-	};
-
-expr:
-	INTEGER {
+	long_parameter_list COMMA_KEY NEWLINE text {
 		$$=$1;
-	}|
-	IDENTIFIER {
-		$$=new NONS_Macro::VariableExpression(*$1);
-		delete $1;
-	}|
-	expr '?' expr ':' expr %prec TRINARY {
-		$$=new NONS_Macro::FullExpression(TRINARY,$1,$3,$5);
-	}|
-	expr BOR expr {
-		$$=new NONS_Macro::FullExpression(BOR,$1,$3);
-	}|
-	expr BAND expr {
-		$$=new NONS_Macro::FullExpression(BAND,$1,$3);
-	}|
-	BNOT expr {
-		$$=new NONS_Macro::FullExpression(BNOT,$2);
-	}|
-	expr EQUALS expr {
-		$$=new NONS_Macro::FullExpression(EQUALS,$1,$3);
-	}|
-	expr NOT_EQUALS expr {
-		$$=new NONS_Macro::FullExpression(NOT_EQUALS,$1,$3);
-	}|
-	expr GREATER_THAN expr {
-		$$=new NONS_Macro::FullExpression(GREATER_THAN,$1,$3);
-	}|
-	expr LOWER_THAN expr {
-		$$=new NONS_Macro::FullExpression(LOWER_THAN,$1,$3);
-	}|
-	expr GT_EQUALS expr {
-		$$=new NONS_Macro::FullExpression(GT_EQUALS,$1,$3);
-	}|
-	expr LT_EQUALS expr {
-		$$=new NONS_Macro::FullExpression(LT_EQUALS,$1,$3);
-	}|
-	expr PLUS expr {
-		$$=new NONS_Macro::FullExpression(PLUS,$1,$3);
-	}|
-	expr MINUS expr {
-		$$=new NONS_Macro::FullExpression(MINUS,$1,$3);
-	}|
-	expr MUL expr {
-		$$=new NONS_Macro::FullExpression(MUL,$1,$3);
-	}|
-	expr DIV expr {
-		$$=new NONS_Macro::FullExpression(DIV,$1,$3);
-	}|
-	expr MOD expr {
-		$$=new NONS_Macro::FullExpression(MOD,$1,$3);
-	}|
-	PLUS expr %prec POS {
-		$$=new NONS_Macro::FullExpression(MOD ,$2);
-	}|
-	MINUS expr %prec NEG {
-		$$=new NONS_Macro::FullExpression(MINUS,$2);
-	}|
-	'(' expr ')'{
-		$$=$2;
+		$$->push_back($4->to_string());
+		delete $4;
 	};
 
 %%
 
-int macroParser_yylex(YYSTYPE *yylval,YYLTYPE *yylloc,std::wstringstream &stream){
-macroParser_yylex_begin:
+void putback(cheap_input_stream &stream,const std::wstring &s,ulong start_at=0,ulong length=std::wstring::npos){
+	for (size_t a=((length==std::wstring::npos)?s.size():start_at+length);a>start_at;a--)
+		stream.putback(s[a-1]);
+}
+
+bool read_identifier(std::wstring &dst,const std::wstring &src,ulong offset){
+	if (!NONS_isid1char(src[offset]))
+		return 0;
+	ulong end=offset+1;
+	for (;NONS_isidnchar(src[end]);end++);
+	dst=src.substr(offset,end-offset);
+	return 1;
+}
+
+bool read_identifier(std::wstring &dst,cheap_input_stream &stream){
+	dst.clear();
+	wchar_t c=stream.peek();
+	if (stream.eof() || !NONS_isid1char(c))
+		return 0;
+	do
+		dst.push_back(stream.get());
+	while (NONS_isidnchar(stream.peek()) && !stream.eof());
+	return 1;
+}
+
+int return_full_line(YYSTYPE *yylval,cheap_input_stream &stream,const std::wstring &s,ParserState::ParserState state){
+	if (state==ParserState::TEXT)
+		stream.putback('\n');
+	yylval->str=new std::wstring(s);
+	return TEXT;
+}
+
+int identify_keyword(const std::wstring &s){
+	if (s==L"call")
+		return CALL;
+	if (s==L"push")
+		return PUSH;
+	if (s==L"end")
+		return END_KEY;
+	if (s==L"comma")
+		return COMMA_KEY;
+	if (s==L"pop")
+		return POP;
+	if (s==L"params")
+		return PARAMS;
+	return ERROR;
+}
+
+int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::ParserState &state){
 	wchar_t c;
-	while (!stream.eof() && iswhitespace((wchar_t)stream.peek())){
-		c=stream.get();
-		if (c==10){
-			yylloc->first_line++;
-		}else if (c==13){
-			c=stream.peek();
-			if (c==10)
+	c=stream.peek();
+	switch (c){
+		case '\n':
+			if (state==ParserState::TEXT){
 				stream.get();
-			yylloc->first_line++;
-		}
+				break;
+			}else if (state==ParserState::TEXT_IN_BLOCK)
+				break;
+			else if (state==ParserState::AFTER_CALL){
+				state=ParserState::TEXT;
+				break;
+			}
+			else if (state==ParserState::NIL){
+				state=ParserState::TEXT;
+				yylval->str=new std::wstring;
+				return TEXT;
+			}
+			else if (state==ParserState::AFTER_KEYWORD_LINE){
+				state=ParserState::TEXT;
+			}else if (state==ParserState::AFTER_PUSH || state==ParserState::AFTER_LONG_CALL_HEADER)
+				state=ParserState::TEXT_IN_BLOCK;
+			stream.get();
+			return NEWLINE;
+		case '(':
+		case ')':
+			return stream.get();
 	}
 	if (stream.eof())
 		return 0;
-	c=stream.peek();
-	if (NONS_isdigit(c)){
-		std::wstring temp;
-		while (NONS_isdigit(c=stream.peek()))
-			temp.push_back(stream.get());
-		yylval->expression=new NONS_Macro::ConstantExpression(atoi(temp));
-		return INTEGER;
+	if (state==ParserState::TEXT || state==ParserState::TEXT_IN_BLOCK){
+		std::wstring s=stream.getline();
+		if (state==ParserState::TEXT){
+			size_t semicolon_hash=s.find(L";#");
+			if (semicolon_hash!=s.npos){
+				if (semicolon_hash){
+					yylval->str=new std::wstring(s.substr(0,semicolon_hash));
+					stream.putback('\n');
+					putback(stream,s,semicolon_hash);
+					return TEXT;
+				}
+				std::wstring type;
+				if (!read_identifier(type,s,2)){
+					state=ParserState::TEXT;
+					return return_full_line(yylval,stream,s,state);
+				}
+				int keyword=identify_keyword(type);
+				if (keyword==ERROR){
+					state=ParserState::TEXT;
+					return return_full_line(yylval,stream,s,state);
+				}
+				state=(keyword==CALL)?ParserState::CALL:((keyword==PUSH)?ParserState::AFTER_PUSH:ParserState::NIL);
+				stream.putback('\n');
+				putback(stream,s,2+type.size());
+				return keyword;
+			}
+		}else{
+			if (s==L";#comma"){
+				state=ParserState::AFTER_LONG_CALL_HEADER;
+				stream.putback('\n');
+				return COMMA_KEY;
+			}
+			if (s==L";#end"){
+				state=ParserState::AFTER_KEYWORD_LINE;
+				stream.putback('\n');
+				return END_KEY;
+			}
+		}
+		return return_full_line(yylval,stream,s,state);
 	}
-	if (c=='\"'){
+	while (!stream.eof() && ((c=stream.peek())==' ' || c=='\t'))
 		stream.get();
-		std::wstring temp;
-		while ((wchar_t)stream.peek()!=c && !stream.eof()){
-			wchar_t character=stream.get();
-			if (character=='\\'){
-				character=stream.get();
-				switch (character){
+	if (stream.eof())
+		return 0;
+	if (c=='\"'){
+		wchar_t quote=stream.get();
+		std::wstring s;
+		while (stream.peek()!=quote && !stream.eof()){
+			c=stream.get();
+			if (c!='\\'){
+				s.push_back(c);
+			}else{
+				switch (c=stream.get()){
 					case '\\':
 					case '\"':
-						temp.push_back(character);
+						s.push_back(c);
 						break;
 					case 'n':
 					case 'r':
-						temp.push_back('\n');
-						break;
 					case 't':
-                        temp.push_back('\t');
+						s.push_back('\n');
 						break;
 					case 'x':
 						{
-							std::wstring temp2;
+							std::wstring temp;
 							for (ulong a=0;NONS_ishexa(stream.peek()) && a<4;a++)
-								temp2.push_back(stream.get());
-							if (temp2.size()<4)
+								temp.push_back(stream.get());
+							if (temp.size()<4)
 								return ERROR;
 							wchar_t a=0;
-							for (size_t b=0;b<temp2.size();b++)
-								a=(a<<4)+HEX2DEC(temp2[b]);
-							temp.push_back(a?a:32);
+							for (size_t b=0;b<temp.size();b++)
+								a=(a<<4)+HEX2DEC(temp[b]);
+							s.push_back(a?a:32);
 						}
 						break;
 					default:
 						return ERROR;
 				}
-			}else
-				temp.push_back(character);
+			}
 		}
-		if ((wchar_t)stream.peek()!='\"')
-			//handleErrors(NONS_UNMATCHED_QUOTES,0,"yylex",1);
-			return ERROR;
-		else
+		if (stream.peek()==quote){
+			yylval->str=new std::wstring(s);
 			stream.get();
-		yylval->str=new std::wstring(temp);
-		return STRING;
+			return STRING;
+		}
+		return ERROR;
 	}
-	if (NONS_isid1char(c) || c=='^'){
-		std::wstring temp;
-		temp.push_back(stream.get());
-		while (NONS_isidnchar(stream.peek()))
-			temp.push_back(stream.get());
-		if (temp==L"define")
-			return DEFINE;
-		if (temp==L"if")
-			return IF;
-		if (temp==L"else")
-			return ELSE;
-		if (temp==L"for")
-			return FOR;
-		if (temp==L"while")
-			return WHILE;
-		yylval->id=new NONS_Macro::Identifier(temp,yylloc->first_line);
+	if (c=='#'){
+		stream.get();
+		std::wstring identifier;
+		if (!read_identifier(identifier,stream))
+			return ERROR;
+		int keyword=identify_keyword(identifier);
+		if (keyword==PARAMS)
+			state=ParserState::TEXT_IN_BLOCK;
+		return keyword;
+	}
+	if (NONS_isid1char(c)){
+		std::wstring identifier;
+		if (!read_identifier(identifier,stream))
+			return ERROR;
+		int key=identify_keyword(identifier);
+		if (key!=ERROR)
+			return key;
+		yylval->str=new std::wstring(identifier);
 		return IDENTIFIER;
 	}
-	stream.get();
-	switch (c){
-		case '\'':
-			return APOSTROPHE;
-		case '+':
-			return PLUS;
-		case '-':
-			return MINUS;
-		case '*':
-			return MUL;
-		case '/':
-			switch (stream.peek()){
-				case '*':
-					stream.get();
-					while (!stream.eof()){
-						c=stream.get();
-						if (c=='*' && stream.peek()=='/'){
-							stream.get();
-							goto macroParser_yylex_begin;
-						}
-						if (c==10){
-							yylloc->first_line++;
-						}else if (c==13){
-							c=stream.peek();
-							if (c==10)
-								stream.get();
-							yylloc->first_line++;
-						}
-					}
-					return 0;
-				case '/':
-					stream.get();
-					while (!stream.eof()){
-						c=stream.peek();
-						if (c==10 || c==13)
-							goto macroParser_yylex_begin;
-						stream.get();
-					}
-					return 0;
-				default:
-					return DIV;
-			}
-		case '%':
-			return MOD;
-		case '&':
-			if (stream.peek()=='='){
-				stream.get();
-				return CONCAT_ASSIGNMENT;
-			}
-			if (stream.peek()=='&'){
-				stream.get();
-				return BAND;
-			}
-			return c;
-		case '|':
-			if (stream.peek()!='|')
-				return ERROR;
-			stream.get();
-			return BOR;
-		case '!':
-			if (stream.peek()=='='){
-				stream.get();
-				return NOT_EQUALS;
-			}
-			return BNOT;
-		case '<':
-			if (stream.peek()=='='){
-				stream.get();
-				return LT_EQUALS;
-			}
-			return LOWER_THAN;
-		case '>':
-			if (stream.peek()=='='){
-				stream.get();
-				return GT_EQUALS;
-			}
-			return GREATER_THAN;
-		case '=':
-			if (stream.peek()!='=')
-				return c;
-			stream.get();
-			return EQUALS;
-		default:
-			return c;
-	}
-}
-
-void macroParser_yyerror(YYLTYPE *yylloc,std::wstringstream &,NONS_Macro::MacroFile *&/*,NONS_Macro::SymbolTable &*/,char const *s){
-	/*if (!retrievedVar)
-		handleErrors(NONS_UNDEFINED_ERROR,0,"yyparse",1,UniFromISO88591(s));*/
+	return stream.get();
 }
