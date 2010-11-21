@@ -29,9 +29,11 @@
 
 %parse-param {cheap_input_stream &stream}
 %parse-param {ParserState::ParserState &state}
+%parse-param {std::deque<wchar_t> &token_queue}
 %parse-param {NONS_Macro::file *&file}
 %lex-param {cheap_input_stream &stream}
 %lex-param {ParserState::ParserState &state}
+%lex-param {std::deque<wchar_t> &token_queue}
 %pure-parser
 %defines
 %debug
@@ -48,16 +50,19 @@
 	int macroParser_yyparse(
 		cheap_input_stream &stream,
 		ParserState::ParserState &state,
+		std::deque<wchar_t> &token_queue,
 		NONS_Macro::file *&file
 	);
 	int macroParser_yylex(
 		YYSTYPE *yylval,
 		cheap_input_stream &stream,
-		ParserState::ParserState &state
+		ParserState::ParserState &state,
+		std::deque<wchar_t> &token_queue
 	);
 	inline void macroParser_yyerror(
 		cheap_input_stream &,
 		ParserState::ParserState &,
+		std::deque<wchar_t> &,
 		NONS_Macro::file *file,
 		char const *
 	){}
@@ -73,20 +78,19 @@
 	NONS_Macro::call *call;
 	std::vector<std::wstring> *params;
 }
-%token NEWLINE PUSH CALL PARAMS END_KEY COMMA_KEY POP ERROR END
+%token PUSH PUSH_LINE CALL PARAMS END_KEY COMMA_KEY POP ERROR
 %token <str> TEXT IDENTIFIER STRING
 %type <str> parameter
 %type <file> file;
-%type <fe_list> newline_separated not_separated
-%type <file_element> newline_separated_support not_separated_support
+%type <file_element> file_element
 %type <text> text
-%type <push> push
+%type <push> push push_header
 %type <call> call long_call long_call_header
 %type <params> parameter_list long_parameter_list non_empty_parameter_list
 %start begin
 %destructor {
 	delete $$;
-} TEXT IDENTIFIER STRING file text push call long_call long_call_header parameter parameter_list long_parameter_list non_empty_parameter_list newline_separated not_separated newline_separated_support not_separated_support
+} TEXT IDENTIFIER STRING file file_element text push push_header call long_call long_call_header parameter parameter_list long_parameter_list non_empty_parameter_list
 
 %%
 
@@ -100,65 +104,26 @@ begin:
 	};
 
 file:
-	newline_separated {
+	{
 		$$=new NONS_Macro::file;
-		$$->list=*$1;
-		delete $1;
 	}|
-	not_separated {
-		$$=new NONS_Macro::file;
-		$$->list=*$1;
-		delete $1;
+	file file_element {
+		$$=$1;
+		$$->list.push_back($2);
 	};
 
-newline_separated_support:
-	push {
-		$$=$1;
-	}|
-	long_call {
-		$$=$1;
-	};
-
-newline:
-	NEWLINE |
-	newline NEWLINE ;
-
-newline_separated:
-	newline_separated_support {
-		$$=new std::vector<NONS_Macro::file_element *>;
-		$$->push_back($1);
-	}|
-	newline_separated_support newline newline_separated {
-		$$=$3;
-		$$->insert($$->begin(),$1);
-	}|
-	not_separated newline newline_separated {
-		$$=$1;
-		append(*$$,*$3);
-		delete $3;
-	};
-
-not_separated_support:
+file_element:
 	text {
 		$$=$1;
 	}|
 	call {
 		$$=$1;
-	};
-
-not_separated:
-	not_separated_support {
-		$$=new std::vector<NONS_Macro::file_element *>;
-		$$->push_back($1);
 	}|
-	not_separated not_separated_support {
+	push {
 		$$=$1;
-		$$->push_back($2);
 	}|
-	newline_separated newline not_separated {
+	long_call {
 		$$=$1;
-		append(*$$,*$3);
-		delete $3;
 	};
 
 text:
@@ -173,15 +138,23 @@ text:
 		delete $2;
 	};
 
-push:
-	PUSH NEWLINE text END_KEY {
-		$$=new NONS_Macro::push($3->to_string());
-		delete $3;
+push_header:
+	PUSH_LINE {
+		$$=new NONS_Macro::push;
+		state=ParserState::TEXT_BLOCK;
 	}|
-	PUSH STRING NEWLINE text END_KEY {
-		$$=new NONS_Macro::push($4->to_string(),*$2);
+	PUSH STRING {
+		$$=new NONS_Macro::push;
+		$$->indentation=*$2;
 		delete $2;
-		delete $4;
+		state=ParserState::TEXT_BLOCK;
+	};
+
+push:
+	push_header text END_KEY {
+		$$=$1;
+		$$->str=$2->to_string();
+		delete $2;
 	};
 
 call:
@@ -189,20 +162,19 @@ call:
 		$$=new NONS_Macro::call(*$2,*$4);
 		delete $2;
 		delete $4;
-		state=ParserState::AFTER_CALL;
 	};
 
 long_call_header:
 	CALL IDENTIFIER '(' PARAMS ')' {
 		$$=new NONS_Macro::call(*$2);
-		state=ParserState::AFTER_LONG_CALL_HEADER;
+		state=ParserState::TEXT_BLOCK;
 		delete $2;
 	};
 
 long_call:
-	long_call_header NEWLINE long_parameter_list END_KEY {
-		append(($$=$1)->parameters,*$3);
-		delete $3;
+	long_call_header long_parameter_list END_KEY {
+		append(($$=$1)->parameters,*$2);
+		delete $2;
 	};
 
 parameter:
@@ -241,45 +213,13 @@ long_parameter_list:
 		$$->push_back($1->to_string());
 		delete $1;
 	}|
-	long_parameter_list COMMA_KEY NEWLINE text {
+	long_parameter_list COMMA_KEY text {
 		$$=$1;
-		$$->push_back($4->to_string());
-		delete $4;
+		$$->push_back($3->to_string());
+		delete $3;
 	};
 
 %%
-
-void putback(cheap_input_stream &stream,const std::wstring &s,ulong start_at=0,ulong length=std::wstring::npos){
-	for (size_t a=((length==std::wstring::npos)?s.size():start_at+length);a>start_at;a--)
-		stream.putback(s[a-1]);
-}
-
-bool read_identifier(std::wstring &dst,const std::wstring &src,ulong offset){
-	if (!NONS_isid1char(src[offset]))
-		return 0;
-	ulong end=offset+1;
-	for (;NONS_isidnchar(src[end]);end++);
-	dst=src.substr(offset,end-offset);
-	return 1;
-}
-
-bool read_identifier(std::wstring &dst,cheap_input_stream &stream){
-	dst.clear();
-	wchar_t c=stream.peek();
-	if (stream.eof() || !NONS_isid1char(c))
-		return 0;
-	do
-		dst.push_back(stream.get());
-	while (NONS_isidnchar(stream.peek()) && !stream.eof());
-	return 1;
-}
-
-int return_full_line(YYSTYPE *yylval,cheap_input_stream &stream,const std::wstring &s,ParserState::ParserState state){
-	if (state==ParserState::TEXT)
-		stream.putback('\n');
-	yylval->str=new std::wstring(s);
-	return TEXT;
-}
 
 int identify_keyword(const std::wstring &s){
 	if (s==L"call")
@@ -297,143 +237,123 @@ int identify_keyword(const std::wstring &s){
 	return ERROR;
 }
 
-int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::ParserState &state){
-	wchar_t c;
-	c=stream.peek();
-	switch (c){
-		case '\n':
-			if (state==ParserState::TEXT){
-				stream.get();
-				break;
-			}else if (state==ParserState::TEXT_IN_BLOCK)
-				break;
-			else if (state==ParserState::AFTER_CALL){
-				state=ParserState::TEXT;
-				break;
+int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::ParserState &state,std::deque<wchar_t> &second_queue){
+	while (1){
+		while (second_queue.size()){
+			wchar_t c=second_queue.front();
+			if (iswhitespace(c)){
+				second_queue.pop_front();
+				continue;
 			}
-			else if (state==ParserState::NIL){
-				state=ParserState::TEXT;
-				yylval->str=new std::wstring;
-				return TEXT;
-			}
-			else if (state==ParserState::AFTER_KEYWORD_LINE){
-				state=ParserState::TEXT;
-			}else if (state==ParserState::AFTER_PUSH || state==ParserState::AFTER_LONG_CALL_HEADER)
-				state=ParserState::TEXT_IN_BLOCK;
-			stream.get();
-			return NEWLINE;
-		case '(':
-		case ')':
-			return stream.get();
-	}
-	if (stream.eof())
-		return 0;
-	if (state==ParserState::TEXT || state==ParserState::TEXT_IN_BLOCK){
-		std::wstring s=stream.getline();
-		if (state==ParserState::TEXT){
-			size_t semicolon_hash=s.find(L";#");
-			if (semicolon_hash!=s.npos){
-				if (semicolon_hash){
-					yylval->str=new std::wstring(s.substr(0,semicolon_hash));
-					stream.putback('\n');
-					putback(stream,s,semicolon_hash);
-					return TEXT;
+			if (NONS_isid1char(c)){
+				std::wstring identifier;
+				identifier.push_back(c);
+				second_queue.pop_front();
+				while (second_queue.size() && NONS_isidnchar(second_queue.front())){
+					identifier.push_back(second_queue.front());
+					second_queue.pop_front();
 				}
-				std::wstring type;
-				if (!read_identifier(type,s,2)){
-					state=ParserState::TEXT;
-					return return_full_line(yylval,stream,s,state);
+				yylval->str=new std::wstring(identifier);
+				return IDENTIFIER;
+			}
+			if (c=='#'){
+				second_queue.pop_front();
+				std::wstring keyword;
+				while (second_queue.size() && NONS_isidnchar(second_queue.front())){
+					keyword.push_back(second_queue.front());
+					second_queue.pop_front();
 				}
-				int keyword=identify_keyword(type);
-				if (keyword==ERROR){
-					state=ParserState::TEXT;
-					return return_full_line(yylval,stream,s,state);
-				}
-				state=(keyword==CALL)?ParserState::CALL:((keyword==PUSH)?ParserState::AFTER_PUSH:ParserState::NIL);
-				stream.putback('\n');
-				putback(stream,s,2+type.size());
-				return keyword;
+				yylval->str=new std::wstring(keyword);
+				return identify_keyword(keyword);
 			}
-		}else{
-			if (s==L";#comma"){
-				state=ParserState::AFTER_LONG_CALL_HEADER;
-				stream.putback('\n');
-				return COMMA_KEY;
-			}
-			if (s==L";#end"){
-				state=ParserState::AFTER_KEYWORD_LINE;
-				stream.putback('\n');
-				return END_KEY;
-			}
-		}
-		return return_full_line(yylval,stream,s,state);
-	}
-	while (!stream.eof() && ((c=stream.peek())==' ' || c=='\t'))
-		stream.get();
-	if (stream.eof())
-		return 0;
-	if (c=='\"'){
-		wchar_t quote=stream.get();
-		std::wstring s;
-		while (stream.peek()!=quote && !stream.eof()){
-			c=stream.get();
-			if (c!='\\'){
-				s.push_back(c);
-			}else{
-				switch (c=stream.get()){
-					case '\\':
-					case '\"':
+			if (c=='\"'){
+				wchar_t quote=c;
+				std::wstring s;
+				while (second_queue.size() && second_queue.front()!=quote){
+					wchar_t c=second_queue.front();
+					second_queue.pop_front();
+					if (c!='\\')
 						s.push_back(c);
-						break;
-					case 'n':
-					case 'r':
-					case 't':
-						s.push_back('\n');
-						break;
-					case 'x':
-						{
-							std::wstring temp;
-							for (ulong a=0;NONS_ishexa(stream.peek()) && a<4;a++)
-								temp.push_back(stream.get());
-							if (temp.size()<4)
-								return ERROR;
-							wchar_t a=0;
-							for (size_t b=0;b<temp.size();b++)
-								a=(a<<4)+HEX2DEC(temp[b]);
-							s.push_back(a?a:32);
-						}
-						break;
-					default:
+					else if (second_queue.empty())
 						return ERROR;
+					else{
+						c=second_queue.front();
+						second_queue.pop_front();
+						switch (c){
+							case '\\':
+							case '\"':
+								s.push_back(c);
+								break;
+							case 'n':
+							case 'r':
+								s.push_back('\n');
+								break;
+							case 't':
+								s.push_back('\t');
+								break;
+							case 'x':
+								{
+									if (second_queue.size()<4)
+										return ERROR;
+									std::wstring temp;
+									for (ulong a=0;NONS_ishexa(second_queue.front()) && a<4;a++){
+										temp.push_back(second_queue.front());
+										second_queue.pop_front();
+									}
+									if (temp.size()<4)
+										return ERROR;
+									wchar_t a=0;
+									for (size_t b=0;b<temp.size();b++)
+										a=(a<<4)+HEX2DEC(temp[b]);
+									s.push_back(a?a:32);
+								}
+						}
+					}
 				}
+				if (!second_queue.size() || second_queue.front()!=quote)
+					return ERROR;
+				yylval->str=new std::wstring(s);
+				second_queue.pop_front();
+				return STRING;
+			}
+			second_queue.pop_front();
+			return c;
+		}
+		while (1){
+			std::wstring line;
+			if (stream.eof())
+				return 0;
+			line=stream.getline();
+			if (state==ParserState::TEXT){
+				if (line==L";#"){
+					state=ParserState::MACRO;
+					continue;
+				}
+				yylval->str=new std::wstring(line);
+				return TEXT;
+			}else if (state==ParserState::TEXT_BLOCK){
+				if (line==L"#comma")
+					return COMMA_KEY;
+				if (line==L"#end"){
+					state=ParserState::MACRO;
+					return END_KEY;
+				}
+				yylval->str=new std::wstring(line);
+				return TEXT;
+			}else if (state==ParserState::MACRO){
+				if (line==L";#"){
+					state=ParserState::TEXT;
+					continue;
+				}
+				if (!line.size())
+					continue;
+				std::wstring trimmed=line;
+				trim_string(trimmed);
+				if (trimmed==L"#push")
+					return PUSH_LINE;
+				append(second_queue,line);
+				break;
 			}
 		}
-		if (stream.peek()==quote){
-			yylval->str=new std::wstring(s);
-			stream.get();
-			return STRING;
-		}
-		return ERROR;
 	}
-	if (c=='#'){
-		stream.get();
-		std::wstring identifier;
-		if (!read_identifier(identifier,stream))
-			return ERROR;
-		int keyword=identify_keyword(identifier);
-		if (keyword==PARAMS)
-			state=ParserState::TEXT_IN_BLOCK;
-		return keyword;
-	}
-	if (NONS_isid1char(c)){
-		std::wstring identifier;
-		if (!read_identifier(identifier,stream))
-			return ERROR;
-		int key=identify_keyword(identifier);
-		if (key!=ERROR)
-			return key;
-		yylval->str=new std::wstring(identifier);
-		return IDENTIFIER;
-	}
-	return stream.get();
 }

@@ -202,7 +202,8 @@ bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpr
 		cheap_input_stream stream=script;
 		macroParser_yydebug=1;
 		ParserState::ParserState state=ParserState::TEXT;
-		if (!!macroParser_yyparse(stream,state,f))
+		std::deque<wchar_t> secondary_queue;
+		if (!!macroParser_yyparse(stream,state,secondary_queue,f))
 			return 0;
 	}
 	for (size_t a=0;a<f->list.size();a++)
@@ -223,17 +224,35 @@ bool preprocess(std::wstring &dst,const std::wstring &script){
 		delete[] s;
 	}
 	NONS_Macro::interpreter_state is(python_script.c_str());
-	r=preprocess(dst,script,&is);
-	if (!r)
-		return 0;
-	while (1){
-		std::wstring temp;
-		is.calls=0;
-		if (preprocess(temp,dst,&is) && is.calls){
-			dst=temp;
-			continue;
-		}
-		break;
+	switch (is.e){
+		case NONS_Macro::interpreter_state::SUCCESS:
+			break;
+		case NONS_Macro::interpreter_state::LIBRARY_NOT_FOUND:
+			o_stderr <<"Library not found.\n";
+			return 0;
+		case NONS_Macro::interpreter_state::INVALID_LIBRARY:
+			o_stderr <<"Invalid library.\n";
+		case NONS_Macro::interpreter_state::UNDEFINED_ERROR:
+			return 0;
 	}
-	return 1;
+	r=preprocess(dst,script,&is);
+	if (r){
+		while (1){
+			std::wstring temp;
+			is.calls=0;
+			if (preprocess(temp,dst,&is) && is.calls){
+				dst=temp;
+				continue;
+			}
+			break;
+		}
+	}else
+		dst.clear();
+	if (CLOptions.preprocessedFile.size()){
+		std::string temp=UniToUTF8(dst);
+		NONS_File::write(CLOptions.preprocessedFile,&temp[0],temp.size());
+	}
+	if (CLOptions.preprocessAndQuit)
+		exit(0);
+	return r;
 }

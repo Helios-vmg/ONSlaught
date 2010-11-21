@@ -49,18 +49,17 @@
    /* Put the tokens into the symbol table, so that GDB and other debuggers
       know about them.  */
    enum yytokentype {
-     NEWLINE = 258,
-     PUSH = 259,
+     PUSH = 258,
+     PUSH_LINE = 259,
      CALL = 260,
      PARAMS = 261,
      END_KEY = 262,
      COMMA_KEY = 263,
      POP = 264,
      ERROR = 265,
-     END = 266,
-     TEXT = 267,
-     IDENTIFIER = 268,
-     STRING = 269
+     TEXT = 266,
+     IDENTIFIER = 267,
+     STRING = 268
    };
 #endif
 
@@ -97,16 +96,19 @@ typedef union YYSTYPE
 	int macroParser_yyparse(
 		cheap_input_stream &stream,
 		ParserState::ParserState &state,
+		std::deque<wchar_t> &token_queue,
 		NONS_Macro::file *&file
 	);
 	int macroParser_yylex(
 		YYSTYPE *yylval,
 		cheap_input_stream &stream,
-		ParserState::ParserState &state
+		ParserState::ParserState &state,
+		std::deque<wchar_t> &token_queue
 	);
 	inline void macroParser_yyerror(
 		cheap_input_stream &,
 		ParserState::ParserState &,
+		std::deque<wchar_t> &,
 		NONS_Macro::file *file,
 		char const *
 	){}

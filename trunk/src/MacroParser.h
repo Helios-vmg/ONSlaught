@@ -69,7 +69,6 @@ struct push:public file_element{
 	std::wstring str,
 		indentation;
 	std::wstring to_string(interpreter_state * =0);
-	push(const std::wstring &s,const std::wstring &i=L""):str(s),indentation(i){}
 };
 
 struct call:public file_element{
@@ -86,13 +85,8 @@ struct file{
 };
 };
 DECLARE_ENUM(ParserState)
-	NIL,
 	TEXT,
-	CALL,
-	TEXT_IN_BLOCK,
-	AFTER_CALL,
-	AFTER_PUSH,
-	AFTER_KEYWORD_LINE,
-	AFTER_LONG_CALL_HEADER
+	MACRO,
+	TEXT_BLOCK
 DECLARE_ENUM_CLOSE;
 #endif
