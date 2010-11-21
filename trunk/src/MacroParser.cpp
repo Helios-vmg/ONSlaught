@@ -200,7 +200,7 @@ bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpr
 	NONS_Macro::file *f=0;
 	{
 		cheap_input_stream stream=script;
-		macroParser_yydebug=1;
+		//macroParser_yydebug=1;
 		ParserState::ParserState state=ParserState::TEXT;
 		std::deque<wchar_t> secondary_queue;
 		if (!!macroParser_yyparse(stream,state,secondary_queue,f))
