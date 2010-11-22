@@ -108,9 +108,44 @@ interpreter_state::~interpreter_state(){
 		this->PP_destroy(this->instance);
 }
 
+std::wstring unindent(const std::wstring &str,const std::wstring &indentation=L""){
+	std::vector<std::wstring> lines;
+	{
+		cheap_input_stream stream(str);
+		while (!stream.eof())
+			lines.push_back(stream.getline());
+	}
+	size_t max=0;
+	if (indentation.size()){
+		for (size_t a=0;a<lines.size();a++)
+			if (firstchars(lines[a],0,indentation))
+				lines[a]=lines[a].substr(indentation.size());
+	}else if (lines.size()){
+		max=lines.front().find_first_not_of(L" \t");
+		std::wstring lowest_common=lines.front().substr(0,max);
+		for (size_t a=1;a<lines.size();a++){
+			std::wstring &s=lines[a];
+			for (size_t b=0;b<max && b<s.size();b++){
+				if (s[b]!=lowest_common[b]){
+					lowest_common.resize(b);
+					break;
+				}
+			}
+		}
+		max=lowest_common.size();
+	}
+	std::wstring res;
+	for (size_t a=0;a<lines.size();a++){
+		res.append(lines[a].begin()+max,lines[a].end());
+		if (a<lines.size()-1)
+			res.push_back('\n');
+	}
+	return res;
+}
+
 std::wstring push::to_string(interpreter_state *is){
 	assert(is);
-	is->push(this->str);
+	is->push(unindent(this->str,this->indentation));
 	is->calls++;
 	return L"";
 }
@@ -123,12 +158,8 @@ std::wstring call::to_string(interpreter_state *is){
 	pop_signal.push_back(0);
 	std::string function=UniToUTF8(this->identifier);
 	std::vector<std::string> parameters(this->parameters.size());
-	for (size_t a=0;a<parameters.size();a++){
-		if (this->parameters[a]!=pop_signal)
-			parameters[a]=UniToUTF8(this->parameters[a]);
-		else
-			parameters[a]=UniToUTF8(is->pop());
-	}
+	for (size_t a=0;a<parameters.size();a++)
+		parameters[a]=UniToUTF8((this->parameters[a]!=pop_signal)?unindent(this->parameters[a]):is->pop());
 	std::vector<const char *> cstring_parameters(parameters.size());
 	std::vector<size_t> sizes(parameters.size());
 	for (size_t a=0;a<parameters.size();a++){
@@ -200,7 +231,7 @@ bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpr
 	NONS_Macro::file *f=0;
 	{
 		cheap_input_stream stream=script;
-		//macroParser_yydebug=1;
+		macroParser_yydebug=1;
 		ParserState::ParserState state=ParserState::TEXT;
 		std::deque<wchar_t> secondary_queue;
 		if (!!macroParser_yyparse(stream,state,secondary_queue,f))
@@ -227,11 +258,9 @@ bool preprocess(std::wstring &dst,const std::wstring &script){
 	switch (is.e){
 		case NONS_Macro::interpreter_state::SUCCESS:
 			break;
-		case NONS_Macro::interpreter_state::LIBRARY_NOT_FOUND:
-			o_stderr <<"Library not found.\n";
-			return 0;
 		case NONS_Macro::interpreter_state::INVALID_LIBRARY:
 			o_stderr <<"Invalid library.\n";
+		case NONS_Macro::interpreter_state::LIBRARY_NOT_FOUND:
 		case NONS_Macro::interpreter_state::UNDEFINED_ERROR:
 			return 0;
 	}
