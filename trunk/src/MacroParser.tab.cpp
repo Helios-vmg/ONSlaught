@@ -112,17 +112,16 @@
    /* Put the tokens into the symbol table, so that GDB and other debuggers
       know about them.  */
    enum yytokentype {
-     PUSH = 258,
-     PUSH_LINE = 259,
-     CALL = 260,
-     PARAMS = 261,
-     END_KEY = 262,
-     COMMA_KEY = 263,
-     POP = 264,
-     ERROR = 265,
-     TEXT = 266,
-     IDENTIFIER = 267,
-     STRING = 268
+     CALL = 258,
+     DCALL = 259,
+     PARAMS = 260,
+     END_KEY = 261,
+     COMMA_KEY = 262,
+     ERROR = 263,
+     INTEGER = 264,
+     TEXT = 265,
+     IDENTIFIER = 266,
+     STRING = 267
    };
 #endif
 
@@ -134,11 +133,10 @@ typedef union YYSTYPE
 
 
 	std::wstring *str;
+	ulong integer;
 	NONS_Macro::file *file;
-	std::vector<NONS_Macro::file_element *> *fe_list;
 	NONS_Macro::file_element *file_element;
 	NONS_Macro::text *text;
-	NONS_Macro::push *push;
 	NONS_Macro::call *call;
 	std::vector<std::wstring> *params;
 
@@ -155,19 +153,16 @@ typedef union YYSTYPE
 
 	int macroParser_yyparse(
 		cheap_input_stream &stream,
-		ParserState::ParserState &state,
 		std::deque<wchar_t> &token_queue,
 		NONS_Macro::file *&file
 	);
 	int macroParser_yylex(
 		YYSTYPE *yylval,
 		cheap_input_stream &stream,
-		ParserState::ParserState &state,
 		std::deque<wchar_t> &token_queue
 	);
 	inline void macroParser_yyerror(
 		cheap_input_stream &,
-		ParserState::ParserState &,
 		std::deque<wchar_t> &,
 		NONS_Macro::file *file,
 		char const *
@@ -394,20 +389,20 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  4
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   30
+#define YYLAST   19
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  17
+#define YYNTOKENS  16
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  14
+#define YYNNTS  11
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  25
+#define YYNRULES  20
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  37
+#define YYNSTATES  30
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   268
+#define YYMAXUTOK   267
 
 #define YYTRANSLATE(YYX)						\
   ((unsigned int) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
@@ -419,7 +414,7 @@ static const yytype_uint8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-      14,    15,     2,     2,    16,     2,     2,     2,     2,     2,
+      13,    14,     2,     2,    15,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -441,7 +436,7 @@ static const yytype_uint8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
-       5,     6,     7,     8,     9,    10,    11,    12,    13
+       5,     6,     7,     8,     9,    10,    11,    12
 };
 
 #if YYDEBUG
@@ -450,28 +445,27 @@ static const yytype_uint8 yytranslate[] =
 static const yytype_uint8 yyprhs[] =
 {
        0,     0,     3,     5,     7,     8,    11,    13,    15,    17,
-      19,    21,    24,    26,    29,    33,    39,    45,    49,    51,
-      53,    54,    56,    58,    62,    64
+      19,    22,    25,    29,    34,    41,    42,    44,    46,    50,
+      52
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int8 yyrhs[] =
 {
-      18,     0,    -1,    19,    -1,    10,    -1,    -1,    19,    20,
-      -1,    21,    -1,    24,    -1,    23,    -1,    26,    -1,    11,
-      -1,    21,    11,    -1,     4,    -1,     3,    13,    -1,    22,
-      21,     7,    -1,     5,    12,    14,    28,    15,    -1,     5,
-      12,    14,     6,    15,    -1,    25,    30,     7,    -1,    13,
-      -1,     9,    -1,    -1,    29,    -1,    27,    -1,    29,    16,
-      27,    -1,    21,    -1,    30,     8,    21,    -1
+      17,     0,    -1,    18,    -1,     8,    -1,    -1,    18,    19,
+      -1,    20,    -1,    22,    -1,    23,    -1,    10,    -1,    20,
+      10,    -1,     3,    11,    -1,     3,     9,    11,    -1,    21,
+      13,    24,    14,    -1,    21,    13,     5,    14,    26,     6,
+      -1,    -1,    25,    -1,    12,    -1,    25,    15,    12,    -1,
+      20,    -1,    26,     7,    20,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    98,    98,   102,   107,   110,   116,   119,   122,   125,
-     130,   134,   142,   146,   154,   161,   168,   175,   181,   185,
-     191,   194,   199,   204,   211,   216
+       0,    92,    92,    96,   101,   104,   110,   113,   116,   121,
+     125,   132,   136,   142,   149,   155,   158,   163,   168,   175,
+     180
 };
 #endif
 
@@ -480,12 +474,11 @@ static const yytype_uint8 yyrline[] =
    First, the terminals, then, starting at YYNTOKENS, nonterminals.  */
 static const char *const yytname[] =
 {
-  "$end", "error", "$undefined", "PUSH", "PUSH_LINE", "CALL", "PARAMS",
-  "END_KEY", "COMMA_KEY", "POP", "ERROR", "TEXT", "IDENTIFIER", "STRING",
-  "'('", "')'", "','", "$accept", "begin", "file", "file_element", "text",
-  "push_header", "push", "call", "long_call_header", "long_call",
-  "parameter", "parameter_list", "non_empty_parameter_list",
-  "long_parameter_list", 0
+  "$end", "error", "$undefined", "CALL", "DCALL", "PARAMS", "END_KEY",
+  "COMMA_KEY", "ERROR", "INTEGER", "TEXT", "IDENTIFIER", "STRING", "'('",
+  "')'", "','", "$accept", "begin", "file", "file_element", "text",
+  "common_call_header", "call", "long_call", "parameter_list",
+  "non_empty_parameter_list", "long_parameter_list", 0
 };
 #endif
 
@@ -495,24 +488,24 @@ static const char *const yytname[] =
 static const yytype_uint16 yytoknum[] =
 {
        0,   256,   257,   258,   259,   260,   261,   262,   263,   264,
-     265,   266,   267,   268,    40,    41,    44
+     265,   266,   267,    40,    41,    44
 };
 # endif
 
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    17,    18,    18,    19,    19,    20,    20,    20,    20,
-      21,    21,    22,    22,    23,    24,    25,    26,    27,    27,
-      28,    28,    29,    29,    30,    30
+       0,    16,    17,    17,    18,    18,    19,    19,    19,    20,
+      20,    21,    21,    22,    23,    24,    24,    25,    25,    26,
+      26
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
 static const yytype_uint8 yyr2[] =
 {
        0,     2,     1,     1,     0,     2,     1,     1,     1,     1,
-       1,     2,     1,     2,     3,     5,     5,     3,     1,     1,
-       0,     1,     1,     3,     1,     3
+       2,     2,     3,     4,     6,     0,     1,     1,     3,     1,
+       3
 };
 
 /* YYDEFACT[STATE-NAME] -- Default rule to reduce with in state
@@ -520,35 +513,33 @@ static const yytype_uint8 yyr2[] =
    means the default is an error.  */
 static const yytype_uint8 yydefact[] =
 {
-       4,     3,     0,     2,     1,     0,    12,     0,    10,     5,
-       6,     0,     8,     7,     0,     9,    13,     0,    11,     0,
-      24,     0,    20,    14,    17,     0,     0,    19,    18,    22,
-       0,    21,    25,    16,    15,     0,    23
+       4,     3,     0,     2,     1,     0,     9,     5,     6,     0,
+       7,     8,     0,    11,    10,    15,    12,     0,    17,     0,
+      16,     0,    13,     0,    19,     0,    18,    14,     0,    20
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-      -1,     2,     3,     9,    10,    11,    12,    13,    14,    15,
-      29,    30,    31,    21
+      -1,     2,     3,     7,     8,     9,    10,    11,    19,    20,
+      25
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
    STATE-NUM.  */
-#define YYPACT_NINF -14
+#define YYPACT_NINF -20
 static const yytype_int8 yypact[] =
 {
-      -3,   -14,     9,     1,   -14,     5,   -14,    -2,   -14,   -14,
-       8,    10,   -14,   -14,    10,   -14,   -14,    11,   -14,     6,
-       8,    -6,     2,   -14,   -14,    10,    12,   -14,   -14,   -14,
-      13,    14,     8,   -14,   -14,     7,   -14
+      -2,   -20,    12,    -3,   -20,    -6,   -20,   -20,     3,    -9,
+     -20,   -20,     5,   -20,   -20,    -4,   -20,     0,   -20,     1,
+       2,     8,   -20,     7,     3,     4,   -20,   -20,     8,     3
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-     -14,   -14,   -14,   -14,   -11,   -14,   -14,   -14,   -14,   -14,
-     -13,   -14,   -14,   -14
+     -20,   -20,   -20,   -20,   -19,   -20,   -20,   -20,   -20,   -20,
+     -20
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
@@ -558,28 +549,23 @@ static const yytype_int8 yypgoto[] =
 #define YYTABLE_NINF -1
 static const yytype_uint8 yytable[] =
 {
-      19,    24,    25,    20,     5,     6,     7,     1,    26,     4,
-      17,    27,     8,    23,    32,    28,    27,    18,    16,    18,
-      28,     8,    36,     0,     0,    22,     0,    33,    34,     0,
-      35
+       5,    17,    24,    12,    15,    13,     1,     6,    18,    29,
+      27,    28,     4,    14,    21,    22,    16,    23,     6,    26
 };
 
-static const yytype_int8 yycheck[] =
+static const yytype_uint8 yycheck[] =
 {
-      11,     7,     8,    14,     3,     4,     5,    10,     6,     0,
-      12,     9,    11,     7,    25,    13,     9,    11,    13,    11,
-      13,    11,    35,    -1,    -1,    14,    -1,    15,    15,    -1,
-      16
+       3,     5,    21,     9,    13,    11,     8,    10,    12,    28,
+       6,     7,     0,    10,    14,    14,    11,    15,    10,    12
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,    10,    18,    19,     0,     3,     4,     5,    11,    20,
-      21,    22,    23,    24,    25,    26,    13,    12,    11,    21,
-      21,    30,    14,     7,     7,     8,     6,     9,    13,    27,
-      28,    29,    21,    15,    15,    16,    27
+       0,     8,    17,    18,     0,     3,    10,    19,    20,    21,
+      22,    23,     9,    11,    10,    13,    11,     5,    12,    24,
+      25,    14,    14,    15,    20,    26,    12,     6,     7,    20
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -621,7 +607,7 @@ do								\
     }								\
   else								\
     {								\
-      yyerror (stream, state, token_queue, file, YY_("syntax error: cannot back up")); \
+      yyerror (stream, token_queue, file, YY_("syntax error: cannot back up")); \
       YYERROR;							\
     }								\
 while (YYID (0))
@@ -678,7 +664,7 @@ while (YYID (0))
 #ifdef YYLEX_PARAM
 # define YYLEX yylex (&yylval, YYLEX_PARAM)
 #else
-# define YYLEX yylex (&yylval, stream, state, token_queue)
+# define YYLEX yylex (&yylval, stream, token_queue)
 #endif
 
 /* Enable debugging if requested.  */
@@ -701,7 +687,7 @@ do {									  \
     {									  \
       YYFPRINTF (stderr, "%s ", Title);					  \
       yy_symbol_print (stderr,						  \
-		  Type, Value, stream, state, token_queue, file); \
+		  Type, Value, stream, token_queue, file); \
       YYFPRINTF (stderr, "\n");						  \
     }									  \
 } while (YYID (0))
@@ -715,15 +701,14 @@ do {									  \
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, cheap_input_stream &stream, ParserState::ParserState &state, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
+yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, cheap_input_stream &stream, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
 #else
 static void
-yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, state, token_queue, file)
+yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, token_queue, file)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
     cheap_input_stream &stream;
-    ParserState::ParserState &state;
     std::deque<wchar_t> &token_queue;
     NONS_Macro::file *&file;
 #endif
@@ -731,7 +716,6 @@ yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, state, token_queue, f
   if (!yyvaluep)
     return;
   YYUSE (stream);
-  YYUSE (state);
   YYUSE (token_queue);
   YYUSE (file);
 # ifdef YYPRINT
@@ -755,15 +739,14 @@ yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, state, token_queue, f
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, cheap_input_stream &stream, ParserState::ParserState &state, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
+yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, cheap_input_stream &stream, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
 #else
 static void
-yy_symbol_print (yyoutput, yytype, yyvaluep, stream, state, token_queue, file)
+yy_symbol_print (yyoutput, yytype, yyvaluep, stream, token_queue, file)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
     cheap_input_stream &stream;
-    ParserState::ParserState &state;
     std::deque<wchar_t> &token_queue;
     NONS_Macro::file *&file;
 #endif
@@ -773,7 +756,7 @@ yy_symbol_print (yyoutput, yytype, yyvaluep, stream, state, token_queue, file)
   else
     YYFPRINTF (yyoutput, "nterm %s (", yytname[yytype]);
 
-  yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, state, token_queue, file);
+  yy_symbol_value_print (yyoutput, yytype, yyvaluep, stream, token_queue, file);
   YYFPRINTF (yyoutput, ")");
 }
 
@@ -816,14 +799,13 @@ do {								\
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_reduce_print (YYSTYPE *yyvsp, int yyrule, cheap_input_stream &stream, ParserState::ParserState &state, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
+yy_reduce_print (YYSTYPE *yyvsp, int yyrule, cheap_input_stream &stream, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
 #else
 static void
-yy_reduce_print (yyvsp, yyrule, stream, state, token_queue, file)
+yy_reduce_print (yyvsp, yyrule, stream, token_queue, file)
     YYSTYPE *yyvsp;
     int yyrule;
     cheap_input_stream &stream;
-    ParserState::ParserState &state;
     std::deque<wchar_t> &token_queue;
     NONS_Macro::file *&file;
 #endif
@@ -839,7 +821,7 @@ yy_reduce_print (yyvsp, yyrule, stream, state, token_queue, file)
       YYFPRINTF (stderr, "   $%d = ", yyi + 1);
       yy_symbol_print (stderr, yyrhs[yyprhs[yyrule] + yyi],
 		       &(yyvsp[(yyi + 1) - (yynrhs)])
-		       		       , stream, state, token_queue, file);
+		       		       , stream, token_queue, file);
       YYFPRINTF (stderr, "\n");
     }
 }
@@ -847,7 +829,7 @@ yy_reduce_print (yyvsp, yyrule, stream, state, token_queue, file)
 # define YY_REDUCE_PRINT(Rule)		\
 do {					\
   if (yydebug)				\
-    yy_reduce_print (yyvsp, Rule, stream, state, token_queue, file); \
+    yy_reduce_print (yyvsp, Rule, stream, token_queue, file); \
 } while (YYID (0))
 
 /* Nonzero means print parse trace.  It is left uninitialized so that
@@ -1098,22 +1080,20 @@ yysyntax_error (char *yyresult, int yystate, int yychar)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, cheap_input_stream &stream, ParserState::ParserState &state, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
+yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, cheap_input_stream &stream, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
 #else
 static void
-yydestruct (yymsg, yytype, yyvaluep, stream, state, token_queue, file)
+yydestruct (yymsg, yytype, yyvaluep, stream, token_queue, file)
     const char *yymsg;
     int yytype;
     YYSTYPE *yyvaluep;
     cheap_input_stream &stream;
-    ParserState::ParserState &state;
     std::deque<wchar_t> &token_queue;
     NONS_Macro::file *&file;
 #endif
 {
   YYUSE (yyvaluep);
   YYUSE (stream);
-  YYUSE (state);
   YYUSE (token_queue);
   YYUSE (file);
 
@@ -1123,105 +1103,84 @@ yydestruct (yymsg, yytype, yyvaluep, stream, state, token_queue, file)
 
   switch (yytype)
     {
-      case 11: /* "TEXT" */
+      case 10: /* "TEXT" */
 
 	{
 	delete (yyvaluep->str);
 };
 
 	break;
-      case 12: /* "IDENTIFIER" */
+      case 11: /* "IDENTIFIER" */
 
 	{
 	delete (yyvaluep->str);
 };
 
 	break;
-      case 13: /* "STRING" */
+      case 12: /* "STRING" */
 
 	{
 	delete (yyvaluep->str);
 };
 
 	break;
-      case 19: /* "file" */
+      case 18: /* "file" */
 
 	{
 	delete (yyvaluep->file);
 };
 
 	break;
-      case 20: /* "file_element" */
+      case 19: /* "file_element" */
 
 	{
 	delete (yyvaluep->file_element);
 };
 
 	break;
-      case 21: /* "text" */
+      case 20: /* "text" */
 
 	{
 	delete (yyvaluep->text);
 };
 
 	break;
-      case 22: /* "push_header" */
-
-	{
-	delete (yyvaluep->push);
-};
-
-	break;
-      case 23: /* "push" */
-
-	{
-	delete (yyvaluep->push);
-};
-
-	break;
-      case 24: /* "call" */
+      case 21: /* "common_call_header" */
 
 	{
 	delete (yyvaluep->call);
 };
 
 	break;
-      case 25: /* "long_call_header" */
+      case 22: /* "call" */
 
 	{
 	delete (yyvaluep->call);
 };
 
 	break;
-      case 26: /* "long_call" */
+      case 23: /* "long_call" */
 
 	{
 	delete (yyvaluep->call);
 };
 
 	break;
-      case 27: /* "parameter" */
-
-	{
-	delete (yyvaluep->str);
-};
-
-	break;
-      case 28: /* "parameter_list" */
+      case 24: /* "parameter_list" */
 
 	{
 	delete (yyvaluep->params);
 };
 
 	break;
-      case 29: /* "non_empty_parameter_list" */
+      case 25: /* "non_empty_parameter_list" */
 
 	{
 	delete (yyvaluep->params);
 };
 
 	break;
-      case 30: /* "long_parameter_list" */
+      case 26: /* "long_parameter_list" */
 
 	{
 	delete (yyvaluep->params);
@@ -1243,7 +1202,7 @@ int yyparse ();
 #endif
 #else /* ! YYPARSE_PARAM */
 #if defined __STDC__ || defined __cplusplus
-int yyparse (cheap_input_stream &stream, ParserState::ParserState &state, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file);
+int yyparse (cheap_input_stream &stream, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file);
 #else
 int yyparse ();
 #endif
@@ -1271,12 +1230,11 @@ yyparse (YYPARSE_PARAM)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 int
-yyparse (cheap_input_stream &stream, ParserState::ParserState &state, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
+yyparse (cheap_input_stream &stream, std::deque<wchar_t> &token_queue, NONS_Macro::file *&file)
 #else
 int
-yyparse (stream, state, token_queue, file)
+yyparse (stream, token_queue, file)
     cheap_input_stream &stream;
-    ParserState::ParserState &state;
     std::deque<wchar_t> &token_queue;
     NONS_Macro::file *&file;
 #endif
@@ -1577,18 +1535,11 @@ yyreduce:
   case 8:
 
     {
-		(yyval.file_element)=(yyvsp[(1) - (1)].push);
-	;}
-    break;
-
-  case 9:
-
-    {
 		(yyval.file_element)=(yyvsp[(1) - (1)].call);
 	;}
     break;
 
-  case 10:
+  case 9:
 
     {
 		(yyval.text)=new NONS_Macro::text(*(yyvsp[(1) - (1)].str));
@@ -1596,12 +1547,19 @@ yyreduce:
 	;}
     break;
 
-  case 11:
+  case 10:
 
     {
 		(yyval.text)=(yyvsp[(1) - (2)].text);
-		(yyval.text)->str.push_back('\n');
 		(yyval.text)->str.append(*(yyvsp[(2) - (2)].str));
+		delete (yyvsp[(2) - (2)].str);
+	;}
+    break;
+
+  case 11:
+
+    {
+		(yyval.call)=new NONS_Macro::call(*(yyvsp[(2) - (2)].str));
 		delete (yyvsp[(2) - (2)].str);
 	;}
     break;
@@ -1609,87 +1567,43 @@ yyreduce:
   case 12:
 
     {
-		(yyval.push)=new NONS_Macro::push;
-		state=ParserState::TEXT_BLOCK;
+		(yyval.call)=new NONS_Macro::call(*(yyvsp[(3) - (3)].str),(yyvsp[(2) - (3)].integer));
+		delete (yyvsp[(3) - (3)].str);
 	;}
     break;
 
   case 13:
 
     {
-		(yyval.push)=new NONS_Macro::push;
-		(yyval.push)->indentation=*(yyvsp[(2) - (2)].str);
-		delete (yyvsp[(2) - (2)].str);
-		state=ParserState::TEXT_BLOCK;
+		(yyval.call)=(yyvsp[(1) - (4)].call);
+		(yyval.call)->parameters=*(yyvsp[(3) - (4)].params);
+		delete (yyvsp[(3) - (4)].params);
 	;}
     break;
 
   case 14:
 
     {
-		(yyval.push)=(yyvsp[(1) - (3)].push);
-		(yyval.push)->str=(yyvsp[(2) - (3)].text)->to_string();
-		delete (yyvsp[(2) - (3)].text);
+		append(((yyval.call)=(yyvsp[(1) - (6)].call))->parameters,*(yyvsp[(5) - (6)].params));
+		delete (yyvsp[(5) - (6)].params);
 	;}
     break;
 
   case 15:
 
     {
-		(yyval.call)=new NONS_Macro::call(*(yyvsp[(2) - (5)].str),*(yyvsp[(4) - (5)].params));
-		delete (yyvsp[(2) - (5)].str);
-		delete (yyvsp[(4) - (5)].params);
+		(yyval.params)=new std::vector<std::wstring>;
 	;}
     break;
 
   case 16:
 
     {
-		(yyval.call)=new NONS_Macro::call(*(yyvsp[(2) - (5)].str));
-		state=ParserState::TEXT_BLOCK;
-		delete (yyvsp[(2) - (5)].str);
-	;}
-    break;
-
-  case 17:
-
-    {
-		append(((yyval.call)=(yyvsp[(1) - (3)].call))->parameters,*(yyvsp[(2) - (3)].params));
-		delete (yyvsp[(2) - (3)].params);
-	;}
-    break;
-
-  case 18:
-
-    {
-		(yyval.str)=new std::wstring(*(yyvsp[(1) - (1)].str));
-		delete (yyvsp[(1) - (1)].str);
-	;}
-    break;
-
-  case 19:
-
-    {
-		(yyval.str)=new std::wstring;
-		(yyval.str)->push_back(0);
-	;}
-    break;
-
-  case 20:
-
-    {
-		(yyval.params)=new std::vector<std::wstring>;
-	;}
-    break;
-
-  case 21:
-
-    {
 		(yyval.params)=(yyvsp[(1) - (1)].params);
 	;}
     break;
 
-  case 22:
+  case 17:
 
     {
 		(yyval.params)=new std::vector<std::wstring>;
@@ -1698,7 +1612,7 @@ yyreduce:
 	;}
     break;
 
-  case 23:
+  case 18:
 
     {
 		(yyval.params)=(yyvsp[(1) - (3)].params);
@@ -1707,7 +1621,7 @@ yyreduce:
 	;}
     break;
 
-  case 24:
+  case 19:
 
     {
 		(yyval.params)=new std::vector<std::wstring>;
@@ -1716,7 +1630,7 @@ yyreduce:
 	;}
     break;
 
-  case 25:
+  case 20:
 
     {
 		(yyval.params)=(yyvsp[(1) - (3)].params);
@@ -1761,7 +1675,7 @@ yyerrlab:
     {
       ++yynerrs;
 #if ! YYERROR_VERBOSE
-      yyerror (stream, state, token_queue, file, YY_("syntax error"));
+      yyerror (stream, token_queue, file, YY_("syntax error"));
 #else
       {
 	YYSIZE_T yysize = yysyntax_error (0, yystate, yychar);
@@ -1785,11 +1699,11 @@ yyerrlab:
 	if (0 < yysize && yysize <= yymsg_alloc)
 	  {
 	    (void) yysyntax_error (yymsg, yystate, yychar);
-	    yyerror (stream, state, token_queue, file, yymsg);
+	    yyerror (stream, token_queue, file, yymsg);
 	  }
 	else
 	  {
-	    yyerror (stream, state, token_queue, file, YY_("syntax error"));
+	    yyerror (stream, token_queue, file, YY_("syntax error"));
 	    if (yysize != 0)
 	      goto yyexhaustedlab;
 	  }
@@ -1813,7 +1727,7 @@ yyerrlab:
       else
 	{
 	  yydestruct ("Error: discarding",
-		      yytoken, &yylval, stream, state, token_queue, file);
+		      yytoken, &yylval, stream, token_queue, file);
 	  yychar = YYEMPTY;
 	}
     }
@@ -1869,7 +1783,7 @@ yyerrlab1:
 
 
       yydestruct ("Error: popping",
-		  yystos[yystate], yyvsp, stream, state, token_queue, file);
+		  yystos[yystate], yyvsp, stream, token_queue, file);
       YYPOPSTACK (1);
       yystate = *yyssp;
       YY_STACK_PRINT (yyss, yyssp);
@@ -1904,7 +1818,7 @@ yyabortlab:
 | yyexhaustedlab -- memory exhaustion comes here.  |
 `-------------------------------------------------*/
 yyexhaustedlab:
-  yyerror (stream, state, token_queue, file, YY_("memory exhausted"));
+  yyerror (stream, token_queue, file, YY_("memory exhausted"));
   yyresult = 2;
   /* Fall through.  */
 #endif
@@ -1912,7 +1826,7 @@ yyexhaustedlab:
 yyreturn:
   if (yychar != YYEMPTY)
      yydestruct ("Cleanup: discarding lookahead",
-		 yytoken, &yylval, stream, state, token_queue, file);
+		 yytoken, &yylval, stream, token_queue, file);
   /* Do not reclaim the symbols of the rule which action triggered
      this YYABORT or YYACCEPT.  */
   YYPOPSTACK (yylen);
@@ -1920,7 +1834,7 @@ yyreturn:
   while (yyssp != yyss)
     {
       yydestruct ("Cleanup: popping",
-		  yystos[*yyssp], yyvsp, stream, state, token_queue, file);
+		  yystos[*yyssp], yyvsp, stream, token_queue, file);
       YYPOPSTACK (1);
     }
 #ifndef yyoverflow
@@ -1942,40 +1856,32 @@ yyreturn:
 int identify_keyword(const std::wstring &s){
 	if (s==L"call")
 		return CALL;
-	if (s==L"push")
-		return PUSH;
-	if (s==L"end")
-		return END_KEY;
 	if (s==L"comma")
 		return COMMA_KEY;
-	if (s==L"pop")
-		return POP;
 	if (s==L"params")
 		return PARAMS;
+	if (s==L"end")
+		return END_KEY;
 	return ERROR;
 }
 
-int is_line_switch(const std::wstring &line){
-	if (line.size()<2)
-		return 0;
-	if (line[0]!=';')
-		return 0;
-	if (line[1]!='#')
-		return 0;
-	if (line.size()<3)
-		return 2;
-	if (line[2]=='-')
-		return 1;
-	return 0;
-}
-
-int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::ParserState &state,std::deque<wchar_t> &second_queue){
+int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,std::deque<wchar_t> &second_queue){
 	while (1){
 		while (second_queue.size()){
 			wchar_t c=second_queue.front();
 			if (iswhitespace(c)){
 				second_queue.pop_front();
 				continue;
+			}
+			if (c=='#'){
+				second_queue.pop_front();
+				std::wstring keyword;
+				while (second_queue.size() && NONS_isidnchar(second_queue.front())){
+					keyword.push_back(second_queue.front());
+					second_queue.pop_front();
+				}
+				yylval->str=new std::wstring(keyword);
+				return identify_keyword(keyword);
 			}
 			if (NONS_isid1char(c)){
 				std::wstring identifier;
@@ -1988,15 +1894,16 @@ int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::Pa
 				yylval->str=new std::wstring(identifier);
 				return IDENTIFIER;
 			}
-			if (c=='#'){
+			if (NONS_isdigit(c)){
+				std::wstring value;
+				value.push_back(c);
 				second_queue.pop_front();
-				std::wstring keyword;
-				while (second_queue.size() && NONS_isidnchar(second_queue.front())){
-					keyword.push_back(second_queue.front());
+				while (second_queue.size() && NONS_isdigit(second_queue.front())){
+					value.push_back(second_queue.front());
 					second_queue.pop_front();
 				}
-				yylval->str=new std::wstring(keyword);
-				return identify_keyword(keyword);
+				yylval->integer=atoi(value);
+				return INTEGER;
 			}
 			if (c=='\"'){
 				wchar_t quote=c;
@@ -2052,56 +1959,16 @@ int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::Pa
 			second_queue.pop_front();
 			return c;
 		}
-		while (1){
-			std::wstring line;
-			if (stream.eof())
-				return 0;
-			line=stream.getline();
-			if (state==ParserState::TEXT){
-				switch (is_line_switch(line)){
-					case 0:
-						break;
-					case 1:
-						state=ParserState::MACRO;
-						continue;
-					case 2:
-						state=ParserState::MACRO;
-						yylval->str=new std::wstring;
-						return TEXT;
-				}
-				yylval->str=new std::wstring(line);
-				return TEXT;
-			}else if (state==ParserState::TEXT_BLOCK){
-				if (line==L"#comma")
-					return COMMA_KEY;
-				if (line==L"#end"){
-					state=ParserState::MACRO;
-					return END_KEY;
-				}
-				yylval->str=new std::wstring(line);
-				return TEXT;
-			}else if (state==ParserState::MACRO){
-				switch (is_line_switch(line)){
-					case 0:
-						break;
-					case 1:
-						state=ParserState::TEXT;
-						continue;
-					case 2:
-						state=ParserState::TEXT;
-						yylval->str=new std::wstring;
-						return TEXT;
-				}
-				if (!line.size())
-					continue;
-				std::wstring trimmed=line;
-				trim_string(trimmed);
-				if (trimmed==L"#push")
-					return PUSH_LINE;
-				append(second_queue,line);
-				break;
-			}
+		std::wstring line;
+		if (stream.eof())
+			return 0;
+		line=stream.getline();
+		if (!firstchars(line,0,L";#")){
+			yylval->str=new std::wstring(line);
+			yylval->str->push_back('\n');
+			return TEXT;
 		}
+		append(second_queue,line,1);
 	}
 }
 

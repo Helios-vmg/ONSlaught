@@ -28,15 +28,14 @@
 */
 
 %parse-param {cheap_input_stream &stream}
-%parse-param {ParserState::ParserState &state}
 %parse-param {std::deque<wchar_t> &token_queue}
 %parse-param {NONS_Macro::file *&file}
 %lex-param {cheap_input_stream &stream}
-%lex-param {ParserState::ParserState &state}
 %lex-param {std::deque<wchar_t> &token_queue}
 %pure-parser
 %defines
 %debug
+%expect 1
 %file-prefix="MacroParser"
 %name-prefix="macroParser_yy"
 %code requires {
@@ -49,19 +48,16 @@
 %code provides {
 	int macroParser_yyparse(
 		cheap_input_stream &stream,
-		ParserState::ParserState &state,
 		std::deque<wchar_t> &token_queue,
 		NONS_Macro::file *&file
 	);
 	int macroParser_yylex(
 		YYSTYPE *yylval,
 		cheap_input_stream &stream,
-		ParserState::ParserState &state,
 		std::deque<wchar_t> &token_queue
 	);
 	inline void macroParser_yyerror(
 		cheap_input_stream &,
-		ParserState::ParserState &,
 		std::deque<wchar_t> &,
 		NONS_Macro::file *file,
 		char const *
@@ -70,27 +66,25 @@
 }
 %union {
 	std::wstring *str;
+	ulong integer;
 	NONS_Macro::file *file;
-	std::vector<NONS_Macro::file_element *> *fe_list;
 	NONS_Macro::file_element *file_element;
 	NONS_Macro::text *text;
-	NONS_Macro::push *push;
 	NONS_Macro::call *call;
 	std::vector<std::wstring> *params;
 }
-%token PUSH PUSH_LINE CALL PARAMS END_KEY COMMA_KEY POP ERROR
+%token CALL DCALL PARAMS END_KEY COMMA_KEY ERROR
+%token <integer> INTEGER
 %token <str> TEXT IDENTIFIER STRING
-%type <str> parameter
 %type <file> file;
 %type <file_element> file_element
 %type <text> text
-%type <push> push push_header
-%type <call> call long_call long_call_header
+%type <call> common_call_header call long_call
 %type <params> parameter_list long_parameter_list non_empty_parameter_list
 %start begin
 %destructor {
 	delete $$;
-} TEXT IDENTIFIER STRING file file_element text push push_header call long_call long_call_header parameter parameter_list long_parameter_list non_empty_parameter_list
+} TEXT IDENTIFIER STRING file file_element text common_call_header call long_call parameter_list long_parameter_list non_empty_parameter_list
 
 %%
 
@@ -119,9 +113,6 @@ file_element:
 	call {
 		$$=$1;
 	}|
-	push {
-		$$=$1;
-	}|
 	long_call {
 		$$=$1;
 	};
@@ -133,58 +124,31 @@ text:
 	}|
 	text TEXT {
 		$$=$1;
-		$$->str.push_back('\n');
 		$$->str.append(*$2);
 		delete $2;
 	};
 
-push_header:
-	PUSH_LINE {
-		$$=new NONS_Macro::push;
-		state=ParserState::TEXT_BLOCK;
+common_call_header:
+	CALL IDENTIFIER {
+		$$=new NONS_Macro::call(*$2);
+		delete $2;
 	}|
-	PUSH STRING {
-		$$=new NONS_Macro::push;
-		$$->indentation=*$2;
-		delete $2;
-		state=ParserState::TEXT_BLOCK;
-	};
-
-push:
-	push_header text END_KEY {
-		$$=$1;
-		$$->str=$2->to_string();
-		delete $2;
+	CALL INTEGER IDENTIFIER {
+		$$=new NONS_Macro::call(*$3,$2);
+		delete $3;
 	};
 
 call:
-	CALL IDENTIFIER '(' parameter_list ')' {
-		$$=new NONS_Macro::call(*$2,*$4);
-		delete $2;
-		delete $4;
-	};
-
-long_call_header:
-	CALL IDENTIFIER '(' PARAMS ')' {
-		$$=new NONS_Macro::call(*$2);
-		state=ParserState::TEXT_BLOCK;
-		delete $2;
+	common_call_header '(' parameter_list ')' {
+		$$=$1;
+		$$->parameters=*$3;
+		delete $3;
 	};
 
 long_call:
-	long_call_header long_parameter_list END_KEY {
-		append(($$=$1)->parameters,*$2);
-		delete $2;
-	};
-
-parameter:
-	STRING {
-		$$=new std::wstring(*$1);
-		delete $1;
-	}|
-	POP {
-		$$=new std::wstring;
-		$$->push_back(0);
+	common_call_header '(' PARAMS ')' long_parameter_list END_KEY {
+		append(($$=$1)->parameters,*$5);
+		delete $5;
 	};
 
 parameter_list:
@@ -196,12 +160,12 @@ parameter_list:
 	};
 
 non_empty_parameter_list:
-	parameter {
+	STRING {
 		$$=new std::vector<std::wstring>;
 		$$->push_back(*$1);
 		delete $1;
 	}|
-	non_empty_parameter_list ',' parameter {
+	non_empty_parameter_list ',' STRING {
 		$$=$1;
 		$$->push_back(*$3);
 		delete $3;
@@ -224,40 +188,32 @@ long_parameter_list:
 int identify_keyword(const std::wstring &s){
 	if (s==L"call")
 		return CALL;
-	if (s==L"push")
-		return PUSH;
-	if (s==L"end")
-		return END_KEY;
 	if (s==L"comma")
 		return COMMA_KEY;
-	if (s==L"pop")
-		return POP;
 	if (s==L"params")
 		return PARAMS;
+	if (s==L"end")
+		return END_KEY;
 	return ERROR;
 }
 
-int is_line_switch(const std::wstring &line){
-	if (line.size()<2)
-		return 0;
-	if (line[0]!=';')
-		return 0;
-	if (line[1]!='#')
-		return 0;
-	if (line.size()<3)
-		return 2;
-	if (line[2]=='-')
-		return 1;
-	return 0;
-}
-
-int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::ParserState &state,std::deque<wchar_t> &second_queue){
+int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,std::deque<wchar_t> &second_queue){
 	while (1){
 		while (second_queue.size()){
 			wchar_t c=second_queue.front();
 			if (iswhitespace(c)){
 				second_queue.pop_front();
 				continue;
+			}
+			if (c=='#'){
+				second_queue.pop_front();
+				std::wstring keyword;
+				while (second_queue.size() && NONS_isidnchar(second_queue.front())){
+					keyword.push_back(second_queue.front());
+					second_queue.pop_front();
+				}
+				yylval->str=new std::wstring(keyword);
+				return identify_keyword(keyword);
 			}
 			if (NONS_isid1char(c)){
 				std::wstring identifier;
@@ -270,15 +226,16 @@ int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::Pa
 				yylval->str=new std::wstring(identifier);
 				return IDENTIFIER;
 			}
-			if (c=='#'){
+			if (NONS_isdigit(c)){
+				std::wstring value;
+				value.push_back(c);
 				second_queue.pop_front();
-				std::wstring keyword;
-				while (second_queue.size() && NONS_isidnchar(second_queue.front())){
-					keyword.push_back(second_queue.front());
+				while (second_queue.size() && NONS_isdigit(second_queue.front())){
+					value.push_back(second_queue.front());
 					second_queue.pop_front();
 				}
-				yylval->str=new std::wstring(keyword);
-				return identify_keyword(keyword);
+				yylval->integer=atoi(value);
+				return INTEGER;
 			}
 			if (c=='\"'){
 				wchar_t quote=c;
@@ -334,55 +291,15 @@ int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,ParserState::Pa
 			second_queue.pop_front();
 			return c;
 		}
-		while (1){
-			std::wstring line;
-			if (stream.eof())
-				return 0;
-			line=stream.getline();
-			if (state==ParserState::TEXT){
-				switch (is_line_switch(line)){
-					case 0:
-						break;
-					case 1:
-						state=ParserState::MACRO;
-						continue;
-					case 2:
-						state=ParserState::MACRO;
-						yylval->str=new std::wstring;
-						return TEXT;
-				}
-				yylval->str=new std::wstring(line);
-				return TEXT;
-			}else if (state==ParserState::TEXT_BLOCK){
-				if (line==L"#comma")
-					return COMMA_KEY;
-				if (line==L"#end"){
-					state=ParserState::MACRO;
-					return END_KEY;
-				}
-				yylval->str=new std::wstring(line);
-				return TEXT;
-			}else if (state==ParserState::MACRO){
-				switch (is_line_switch(line)){
-					case 0:
-						break;
-					case 1:
-						state=ParserState::TEXT;
-						continue;
-					case 2:
-						state=ParserState::TEXT;
-						yylval->str=new std::wstring;
-						return TEXT;
-				}
-				if (!line.size())
-					continue;
-				std::wstring trimmed=line;
-				trim_string(trimmed);
-				if (trimmed==L"#push")
-					return PUSH_LINE;
-				append(second_queue,line);
-				break;
-			}
+		std::wstring line;
+		if (stream.eof())
+			return 0;
+		line=stream.getline();
+		if (!firstchars(line,0,L";#")){
+			yylval->str=new std::wstring(line);
+			yylval->str->push_back('\n');
+			return TEXT;
 		}
+		append(second_queue,line,1);
 	}
 }

@@ -48,6 +48,7 @@ public:
 	bool eof() const{ return !this->characters_put_back.size() && this->offset>=this->source->size(); }
 	void putback(wchar_t c){ this->characters_put_back.push_back(c); }
 	std::wstring getline();
+	std::wstring get_all_remaining();
 };
 
 namespace NONS_Macro{
@@ -59,24 +60,18 @@ struct file_element{
 
 struct text:public file_element{
 	std::wstring str;
-	std::wstring to_string(interpreter_state * =0){ return this->str; }
+	std::wstring to_string(interpreter_state * =0);
 	text(const std::wstring &s):str(s){}
 };
 
 struct file;
 
-struct push:public file_element{
-	std::wstring str,
-		indentation;
-	std::wstring to_string(interpreter_state * =0);
-};
-
 struct call:public file_element{
 	std::wstring identifier;
 	std::vector<std::wstring> parameters;
+	ulong times_delayed;
+	call(const std::wstring &s,ulong d=0):identifier(s),times_delayed(d){}
 	std::wstring to_string(interpreter_state * =0);
-	call(const std::wstring &s):identifier(s){}
-	call(const std::wstring &s,const std::vector<std::wstring> &v):identifier(s),parameters(v){}
 };
 
 struct file{
@@ -84,9 +79,4 @@ struct file{
 	std::wstring to_string(interpreter_state * =0);
 };
 };
-DECLARE_ENUM(ParserState)
-	TEXT,
-	MACRO,
-	TEXT_BLOCK
-DECLARE_ENUM_CLOSE;
 #endif

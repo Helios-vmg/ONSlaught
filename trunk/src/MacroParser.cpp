@@ -55,6 +55,7 @@ public:
 	PP_done_f PP_done;
 	PP_instance *instance;
 	ulong calls;
+	std::queue<call *> delayed_calls;
 	interpreter_state(const char *script);
 	~interpreter_state();
 	void push(const std::wstring &s){
@@ -70,16 +71,16 @@ public:
 };
 
 interpreter_state::interpreter_state(const char *script):lib("preprocessor",0){
-	if (this->lib.error==NONS_LibraryLoader::LIBRARY_NOT_FOUND){
-		this->e=LIBRARY_NOT_FOUND;
-		return;
-	}
 	this->PP_init=0;
 	this->PP_destroy=0;
 	this->PP_get_error_string=0;
 	this->PP_free_error_string=0;
 	this->PP_preprocess=0;
 	this->PP_done=0;
+	if (this->lib.error==NONS_LibraryLoader::LIBRARY_NOT_FOUND){
+		this->e=LIBRARY_NOT_FOUND;
+		return;
+	}
 #define IS_GET_FUNCTION(x)                                        \
 	this->x=(x##_f)this->lib.getFunction(#x);                     \
 	if (this->lib.error==NONS_LibraryLoader::FUNCTION_NOT_FOUND){ \
@@ -108,7 +109,7 @@ interpreter_state::~interpreter_state(){
 		this->PP_destroy(this->instance);
 }
 
-std::wstring unindent(const std::wstring &str,const std::wstring &indentation=L""){
+std::wstring unindent(const std::wstring &str){
 	std::vector<std::wstring> lines;
 	{
 		cheap_input_stream stream(str);
@@ -116,11 +117,7 @@ std::wstring unindent(const std::wstring &str,const std::wstring &indentation=L"
 			lines.push_back(stream.getline());
 	}
 	size_t max=0;
-	if (indentation.size()){
-		for (size_t a=0;a<lines.size();a++)
-			if (firstchars(lines[a],0,indentation))
-				lines[a]=lines[a].substr(indentation.size());
-	}else if (lines.size()){
+	if (lines.size()){
 		max=lines.front().find_first_not_of(L" \t");
 		std::wstring lowest_common=lines.front().substr(0,max);
 		for (size_t a=1;a<lines.size();a++){
@@ -143,15 +140,13 @@ std::wstring unindent(const std::wstring &str,const std::wstring &indentation=L"
 	return res;
 }
 
-std::wstring push::to_string(interpreter_state *is){
-	assert(is);
-	is->push(unindent(this->str,this->indentation));
-	is->calls++;
-	return L"";
-}
-
 std::wstring call::to_string(interpreter_state *is){
 	assert(is);
+	if (this->times_delayed){
+		for (;this->times_delayed;this->times_delayed--)
+			is->delayed_calls.push(this);
+		return L"";
+	}
 	is->calls++;
 	PP_parameters p;
 	std::wstring pop_signal;
@@ -178,6 +173,37 @@ std::wstring call::to_string(interpreter_state *is){
 		return L"";
 	}
 	return string_res;
+}
+
+std::wstring text::to_string(interpreter_state *is){
+	if (is->delayed_calls.empty())
+		return this->str;
+	std::wstring r;
+	cheap_input_stream stream(this->str);
+	const std::wstring mark_s=L"###";
+	while (!stream.eof()){
+		if (is->delayed_calls.empty())
+			r.append(stream.get_all_remaining());
+		else{
+			std::wstring line=stream.getline();
+			size_t old_mark=0,
+				mark;
+			while (is->delayed_calls.size()){
+				mark=line.find(mark_s,old_mark);
+				if (mark==line.npos)
+					break;
+				r.append(line.begin()+old_mark,line.begin()+mark);
+				r.append(is->delayed_calls.front()->to_string(is));
+				is->delayed_calls.pop();
+				old_mark=mark+3;
+			}
+			r.append(line.begin()+old_mark,line.end());
+		}
+		r.push_back('\n');
+	}
+	//remove trailing newline
+	r.resize(r.size()-1);
+	return r;
 }
 }
 
@@ -227,14 +253,19 @@ std::wstring cheap_input_stream::getline(){
 	return r;
 }
 
+std::wstring cheap_input_stream::get_all_remaining(){
+	std::wstring r=this->eof()?L"":this->source->substr(this->offset);
+	this->offset=this->source->size();
+	return r;
+}
+
 bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpreter_state *state){
 	NONS_Macro::file *f=0;
 	{
 		cheap_input_stream stream=script;
 		macroParser_yydebug=1;
-		ParserState::ParserState state=ParserState::TEXT;
 		std::deque<wchar_t> secondary_queue;
-		if (!!macroParser_yyparse(stream,state,secondary_queue,f))
+		if (!!macroParser_yyparse(stream,secondary_queue,f))
 			return 0;
 	}
 	for (size_t a=0;a<f->list.size();a++)
@@ -261,6 +292,7 @@ bool preprocess(std::wstring &dst,const std::wstring &script){
 		case NONS_Macro::interpreter_state::INVALID_LIBRARY:
 			o_stderr <<"Invalid library.\n";
 		case NONS_Macro::interpreter_state::LIBRARY_NOT_FOUND:
+			o_stderr <<"Library not found.\n";
 		case NONS_Macro::interpreter_state::UNDEFINED_ERROR:
 			return 0;
 	}

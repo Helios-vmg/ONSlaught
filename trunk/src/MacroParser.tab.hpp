@@ -49,17 +49,16 @@
    /* Put the tokens into the symbol table, so that GDB and other debuggers
       know about them.  */
    enum yytokentype {
-     PUSH = 258,
-     PUSH_LINE = 259,
-     CALL = 260,
-     PARAMS = 261,
-     END_KEY = 262,
-     COMMA_KEY = 263,
-     POP = 264,
-     ERROR = 265,
-     TEXT = 266,
-     IDENTIFIER = 267,
-     STRING = 268
+     CALL = 258,
+     DCALL = 259,
+     PARAMS = 260,
+     END_KEY = 261,
+     COMMA_KEY = 262,
+     ERROR = 263,
+     INTEGER = 264,
+     TEXT = 265,
+     IDENTIFIER = 266,
+     STRING = 267
    };
 #endif
 
@@ -71,11 +70,10 @@ typedef union YYSTYPE
 
 
 	std::wstring *str;
+	ulong integer;
 	NONS_Macro::file *file;
-	std::vector<NONS_Macro::file_element *> *fe_list;
 	NONS_Macro::file_element *file_element;
 	NONS_Macro::text *text;
-	NONS_Macro::push *push;
 	NONS_Macro::call *call;
 	std::vector<std::wstring> *params;
 
@@ -95,19 +93,16 @@ typedef union YYSTYPE
 
 	int macroParser_yyparse(
 		cheap_input_stream &stream,
-		ParserState::ParserState &state,
 		std::deque<wchar_t> &token_queue,
 		NONS_Macro::file *&file
 	);
 	int macroParser_yylex(
 		YYSTYPE *yylval,
 		cheap_input_stream &stream,
-		ParserState::ParserState &state,
 		std::deque<wchar_t> &token_queue
 	);
 	inline void macroParser_yyerror(
 		cheap_input_stream &,
-		ParserState::ParserState &,
 		std::deque<wchar_t> &,
 		NONS_Macro::file *file,
 		char const *

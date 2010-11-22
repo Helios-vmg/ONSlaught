@@ -816,9 +816,11 @@ Parameters:
 void do_alpha_blend(uchar *r1,uchar *g1,uchar *b1,uchar *a1,long r0,long g0,long b0,long a0,bool alpha1,bool alpha0,uchar alpha);
 
 template <typename dst_t,typename src_t>
-void append(dst_t &dst,const src_t &src){
+void append(dst_t &dst,const src_t &src,size_t start_from=0){
+	if (start_from>=src.size())
+		return;
 	size_t n=dst.size();
-	dst.resize(n+src.size());
-	std::copy(src.begin(),src.end(),dst.begin()+n);
+	dst.resize(n+src.size()-start_from);
+	std::copy(src.begin()+start_from,src.end(),dst.begin()+n);
 }
 #endif
