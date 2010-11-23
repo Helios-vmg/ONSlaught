@@ -1787,16 +1787,6 @@ void NONS_Surface::multiply(
 // BILINEAR INTERPOLATION
 //------------------------------------------------------------------------------
 
-#if 0
-struct interpolation_parameters{
-	const NONS_SurfaceProperties *dst,
-		*src;
-	NONS_Rect dst_rect,
-		src_rect;
-	double x,y;
-};
-#endif
-
 #define INTERPOLATION_SIGNATURE(x)  \
 	void x(                         \
 		NONS_SurfaceProperties dst, \
@@ -1808,9 +1798,9 @@ struct interpolation_parameters{
 	)
 #define NONS_Surface_DEFINE_INTERPOLATION_F(a,b)          \
 	void NONS_Surface::a(                                 \
-		NONS_Surface src,                           \
-		NONS_Rect dst_rect,                         \
-		NONS_Rect src_rect,                         \
+		NONS_Surface src,                                 \
+		NONS_Rect dst_rect,                               \
+		NONS_Rect src_rect,                               \
 		double x,                                         \
 		double y                                          \
 	){                                                    \

@@ -2333,15 +2333,15 @@ ErrorCode NONS_ScriptInterpreter::command_add(NONS_Statement &stmt){
 			break;
 		}
 		if (!stdStrCmpCI(stmt.commandName,L"sin")){
-			var->set(long(sin(M_PI*double(val)/180.0)*1000.0));
+			var->set(long(sin(pi*double(val)/180.0)*1000.0));
 			break;
 		}
 		if (!stdStrCmpCI(stmt.commandName,L"cos")){
-			var->set(long(cos(M_PI*double(val)/180.0)*1000.0));
+			var->set(long(cos(pi*double(val)/180.0)*1000.0));
 			break;
 		}
 		if (!stdStrCmpCI(stmt.commandName,L"tan")){
-			var->set(long(tan(M_PI*double(val)/180.0)*1000.0));
+			var->set(long(tan(pi*double(val)/180.0)*1000.0));
 			break;
 		}
 	}
@@ -2971,7 +2971,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawbg(NONS_Statement &stmt){
 		else{
 			NONS_Surface src=this->screen->Background->data;
 			src=src.scale(double(xscale)/100.0,double(yscale)/100.0);
-			src=src.rotate(double(angle)/180.0*M_PI);
+			src=src.rotate(double(angle)/180.0*pi);
 			NONS_LongRect dstR=src.clip_rect();
 			dstR.x=(long)x-dstR.w/2;
 			dstR.y=(long)y-dstR.h/2;
@@ -3062,12 +3062,10 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 	}
 	switch (functionVersion){
 		case 2:
-			//src=src.scale(xscale,yscale);
-			//src=src.rotate(double(rotation)/180.0*M_PI);
 			src=src.transform(
-				NONS_Matrix::rotation(double(rotation)/180.0*M_PI)
+				NONS_Matrix::rotation(double(rotation)/180.0*pi)
 				*
-				NONS_Matrix::scale(xscale,yscale)
+				NONS_Matrix::scale(double(xscale)/100.0,double(yscale)/100.0)
 				,1
 			);
 			break;
@@ -4852,7 +4850,7 @@ void quake(NONS_VirtualScreen *dst,char axis,ulong amplitude,ulong duration){
 			NONS_Clock::t x=clock.get()-start;
 			if (x>duration)
 				break;
-			double y=sin(x*(20/length)*M_PI)*((amp/-length)*x+amplitude);
+			double y=sin(x*(20/length)*pi)*((amp/-length)*x+amplitude);
 			screen.fill(srcrect,NONS_Color::black);
 			if (axis=='x')
 				dstrect.x=(long)y;

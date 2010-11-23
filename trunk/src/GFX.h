@@ -99,6 +99,7 @@ struct NONS_GFX{
 	void effectDscroll(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
 	void effectUscroll(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
 	void effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
+	void effectMosaic(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst,long start,long end,long step);
 	void effectMosaicIn(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
 	void effectMosaicOut(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);
 	void effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurface &src1,NONS_VirtualScreen &dst);

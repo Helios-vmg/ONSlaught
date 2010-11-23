@@ -412,13 +412,18 @@ bool fix_rects(
 	src1=src1.intersect(src_rect);
 	if (src1.w<=0 || src1.h<=0)
 		return 0;
+	src1.x+=dst1.x;
+	src1.y+=dst1.y;
+	src1=src1.intersect(dst_rect);
+	if (src1.w<=0 || src1.h<=0)
+		return 0;
+	src1.x-=dst1.x;
+	src1.y-=dst1.y;
 	dst1.w=src1.w;
 	dst1.h=src1.h;
 	dst1=dst1.intersect(dst_rect);
 	if (dst1.w<=0 || dst1.h<=0)
 		return 0;
-	src1.w=dst1.w;
-	src1.h=dst1.h;
 	return 1;
 }
 

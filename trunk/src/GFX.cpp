@@ -704,13 +704,13 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 	effect_epilogue();
 }
 
-void NONS_GFX::effectMosaicIn(const NONS_ConstSurface &src,const NONS_ConstSurface &,NONS_VirtualScreen &dst){
+void NONS_GFX::effectMosaic(const NONS_ConstSurface &src,const NONS_ConstSurface &,NONS_VirtualScreen &dst,long start_at,long end_at,long step){
 	NONS_LongRect src_rect;
 	if (!effect_standard_check(src_rect,src,dst))
 		return;
 	EFFECT_INITIALIZE_DELAYS(10);
-	for (long a=9;a>=0;a--){
-		EFFECT_ITERATION_PROLOGUE(lastT>5 && a>0,);
+	for (long a=start_at;a!=end_at;a+=step){
+		EFFECT_ITERATION_PROLOGUE(lastT>5 && a!=end_at-step,);
 		{
 			NONS_Surface screen=dst.get_screen();
 			if (a==0)
@@ -738,43 +738,15 @@ void NONS_GFX::effectMosaicIn(const NONS_ConstSurface &src,const NONS_ConstSurfa
 		dst.updateWholeScreen();
 		EFFECT_ITERATION_EPILOGUE;
 	}
+}
+
+void NONS_GFX::effectMosaicIn(const NONS_ConstSurface &src,const NONS_ConstSurface &nothing,NONS_VirtualScreen &dst){
+	this->effectMosaic(src,nothing,dst,9,-1,-1);
 	effect_epilogue();
 }
 
-void NONS_GFX::effectMosaicOut(const NONS_ConstSurface &src,const NONS_ConstSurface &,NONS_VirtualScreen &dst){
-	NONS_LongRect src_rect;
-	if (!effect_standard_check(src_rect,src,dst))
-		return;
-	EFFECT_INITIALIZE_DELAYS(10);
-	for (long a=0;a<10;a++){
-		EFFECT_ITERATION_PROLOGUE(lastT>5 && a>0,);
-		{
-			NONS_Surface screen=dst.get_screen();
-			if (a==0)
-				screen.copy_pixels(src);
-			else{
-				NONS_ConstSurfaceProperties src_sp;
-				NONS_SurfaceProperties dst_sp;
-				screen.get_properties(dst_sp);
-				src.get_properties(src_sp);
-				ulong pixelSize=1<<a;
-				for (ulong y=0;y<dst_sp.h;y+=pixelSize){
-					for (ulong x=0;x<dst_sp.w;x+=pixelSize){
-						NONS_LongRect rect(x,y,pixelSize,pixelSize);
-						const uchar *src_pixel=src_sp.pixels;
-						src_pixel+=src_sp.pitch*y+4*x;
-						screen.fill(rect,NONS_Color(
-							src_pixel[src_sp.offsets[0]],
-							src_pixel[src_sp.offsets[1]],
-							src_pixel[src_sp.offsets[2]],
-							src_pixel[src_sp.offsets[3]]));
-					}
-				}
-			}
-		}
-		dst.updateWholeScreen();
-		EFFECT_ITERATION_EPILOGUE;
-	}
+void NONS_GFX::effectMosaicOut(const NONS_ConstSurface &src,const NONS_ConstSurface &nothing,NONS_VirtualScreen &dst){
+	this->effectMosaic(src,nothing,dst,0,10,1);
 	dst.get_screen().copy_pixels(src);
 	effect_epilogue();
 }

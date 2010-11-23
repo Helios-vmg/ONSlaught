@@ -43,9 +43,7 @@
 #include <ctime>
 #include <cassert>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+const double pi=3.1415926535897932384626433832795;
 
 #define UNICODE_TOUPPER(x) ((x)&0xDF)
 #define UNICODE_TOLOWER(x) ((x)|0x20)
@@ -822,5 +820,11 @@ void append(dst_t &dst,const src_t &src,size_t start_from=0){
 	size_t n=dst.size();
 	dst.resize(n+src.size()-start_from);
 	std::copy(src.begin()+start_from,src.end(),dst.begin()+n);
+}
+
+template <typename dst_t,typename src_t>
+void copy_container(dst_t &dst,const src_t &src){
+	dst.resize(src.size());
+	std::copy(src.begin(),src.end(),dst.begin());
 }
 #endif
