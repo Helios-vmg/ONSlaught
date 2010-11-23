@@ -40,14 +40,15 @@ src/Functions.cpp
 src/CommandLineOptions.cpp
 src/Audio.cpp
 src/sha1.cpp
-src/ONSlaught.cpp
 src/MacroParser.cpp
+src/ONSlaught.cpp
 src/ErrorCodes.cpp
 src/Thread.cpp
 src/ConfigFile.cpp
 src/FileLog.cpp
 src/INIfile.cpp
 src/ThreadManager.cpp
+src/OpenGL.cpp
 src/Plugin/LibraryLoader.cpp 
 )
 
