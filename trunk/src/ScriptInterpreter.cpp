@@ -302,7 +302,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"game"]=                    &NONS_ScriptInterpreter::command_game                 |ALLOW_IN_DEFINE             ;
 	this->commandList[L"getbgmvol"]=               &NONS_ScriptInterpreter::command_getmp3vol                            |ALLOW_IN_RUN;
 	this->commandList[L"getbtntimer"]=             &NONS_ScriptInterpreter::command_getbtntimer                          |ALLOW_IN_RUN;
-	this->commandList[L"getcselnum"]=              0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"getcselnum"]=              &NONS_ScriptInterpreter::command_getcselnum                           |ALLOW_IN_RUN;
 	this->commandList[L"getcselstr"]=              &NONS_ScriptInterpreter::command_getcselstr                           |ALLOW_IN_RUN;
 	this->commandList[L"getcursor"]=               &NONS_ScriptInterpreter::command_getcursor                            |ALLOW_IN_RUN;
 	this->commandList[L"getcursorpos"]=            &NONS_ScriptInterpreter::command_getcursorpos                         |ALLOW_IN_RUN;
@@ -3309,6 +3309,17 @@ ErrorCode NONS_ScriptInterpreter::command_getbtntimer(NONS_Statement &stmt){
 	NONS_VariableMember *var;
 	GET_INT_VARIABLE(var,0);
 	var->set(long(NONS_Clock().get()-this->btnTimer));
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_getcselnum(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	NONS_VariableMember *dst;
+	GET_STR_VARIABLE(dst,0);
+	NONS_StackElement *frame=this->get_last_csel_frame();
+	if (!frame)
+		return NONS_NOT_IN_CSEL_CALL;
+	dst->set(frame->jumps.size());
 	return NONS_NO_ERROR;
 }
 
