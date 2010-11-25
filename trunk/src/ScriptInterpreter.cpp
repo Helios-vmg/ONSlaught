@@ -135,8 +135,11 @@ NONS_StackElement::NONS_StackElement(NONS_StackElement *copy,const std::vector<s
 	this->parameters=vector;
 }
 
-NONS_StackElement::NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps)
-		:strings(strings),jumps(jumps),type(StackFrameType::CSEL_CALL),buttons(0){}
+NONS_StackElement::NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps,ulong level)
+		:strings(strings),jumps(jumps),type(StackFrameType::CSEL_CALL),buttons(0){
+	this->textgosubLevel=level;
+	this->textgosubTriggeredBy=0;
+}
 
 NONS_StackElement::~NONS_StackElement(){
 	if (this->type==StackFrameType::CSEL_CALL)
@@ -2890,7 +2893,7 @@ ErrorCode NONS_ScriptInterpreter::command_csel(NONS_Statement &stmt){
 		GET_LABEL(temp,a);
 		jumps.push_back(temp);
 	}
-	this->callStack.push_back(new NONS_StackElement(strings,jumps));
+	this->callStack.push_back(new NONS_StackElement(strings,jumps,this->insideTextgosub()));
 	this->goto_label(L"*customsel");
 	return NONS_NO_ERROR;
 }

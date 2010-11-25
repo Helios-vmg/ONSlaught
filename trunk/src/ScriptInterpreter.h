@@ -136,7 +136,7 @@ struct NONS_StackElement{
 	NONS_StackElement(NONS_VariableMember *variable,const std::pair<ulong,ulong> &startStatement,long from,long to,long step,ulong level);
 	NONS_StackElement(const std::vector<printingPage> &pages,wchar_t trigger,ulong level);
 	NONS_StackElement(NONS_StackElement *copy,const std::vector<std::wstring> &vector);
-	NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps);
+	NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps,ulong level);
 	~NONS_StackElement();
 };
 
