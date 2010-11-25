@@ -137,6 +137,13 @@ struct NONS_Color{
 	bool operator!=(const NONS_Color &b) const{
 		return !(*this==b);
 	}
+	NONS_Color operator*(double factor) const{
+		NONS_Color r=*this;
+		r.rgba[0]=Uint8(double(r.rgba[0])*factor);
+		r.rgba[1]=Uint8(double(r.rgba[1])*factor);
+		r.rgba[2]=Uint8(double(r.rgba[2])*factor);
+		return r;
+	}
 	static NONS_Color white,
 		black,
 		black_transparent,

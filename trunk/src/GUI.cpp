@@ -657,10 +657,6 @@ NONS_LongRect NONS_TextButton::GetBoundingBox(const std::wstring &str,NONS_FontC
 }
 
 void NONS_TextButton::write(const std::wstring &str,int offsetX,int offsetY,float center){
-	/*SDL_FillRect(this->getOnLayer()->data,0,gmask|amask);
-	SDL_FillRect(this->getOffLayer()->data,0,gmask|amask);
-	if (this->getShadowLayer())
-		SDL_FillRect(this->getShadowLayer()->data,0,gmask|amask);*/
 	std::vector<NONS_Glyph *> outputBuffer;
 	std::vector<NONS_Glyph *> outputBuffer2;
 	std::vector<NONS_Glyph *> outputBuffer3;

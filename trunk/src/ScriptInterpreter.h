@@ -129,6 +129,7 @@ struct NONS_StackElement{
 	std::vector<std::wstring> parameters;
 	//Custom select data
 	std::vector<std::wstring> strings,jumps;
+	NONS_ButtonLayer *buttons;
 
 	NONS_StackElement(ulong level);
 	NONS_StackElement(const std::pair<ulong,ulong> &returnTo,const NONS_ScriptLine &interpretAtReturn,ulong beginAtStatement,ulong level);
@@ -136,6 +137,7 @@ struct NONS_StackElement{
 	NONS_StackElement(const std::vector<printingPage> &pages,wchar_t trigger,ulong level);
 	NONS_StackElement(NONS_StackElement *copy,const std::vector<std::wstring> &vector);
 	NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps);
+	~NONS_StackElement();
 };
 
 class NONS_ScriptInterpreter;
@@ -422,6 +424,7 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_cselgoto(NONS_Statement &stmt);
 	ErrorCode command_getcselstr(NONS_Statement &stmt);
 	ErrorCode command_getcselnum(NONS_Statement &stmt);
+	ErrorCode command_cselbtn(NONS_Statement &stmt);
 	/*
 	ErrorCode command_(NONS_Statement &stmt);
 	*/

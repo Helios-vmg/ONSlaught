@@ -136,7 +136,12 @@ NONS_StackElement::NONS_StackElement(NONS_StackElement *copy,const std::vector<s
 }
 
 NONS_StackElement::NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps)
-	:strings(strings),jumps(jumps),type(StackFrameType::CSEL_CALL){}
+		:strings(strings),jumps(jumps),type(StackFrameType::CSEL_CALL),buttons(0){}
+
+NONS_StackElement::~NONS_StackElement(){
+	if (this->type==StackFrameType::CSEL_CALL)
+		delete buttons;
+}
 
 ConfigFile settings;
 
@@ -256,7 +261,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"cmp"]=                     &NONS_ScriptInterpreter::command_cmp                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"cos"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"csel"]=                    &NONS_ScriptInterpreter::command_csel                                 |ALLOW_IN_RUN;
-	this->commandList[L"cselbtn"]=                 0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"cselbtn"]=                 &NONS_ScriptInterpreter::command_cselbtn                              |ALLOW_IN_RUN;
 	this->commandList[L"cselgoto"]=                &NONS_ScriptInterpreter::command_cselgoto             |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"csp"]=                     &NONS_ScriptInterpreter::command_csp                                  |ALLOW_IN_RUN;
 	this->commandList[L"date"]=                    &NONS_ScriptInterpreter::command_date                                 |ALLOW_IN_RUN;
@@ -2886,6 +2891,41 @@ ErrorCode NONS_ScriptInterpreter::command_csel(NONS_Statement &stmt){
 		jumps.push_back(temp);
 	}
 	this->callStack.push_back(new NONS_StackElement(strings,jumps));
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_cselbtn(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(4);
+	long string_index,
+		button_index,
+		x,y;
+	GET_INT_VALUE(string_index,0);
+	GET_INT_VALUE(button_index,1);
+	GET_INT_COORDINATE(x,0,2);
+	GET_INT_COORDINATE(y,1,3);
+	NONS_StackElement *frame=this->get_last_csel_frame();
+	if (!frame)
+		return NONS_NOT_IN_CSEL_CALL;
+	if (string_index<0 || (size_t)string_index>=frame->strings.size())
+		return NONS_NOT_ENOUGH_PARAMETERS_TO_CSEL;
+	NONS_TextButton *button=new NONS_TextButton(
+		frame->strings[string_index],
+		*this->font_cache,
+		0,
+		this->selectOn,
+		this->selectOff,
+		!!this->screen->output->shadowLayer
+	);
+	if (!frame->buttons){
+		frame->buttons=new NONS_ButtonLayer(*this->font_cache,this->screen,0,this->menu);
+		frame->buttons->voiceEntry=this->selectVoiceEntry;
+		frame->buttons->voiceMouseOver=this->selectVoiceMouseOver;
+		frame->buttons->voiceClick=this->selectVoiceClick;
+		frame->buttons->audio=this->audio;
+	}
+	if (frame->buttons->buttons.size()<(size_t)button_index)
+		frame->buttons->buttons.resize(button_index+1,0);
+	frame->buttons->buttons[button_index]=button;
 	return NONS_NO_ERROR;
 }
 

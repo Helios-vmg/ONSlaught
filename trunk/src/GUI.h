@@ -288,8 +288,8 @@ public:
 		const NONS_Color &on,
 		const NONS_Color &off,
 		bool shadow,
-		int limitX,
-		int limitY
+		int limitX=INT_MAX,
+		int limitY=INT_MAX
 	);
 	~NONS_TextButton();
 	const NONS_Layer *getShadowLayer() const{ return this->shadowLayer; }
