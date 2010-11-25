@@ -195,8 +195,8 @@ void NONS_SoundEffect::unload(){
 }
 
 int NONS_SoundEffect::volume(int vol){
-	Mix_Volume(this->channel,vol);
-	return Mix_Volume(this->channel,-1);
+	NONS_Audio::set_channel_volume(this->channel,vol);
+	return NONS_Audio::set_channel_volume(this->channel,-1);
 }
 
 NONS_Music::NONS_Music(const std::wstring &filename){
@@ -475,4 +475,10 @@ bool NONS_Audio::toggleMute(){
 	}
 	return this->notmute;
 
+}
+
+int NONS_Audio::set_channel_volume(int channel,int volume){
+	if (!CLOptions.no_sound)
+		return Mix_Volume(channel,volume*128/100);
+	return -1;
 }

@@ -245,7 +245,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"cellcheckexbtn"]=          0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"cellcheckspbtn"]=          0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"checkpage"]=               &NONS_ScriptInterpreter::command_checkpage                            |ALLOW_IN_RUN;
-	this->commandList[L"chvol"]=                   0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"chvol"]=                   &NONS_ScriptInterpreter::command_chvol                                |ALLOW_IN_RUN;
 	this->commandList[L"cl"]=                      &NONS_ScriptInterpreter::command_cl                                   |ALLOW_IN_RUN;
 	this->commandList[L"click"]=                   &NONS_ScriptInterpreter::command_click                                |ALLOW_IN_RUN;
 	this->commandList[L"clickstr"]=                &NONS_ScriptInterpreter::command_clickstr             |ALLOW_IN_DEFINE             ;
@@ -2772,6 +2772,17 @@ ErrorCode NONS_ScriptInterpreter::command_checkpage(NONS_Statement &stmt){
 	if (page<0)
 		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
 	dst->set(this->screen->output->log.size()>=(ulong)page);
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_chvol(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(2);
+	long channel,
+		volume;
+	GET_INT_VALUE(channel,0);
+	GET_INT_VALUE(volume,1);
+	NONS_Audio::set_channel_volume(channel,volume);
+	Mix_Volume(channel,volume);
 	return NONS_NO_ERROR;
 }
 

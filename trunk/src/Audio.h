@@ -127,6 +127,7 @@ struct NONS_Audio{
 	bool isInitialized(){
 		return !this->uninitialized;
 	}
+	static int set_channel_volume(int channel,int volume);
 private:
 	channels_map_t asynchronous_seffect;
 	NONS_Mutex mutex;
