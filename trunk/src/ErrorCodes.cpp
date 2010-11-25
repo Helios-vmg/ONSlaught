@@ -221,5 +221,9 @@ const char *errorMessages[]={
 	"The command is illegal in the *start block.",
 	//NONS_CUSTOMSEL_NOT_DEFINED
 	"*customsel block not defined.",
+	//NONS_NOT_IN_CSEL_CALL
+	"Not currently in *customcell call.",
+	//NONS_NOT_ENOUGH_PARAMETERS_TO_CSEL
+	"Not enough parameters were passed to csel.",
 	0
 };

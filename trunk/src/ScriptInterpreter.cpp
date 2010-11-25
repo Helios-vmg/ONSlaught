@@ -257,7 +257,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"cos"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"csel"]=                    &NONS_ScriptInterpreter::command_csel                                 |ALLOW_IN_RUN;
 	this->commandList[L"cselbtn"]=                 0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"cselgoto"]=                0                                                     |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"cselgoto"]=                &NONS_ScriptInterpreter::command_cselgoto             |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"csp"]=                     &NONS_ScriptInterpreter::command_csp                                  |ALLOW_IN_RUN;
 	this->commandList[L"date"]=                    &NONS_ScriptInterpreter::command_date                                 |ALLOW_IN_RUN;
 	this->commandList[L"dec"]=                     &NONS_ScriptInterpreter::command_inc                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -2886,6 +2886,28 @@ ErrorCode NONS_ScriptInterpreter::command_csel(NONS_Statement &stmt){
 		jumps.push_back(temp);
 	}
 	this->callStack.push_back(new NONS_StackElement(strings,jumps));
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_cselgoto(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	long label_index;
+	GET_INT_VALUE(label_index,0);
+	NONS_StackElement *frame=this->get_last_csel_frame();
+	if (!frame)
+		return NONS_NOT_IN_CSEL_CALL;
+	if (label_index<0 || (size_t)label_index>=frame->jumps.size())
+		return NONS_NOT_ENOUGH_PARAMETERS_TO_CSEL;
+	std::wstring label=frame->jumps[label_index];
+	if (!this->script->blockFromLabel(label))
+		return NONS_NO_SUCH_BLOCK;
+	while (this->callStack.back()!=frame){
+		delete this->callStack.back();
+		this->callStack.pop_back();
+	}
+	delete this->callStack.back();
+	this->callStack.pop_back();
+	this->goto_label(label);
 	return NONS_NO_ERROR;
 }
 
