@@ -425,6 +425,7 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_getcselstr(NONS_Statement &stmt);
 	ErrorCode command_getcselnum(NONS_Statement &stmt);
 	ErrorCode command_cselbtn(NONS_Statement &stmt);
+	ErrorCode command_selectbtnwait(NONS_Statement &stmt);
 	/*
 	ErrorCode command_(NONS_Statement &stmt);
 	*/

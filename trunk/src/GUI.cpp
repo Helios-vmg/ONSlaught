@@ -886,17 +886,19 @@ void NONS_ButtonLayer::makeTextButtons(const std::vector<std::wstring> &arr,
 	}
 }
 
-int NONS_ButtonLayer::getUserInput(int x,int y){
+int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 	if (!this->buttons.size())
 		return -1;
-	for (ulong a=0;a<this->buttons.size();a++){
-		NONS_TextButton *cB=(NONS_TextButton *)this->buttons[a];
-		cB->setPosx()=x;
-		cB->setPosy()=y;
-		y+=int(cB->getBox().y+cB->getBox().h);
+	if (override_placement){
+		for (ulong a=0;a<this->buttons.size();a++){
+			NONS_TextButton *cB=(NONS_TextButton *)this->buttons[a];
+			cB->setPosx()=x;
+			cB->setPosy()=y;
+			y+=int(cB->getBox().y+cB->getBox().h);
+		}
+		if (y>this->screen->output->y0+this->screen->output->h)
+			return -2;
 	}
-	if (y>this->screen->output->y0+this->screen->output->h)
-		return -2;
 	if (this->voiceEntry.size())
 		this->audio->playSoundAsync(&this->voiceEntry,7,0);
 	if (this->voiceMouseOver.size())

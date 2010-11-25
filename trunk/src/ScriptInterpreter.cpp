@@ -73,7 +73,7 @@ ErrorCode getIntVar(NONS_VariableMember *&var,const std::wstring &str,NONS_Varia
 ErrorCode getStrVar(NONS_VariableMember *&var,const std::wstring &str,NONS_VariableStore *store){
 	ErrorCode error=getVar(var,str,store);
 	HANDLE_POSSIBLE_ERRORS(error);
-	if (var->getType()!=INTEGER)
+	if (var->getType()!=STRING)
 		return NONS_EXPECTED_STRING_VARIABLE;
 	return NONS_NO_ERROR;
 }
@@ -453,7 +453,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"savetime"]=                &NONS_ScriptInterpreter::command_savetime                             |ALLOW_IN_RUN;
 	this->commandList[L"savetime2"]=               &NONS_ScriptInterpreter::command_savetime2                            |ALLOW_IN_RUN;
 	this->commandList[L"select"]=                  &NONS_ScriptInterpreter::command_select                               |ALLOW_IN_RUN;
-	this->commandList[L"selectbtnwait"]=           0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"selectbtnwait"]=           &NONS_ScriptInterpreter::command_selectbtnwait                        |ALLOW_IN_RUN;
 	this->commandList[L"selectcolor"]=             &NONS_ScriptInterpreter::command_selectcolor          |ALLOW_IN_DEFINE             ;
 	this->commandList[L"selectvoice"]=             &NONS_ScriptInterpreter::command_selectvoice          |ALLOW_IN_DEFINE             ;
 	this->commandList[L"selgosub"]=                &NONS_ScriptInterpreter::command_select                               |ALLOW_IN_RUN;
@@ -2891,6 +2891,7 @@ ErrorCode NONS_ScriptInterpreter::command_csel(NONS_Statement &stmt){
 		jumps.push_back(temp);
 	}
 	this->callStack.push_back(new NONS_StackElement(strings,jumps));
+	this->goto_label(L"*customsel");
 	return NONS_NO_ERROR;
 }
 
@@ -2923,8 +2924,10 @@ ErrorCode NONS_ScriptInterpreter::command_cselbtn(NONS_Statement &stmt){
 		frame->buttons->voiceClick=this->selectVoiceClick;
 		frame->buttons->audio=this->audio;
 	}
-	if (frame->buttons->buttons.size()<(size_t)button_index)
+	if (frame->buttons->buttons.size()<=(size_t)button_index)
 		frame->buttons->buttons.resize(button_index+1,0);
+	button->setPosx()=x;
+	button->setPosy()=y;
 	frame->buttons->buttons[button_index]=button;
 	return NONS_NO_ERROR;
 }
@@ -4767,6 +4770,21 @@ ErrorCode NONS_ScriptInterpreter::command_select(NONS_Statement &stmt){
 		}
 		this->thread->gotoLabel(jumps[choice]);
 	}
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_selectbtnwait(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	NONS_VariableMember *dst;
+	GET_INT_VARIABLE(dst,0);
+	NONS_StackElement *frame=this->get_last_csel_frame();
+	if (!frame)
+		return NONS_NOT_IN_CSEL_CALL;
+	if (!frame->buttons)
+		return NONS_NO_BUTTONS_DEFINED;
+	ctrlIsPressed=0;
+	this->screen->showTextWindow();
+	dst->set(frame->buttons->getUserInput(0,0,0));
 	return NONS_NO_ERROR;
 }
 

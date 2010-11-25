@@ -364,7 +364,7 @@ struct NONS_ButtonLayer{
 		-3 if escape was pressed and the layer wasn't exitable (i.e. the user tried to access the menu)
 		INT_MIN if SDL_QUIT was received
 	*/
-	int getUserInput(int x,int y);
+	int getUserInput(int x,int y,bool override_placement=1);
 	/*
 	returns:
 		if >=0, the index of the button pressed
