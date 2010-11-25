@@ -307,7 +307,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"getfunction"]=             &NONS_ScriptInterpreter::command_getfunction                          |ALLOW_IN_RUN;
 	this->commandList[L"getinsert"]=               &NONS_ScriptInterpreter::command_getinsert                            |ALLOW_IN_RUN;
 	this->commandList[L"getlog"]=                  &NONS_ScriptInterpreter::command_getlog                               |ALLOW_IN_RUN;
-	this->commandList[L"getmousepos"]=             0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"getmousepos"]=             &NONS_ScriptInterpreter::command_getmousepos                          |ALLOW_IN_RUN;
 	this->commandList[L"getmp3vol"]=               &NONS_ScriptInterpreter::command_getmp3vol                            |ALLOW_IN_RUN;
 	this->commandList[L"getpage"]=                 &NONS_ScriptInterpreter::command_getpage                              |ALLOW_IN_RUN;
 	this->commandList[L"getpageup"]=               &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
@@ -3341,6 +3341,19 @@ ErrorCode NONS_ScriptInterpreter::command_getlog(NONS_Statement &stmt){
 		return NONS_NOT_ENOUGH_LOG_PAGES;
 	std::wstring text=removeTags(out->log[out->log.size()-page]);
 	dst->set(text);
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_getmousepos(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(2);
+	NONS_VariableMember *dst_x,
+		*dst_y;
+	GET_INT_VARIABLE(dst_x,0);
+	GET_INT_VARIABLE(dst_y,1);
+	int x,y;
+	SDL_GetMouseState(&x,&y);
+	dst_x->set(x);
+	dst_y->set(y);
 	return NONS_NO_ERROR;
 }
 
