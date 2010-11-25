@@ -315,7 +315,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"getreg"]=                  &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"getret"]=                  &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"getscreenshot"]=           &NONS_ScriptInterpreter::command_getscreenshot                        |ALLOW_IN_RUN;
-	this->commandList[L"getsevol"]=                &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
+	this->commandList[L"getsevol"]=                &NONS_ScriptInterpreter::command_getsevol                             |ALLOW_IN_RUN;
 	this->commandList[L"getspmode"]=               0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"getspsize"]=               0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"gettab"]=                  &NONS_ScriptInterpreter::command_gettab                               |ALLOW_IN_RUN;
@@ -455,7 +455,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"setwindow"]=               &NONS_ScriptInterpreter::command_setwindow                            |ALLOW_IN_RUN;
 	this->commandList[L"setwindow2"]=              &NONS_ScriptInterpreter::command_setwindow2                           |ALLOW_IN_RUN;
 	this->commandList[L"setwindow3"]=              0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"sevol"]=                   0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"sevol"]=                   &NONS_ScriptInterpreter::command_sevol                                |ALLOW_IN_RUN;
 	this->commandList[L"shadedistance"]=           &NONS_ScriptInterpreter::command_shadedistance        |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"sin"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"skip"]=                    &NONS_ScriptInterpreter::command_skip                 |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -467,7 +467,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"spi"]=                     &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"split"]=                   &NONS_ScriptInterpreter::command_split                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"splitstring"]=             &NONS_ScriptInterpreter::command_split                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
-	this->commandList[L"spreload"]=                0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"spreload"]=                &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
 	this->commandList[L"spstr"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"stop"]=                    &NONS_ScriptInterpreter::command_stop                                 |ALLOW_IN_RUN;
 	this->commandList[L"stralias"]=                &NONS_ScriptInterpreter::command_alias                |ALLOW_IN_DEFINE             ;
@@ -3441,6 +3441,14 @@ ErrorCode NONS_ScriptInterpreter::command_getscreenshot(NONS_Statement &stmt){
 	return NONS_NO_ERROR;
 }
 
+ErrorCode NONS_ScriptInterpreter::command_getsevol(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	NONS_VariableMember *dst;
+	GET_INT_VARIABLE(dst,0);
+	dst->set(this->audio->soundVolume(-1));
+	return NONS_NO_ERROR;
+}
+
 ErrorCode NONS_ScriptInterpreter::command_gettab(NONS_Statement &stmt){
 	if (!this->imageButtons)
 		return NONS_NO_BUTTON_IMAGE;
@@ -4823,6 +4831,14 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow2(NONS_Statement &stmt){
 	}else
 		layer->usePicAsDefaultShade(string);
 	this->screen->BlendNoCursor(1);
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_sevol(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	long vol;
+	GET_INT_VALUE(vol,0);
+	this->audio->soundVolume(vol);
 	return NONS_NO_ERROR;
 }
 
