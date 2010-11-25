@@ -48,40 +48,40 @@
 
 #define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
 #define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
-#define GET_COORDINATE(dst,axis,src) {\
-	long GET_COORDINATE_temp;\
-	float GET_COORDINATE_temp_f;\
-	GET_INT_VALUE(GET_COORDINATE_temp,(src));\
-	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]);\
-	if (GET_COORDINATE_temp_f>=0)\
-		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);\
-	else\
-		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);\
-	(dst)=GET_COORDINATE_temp_f;\
+#define GET_COORDINATE(dst,axis,src) {                                                                                 \
+	long GET_COORDINATE_temp;                                                                                          \
+	float GET_COORDINATE_temp_f;                                                                                       \
+	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
+	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
+	if (GET_COORDINATE_temp_f>=0)                                                                                      \
+		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
+	else                                                                                                               \
+		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
+	(dst)=GET_COORDINATE_temp_f;                                                                                       \
 }
-#define GET_INT_COORDINATE(dst,axis,src) {\
-	long GET_COORDINATE_temp;\
-	float GET_COORDINATE_temp_f;\
-	GET_INT_VALUE(GET_COORDINATE_temp,(src));\
-	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]);\
-	if (GET_COORDINATE_temp_f>=0)\
-		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);\
-	else\
-		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);\
-	(dst)=(long)GET_COORDINATE_temp_f;\
+#define GET_INT_COORDINATE(dst,axis,src) {                                                                             \
+	long GET_COORDINATE_temp;                                                                                          \
+	float GET_COORDINATE_temp_f;                                                                                       \
+	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
+	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
+	if (GET_COORDINATE_temp_f>=0)                                                                                      \
+		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
+	else                                                                                                               \
+		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
+	(dst)=(long)GET_COORDINATE_temp_f;                                                                                 \
 }
 #define GET_STR_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getWcsValue(stmt.parameters[(src)],(dst),0))
 #define GET_INT_OR_STR_VALUE(i,s,type,src) HANDLE_POSSIBLE_ERRORS(this->GET_INT_OR_STR_VALUE_helper((i),(s),(type),stmt.parameters[(src)]))
 #define GET_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getVar((varName),stmt.parameters[(src)],this->store))
 #define GET_INT_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getIntVar((varName),stmt.parameters[(src)],this->store))
 #define GET_STR_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getStrVar((varName),stmt.parameters[(src)],this->store))
-#define GET_LABEL(dst,src){\
-	std::wstring &GET_LABEL_temp=stmt.parameters[(src)];\
-	if (GET_LABEL_temp[0]=='*')\
-		(dst)=GET_LABEL_temp;\
-	else{\
-		GET_STR_VALUE((dst),(src));\
-	}\
+#define GET_LABEL(dst,src){                              \
+	std::wstring &GET_LABEL_temp=stmt.parameters[(src)]; \
+	if (GET_LABEL_temp[0]=='*')                          \
+		(dst)=GET_LABEL_temp;                            \
+	else{                                                \
+		GET_STR_VALUE((dst),(src));                      \
+	}                                                    \
 }
 
 typedef std::map<std::wstring,INIfile *> INIcacheType;
@@ -127,12 +127,15 @@ struct NONS_StackElement{
 	std::vector<printingPage> pages;
 	//User command data
 	std::vector<std::wstring> parameters;
+	//Custom select data
+	std::vector<std::wstring> strings,jumps;
 
 	NONS_StackElement(ulong level);
 	NONS_StackElement(const std::pair<ulong,ulong> &returnTo,const NONS_ScriptLine &interpretAtReturn,ulong beginAtStatement,ulong level);
 	NONS_StackElement(NONS_VariableMember *variable,const std::pair<ulong,ulong> &startStatement,long from,long to,long step,ulong level);
 	NONS_StackElement(const std::vector<printingPage> &pages,wchar_t trigger,ulong level);
 	NONS_StackElement(NONS_StackElement *copy,const std::vector<std::wstring> &vector);
+	NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps);
 };
 
 class NONS_ScriptInterpreter;
@@ -415,6 +418,7 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_getsevol(NONS_Statement &stmt);
 	ErrorCode command_getmousepos(NONS_Statement &stmt);
 	ErrorCode command_chvol(NONS_Statement &stmt);
+	ErrorCode command_csel(NONS_Statement &stmt);
 	/*
 	ErrorCode command_(NONS_Statement &stmt);
 	*/
@@ -449,6 +453,7 @@ public:
 	void queue(NONS_ScriptLine *line);
 	bool generic_play(const std::wstring &filename,bool from_archive);
 	ErrorCode play_video(const std::wstring &filename,bool skippable);
+	NONS_StackElement *get_last_csel_frame() const;
 };
 
 extern NONS_ScriptInterpreter *gScriptInterpreter;

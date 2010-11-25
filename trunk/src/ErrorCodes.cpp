@@ -219,5 +219,7 @@ const char *errorMessages[]={
 	"Expected string value.",
 	//NONS_NOT_ALLOWED_IN_RUN_MODE
 	"The command is illegal in the *start block.",
+	//NONS_CUSTOMSEL_NOT_DEFINED
+	"*customsel block not defined.",
 	0
 };

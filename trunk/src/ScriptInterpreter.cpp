@@ -135,6 +135,9 @@ NONS_StackElement::NONS_StackElement(NONS_StackElement *copy,const std::vector<s
 	this->parameters=vector;
 }
 
+NONS_StackElement::NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps)
+	:strings(strings),jumps(jumps),type(StackFrameType::CSEL_CALL){}
+
 ConfigFile settings;
 
 ErrorCode init_script(NONS_Script *&script,const std::wstring &filename,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
@@ -252,7 +255,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"clickvoice"]=              0                                                     |ALLOW_IN_DEFINE             ;
 	this->commandList[L"cmp"]=                     &NONS_ScriptInterpreter::command_cmp                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"cos"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
-	this->commandList[L"csel"]=                    0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"csel"]=                    &NONS_ScriptInterpreter::command_csel                                 |ALLOW_IN_RUN;
 	this->commandList[L"cselbtn"]=                 0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"cselgoto"]=                0                                                     |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"csp"]=                     &NONS_ScriptInterpreter::command_csp                                  |ALLOW_IN_RUN;
@@ -1128,6 +1131,15 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from
 					"NONS_ScriptInterpreter::generic_play",
 					0
 				),NONS_NO_ERROR_FLAG);
+	}
+	return 0;
+}
+
+NONS_StackElement *NONS_ScriptInterpreter::get_last_csel_frame() const{
+	for (size_t a=this->callStack.size();a;a--){
+		NONS_StackElement *el=this->callStack[a-1];
+		if (el->type==StackFrameType::CSEL_CALL)
+			return el;
 	}
 	return 0;
 }
@@ -2855,6 +2867,25 @@ ErrorCode NONS_ScriptInterpreter::command_cmp(NONS_Statement &stmt){
 	GET_STR_VALUE(opA,1);
 	GET_STR_VALUE(opB,2);
 	var->set(wcscmp(opA.c_str(),opB.c_str()));
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_csel(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(2);
+	if (stmt.parameters.size()%2)
+		return NONS_INSUFFICIENT_PARAMETERS;
+	if (!this->script->blockFromLabel(L"*customsel"))
+		return NONS_CUSTOMSEL_NOT_DEFINED;
+	std::vector<std::wstring> strings,jumps;
+	for (ulong a=0;a<stmt.parameters.size();a++){
+		std::wstring temp;
+		GET_STR_VALUE(temp,a);
+		strings.push_back(temp);
+		a++;
+		GET_LABEL(temp,a);
+		jumps.push_back(temp);
+	}
+	this->callStack.push_back(new NONS_StackElement(strings,jumps));
 	return NONS_NO_ERROR;
 }
 
