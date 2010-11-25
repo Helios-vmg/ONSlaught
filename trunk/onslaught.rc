@@ -6,8 +6,8 @@ FILEVERSION 9999, 99, 99, 0
 PRODUCTVERSION 9999, 99, 99, 0
 #else
 FILEFLAGS 32
-FILEVERSION 2010, 11, 23, 0
-PRODUCTVERSION 2010, 11, 23, 0
+FILEVERSION 2010, 11, 25, 0
+PRODUCTVERSION 2010, 11, 25, 0
 #endif
 
 FILEOS 4
@@ -37,10 +37,10 @@ FILETYPE 1
 			VALUE "FileDescription", "ONSlaught"
 			VALUE "OriginalFilename", "ONSlaught.exe"
 			VALUE "CompanyName", "Helios"
-			VALUE "FileVersion", "2010-11-23 18:32:39"
+			VALUE "FileVersion", "2010-11-25 19:13:40"
 			VALUE "LegalCopyright", "Copyright (c) 2008-2010, Helios"
 			VALUE "ProductName", "ONSlaught: An ONScripter clone with Unicode support."
-			VALUE "ProductVersion", "2010-11-23 18:32:39"
+			VALUE "ProductVersion", "2010-11-25 19:13:40"
 		}
 	}
 	BLOCK "VarFileInfo" {
@@ -54,10 +54,10 @@ FILETYPE 1
 			VALUE "FileDescription", "ONSlaught"
 			VALUE "OriginalFilename", "ONSlaught.exe"
 			VALUE "CompanyName", "Helios"
-			VALUE "FileVersion", "2010-11-23 18:32:39"
+			VALUE "FileVersion", "2010-11-25 19:13:40"
 			VALUE "LegalCopyright", "Copyright (c) 2008-2010, Helios"
 			VALUE "ProductName", "ONSlaught: An ONScripter clone with Unicode support."
-			VALUE "ProductVersion", "2010-11-23 18:32:39"
+			VALUE "ProductVersion", "2010-11-25 19:13:40"
 		}
 	}
 	BLOCK "VarFileInfo" {

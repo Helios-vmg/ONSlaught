@@ -37,8 +37,8 @@ src/GFX.cpp
 src/IOFunctions.cpp
 src/VirtualScreen.cpp
 src/Functions.cpp
-src/CommandLineOptions.cpp
 src/Audio.cpp
+src/CommandLineOptions.cpp
 src/sha1.cpp
 src/MacroParser.cpp
 src/ONSlaught.cpp
