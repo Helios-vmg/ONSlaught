@@ -6,8 +6,8 @@ Newly implemented commands:
   texthide, textshow
 
 Important changes:
-  * Moved macro interpreter to Python. TODO: Update documentation and add error
-    handling.
+  * Moved macro interpreter to Python.
+    TODO: Update documentation and add error handling.
 
 Bug fixes:
   * Plugged memory leak in various routines.
@@ -15,6 +15,7 @@ Bug fixes:
   * Added missing \t escape sequence to expression parser.
   * Fixed stack overflow in video player.
   * Incorrect behavior in volume setting fixed.
+  * Fixed old bug when passing output variables to commands.
 
 
 20100714
