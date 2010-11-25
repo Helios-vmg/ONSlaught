@@ -420,6 +420,7 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_chvol(NONS_Statement &stmt);
 	ErrorCode command_csel(NONS_Statement &stmt);
 	ErrorCode command_cselgoto(NONS_Statement &stmt);
+	ErrorCode command_getcselstr(NONS_Statement &stmt);
 	/*
 	ErrorCode command_(NONS_Statement &stmt);
 	*/
