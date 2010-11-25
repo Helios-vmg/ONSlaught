@@ -293,7 +293,7 @@ bool NONS_StandardOutput::prepareForPrinting(std::wstring str){
 			glyph->done();
 			break;
 		}
-		glyph->done();
+		CHECK_POINTER_AND_CALL(glyph,done());
 	}
 	if (check_at_end && x0+wordL>=this->w+this->x0 && lastSpace>=0)
 		this->cachedText[lastSpace]='\r';
