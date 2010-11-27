@@ -1823,14 +1823,14 @@ void put_glyph(const NONS_Surface &dst,int x,int y,uchar alpha,uchar *src,const 
 			uchar a0=*src;
 
 			do_alpha_blend(
-				pixel,
-				pixel+1,
-				pixel+2,
-				pixel+3,
+				pixel+sp.offsets[0],
+				pixel+sp.offsets[1],
+				pixel+sp.offsets[2],
+				pixel+sp.offsets[3],
 				color.rgba[0],
 				color.rgba[1],
 				color.rgba[2],
-				/*color.rgba[3]*/a0,
+				a0,
 				1,1,
 				alpha
 			);
