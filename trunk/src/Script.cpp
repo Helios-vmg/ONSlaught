@@ -81,7 +81,7 @@ NONS_Statement::NONS_Statement(const std::wstring &string,NONS_ScriptLine *line,
 	this->type=StatementType::EMPTY;
 	this->error=NONS_NO_ERROR;
 	if (string.size()){
-		if (multicomparison(string[0],";*`\\@!#~%$?") || string[0]>0x7F){
+		if (multicomparison(string[0],";*`\\@!#~%$?[") || string[0]>0x7F){
 			switch (string[0]){
 				case ';':
 					this->type=StatementType::COMMENT;
@@ -216,7 +216,7 @@ NONS_ScriptLine::NONS_ScriptLine(ulong line,const std::wstring &string,ulong off
 	for (ulong a=0,size=string.size();a<size;){
 		bool terminal=0;
 		ulong original_a=a;
-		if (multicomparison(temp[a],";~`?%$!\\@#") || temp[a]>0x7F || firstcharsCI(temp,a,L"if") || firstcharsCI(temp,a,L"notif")){
+		if (multicomparison(temp[a],";~`?%$!\\@#[") || temp[a]>0x7F || firstcharsCI(temp,a,L"if") || firstcharsCI(temp,a,L"notif")){
 			temp2=std::wstring(temp,a);
 			terminal=1;
 			a=size;

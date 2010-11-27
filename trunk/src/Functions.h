@@ -55,7 +55,7 @@ const double pi=3.1415926535897932384626433832795;
 	if (possible_error!=NONS_NO_ERROR)\
 		return possible_error;\
 }
-#define CHECK_FLAG(x,y) (((x)&(y))==(y))
+#define CHECK_FLAG(flag,pattern) (((flag)&(pattern))==(pattern))
 #ifdef USE_ACCURATE_MULTIPLICATION
 //Accurate version:
 #define INTEGER_MULTIPLICATION(a,b) (((a)*(b))/255)

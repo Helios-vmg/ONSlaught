@@ -330,7 +330,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"getspmode"]=               0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"getspsize"]=               0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"gettab"]=                  &NONS_ScriptInterpreter::command_gettab                               |ALLOW_IN_RUN;
-	this->commandList[L"gettag"]=                  0                                                     |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
+	this->commandList[L"gettag"]=                  &NONS_ScriptInterpreter::command_gettag               |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"gettext"]=                 &NONS_ScriptInterpreter::command_gettext                              |ALLOW_IN_RUN;
 	this->commandList[L"gettimer"]=                &NONS_ScriptInterpreter::command_gettimer                             |ALLOW_IN_RUN;
 	this->commandList[L"getversion"]=              &NONS_ScriptInterpreter::command_getversion                           |ALLOW_IN_RUN;
@@ -424,7 +424,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"play"]=                    &NONS_ScriptInterpreter::command_play                                 |ALLOW_IN_RUN;
 	this->commandList[L"playonce"]=                &NONS_ScriptInterpreter::command_play                                 |ALLOW_IN_RUN;
 	this->commandList[L"playstop"]=                &NONS_ScriptInterpreter::command_playstop                             |ALLOW_IN_RUN;
-	this->commandList[L"pretextgosub"]=            0                                                     |ALLOW_IN_DEFINE             ;
+	this->commandList[L"pretextgosub"]=            &NONS_ScriptInterpreter::command_pretextgosub         |ALLOW_IN_DEFINE             ;
 	this->commandList[L"print"]=                   &NONS_ScriptInterpreter::command_print                                |ALLOW_IN_RUN;
 	this->commandList[L"prnum"]=                   &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"prnumclear"]=              &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
@@ -492,6 +492,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"texec"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"textbtnwait"]=             0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"textclear"]=               &NONS_ScriptInterpreter::command_textclear                            |ALLOW_IN_RUN;
+	this->commandList[L"textcolor"]=               &NONS_ScriptInterpreter::command_textcolor                            |ALLOW_IN_RUN;
 	this->commandList[L"textgosub"]=               &NONS_ScriptInterpreter::command_textgosub            |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"texthide"]=                &NONS_ScriptInterpreter::command_textshowhide                         |ALLOW_IN_RUN;
 	this->commandList[L"textoff"]=                 &NONS_ScriptInterpreter::command_textonoff                            |ALLOW_IN_RUN;
@@ -1152,6 +1153,25 @@ NONS_StackElement *NONS_ScriptInterpreter::get_last_csel_frame() const{
 	return 0;
 }
 
+void NONS_ScriptInterpreter::parse_tag(std::wstring &s){
+	this->tags.clear();
+	if (s[0]!='[')
+		return;
+	size_t end_of_tag=s.find(']');
+	if (end_of_tag==s.npos)
+		return;
+	std::wstring tags=s.substr(1,end_of_tag-1);
+	s=s.substr(end_of_tag+1);
+	size_t find_from=0;
+	while (1){
+		size_t next_slash=tags.find('/',find_from);
+		this->tags.push_back(tags.substr(find_from,next_slash-find_from));
+		if (next_slash==tags.npos)
+			break;
+		find_from=next_slash+1;
+	}
+}
+
 ulong NONS_ScriptInterpreter::totalCommands(){
 	return this->commandList.size()-1;
 }
@@ -1275,11 +1295,19 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 			if (this->interpreter_mode!=RUN_MODE){
 				handleErrors(NONS_NOT_ALLOWED_IN_DEFINE_MODE,current_line,"NONS_ScriptInterpreter::interpretNextLine",0);
 			}else{
-				if (this->printed_lines.find(current_line)==this->printed_lines.end()){
-					//softwareCtrlIsPressed=0;
+				if (this->printed_lines.find(current_line)==this->printed_lines.end())
 					this->printed_lines.insert(current_line);
+				bool do_not_run=0;
+				if (this->pretextgosub_label.size()){
+					this->parse_tag(stmt->stmt);
+					if (this->tags.size()){
+						this->gosub_label(this->pretextgosub_label);
+						this->callStack.back()->interpretAtReturn=NONS_ScriptLine(*stmt->lineOfOrigin);
+						do_not_run=1;
+					}
 				}
-				this->Printer(stmt->stmt);
+				if (!do_not_run)
+					this->Printer(stmt->stmt);
 			}
 			break;
 		case StatementType::COMMAND:
@@ -1392,11 +1420,11 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 			if (this->interpreter_mode!=RUN_MODE){
 				handleErrors(NONS_NOT_ALLOWED_IN_DEFINE_MODE,0,"NONS_ScriptInterpreter::interpretString",0);
 			}else{
-				if (!stmt.lineOfOrigin || this->printed_lines.find(stmt.lineOfOrigin->lineNumber)==this->printed_lines.end()){
-					//softwareCtrlIsPressed=0;
-					if (!!stmt.lineOfOrigin)
-						this->printed_lines.insert(stmt.lineOfOrigin->lineNumber);
-				}
+				if (
+						(!stmt.lineOfOrigin ||
+						this->printed_lines.find(stmt.lineOfOrigin->lineNumber)==this->printed_lines.end()) &&
+						!!stmt.lineOfOrigin)
+					this->printed_lines.insert(stmt.lineOfOrigin->lineNumber);
 				this->Printer(stmt.stmt);
 			}
 			break;
@@ -1773,8 +1801,7 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 								parsed|=HEX2DEC(hex);
 							}
 							if (a==6){
-								NONS_Color color/*=this->screen->output->foregroundLayer->fontCache->get_color()*/;
-								color=parsed;
+								NONS_Color color=parsed;
 								this->screen->output->foregroundLayer->fontCache->setColor(color);
 								reduced+=6;
 								break;
@@ -3605,6 +3632,29 @@ ErrorCode NONS_ScriptInterpreter::command_gettab(NONS_Statement &stmt){
 	return NONS_NO_ERROR;
 }
 
+ErrorCode NONS_ScriptInterpreter::command_gettag(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	std::vector<NONS_VariableMember *> variables(stmt.parameters.size(),0);
+	for (size_t a=0;a<stmt.parameters.size();a++)
+		GET_VARIABLE(variables[a],a);
+	for (size_t a=0;a<variables.size();a++){
+		if (a>=this->tags.size()){
+			if (variables[a]->getType()==INTEGER)
+				variables[a]->set(0);
+			else
+				variables[a]->set(L"");
+		}else{
+			if (variables[a]->getType()==INTEGER){
+				long val;
+				ErrorCode error=this->store->getIntValue(this->tags[a],val,0);
+				variables[a]->set((CHECK_FLAG(error,NONS_NO_ERROR_FLAG))?val:0);
+			}else
+				variables[a]->set(this->tags[a]);
+		}
+	}
+	return 0;
+}
+
 ErrorCode NONS_ScriptInterpreter::command_gettext(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *dst;
@@ -4414,6 +4464,16 @@ ErrorCode NONS_ScriptInterpreter::command_playstop(NONS_Statement &stmt){
 	return this->audio->stopMusic();
 }
 
+ErrorCode NONS_ScriptInterpreter::command_pretextgosub(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	std::wstring label;
+	GET_LABEL(label,0);
+	if (!this->script->blockFromLabel(label))
+		return NONS_NO_SUCH_BLOCK;
+	this->pretextgosub_label=label;
+	return NONS_NO_ERROR;
+}
+
 ErrorCode NONS_ScriptInterpreter::command_print(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long number,duration;
@@ -4746,7 +4806,6 @@ ErrorCode NONS_ScriptInterpreter::command_select(NONS_Statement &stmt){
 		this->screen->output->w,
 		this->screen->output->h);
 	ctrlIsPressed=0;
-	//softwareCtrlIsPressed=0;
 	this->screen->showTextWindow();
 	int choice=layer.getUserInput(this->screen->output->x,this->screen->output->y);
 	if (choice==-2){
@@ -5191,6 +5250,14 @@ ErrorCode NONS_ScriptInterpreter::command_tal(NONS_Statement &stmt){
 ErrorCode NONS_ScriptInterpreter::command_textclear(NONS_Statement &stmt){
 	if (this->screen)
 		this->screen->clearText();
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_textcolor(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(1);
+	long rgb;
+	GET_INT_VALUE(rgb,0);
+	this->screen->output->foregroundLayer->fontCache->setColor(rgb);
 	return NONS_NO_ERROR;
 }
 

@@ -235,6 +235,8 @@ class NONS_ScriptInterpreter{
 	std::queue<NONS_ScriptLine *> commandQueue;
 	ulong base_size[2],
 		virtual_size[2];
+	std::wstring pretextgosub_label;
+	std::vector<std::wstring> tags;
 
 	ErrorCode command_caption(NONS_Statement &stmt);
 	ErrorCode command_alias(NONS_Statement &stmt);
@@ -426,6 +428,9 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_getcselnum(NONS_Statement &stmt);
 	ErrorCode command_cselbtn(NONS_Statement &stmt);
 	ErrorCode command_selectbtnwait(NONS_Statement &stmt);
+	ErrorCode command_pretextgosub(NONS_Statement &stmt);
+	ErrorCode command_gettag(NONS_Statement &stmt);
+	ErrorCode command_textcolor(NONS_Statement &stmt);
 	/*
 	ErrorCode command_(NONS_Statement &stmt);
 	*/
@@ -461,6 +466,7 @@ public:
 	bool generic_play(const std::wstring &filename,bool from_archive);
 	ErrorCode play_video(const std::wstring &filename,bool skippable);
 	NONS_StackElement *get_last_csel_frame() const;
+	void parse_tag(std::wstring &s);
 };
 
 extern NONS_ScriptInterpreter *gScriptInterpreter;
