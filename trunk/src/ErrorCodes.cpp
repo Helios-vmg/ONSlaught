@@ -222,8 +222,10 @@ const char *errorMessages[]={
 	//NONS_CUSTOMSEL_NOT_DEFINED
 	"*customsel block not defined.",
 	//NONS_NOT_IN_CSEL_CALL
-	"Not currently in *customcell call.",
+	"Not currently in *customsel call.",
 	//NONS_NOT_ENOUGH_PARAMETERS_TO_CSEL
 	"Not enough parameters were passed to csel.",
+	//NONS_NOT_IN_TEXTGOSUB_CALL
+	"Not currently in textgosub call.",
 	0
 };

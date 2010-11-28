@@ -138,6 +138,7 @@ typedef Uint32 ErrorCode;
 #define NONS_CUSTOMSEL_NOT_DEFINED					92
 #define NONS_NOT_IN_CSEL_CALL						93
 #define NONS_NOT_ENOUGH_PARAMETERS_TO_CSEL			94
+#define NONS_NOT_IN_TEXTGOSUB_CALL					95
 
 extern const char *errorMessages[];
 #endif

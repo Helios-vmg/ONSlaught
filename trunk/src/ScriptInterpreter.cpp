@@ -489,8 +489,8 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"tal"]=                     &NONS_ScriptInterpreter::command_tal                                  |ALLOW_IN_RUN;
 	this->commandList[L"tan"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"tateyoko"]=                &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
-	this->commandList[L"texec"]=                   0                                                                     |ALLOW_IN_RUN;
-	this->commandList[L"textbtnwait"]=             0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"texec"]=                   &NONS_ScriptInterpreter::command_texec                                |ALLOW_IN_RUN;
+	this->commandList[L"textbtnwait"]=             &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
 	this->commandList[L"textclear"]=               &NONS_ScriptInterpreter::command_textclear                            |ALLOW_IN_RUN;
 	this->commandList[L"textcolor"]=               &NONS_ScriptInterpreter::command_textcolor                            |ALLOW_IN_RUN;
 	this->commandList[L"textgosub"]=               &NONS_ScriptInterpreter::command_textgosub            |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -1144,10 +1144,10 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from
 	return 0;
 }
 
-NONS_StackElement *NONS_ScriptInterpreter::get_last_csel_frame() const{
+NONS_StackElement *NONS_ScriptInterpreter::get_last_frame_of_type(StackFrameType::StackFrameType t) const{
 	for (size_t a=this->callStack.size();a;a--){
 		NONS_StackElement *el=this->callStack[a-1];
-		if (el->type==StackFrameType::CSEL_CALL)
+		if (el->type==t)
 			return el;
 	}
 	return 0;
@@ -1627,6 +1627,29 @@ void findStops(const std::wstring &src,std::vector<std::pair<ulong,ulong> > &sto
 	stopping_points.push_back(push);
 }
 
+void NONS_ScriptInterpreter::handle_wait_state(std::vector<printingPage> &pages,std::vector<printingPage>::iterator i2,ulong stop,wchar_t trigger,long add){
+	std::vector<printingPage> temp;
+	printingPage temp2(*i2);
+	temp2.print.erase(temp2.print.begin(),temp2.print.begin()+temp2.stops[stop].first);
+	temp2.reduced.erase(temp2.reduced.begin(),temp2.reduced.begin()+temp2.stops[stop].second+1);
+	std::pair<ulong,ulong> takeOut;
+	takeOut.first=temp2.stops[stop].first+add;
+	takeOut.second=temp2.stops[stop].second+1;
+	temp2.stops.erase(temp2.stops.begin(),temp2.stops.begin()+stop+1);
+	for (std::vector<std::pair<ulong,ulong> >::iterator i3=temp2.stops.begin();i3<temp2.stops.end();++i3){
+		i3->first-=takeOut.first;
+		i3->second-=takeOut.second;
+	}
+	temp.push_back(temp2);
+	for (++i2;i2!=pages.end();++i2)
+		temp.push_back(*i2);
+	NONS_StackElement *pusher=new NONS_StackElement(temp,trigger,this->insideTextgosub()+1);
+	pusher->returnTo.line=this->thread->nextLine;
+	pusher->returnTo.statement=this->thread->nextStatement;
+	this->callStack.push_back(pusher);
+	this->goto_label(this->textgosub);
+}
+
 bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ulong *totalprintedchars,bool *justTurnedPage,ErrorCode *error){
 	NONS_StandardOutput *out=this->screen->output;
 	this->screen->showTextWindow();
@@ -1665,25 +1688,7 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 			switch ((*str)[reduced]){
 				case '\\':
 					if (this->textgosub.size() && (this->textgosubRecurses || !this->insideTextgosub())){
-						std::vector<printingPage>::iterator i2=i;
-						std::vector<printingPage> temp;
-						printingPage temp2(*i2);
-						temp2.print.erase(temp2.print.begin(),temp2.print.begin()+temp2.stops[stop].first);
-						temp2.reduced.erase(temp2.reduced.begin(),temp2.reduced.begin()+temp2.stops[stop].second+1);
-						std::pair<ulong,ulong> takeOut;
-						takeOut.first=temp2.stops[stop].first+1;
-						takeOut.second=temp2.stops[stop].second+1;
-						temp2.stops.erase(temp2.stops.begin(),temp2.stops.begin()+stop+1);
-						for (std::vector<std::pair<ulong,ulong> >::iterator i3=temp2.stops.begin();i3<temp2.stops.end();++i3){
-							i3->first-=takeOut.first;
-							i3->second-=takeOut.second;
-						}
-						temp.push_back(temp2);
-						for (i2++;i2!=pages.end();i2++)
-							temp.push_back(*i2);
-						NONS_StackElement *pusher=new NONS_StackElement(temp,'\\',this->insideTextgosub()+1);
-						this->callStack.push_back(pusher);
-						this->goto_label(this->textgosub);
+						this->handle_wait_state(pages,i,stop,'\\',1);
 						out->endPrinting();
 						if (!!error)
 							*error=NONS_NO_ERROR;
@@ -1701,25 +1706,7 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 					break;
 				case '@':
 					if (this->textgosub.size() && (this->textgosubRecurses || !this->insideTextgosub())){
-						std::vector<printingPage>::iterator i2=i;
-						std::vector<printingPage> temp;
-						printingPage temp2(*i2);
-						temp2.print.erase(temp2.print.begin(),temp2.print.begin()+temp2.stops[stop].first);
-						temp2.reduced.erase(temp2.reduced.begin(),temp2.reduced.begin()+temp2.stops[stop].second+1);
-						std::pair<ulong,ulong> takeOut;
-						takeOut.first=temp2.stops[stop].first;
-						takeOut.second=temp2.stops[stop].second+1;
-						temp2.stops.erase(temp2.stops.begin(),temp2.stops.begin()+stop+1);
-						for (std::vector<std::pair<ulong,ulong> >::iterator i3=temp2.stops.begin();i3<temp2.stops.end();++i3){
-							i3->first-=takeOut.first;
-							i3->second-=takeOut.second;
-						}
-						temp.push_back(temp2);
-						for (++i2;i2!=pages.end();++i2)
-							temp.push_back(*i2);
-						NONS_StackElement *pusher=new NONS_StackElement(temp,'@',this->insideTextgosub()+1);
-						this->callStack.push_back(pusher);
-						this->goto_label(this->textgosub);
+						this->handle_wait_state(pages,i,stop,'@',0);
 						out->endPrinting();
 						if (!!error)
 							*error=NONS_NO_ERROR;
@@ -5247,6 +5234,17 @@ ErrorCode NONS_ScriptInterpreter::command_tal(NONS_Statement &stmt){
 	return NONS_NO_ERROR;
 }
 
+ErrorCode NONS_ScriptInterpreter::command_texec(NONS_Statement &stmt){
+	NONS_StackElement *frame=this->get_last_textgosub_frame();
+	if (!frame)
+		return NONS_NOT_IN_TEXTGOSUB_CALL;
+	if (frame->textgosubTriggeredBy=='\\')
+		this->Printer(L"\\");
+	else if (!frame->pages.front().print.size())
+		this->Printer(L"");
+	return NONS_NO_ERROR;
+}
+
 ErrorCode NONS_ScriptInterpreter::command_textclear(NONS_Statement &stmt){
 	if (this->screen)
 		this->screen->clearText();
@@ -5262,8 +5260,10 @@ ErrorCode NONS_ScriptInterpreter::command_textcolor(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_textgosub(NONS_Statement &stmt){
-	if (!stmt.parameters.size())
+	if (!stmt.parameters.size()){
+		this->textgosub.clear();
 		return NONS_NO_ERROR;
+	}
 	std::wstring label;
 	GET_LABEL(label,0);
 	if (!this->script->blockFromLabel(label))

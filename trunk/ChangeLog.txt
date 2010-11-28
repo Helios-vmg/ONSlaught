@@ -1,9 +1,9 @@
 ????????
 Newly implemented commands:
   bar, barclear, btndown, chvol, csel, cselgoto, dwaveplay, dwaveplayloop,
-  dwavestop, getcselnum, getcselstr, getmousepos, getsevol, lookbacksp,
-  movemousecursor, selectbtnwait, setwindow2, sevol, spbtn, splitstring,
-  texthide, textshow
+  dwavestop, getcselnum, getcselstr, getmousepos, getsevol, gettag, lookbacksp,
+  movemousecursor, pretextgosub, selectbtnwait, setwindow2, sevol, spbtn,
+  splitstring, texec, textcolor, texthide, textshow
 
 Important changes:
   * Moved macro interpreter to Python.
