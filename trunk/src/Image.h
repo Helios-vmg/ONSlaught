@@ -331,6 +331,8 @@ public:
 	void get_properties(NONS_SurfaceProperties &sp) const;
 	void fill(const NONS_Color &color);
 	void fill(const NONS_LongRect area,const NONS_Color &color);
+	//Same as fill(), but doesn't touch the alpha channel.
+	void color(NONS_Color color);
 	void update(ulong x=0,ulong y=0,ulong w=0,ulong h=0) const;
 
 #define NONS_Surface_DECLARE_RELATIONAL_OP(type,op) bool operator op(const type &b) const;
@@ -338,9 +340,9 @@ public:
 
 #define NONS_Surface_DECLARE_INTERPOLATION_F(name) \
 	void name(                                     \
-		NONS_Surface src,                   \
-		NONS_Rect dst_rect,                 \
-		NONS_Rect src_rect,                 \
+		NONS_Surface src,                          \
+		NONS_Rect dst_rect,                        \
+		NONS_Rect src_rect,                        \
 		double x,                                  \
 		double y                                   \
 	)
@@ -419,13 +421,15 @@ bool fix_rects(
 	src1=src1.intersect(src_rect);
 	if (src1.w<=0 || src1.h<=0)
 		return 0;
-	src1.x+=dst1.x;
-	src1.y+=dst1.y;
+	T temp_x=dst1.x-src1.x,
+		temp_y=dst1.y-src1.y;
+	src1.x+=temp_x;
+	src1.y+=temp_y;
 	src1=src1.intersect(dst_rect);
 	if (src1.w<=0 || src1.h<=0)
 		return 0;
-	src1.x-=dst1.x;
-	src1.y-=dst1.y;
+	src1.x-=temp_x;
+	src1.y-=temp_y;
 	dst1.w=src1.w;
 	dst1.h=src1.h;
 	dst1=dst1.intersect(dst_rect);

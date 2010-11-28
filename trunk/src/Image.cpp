@@ -1484,7 +1484,16 @@ void NONS_Surface::get_properties(NONS_SurfaceProperties &sp) const{
 void NONS_Surface::fill(const NONS_Color &color){
 	if (!*this)
 		return;
-	this->fill(this->data->rect,color);
+	//this->fill(this->data->rect,color);
+	if (this->data->cow)
+		*this=this->clone();
+	NONS_SurfaceProperties sp;
+	this->get_properties(sp);
+	Uint32 c=color.to_native(sp.offsets);
+	for (ulong a=sp.pixel_count;a;a--){
+		*(Uint32 *)sp.pixels=c;
+		sp.pixels+=4;
+	}
 }
 
 void NONS_Surface::fill(NONS_LongRect area,const NONS_Color &color){
@@ -1507,6 +1516,24 @@ void NONS_Surface::fill(NONS_LongRect area,const NONS_Color &color){
 			*pixel=c;
 			pixel++;
 		}
+	}
+}
+
+void NONS_Surface::color(NONS_Color color){
+	if (!*this)
+		return;
+	if (this->data->cow)
+		*this=this->clone();
+	NONS_SurfaceProperties sp;
+	this->get_properties(sp);
+	color.rgba[3]=0;
+	Uint32 c=color.to_native(sp.offsets),
+		alpha_mask=NONS_Color(0,0,0).to_native(sp.offsets);
+	for (ulong a=sp.pixel_count;a;a--){
+		Uint32 pixel=*(Uint32 *)sp.pixels;
+		pixel=c|(pixel&alpha_mask);
+		*(Uint32 *)sp.pixels=pixel;
+		sp.pixels+=4;
 	}
 }
 

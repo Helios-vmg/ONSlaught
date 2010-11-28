@@ -1800,6 +1800,8 @@ long NONS_Glyph::get_advance(){
 	return long(this->advance)+this->fc.spacing;
 }
 
+extern uchar integer_division_lookup[0x10000];
+
 void put_glyph(const NONS_Surface &dst,int x,int y,uchar alpha,uchar *src,const NONS_LongRect &box,const NONS_Color color){
 	x+=box.x;
 	y+=box.y;
@@ -1816,25 +1818,31 @@ void put_glyph(const NONS_Surface &dst,int x,int y,uchar alpha,uchar *src,const 
 
 	NONS_SurfaceProperties sp;
 	dst.get_properties(sp);
+	uchar src_rgba[4]={
+		color.rgba[0],
+		color.rgba[1],
+		color.rgba[2],
+		0
+	};
 	for (long src_y=y0,dst_y=y;src_y<box.h && dst_y<(long)sp.h;src_y++,dst_y++){
 		uchar *pixel=sp.pixels+dst_y*sp.pitch+x*4;
 		src+=x0;
 		for (long src_x=x0,dst_x=x;src_x<box.w && dst_x<(long)sp.w;src_x++,dst_x++){
-			uchar a0=*src;
-
-			do_alpha_blend(
+			uchar *dst_rgba[4]={
 				pixel+sp.offsets[0],
 				pixel+sp.offsets[1],
 				pixel+sp.offsets[2],
-				pixel+sp.offsets[3],
-				color.rgba[0],
-				color.rgba[1],
-				color.rgba[2],
-				a0,
-				1,1,
-				alpha
-			);
-
+				pixel+sp.offsets[3]
+			};
+			src_rgba[3]=(alpha==0xFF)?*src:INTEGER_MULTIPLICATION(*src,alpha);
+			ulong bottom_alpha=*dst_rgba[3]=~(uchar)INTEGER_MULTIPLICATION(src_rgba[3]^0xFF,*dst_rgba[3]^0xFF);
+			ulong composite=integer_division_lookup[src_rgba[3]+(bottom_alpha<<8)];
+			if (composite){
+#define put_glyph_APPLY_ALPHA(x) *dst_rgba[x]=(uchar)APPLY_ALPHA(src_rgba[x],*dst_rgba[x],composite)
+				put_glyph_APPLY_ALPHA(0);
+				put_glyph_APPLY_ALPHA(1);
+				put_glyph_APPLY_ALPHA(2);
+			}
 			src++;
 			pixel+=4;
 		}
