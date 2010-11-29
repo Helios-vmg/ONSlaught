@@ -303,6 +303,11 @@ void print_version_string(){
 
 void mainThread(void *);
 
+#ifdef BENCHMARK_ALPHA_BLENDING
+extern Uint64 over_pixel_count;
+extern double over_time_sum;
+#endif
+
 int main(int argc,char **argv){
 	print_version_string();
 	initialize(argc,argv);
@@ -320,6 +325,10 @@ int main(int argc,char **argv){
 			SDL_Delay(10);
 		}
 	}
+#ifdef BENCHMARK_ALPHA_BLENDING
+	if (over_time_sum!=0)
+		std::cout <<"Alpha blending speed: "<<double(over_pixel_count)/over_time_sum/1000.0<<" kpx/ms.\n";
+#endif
 	return 0;
 }
 

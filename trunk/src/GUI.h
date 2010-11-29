@@ -95,7 +95,8 @@ class NONS_Glyph{
 		outline_bounding_box;
 	ulong advance;
 public:
-	ulong refCount;
+	ulong refCount,
+		real_outline_size;
 	NONS_Glyph(
 		NONS_FontCache &fc,
 		wchar_t codepoint,
@@ -120,7 +121,7 @@ public:
 	}
 	wchar_t get_codepoint() const{ return this->codepoint; }
 	bool needs_redraw(ulong size,bool italic,bool bold,ulong outline_size) const;
-	long get_advance();
+	long get_advance() const;
 	void put(const NONS_Surface &dst,int x,int y,uchar alpha=255);
 	const NONS_FontCache &get_cache() const{ return this->fc; }
 	NONS_FontCache &get_cache(){ return this->fc; }
@@ -162,7 +163,7 @@ public:
 	NONS_FontCache(const NONS_FontCache &fc);
 #endif
 	~NONS_FontCache();
-	void resetStyle(ulong size,bool italic,bool bold,ulong outline_size);
+	void reset_style(ulong size,bool italic,bool bold,ulong outline_size);
 	void set_outline_size(ulong size){ this->outline_size=size; }
 	void set_size(ulong size);
 	void set_to_normal(){
@@ -171,9 +172,9 @@ public:
 	}
 	void set_italic(bool i){ this->italic=i; }
 	void set_bold(bool b){ this->bold=b; }
-	void setColor(const NONS_Color &color){ this->color=color; }
-	void setOutlineColor(const NONS_Color &color){ this->outline_color=color; }
-	NONS_Glyph *getGlyph(wchar_t c);
+	void set_color(const NONS_Color &color){ this->color=color; }
+	void set_outline_color(const NONS_Color &color){ this->outline_color=color; }
+	NONS_Glyph *get_glyph(wchar_t c);
 	void done(NONS_Glyph *g);
 	const NONS_Font &get_font() const{ return this->font; }
 	NONS_Font &get_font(){ return this->font; }
@@ -295,11 +296,6 @@ public:
 	const NONS_Layer *getShadowLayer() const{ return this->shadowLayer; }
 	NONS_Layer *&setShadowLayer(){ return this->shadowLayer; }
 	void dummy(){}
-private:
-	NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY);
-	void write(const std::wstring &str,int offsetX,int offsetY,float center=0);
-	int setLineStart(std::vector<NONS_Glyph *> *arr,long start,NONS_LongRect *frame,float center,int offsetX);
-	int predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width,int offsetX);
 };
 
 struct NONS_SpriteButton:public NONS_Button{
@@ -328,7 +324,7 @@ struct NONS_ButtonLayer{
 	bool exitable;
 	NONS_Menu *menu;
 	NONS_Surface loadedGraphic;
-	struct{
+	struct anonymous_struct{
 		bool Wheel,
 			btnArea,
 			EscapeSpace,
@@ -338,7 +334,20 @@ struct NONS_ButtonLayer{
 			Function,
 			Cursor,
 			Insert,
-			ZXC;
+			ZXC,
+			space_returns_left_click;
+		anonymous_struct()
+			:Wheel(0),
+			btnArea(0),
+			EscapeSpace(0),
+			PageUpDown(0),
+			Enter(0),
+			Tab(0),
+			Function(0),
+			Cursor(0),
+			Insert(0),
+			ZXC(0),
+			space_returns_left_click(0){}
 	} inputOptions;
 	bool return_on_down;
 	NONS_ButtonLayer(const NONS_Surface &img,NONS_ScreenSpace *screen);

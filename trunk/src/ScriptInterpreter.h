@@ -437,9 +437,8 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_gettag(NONS_Statement &stmt);
 	ErrorCode command_textcolor(NONS_Statement &stmt);
 	ErrorCode command_texec(NONS_Statement &stmt);
-	/*
-	ErrorCode command_(NONS_Statement &stmt);
-	*/
+	ErrorCode command_strsp(NONS_Statement &stmt);
+	ErrorCode command_spclclk(NONS_Statement &stmt);
 public:
 	NONS_VariableStore *store;
 	NONS_GFXstore *gfx_store;

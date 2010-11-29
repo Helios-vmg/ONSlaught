@@ -295,9 +295,13 @@ public:
 	NONS_Surface rotate(double alpha) const;
 	//Copies the surface while applying a linear transformation to it.
 	NONS_Surface transform(const NONS_Matrix &m,bool fast=0) const;
-	void save_bitmap(const std::wstring &filename,bool fill_alpha=0) const;
+	void save_bitmap(const std::wstring &filename,bool fill_alpha=0,bool threaded=1) const;
 	void get_optimized_updates(optim_t &dst) const;
 };
+
+class NONS_FontCache;
+
+NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache &cache,const NONS_LongRect &limit);
 
 class NONS_DECLSPEC NONS_Surface:public NONS_ConstSurface{
 	typedef void (*interpolation_f)(NONS_SurfaceProperties,NONS_Rect,NONS_SurfaceProperties,NONS_Rect,double,double);
@@ -318,6 +322,13 @@ public:
 		this->data=0;
 		*this=a;
 	}
+	NONS_Surface(
+		const std::wstring &str,
+		NONS_FontCache &fc,
+		const NONS_LongRect &limit,
+		float center,
+		const NONS_LongRect *bounding_box
+	);
 	void assign(ulong w,ulong h);
 	NONS_Surface &operator=(const std::wstring &name);
 	void over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
@@ -361,7 +372,7 @@ public:
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation2);
 	typedef void (NONS_Surface::*public_interpolation_f)(NONS_Surface,NONS_Rect,NONS_Rect,double,double);
 
-	void make_critical(ulong max_copies);
+	void divide_into_cells(ulong amount);
 
 	//SDL-related:
 	SDL_Surface *get_SDL_screen() const;

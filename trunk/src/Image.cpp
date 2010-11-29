@@ -34,6 +34,7 @@
 #include "FileLog.h"
 #include "IOFunctions.h"
 #include "Archive.h"
+#include "GUI.h"
 #include <SDL/SDL_image.h>
 #include <png.h>
 #include <list>
@@ -329,6 +330,7 @@ public:
 	void unref(index_t &);
 	void update(const index_t &,ulong,ulong,ulong,ulong) const;
 	void get_optimized_updates(index_t &i,optim_t &dst);
+	void divide_into_cells(index_t &i,ulong amount);
 private:
 	bool initialized;
 	surfaces_t surfaces;
@@ -707,6 +709,13 @@ void NONS_SurfaceManager::get_optimized_updates(NONS_SurfaceManager::index_t &i,
 	}
 }
 
+void NONS_SurfaceManager::divide_into_cells(index_t &i,ulong amount){
+	i->h*=i->frames;
+	i->frames=amount;
+	i->h/=amount;
+	i->updates.clear();
+}
+
 NONS_SurfaceManager::index_t NONS_SurfaceManager::scale(const index_t &src,double scale_x,double scale_y){
 	if (!this->have_svg(src))
 		return this->resize(src,ulong(floor(src->w*scale_x+.5)),ulong(floor(src->h*scale_y+.5)));
@@ -976,8 +985,8 @@ void get_final_size(const NONS_ConstSurfaceProperties &src,const NONS_Matrix &m,
 		if (y>maxy || !a)
 			maxy=y;
 	}
-	w=ulong(maxx-minx);
-	h=ulong(maxy-miny);
+	w=ulong(floor(maxx-minx+.5));
+	h=ulong(floor(maxy-miny+.5));
 }
 
 #define TRANSFORM_SET_CHANNEL(i)                                                               \
@@ -1317,7 +1326,7 @@ bool write_png_file(std::wstring filename,NONS_ConstSurface s,bool fill_alpha){
 		if (setjmp(png_jmpbuf(png)))
 			break;
 
-		if (sp.offsets[0]!=0 || sp.offsets[1]!=1 || sp.offsets[2]!=2 || sp.offsets[3]!=3 || fill_alpha){
+		if (sp.offsets[0]!=0 || sp.offsets[1]!=1 || sp.offsets[2]!=2 || sp.offsets[3]!=3 || fill_alpha || 1){
 			std::vector<uchar> consistent(sp.byte_count);
 			uchar *consistent_p=&consistent[0];
 			for (ulong a=0;a<sp.byte_count;a+=4){
@@ -1335,8 +1344,11 @@ bool write_png_file(std::wstring filename,NONS_ConstSurface s,bool fill_alpha){
 			png_write_image(png,(png_bytepp)&pointers[0]);
 		}else{
 			std::vector<const uchar *> pointers(sp.h);
-			for (ulong a=0;a<pointers.size();a++)
+			for (ulong a=0;a<pointers.size();a++){
 				pointers[a]=sp.pixels+sp.pitch*a;
+				std::vector<uchar> temp(sp.pitch);
+				memcpy(&temp[0],pointers[a],sp.pitch);
+			}
 			png_write_image(png,(png_bytepp)&pointers[0]);
 		}
 		if (setjmp(png_jmpbuf(png)))
@@ -1355,10 +1367,13 @@ bool write_png_file(std::wstring filename,NONS_ConstSurface s,bool fill_alpha){
 	return ret;
 }
 
-void NONS_ConstSurface::save_bitmap(const std::wstring &filename,bool fill_alpha) const{
+void NONS_ConstSurface::save_bitmap(const std::wstring &filename,bool fill_alpha,bool threaded) const{
 	if (!*this)
 		return;
-	NONS_Thread(bind(write_png_file,filename,this->clone(),fill_alpha)).unbind();
+	if (threaded)
+		NONS_Thread(bind(write_png_file,filename,this->clone(),fill_alpha)).unbind();
+	else
+		write_png_file(filename,*this,fill_alpha);
 }
 
 void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
@@ -1409,6 +1424,205 @@ NONS_Surface::NONS_Surface(const NONS_CrippledSurface &original){
 		if (this->data->surface.good())
 			sm.ref(this->data->surface);
 	}
+}
+
+NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache &cache,const NONS_LongRect &limit){
+	std::vector<NONS_Glyph *> outputBuffer;
+	long lastSpace=-1;
+	int x0=0,
+		y0=0,
+		wordL=0,
+		lineSkip=cache.line_skip;
+	const NONS_LongRect &frame=limit;
+	int minx=INT_MAX,
+		miny=INT_MAX,
+		maxx=INT_MIN,
+		maxy=INT_MIN;
+	for (size_t a=0;a<str.size();a++){
+		wchar_t c=str[a];
+		NONS_Glyph *glyph=cache.get_glyph(c);
+		if (c=='\n'){
+			outputBuffer.push_back(0);
+			if (x0+wordL>=frame.w && lastSpace>=0){
+				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
+					outputBuffer[lastSpace]->done();
+					outputBuffer[lastSpace]=0;
+				}else
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
+				lastSpace=-1;
+				x0=0;
+				y0+=lineSkip;
+			}
+			lastSpace=-1;
+			x0=0;
+			y0+=lineSkip;
+			wordL=0;
+		}else if (isbreakspace(c)){
+			if (x0+wordL>=frame.w && lastSpace>=0){
+				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
+					outputBuffer[lastSpace]->done();
+					outputBuffer[lastSpace]=0;
+				}else
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
+				lastSpace=-1;
+				x0=0;
+				y0+=lineSkip;
+			}
+			x0+=wordL;
+			lastSpace=outputBuffer.size();
+			wordL=glyph->get_advance();
+			outputBuffer.push_back(glyph);
+		}else if (c){
+			wordL+=glyph->get_advance();
+			outputBuffer.push_back(glyph);
+		}
+	}
+	if (x0+wordL>=frame.w && lastSpace>=0){
+		outputBuffer[lastSpace]->done();
+		outputBuffer[lastSpace]=0;
+	}
+	x0=0;
+	y0=0;
+	long outline=-1;
+	for (ulong a=0;a<outputBuffer.size();a++){
+		NONS_Glyph *g=outputBuffer[a];
+		if (!g){
+			x0=0;
+			y0+=lineSkip;
+			continue;
+		}else if (outline<0)
+			outline=(int)g->real_outline_size;
+		wchar_t character=g->get_codepoint();
+		NONS_LongRect r=g->get_put_bounding_box(x0,y0);
+		int advance=g->get_advance();
+
+		minx=std::min(minx,(int)r.x);
+		miny=std::min(miny,(int)r.y);
+		maxx=std::max(maxx,(int)r.x+(int)r.w+(int)outline);
+		maxx=std::max(maxx,x0+advance);
+		maxy=std::max(maxy,(int)r.y+(int)r.h);
+		maxy=std::max(maxy,y0+lineSkip);
+
+		if (x0+advance>frame.w){
+			x0=0;
+			y0+=lineSkip;
+		}
+		x0+=advance;
+		g->done();
+	}
+	long offsetX=(minx<0)?-minx-outline:0;
+	long offsetY=(miny<0)?-miny:0;
+	return NONS_LongRect(
+		offsetX,
+		offsetY,
+		maxx+offsetX,
+		maxy+offsetY
+	);
+}
+
+long predict_line_length(const std::vector<NONS_Glyph *> &arr,long start,int width){
+	long res=0;
+	for (size_t a=start;a<arr.size() && arr[a] && res+arr[a]->get_advance()<=width;a++)
+		res+=arr[a]->get_advance();
+	return res;
+}
+
+long set_line_start(const std::vector<NONS_Glyph *> &arr,size_t start,const NONS_LongRect &frame,float center){
+	while (!arr[start])
+		start++;
+	long width=predict_line_length(arr,start,frame.w);
+	float factor=(center<=0.5f)?center:1.0f-center;
+	long pixelcenter=int(float(frame.w)*factor);
+	return int((width/2.f>pixelcenter)?(frame.w-width)*(center>0.5f):frame.w*center-width/2.f)+frame.x;
+}
+
+void write(
+			const NONS_Surface &dst,
+			const std::wstring &str,
+			NONS_FontCache &fc,
+			const NONS_LongRect &box,
+			float center
+		){
+	std::vector<NONS_Glyph *> outputBuffer;
+	long lastSpace=-1;
+	long x0=box.x,
+		y0=box.y;
+	int wordL=0;
+	NONS_LongRect frame(0,-box.y,box.w,box.h);
+	ulong lineSkip=fc.line_skip;
+	NONS_LongRect screenFrame(0,0,box.w,box.h);
+	for (size_t a=0;a<str.size();a++){
+		wchar_t c=str[a];
+		NONS_Glyph *glyph=fc.get_glyph(c);
+		if (c=='\n'){
+			outputBuffer.push_back(0);
+			if (x0+wordL>screenFrame.w && lastSpace>=0){
+				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
+					outputBuffer[lastSpace]->done();
+					outputBuffer[lastSpace]=0;
+				}else
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
+				lastSpace=-1;
+				y0+=lineSkip;
+			}
+			lastSpace=-1;
+			x0=box.x;
+			y0+=lineSkip;
+			wordL=0;
+		}else if (isbreakspace(c)){
+			if (x0+wordL>screenFrame.w && lastSpace>=0){
+				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
+					outputBuffer[lastSpace]->done();
+					outputBuffer[lastSpace]=0;
+				}else
+					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
+				lastSpace=-1;
+				x0=box.x;
+				y0+=lineSkip;
+			}
+			x0+=wordL;
+			lastSpace=outputBuffer.size();
+			wordL=glyph->get_advance();
+			outputBuffer.push_back(glyph);
+		}else if (c){
+			wordL+=glyph->get_advance();
+			outputBuffer.push_back(glyph);
+		}
+	}
+	if (x0+wordL>screenFrame.w && lastSpace>=0){
+		outputBuffer[lastSpace]->done();
+		outputBuffer[lastSpace]=0;
+	}
+	x0=set_line_start(outputBuffer,0,box,center);
+	y0=0;
+	for (ulong a=0;a<outputBuffer.size();a++){
+		if (!outputBuffer[a]){
+			x0=set_line_start(outputBuffer,a,box,center);
+			y0+=lineSkip;
+			continue;
+		}
+		int advance=outputBuffer[a]->get_advance();
+		if (x0+advance>screenFrame.w){
+			x0=set_line_start(outputBuffer,a,box,center);
+			y0+=lineSkip;
+		}
+		outputBuffer[a]->put(dst,x0,y0);
+		outputBuffer[a]->done();
+		x0+=advance;
+	}
+}
+
+NONS_Surface::NONS_Surface(
+			const std::wstring &str,
+			NONS_FontCache &fc,
+			const NONS_LongRect &limit,
+			float center,
+			const NONS_LongRect *box
+		){
+	NONS_LongRect bounding_box=(box)?*box:GetBoundingBox(str,fc,limit);
+	this->data=0;
+	this->assign(bounding_box.w,bounding_box.h);
+	write(*this,str,fc,bounding_box,center);
 }
 
 void NONS_Surface::assign(ulong w,ulong h){
@@ -1555,52 +1769,71 @@ void over_blend_threaded(
 	long alpha
 );
 
+#ifdef BENCHMARK_ALPHA_BLENDING
+Uint64 over_pixel_count=0;
+double over_time_sum=0;
+NONS_Mutex over_pixel_count_mutex;
+#endif
+
 void over_blend(
 		const NONS_SurfaceProperties &dst,
 		const NONS_LongRect &dst_rect,
 		const NONS_ConstSurfaceProperties &src,
 		const NONS_LongRect &src_rect,
 		long alpha){
-	if (cpu_count==1 || src_rect.w*src_rect.h<5000){
+#ifdef BENCHMARK_ALPHA_BLENDING
+	NONS_Clock clock;
+	double start=clock.get();
+	{
+		NONS_MutexLocker ml(over_pixel_count_mutex);
+		over_pixel_count+=src_rect.w*src_rect.h;
+	}
+#endif
+	if (cpu_count==1 || src_rect.w*src_rect.h<5000)
 		over_blend_threaded(dst,dst_rect,src,src_rect,alpha);
-		return;
-	}
+	else{
 #ifndef USE_THREAD_MANAGER
-	std::vector<NONS_Thread> threads(cpu_count);
+		std::vector<NONS_Thread> threads(cpu_count);
 #endif
-	BINDER_TYPEDEF_5(over_blend_parameters,NONS_SurfaceProperties,NONS_LongRect,NONS_ConstSurfaceProperties,NONS_LongRect,long);
-	std::vector<over_blend_parameters> parameters(cpu_count);
-	ulong division=ulong(float(src_rect.h)/float(cpu_count));
-	ulong total=0;
-	parameters.front().f=over_blend_threaded;
-	parameters.front().free_after_first_use=0;
-	parameters.front().p=5;
-	for (ulong a=0;a<cpu_count;a++){
-		over_blend_parameters &p=parameters[a];
-		p=parameters.front();
-		p.pt3=src_rect;
-		p.pt3.y+=a*division;
-		p.pt3.h=division;
-		p.pt1=dst_rect;
-		p.pt1.y+=a*division;
-		total+=division;
-		p.pt2=src;
-		p.pt0=dst;
-		p.pt4=alpha;
-	}
-	parameters.back().pt3.h+=src_rect.h-total;
-	for (ulong a=1;a<cpu_count;a++)
+		BINDER_TYPEDEF_5(over_blend_parameters,NONS_SurfaceProperties,NONS_LongRect,NONS_ConstSurfaceProperties,NONS_LongRect,long);
+		std::vector<over_blend_parameters> parameters(cpu_count);
+		ulong division=ulong(float(src_rect.h)/float(cpu_count));
+		ulong total=0;
+		parameters.front().f=over_blend_threaded;
+		parameters.front().free_after_first_use=0;
+		parameters.front().p=5;
+		for (ulong a=0;a<cpu_count;a++){
+			over_blend_parameters &p=parameters[a];
+			p=parameters.front();
+			p.pt3=src_rect;
+			p.pt3.y+=a*division;
+			p.pt3.h=division;
+			p.pt1=dst_rect;
+			p.pt1.y+=a*division;
+			total+=division;
+			p.pt2=src;
+			p.pt0=dst;
+			p.pt4=alpha;
+		}
+		parameters.back().pt3.h+=src_rect.h-total;
+		for (ulong a=1;a<cpu_count;a++)
 #ifndef USE_THREAD_MANAGER
-		threads[a].call(&parameters[a]);
+			threads[a].call(&parameters[a]);
 #else
-		threadManager.call(a-1,&parameters[a]);
+			threadManager.call(a-1,&parameters[a]);
 #endif
-	parameters.front().call();
+		parameters.front().call();
 #ifndef USE_THREAD_MANAGER
-	for (ulong a=1;a<cpu_count;a++)
-		threads[a].join();
+		for (ulong a=1;a<cpu_count;a++)
+			threads[a].join();
 #else
-	threadManager.waitAll();
+		threadManager.waitAll();
+#endif
+	}
+#ifdef BENCHMARK_ALPHA_BLENDING
+	NONS_MutexLocker ml(over_pixel_count_mutex);
+	over_pixel_count+=src_rect.w*src_rect.h;
+	over_time_sum+=clock.get()-start;
 #endif
 }
 
@@ -2050,6 +2283,14 @@ NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 #else
 	threadManager.waitAll();
 #endif
+}
+
+void NONS_Surface::divide_into_cells(ulong amount){
+	if (!*this)
+		return;
+	if (this->data->cow)
+		*this=this->clone();
+	sm.divide_into_cells(this->data->surface,amount);
 }
 
 SDL_Surface *NONS_Surface::get_SDL_screen() const{

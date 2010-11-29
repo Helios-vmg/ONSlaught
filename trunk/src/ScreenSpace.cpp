@@ -93,7 +93,7 @@ NONS_Layer::~NONS_Layer(){
 
 void NONS_Layer::MakeTextLayer(NONS_FontCache &fc,const NONS_Color &foreground){
 	this->fontCache=new NONS_FontCache(fc FONTCACHE_DEBUG_PARAMETERS);
-	this->fontCache->setColor(foreground);
+	this->fontCache->set_color(foreground);
 	this->defaultShade=NONS_Color::black_transparent;
 	this->data.fill(this->defaultShade);
 }
@@ -245,7 +245,7 @@ NONS_StandardOutput::~NONS_StandardOutput(){
 #define INDENTATION_CHARACTER 0x2003
 
 ulong NONS_StandardOutput::getIndentationSize(){
-	NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(INDENTATION_CHARACTER);
+	NONS_Glyph *glyph=this->foregroundLayer->fontCache->get_glyph(INDENTATION_CHARACTER);
 	long advance=glyph->get_advance();
 	glyph->done();
 	return this->indentationLevel*(advance+this->extraAdvance);
@@ -261,7 +261,7 @@ bool NONS_StandardOutput::prepareForPrinting(std::wstring str){
 	ulong indentationMargin=this->x0+this->getIndentationSize();
 	for (ulong a=0;a<str.size();a++){
 		wchar_t character=str[a];
-		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(character);
+		NONS_Glyph *glyph=this->foregroundLayer->fontCache->get_glyph(character);
 		if (character=='\n'){
 			this->cachedText.push_back(character);
 			if (x0+wordL>=this->w+this->x0 && lastSpace>=0){
@@ -373,8 +373,8 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 	for (ulong a=start;a<end && a<this->cachedText.size();a++){
 		t0=clock.get();
 		wchar_t character=this->cachedText[a];
-		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph(character);
-		NONS_Glyph *glyph2=(this->shadowLayer)?this->shadowLayer->fontCache->getGlyph(character):0;
+		NONS_Glyph *glyph=this->foregroundLayer->fontCache->get_glyph(character);
+		NONS_Glyph *glyph2=(this->shadowLayer)?this->shadowLayer->fontCache->get_glyph(character):0;
 		if (!glyph){
 			if (y0+lineSkip>=this->h+this->y0){
 				this->resumePrinting=1;
@@ -518,7 +518,7 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 	if (shadow)
 		shadow->set_to_normal();
 	if (col)
-		cache.setColor(*col);
+		cache.set_color(*col);
 	for (ulong a=0;a<str->size();a++){
 		wchar_t character=(*str)[a];
 		if (character=='<'){
@@ -555,8 +555,8 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 		}
 		if (character=='\\')
 			character=(*str)[++a];
-		NONS_Glyph *glyph=cache.getGlyph(character);
-		NONS_Glyph *glyph2=(this->shadowLayer)?shadow->getGlyph(character):0;
+		NONS_Glyph *glyph=cache.get_glyph(character);
+		NONS_Glyph *glyph2=(this->shadowLayer)?shadow->get_glyph(character):0;
 		if (character=='\n'){
 			x=lastStart;
 			y+=lineSkip;
@@ -602,7 +602,7 @@ int NONS_StandardOutput::setLineStart(std::wstring *arr,ulong start,NONS_LongRec
 int NONS_StandardOutput::predictLineLength(std::wstring *arr,long start,int width){
 	int res=0;
 	for (ulong a=start;a<arr->size() && (*arr)[a];a++){
-		NONS_Glyph *glyph=this->foregroundLayer->fontCache->getGlyph((*arr)[a]);
+		NONS_Glyph *glyph=this->foregroundLayer->fontCache->get_glyph((*arr)[a]);
 		if (!glyph || res+glyph->get_advance()+this->extraAdvance>=width){
 			CHECK_POINTER_AND_CALL(glyph,done());
 			break;
@@ -830,8 +830,8 @@ void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,NONS_
 	NONS_LongRect src(
 		refresh_area.x-p->position.x+p->clip_rect.x,
 		refresh_area.y-p->position.y+p->clip_rect.y,
-		std::min(refresh_area.w,(long)p->clip_rect.w),
-		std::min(refresh_area.h,(long)p->clip_rect.h)
+		std::max(refresh_area.w,(long)p->clip_rect.w),
+		std::max(refresh_area.h,(long)p->clip_rect.h)
 	);
 	if (src.x<p->clip_rect.x)
 		src.x=p->clip_rect.x;
@@ -1081,7 +1081,7 @@ ErrorCode NONS_ScreenSpace::loadSprite(ulong n,const std::wstring &string,long x
 	if (!string[0])
 		return NONS_EMPTY_STRING;
 	if (n>this->layerStack.size())
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	if (!this->layerStack[n])
 		this->layerStack[n]=new NONS_Layer(&string);
 	else

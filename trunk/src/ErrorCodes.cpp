@@ -78,7 +78,7 @@ const char *errorMessages[]={
 	"Invalid parameter.",
 	//NONS_DUPLICATE_EFFECT_DEFINITION
 	"Effect redefinition.",
-	//NONS_INVALID_RUNTIME_PARAMETER_VALUE
+	//NONS_INVALID_RUN_TIME_PARAMETER_VALUE
 	"Invalid run time parameter value.",
 	//NONS_UNMATCHED_BRAKETS
 	"Unmatched [].",

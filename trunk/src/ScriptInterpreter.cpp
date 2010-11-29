@@ -474,7 +474,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"soundpressplgin"]=         &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"sp_rgb_gradation"]=        &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
 	this->commandList[L"spbtn"]=                   &NONS_ScriptInterpreter::command_spbtn                                |ALLOW_IN_RUN;
-	this->commandList[L"spclclk"]=                 0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"spclclk"]=                 &NONS_ScriptInterpreter::command_spclclk                              |ALLOW_IN_RUN;
 	this->commandList[L"spi"]=                     &NONS_ScriptInterpreter::command_unimplemented        |ALLOW_IN_DEFINE             ;
 	this->commandList[L"split"]=                   &NONS_ScriptInterpreter::command_split                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"splitstring"]=             &NONS_ScriptInterpreter::command_split                |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -482,7 +482,8 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"spstr"]=                   0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"stop"]=                    &NONS_ScriptInterpreter::command_stop                                 |ALLOW_IN_RUN;
 	this->commandList[L"stralias"]=                &NONS_ScriptInterpreter::command_alias                |ALLOW_IN_DEFINE             ;
-	this->commandList[L"strsp"]=                   0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"strsp"]=                   &NONS_ScriptInterpreter::command_strsp                                |ALLOW_IN_RUN;
+	this->commandList[L"strsph"]=                  &NONS_ScriptInterpreter::command_strsp                                |ALLOW_IN_RUN;
 	this->commandList[L"sub"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"systemcall"]=              &NONS_ScriptInterpreter::command_systemcall                           |ALLOW_IN_RUN;
 	this->commandList[L"tablegoto"]=               &NONS_ScriptInterpreter::command_tablegoto            |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -1789,7 +1790,7 @@ bool NONS_ScriptInterpreter::Printer_support(std::vector<printingPage> &pages,ul
 							}
 							if (a==6){
 								NONS_Color color=parsed;
-								this->screen->output->foregroundLayer->fontCache->setColor(color);
+								this->screen->output->foregroundLayer->fontCache->set_color(color);
 								reduced+=6;
 								break;
 							}
@@ -1974,7 +1975,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	out->transition->duration=save.windowTransitionDuration;
 	out->transition->rule=save.windowTransitionRule;
 	this->hideTextDuringEffect=save.hideWindow;
-	out->foregroundLayer->fontCache->setColor(save.windowTextColor);
+	out->foregroundLayer->fontCache->set_color(save.windowTextColor);
 	out->set_italic(save.italic);
 	out->set_bold(save.bold);
 	out->display_speed=save.textSpeed;
@@ -2462,7 +2463,7 @@ ErrorCode NONS_ScriptInterpreter::command_async_effect(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	GET_INT_VALUE(frequency,1);
 	if (effectNo<0 || frequency<=0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->screen->screen->callEffect(effectNo-1,frequency);
 	return NONS_NO_ERROR;
 }
@@ -2502,18 +2503,18 @@ ErrorCode NONS_ScriptInterpreter::command_bar(NONS_Statement &stmt){
 	GET_INT_VALUE(barNo,0);
 	GET_INT_VALUE(current_value,1);
 	if (current_value<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	GET_INT_VALUE(x,2);
 	GET_INT_VALUE(y,3);
 	GET_INT_VALUE(w,4);
 	if (w<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	GET_INT_VALUE(h,5);
 	if (h<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	GET_INT_VALUE(total_value,6);
 	if (total_value<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	GET_INT_VALUE(rgb_color,7);
 	this->screen->addBar(barNo,current_value,x,y,w,h,total_value,rgb_color);
 	this->screen->hideTextWindow();
@@ -2675,7 +2676,7 @@ ErrorCode NONS_ScriptInterpreter::command_btn(NONS_Statement &stmt){
 	GET_COORDINATE(srcX,0,5);
 	GET_COORDINATE(srcY,1,6);
 	if (index<=0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->imageButtons->addImageButton(--index,(int)butX,(int)butY,(int)width,(int)height,(int)srcX,(int)srcY);
 	return NONS_NO_ERROR;
 }
@@ -2720,7 +2721,7 @@ ErrorCode NONS_ScriptInterpreter::command_btndown(NONS_Statement &stmt){
 	long time;
 	GET_INT_VALUE(time,0);
 	if (time<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->imageButtonExpiration=time;
 	return NONS_NO_ERROR;
 }
@@ -2765,7 +2766,7 @@ ErrorCode NONS_ScriptInterpreter::command_cell(NONS_Statement &stmt){
 	GET_INT_VALUE(sprt,0);
 	GET_INT_VALUE(cell,1);
 	if (sprt<0 || cell<0 || (ulong)sprt>=this->screen->layerStack.size())
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	NONS_Layer *layer=this->screen->layerStack[sprt];
 	if (!layer || !layer->data)
 		return NONS_NO_SPRITE_LOADED_THERE;
@@ -2804,7 +2805,7 @@ ErrorCode NONS_ScriptInterpreter::command_checkpage(NONS_Statement &stmt){
 	long page;
 	GET_INT_VALUE(page,1);
 	if (page<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	dst->set(this->screen->output->log.size()>=(ulong)page);
 	return NONS_NO_ERROR;
 }
@@ -2976,7 +2977,7 @@ ErrorCode NONS_ScriptInterpreter::command_csp(NONS_Statement &stmt){
 	if (stmt.parameters.size()>0)
 		GET_INT_VALUE(n,0);
 	if (n>0 && ulong(n)>=this->screen->layerStack.size())
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	if (n<0){
 		for (ulong a=0;a<this->screen->layerStack.size();a++)
 			if (this->screen->layerStack[a] && this->screen->layerStack[a]->data)
@@ -3010,7 +3011,7 @@ ErrorCode NONS_ScriptInterpreter::command_defaultspeed(NONS_Statement &stmt){
 	GET_INT_VALUE(med,1);
 	GET_INT_VALUE(fast,2);
 	if (slow<0 || med<0 || fast<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->default_speed_slow=slow;
 	this->default_speed_med=med;
 	this->default_speed_fast=fast;
@@ -3161,7 +3162,7 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 
 	std::vector<NONS_Layer *> &sprites=this->screen->layerStack;
 	if (spriteno<0 || (ulong)spriteno>sprites.size())
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	NONS_Layer *sprite=sprites[spriteno];
 	if (!sprite || !sprite->data)
 		return NONS_NO_SPRITE_LOADED_THERE;
@@ -3306,7 +3307,7 @@ ErrorCode NONS_ScriptInterpreter::command_effectblank(NONS_Statement &stmt){
 	long a;
 	GET_INT_VALUE(a,0);
 	if (a<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	NONS_GFX::effectblank=a;
 	return NONS_NO_ERROR;
 }
@@ -3348,7 +3349,7 @@ ErrorCode NONS_ScriptInterpreter::command_for(NONS_Statement &stmt){
 	if (stmt.parameters.size()>3)
 		GET_INT_VALUE(step,3);
 	if (!step)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	var->set(from);
 	NONS_StackElement *element=new NONS_StackElement(var,this->thread->getNextStatementPair(),from,to,step,this->insideTextgosub());
 	this->callStack.push_back(element);
@@ -3484,7 +3485,7 @@ ErrorCode NONS_ScriptInterpreter::command_getlog(NONS_Statement &stmt){
 	GET_INT_VALUE(page,1);
 	NONS_StandardOutput *out=this->screen->output;
 	if (page<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	if (!page)
 		return this->command_gettext(stmt);
 	if (out->log.size()<(ulong)page)
@@ -3599,7 +3600,7 @@ ErrorCode NONS_ScriptInterpreter::command_getscreenshot(NONS_Statement &stmt){
 	GET_INT_VALUE(w,0);
 	GET_INT_VALUE(h,1);
 	if (w<=0 || h<=0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->screenshot=this->screen->screen->get_screen().resize(w,h);
 	return NONS_NO_ERROR;
 }
@@ -3805,7 +3806,7 @@ ErrorCode NONS_ScriptInterpreter::command_indent(NONS_Statement &stmt){
 	long indent;
 	GET_INT_VALUE(indent,0);
 	if (indent<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->screen->output->indentationLevel=indent;
 	return NONS_NO_ERROR;
 }
@@ -3970,7 +3971,7 @@ ErrorCode NONS_ScriptInterpreter::command_loadgame(NONS_Statement &stmt){
 	long file;
 	GET_INT_VALUE(file,0);
 	if (file<1)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	return this->load(file);
 }
 
@@ -3992,7 +3993,7 @@ ErrorCode NONS_ScriptInterpreter::command_locate(NONS_Statement &stmt){
 	GET_COORDINATE(x,0,0);
 	GET_COORDINATE(y,1,1);
 	if (x<0 || y<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->screen->output->setPosition((int)x,(int)y);
 	return NONS_NO_ERROR;
 }
@@ -4040,10 +4041,10 @@ ErrorCode NONS_ScriptInterpreter::command_lookbacksp(NONS_Statement &stmt){
 	long up,down;
 	GET_INT_VALUE(up,0);
 	if (up<0 || up>=1000)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	GET_INT_VALUE(down,1);
 	if (down<0 || down>=1000)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->screen->lookback->setUpButtons(up,down,this->screen);
 	return NONS_NO_ERROR;
 }
@@ -4208,7 +4209,7 @@ ErrorCode NONS_ScriptInterpreter::command_movemousecursor(NONS_Statement &stmt){
 	GET_INT_VALUE(x,0);
 	GET_INT_VALUE(y,1);
 	if (x<0 || y<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	SDL_WarpMouse((Uint16)x,(Uint16)y);
 	return NONS_NO_ERROR;
 }
@@ -4305,7 +4306,7 @@ ErrorCode NONS_ScriptInterpreter::command_msp(NONS_Statement &stmt){
 	GET_COORDINATE(y,1,2);
 	GET_INT_VALUE(alpha,3);
 	if (ulong(spriten)>this->screen->layerStack.size())
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	NONS_Layer *l=this->screen->layerStack[spriten];
 	if (!l)
 		return NONS_NO_SPRITE_LOADED_THERE;
@@ -4511,7 +4512,7 @@ ErrorCode NONS_ScriptInterpreter::command_quake(NONS_Statement &stmt){
 	GET_INT_COORDINATE(amplitude,0,0);
 	GET_INT_VALUE(duration,1);
 	if (amplitude<0 || duration<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	amplitude*=2;
 	amplitude=(long)this->screen->screen->convertW(amplitude);
 	shake(this->screen->screen,amplitude,duration);
@@ -4638,7 +4639,7 @@ ErrorCode NONS_ScriptInterpreter::command_savefileexist(NONS_Statement &stmt){
 	long file;
 	GET_INT_VALUE(file,1);
 	if (file<1)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	std::wstring path=save_directory+L"save"+itoaw(file)+L".dat";
 	dst->set(NONS_File::file_exists(path));
 	return NONS_NO_ERROR;
@@ -4649,7 +4650,7 @@ ErrorCode NONS_ScriptInterpreter::command_savegame(NONS_Statement &stmt){
 	long file;
 	GET_INT_VALUE(file,0);
 	if (file<1)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	return this->save(file)?NONS_NO_ERROR:NONS_UNDEFINED_ERROR;
 }
 
@@ -4672,7 +4673,7 @@ ErrorCode NONS_ScriptInterpreter::command_savenumber(NONS_Statement &stmt){
 	long n;
 	GET_INT_VALUE(n,0);
 	if (n<1 || n>20)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->menu->slots=(ushort)n;
 	return NONS_NO_ERROR;
 }
@@ -4701,7 +4702,7 @@ ErrorCode NONS_ScriptInterpreter::command_savetime(NONS_Statement &stmt){
 	long file;
 	GET_INT_VALUE(file,0);
 	if (file<1)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	std::wstring path=save_directory+L"save"+itoaw(file)+L".dat";
 	if (!NONS_File::file_exists(path)){
 		day->set(0);
@@ -4731,7 +4732,7 @@ ErrorCode NONS_ScriptInterpreter::command_savetime2(NONS_Statement &stmt){
 	long file;
 	GET_INT_VALUE(file,0);
 		if (file<1)
-			return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+			return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	std::wstring path=save_directory+L"save"+itoaw(file)+L".dat";
 	if (!NONS_File::file_exists(path)){
 		year->set(0);
@@ -4975,7 +4976,7 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 			frameXstart>=frameXend ||
 			frameYstart>=frameYend ||
 			fontsize<1){
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	}
 	NONS_LongRect windowRect=(NONS_LongRect)NONS_Rect(windowXstart,windowYstart,windowXend-windowXstart+1,windowYend-windowYstart+1),
 		frameRect=(NONS_LongRect)NONS_Rect(frameXstart,frameYstart,frameXend-frameXstart,frameYend-frameYstart);
@@ -5095,7 +5096,7 @@ ErrorCode NONS_ScriptInterpreter::command_sinusoidal_quake(NONS_Statement &stmt)
 	GET_INT_COORDINATE(amplitude,0,0);
 	GET_INT_VALUE(duration,1);
 	if (amplitude<0 || duration<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	amplitude*=10;
 	NONS_VirtualScreen *scr=this->screen->screen;
 	if (stmt.commandName[5]=='x')
@@ -5124,9 +5125,16 @@ ErrorCode NONS_ScriptInterpreter::command_spbtn(NONS_Statement &stmt){
 	long sprite,button_index;
 	GET_INT_VALUE(sprite,0);
 	if (sprite<0 || sprite>999)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	GET_INT_VALUE(button_index,1);
 	this->imageButtons->addSpriteButton(--button_index,sprite);
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_spclclk(NONS_Statement &stmt){
+	if (!this->imageButtons)
+		return NONS_NO_BUTTON_IMAGE;
+	this->imageButtons->inputOptions.space_returns_left_click=1;
 	return NONS_NO_ERROR;
 }
 
@@ -5173,6 +5181,88 @@ ErrorCode NONS_ScriptInterpreter::command_stop(NONS_Statement &stmt){
 	this->mp3_save=0;
 	this->wav_loop=0;
 	return this->audio->stopAllSound();
+}
+
+ErrorCode NONS_ScriptInterpreter::command_strsp(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(12);
+	long sprite_no;
+	std::wstring string;
+	long x,
+		y,
+		columns,
+		rows,
+		width,
+		height,
+		x_space,
+		y_space,
+		bold,
+		shadow;
+	std::vector<NONS_Color> colors;
+	GET_INT_VALUE(sprite_no,0);
+	if (sprite_no<0 || (size_t)sprite_no>=this->screen->layerStack.size())
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
+	GET_STR_VALUE(string,1);
+	GET_INT_VALUE(x,2);
+	GET_INT_VALUE(y,3);
+	GET_INT_VALUE(columns,4);
+	GET_INT_VALUE(rows,5);
+	GET_INT_VALUE(width,6);
+	GET_INT_VALUE(height,7);
+	if (columns<=0 || rows<=0 || width<=0 || height<=0)
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
+	GET_INT_VALUE(x_space,8);
+	GET_INT_VALUE(y_space,9);
+	GET_INT_VALUE(bold,10);
+	GET_INT_VALUE(shadow,11);
+	if (stmt.parameters.size()==12)
+		colors.push_back(NONS_Color::white);
+	else{
+		for (ulong a=12;a<stmt.parameters.size();a++){
+			long color;
+			GET_INT_VALUE(color,a);
+			colors.push_back(color);
+		}
+	}
+	for (size_t a=0;a<string.size();a++)
+		if (string[a]=='\\')
+			string[a]='\n';
+	NONS_FontCache fc(*this->font_cache FONTCACHE_DEBUG_PARAMETERS);
+	fc.reset_style(height,0,!!bold,0);
+	fc.line_skip=height+y_space;
+	fc.spacing=x_space;
+	fc.set_color(NONS_Color::black);
+	NONS_Surface surface(string,fc,NONS_LongRect(0,0,(width+x_space)*columns,(height+y_space)*rows),0,0);
+	NONS_LongRect size=surface.clip_rect();
+	NONS_Surface final(size.w+1,(size.h+1)*colors.size());
+	{
+		NONS_LongRect dst_rect=size;
+		dst_rect.x=1;
+		dst_rect.y=1;
+		for (size_t a=0;a<colors.size();a++){
+			final.over(surface,&dst_rect);
+			dst_rect.y+=dst_rect.h;
+		}
+	}
+	{
+		NONS_LongRect dst_rect=size;
+		dst_rect.x=0;
+		dst_rect.y=0;
+		for (size_t a=0;a<colors.size();a++){
+			surface.color(colors[a]);
+			final.over(surface,&dst_rect);
+			dst_rect.y+=dst_rect.h;
+		}
+	}
+	surface.unbind();
+	final.divide_into_cells(colors.size());
+	NONS_Layer *layer=new NONS_Layer(final,NONS_Color::black);
+	layer->position.x=x;
+	layer->position.y=y;
+	if (!stdStrCmpCI(stmt.commandName,L"strsph"))
+		layer->visible=0;
+	delete this->screen->layerStack[sprite_no];
+	this->screen->layerStack[sprite_no]=layer;
+	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_systemcall(NONS_Statement &stmt){
@@ -5255,7 +5345,7 @@ ErrorCode NONS_ScriptInterpreter::command_textcolor(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long rgb;
 	GET_INT_VALUE(rgb,0);
-	this->screen->output->foregroundLayer->fontCache->setColor(rgb);
+	this->screen->output->foregroundLayer->fontCache->set_color(rgb);
 	return NONS_NO_ERROR;
 }
 
@@ -5300,7 +5390,7 @@ ErrorCode NONS_ScriptInterpreter::command_textspeed(NONS_Statement &stmt){
 	long speed;
 	GET_INT_VALUE(speed,0);
 	if (speed<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->screen->output->display_speed=speed;
 	return NONS_NO_ERROR;
 }
@@ -5433,7 +5523,7 @@ ErrorCode NONS_ScriptInterpreter::command_vsp(NONS_Statement &stmt){
 	GET_INT_VALUE(n,0);
 	GET_INT_VALUE(visibility,1);
 	if (n>0 && ulong(n)>=this->screen->layerStack.size())
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	if (this->screen->layerStack[n] && this->screen->layerStack[n]->data)
 		this->screen->layerStack[n]->visible=!!visibility;
 	return NONS_NO_ERROR;
@@ -5452,7 +5542,7 @@ ErrorCode NONS_ScriptInterpreter::command_waittimer(NONS_Statement &stmt){
 	long ms;
 	GET_INT_VALUE(ms,0);
 	if (ms<0)
-		return NONS_INVALID_RUNTIME_PARAMETER_VALUE;
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	NONS_Clock::t now=NONS_Clock().get();
 	if (ulong(ms)>now-this->timer){
 		NONS_Clock::t delay=ms-(now-this->timer);

@@ -279,7 +279,6 @@ bool NONS_Lookback::changePage(
 				buttons[a]->mergeWithoutUpdate(dst,preBlit,mouseOver==a,1);
 		}
 	}
-	//SDL_UpdateRect(dst,0,0,0,0);
 	dst->updateWholeScreen();
 	return 1;
 }
@@ -543,238 +542,26 @@ NONS_TextButton::NONS_TextButton(
 		:NONS_SurfaceButton(),font_cache(fc FONTCACHE_DEBUG_PARAMETERS){
 	this->limitX=limitX;
 	this->limitY=limitY;
-	int offsetX,
-		offsetY;
-	this->box=this->GetBoundingBox(text,&this->font_cache,limitX,limitY,offsetX,offsetY);
-	this->setOffLayer()=new NONS_Layer(this->box,NONS_Color::black);
-	this->setOffLayer()->MakeTextLayer(this->font_cache,off);
-	this->setOnLayer()=new NONS_Layer(this->box,NONS_Color::black);
-	this->setOnLayer()->MakeTextLayer(this->font_cache,on);
+	NONS_LongRect limit(0,0,limitX,limitY);
+	this->font_cache.set_color(on);
+	NONS_Surface text_surface(text,this->font_cache,limit,center,0);
+	this->box=text_surface.clip_rect();
+	this->setOnLayer()=new NONS_Layer(text_surface,on);
+	text_surface=text_surface.clone();
+	text_surface.color(off);
+	this->setOffLayer()=new NONS_Layer(text_surface,off);
 	if (shadow){
-		this->setShadowLayer()=new NONS_Layer(this->box,NONS_Color::black);
-		this->setShadowLayer()->MakeTextLayer(this->font_cache,NONS_Color::black);
+		text_surface=text_surface.clone();
+		text_surface.color(NONS_Color::black);
+		this->setShadowLayer()=new NONS_Layer(text_surface,NONS_Color::black);
 		this->box.w++;
 		this->box.h++;
 	}else
 		this->setShadowLayer()=0;
-	this->write(text,offsetX,offsetY,center);
 }
 
 NONS_TextButton::~NONS_TextButton(){
 	delete this->getShadowLayer();
-}
-
-NONS_LongRect NONS_TextButton::GetBoundingBox(const std::wstring &str,NONS_FontCache *cache,int limitX,int limitY,int &offsetX,int &offsetY){
-	std::vector<NONS_Glyph *> outputBuffer;
-	long lastSpace=-1;
-	int x0=0,
-		y0=0,
-		wordL=0,
-		//width=0,
-		//minheight=INT_MAX,
-		//height=0,
-		lineSkip=this->font_cache.font_line_skip/*,
-		fontLineSkip=this->font_cache->font_line_skip*/;
-	if (!cache)
-		cache=this->getOffLayer()->fontCache;
-	NONS_LongRect frame(0,0,this->limitX,this->limitY);
-	int minx=INT_MAX,
-		miny=INT_MAX,
-		maxx=INT_MIN,
-		maxy=INT_MIN;
-	for (size_t a=0;a<str.size();a++){
-		wchar_t c=str[a];
-		NONS_Glyph *glyph=cache->getGlyph(c);
-		if (c=='\n'){
-			outputBuffer.push_back(0);
-			if (x0+wordL>=frame.w && lastSpace>=0){
-				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
-					outputBuffer[lastSpace]->done();
-					outputBuffer[lastSpace]=0;
-				}else
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
-				lastSpace=-1;
-				x0=0;
-				y0+=lineSkip;
-			}
-			lastSpace=-1;
-			x0=0;
-			y0+=lineSkip;
-			wordL=0;
-		}else if (isbreakspace(c)){
-			if (x0+wordL>=frame.w && lastSpace>=0){
-				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
-					outputBuffer[lastSpace]->done();
-					outputBuffer[lastSpace]=0;
-				}else
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
-				lastSpace=-1;
-				x0=0;
-				y0+=lineSkip;
-			}
-			x0+=wordL;
-			lastSpace=outputBuffer.size();
-			wordL=glyph->get_advance();
-			outputBuffer.push_back(glyph);
-		}else if (c){
-			wordL+=glyph->get_advance();
-			outputBuffer.push_back(glyph);
-		}
-	}
-	if (x0+wordL>=frame.w && lastSpace>=0){
-		outputBuffer[lastSpace]->done();
-		outputBuffer[lastSpace]=0;
-	}
-	x0=0;
-	y0=0;
-	for (ulong a=0;a<outputBuffer.size();a++){
-		if (!outputBuffer[a]){
-			x0=0;
-			y0+=lineSkip;
-			continue;
-		}
-		NONS_LongRect r=outputBuffer[a]->get_put_bounding_box(x0,y0);
-		int advance=outputBuffer[a]->get_advance();
-
-		minx=std::min(minx,(int)r.x);
-		miny=std::min(miny,(int)r.y);
-		maxx=std::max(maxx,(int)r.x+(int)r.w);
-		maxx=std::max(maxx,x0+advance);
-		maxy=std::max(maxy,(int)r.y+(int)r.h);
-		maxy=std::max(maxy,y0+lineSkip);
-
-		if (x0+advance>frame.w){
-			x0=0;
-			y0+=lineSkip;
-		}
-		x0+=advance;
-		outputBuffer[a]->done();
-	}
-	offsetX=(minx<0)?-minx:0;
-	offsetY=(miny<0)?-miny:0;
-	NONS_LongRect res(0,0,maxx+offsetX,maxy+offsetY);
-	return res;
-}
-
-void NONS_TextButton::write(const std::wstring &str,int offsetX,int offsetY,float center){
-	std::vector<NONS_Glyph *> outputBuffer;
-	std::vector<NONS_Glyph *> outputBuffer2;
-	std::vector<NONS_Glyph *> outputBuffer3;
-	long lastSpace=-1;
-	int x0=offsetX,
-		y0=offsetY;
-	int wordL=0;
-	NONS_LongRect frame(0,-this->box.y,this->box.w,this->box.h);
-	int lineSkip=this->getOffLayer()->fontCache->line_skip;
-	NONS_LongRect screenFrame(0,0,this->limitX,this->limitY);
-	for (size_t a=0;a<str.size();a++){
-		wchar_t c=str[a];
-		NONS_Glyph *glyph=this->getOffLayer()->fontCache->getGlyph(c);
-		NONS_Glyph *glyph2=this->getOnLayer()->fontCache->getGlyph(c);
-		NONS_Glyph *glyph3=0;
-		glyph3=(this->getShadowLayer())?this->getShadowLayer()->fontCache->getGlyph(c):0;
-		if (c=='\n'){
-			outputBuffer.push_back(0);
-			outputBuffer2.push_back(0);
-			outputBuffer3.push_back(0);
-			if (x0+wordL>=screenFrame.w && lastSpace>=0){
-				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
-					outputBuffer[lastSpace]->done();
-					outputBuffer2[lastSpace]->done();
-					CHECK_POINTER_AND_CALL(outputBuffer3[lastSpace],done());
-					outputBuffer[lastSpace]=0;
-					outputBuffer2[lastSpace]=0;
-					outputBuffer3[lastSpace]=0;
-				}else{
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
-					outputBuffer2.insert(outputBuffer2.begin()+lastSpace+1,(NONS_Glyph *)0);
-					outputBuffer3.insert(outputBuffer3.begin()+lastSpace+1,(NONS_Glyph *)0);
-				}
-				lastSpace=-1;
-				y0+=lineSkip;
-			}
-			lastSpace=-1;
-			x0=offsetX;
-			y0+=lineSkip;
-			wordL=0;
-		}else if (isbreakspace(c)){
-			if (x0+wordL>=screenFrame.w && lastSpace>=0){
-				if (isbreakspace(outputBuffer[lastSpace]->get_codepoint())){
-					outputBuffer[lastSpace]->done();
-					outputBuffer2[lastSpace]->done();
-					CHECK_POINTER_AND_CALL(outputBuffer3[lastSpace],done());
-					outputBuffer[lastSpace]=0;
-					outputBuffer2[lastSpace]=0;
-					outputBuffer3[lastSpace]=0;
-				}else{
-					outputBuffer.insert(outputBuffer.begin()+lastSpace+1,(NONS_Glyph *)0);
-					outputBuffer2.insert(outputBuffer2.begin()+lastSpace+1,(NONS_Glyph *)0);
-					outputBuffer3.insert(outputBuffer3.begin()+lastSpace+1,(NONS_Glyph *)0);
-				}
-				lastSpace=-1;
-				x0=offsetX;
-				y0+=lineSkip;
-			}
-			x0+=wordL;
-			lastSpace=outputBuffer.size();
-			wordL=glyph->get_advance();
-			outputBuffer.push_back(glyph);
-			outputBuffer2.push_back(glyph2);
-			outputBuffer3.push_back(glyph3);
-		}else if (c){
-			wordL+=glyph->get_advance();
-			outputBuffer.push_back(glyph);
-			outputBuffer2.push_back(glyph2);
-			outputBuffer3.push_back(glyph3);
-		}
-	}
-	if (x0+wordL>=screenFrame.w && lastSpace>=0){
-		outputBuffer[lastSpace]->done();
-		outputBuffer2[lastSpace]->done();
-		CHECK_POINTER_AND_CALL(outputBuffer3[lastSpace],done());
-		outputBuffer[lastSpace]=0;
-		outputBuffer2[lastSpace]=0;
-		outputBuffer3[lastSpace]=0;
-	}
-	x0=this->setLineStart(&outputBuffer,0,&screenFrame,center,offsetX);
-	y0=0;
-	for (ulong a=0;a<outputBuffer.size();a++){
-		if (!outputBuffer[a]){
-			x0=this->setLineStart(&outputBuffer,a,&screenFrame,center,offsetX);
-			y0+=lineSkip;
-			continue;
-		}
-		int advance=outputBuffer[a]->get_advance();
-		if (x0+advance>screenFrame.w){
-			x0=this->setLineStart(&outputBuffer,a,&frame,center,offsetX);
-			y0+=lineSkip;
-		}
-		outputBuffer[a]->put(this->getOffLayer()->data,x0,y0);
-		outputBuffer2[a]->put(this->getOnLayer()->data,x0,y0);
-		outputBuffer[a]->done();
-		outputBuffer2[a]->done();
-		if (this->getShadowLayer()){
-			outputBuffer3[a]->put(this->getShadowLayer()->data,x0,y0);
-			outputBuffer3[a]->done();
-		}
-		x0+=advance;
-	}
-}
-
-int NONS_TextButton::setLineStart(std::vector<NONS_Glyph *> *arr,long start,NONS_LongRect *frame,float center,int offsetX){
-	while (!(*arr)[start])
-		start++;
-	int width=this->predictLineLength(arr,start,frame->w,offsetX);
-	float factor=(center<=0.5f)?center:1.0f-center;
-	int pixelcenter=int(float(frame->w)*factor);
-	return int((width/2.f>pixelcenter)?(frame->w-width)*(center>0.5f):frame->w*center-width/2.f)+offsetX;
-}
-
-int NONS_TextButton::predictLineLength(std::vector<NONS_Glyph *> *arr,long start,int width,int offsetX){
-	int res=0;
-	for (ulong a=start;a<arr->size() && (*arr)[a] && res+(*arr)[a]->get_advance()<=width;a++)
-		res+=(*arr)[a]->get_advance();
-	return res;
 }
 
 void NONS_SpriteButton::mergeWithoutUpdate_inner(NONS_Surface &dst,const NONS_LongRect &dstRect,const NONS_LongRect &srcRect){
@@ -814,16 +601,6 @@ NONS_ButtonLayer::NONS_ButtonLayer(const NONS_FontCache &fc,NONS_ScreenSpace *sc
 	this->screen=screen;
 	this->exitable=exitable;
 	this->menu=menu;
-	this->inputOptions.btnArea=0;
-	this->inputOptions.Cursor=0;
-	this->inputOptions.Enter=0;
-	this->inputOptions.EscapeSpace=0;
-	this->inputOptions.Function=0;
-	this->inputOptions.Wheel=0;
-	this->inputOptions.Insert=0;
-	this->inputOptions.PageUpDown=0;
-	this->inputOptions.Tab=0;
-	this->inputOptions.ZXC=0;
 	this->return_on_down=0;
 }
 
@@ -831,16 +608,6 @@ NONS_ButtonLayer::NONS_ButtonLayer(const NONS_Surface &img,NONS_ScreenSpace *scr
 		:loadedGraphic(img){
 	this->font_cache=0;
 	this->screen=screen;
-	this->inputOptions.btnArea=0;
-	this->inputOptions.Cursor=0;
-	this->inputOptions.Enter=0;
-	this->inputOptions.EscapeSpace=0;
-	this->inputOptions.Function=0;
-	this->inputOptions.Wheel=0;
-	this->inputOptions.Insert=0;
-	this->inputOptions.PageUpDown=0;
-	this->inputOptions.Tab=0;
-	this->inputOptions.ZXC=0;
 	this->return_on_down=0;
 }
 
@@ -1135,7 +902,6 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 	key_bool_map[SDLK_x]=       std::make_pair(-52,&this->inputOptions.ZXC);
 	key_bool_map[SDLK_c]=       std::make_pair(-53,&this->inputOptions.ZXC);
 
-	//Is this the same as while (1)? I have no idea, but don't touch it, just in case.
 	while (expiration && expire>0 || !expiration){
 		while (!queue.empty()){
 			SDL_Event event=queue.pop();
@@ -1198,7 +964,9 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 								{
 									std::map<SDLKey,std::pair<int,bool *> >::iterator i=key_bool_map.find(key);
 									int ret=0;
-									if (i!=key_bool_map.end()){
+									if (this->inputOptions.space_returns_left_click && key==SDLK_SPACE)
+										ret=1;
+									else if (i!=key_bool_map.end()){
 										if (*(i->second.second))
 											ret=i->second.first-1;
 										else if (key==SDLK_ESCAPE)
@@ -1351,17 +1119,17 @@ int NONS_Menu::write(const std::wstring &txt,int y){
 	NONS_FontCache tempCacheForeground(this->get_font_cache() FONTCACHE_DEBUG_PARAMETERS),
 		tempCacheShadow(tempCacheForeground FONTCACHE_DEBUG_PARAMETERS);
 	if (this->shadow)
-		tempCacheShadow.setColor(NONS_Color::black);
+		tempCacheShadow.set_color(NONS_Color::black);
 	
 	std::vector<NONS_Glyph *> outputBuffer;
 	std::vector<NONS_Glyph *> outputBuffer2;
 	ulong width=0;
 	for (size_t a=0;a<txt.size();a++){
-		NONS_Glyph *glyph=tempCacheForeground.getGlyph(txt[a]);
+		NONS_Glyph *glyph=tempCacheForeground.get_glyph(txt[a]);
 		width+=glyph->get_advance();
 		outputBuffer.push_back(glyph);
 		if (this->shadow)
-			outputBuffer2.push_back(tempCacheShadow.getGlyph(txt[a]));
+			outputBuffer2.push_back(tempCacheShadow.get_glyph(txt[a]));
 	}
 	NONS_ScreenSpace *scr=interpreter->screen;
 	int w=scr->screen->get_screen().clip_rect().w;
@@ -1754,10 +1522,13 @@ NONS_Glyph::NONS_Glyph(
 
 	FT_GlyphSlot glyph_slot;
 	glyph_slot=font.get_glyph(codepoint,italic,bold);
+	this->real_outline_size=0;
 	if (outline_size){
 		FT_Glyph glyph;
 		FT_Get_Glyph(glyph_slot,&glyph);
-		this->outline_base_bitmap=render_glyph(this->outline_bounding_box,glyph,fc.ascent,float(outline_size)/18.f*float(size));
+		float temp_os=float(outline_size)/18.f*float(size);
+		this->real_outline_size=(ulong)ceil(temp_os);
+		this->outline_base_bitmap=render_glyph(this->outline_bounding_box,glyph,fc.ascent,temp_os);
 		FT_Done_Glyph(glyph);
 	}else
 		this->outline_base_bitmap=0;
@@ -1796,7 +1567,7 @@ bool NONS_Glyph::needs_redraw(ulong size,bool italic,bool bold,ulong outline_siz
 	return (this->size!=size || this->italic!=italic || this->bold!=bold || this->outline_size!=outline_size);
 }
 
-long NONS_Glyph::get_advance(){
+long NONS_Glyph::get_advance() const{
 	return long(this->advance)+this->fc.spacing;
 }
 
@@ -1867,9 +1638,9 @@ NONS_FontCache::NONS_FontCache(NONS_Font &f,ulong size,const NONS_Color &color,b
 	this->declared_in=file;
 	this->line=line;
 #endif
-	this->setColor(color);
-	this->setOutlineColor(outline_color);
-	this->resetStyle(size,italic,bold,outline_size);
+	this->set_color(color);
+	this->set_outline_color(outline_color);
+	this->reset_style(size,italic,bold,outline_size);
 	this->spacing=0;
 }
 
@@ -1880,9 +1651,9 @@ NONS_FontCache::NONS_FontCache(const NONS_FontCache &fc,const char *file,ulong l
 	this->declared_in=file;
 	this->line=line;
 #endif
-	this->setColor(fc.color);
-	this->setOutlineColor(fc.outline_color);
-	this->resetStyle(fc.size,fc.italic,fc.bold,fc.outline_size);
+	this->set_color(fc.color);
+	this->set_outline_color(fc.outline_color);
+	this->reset_style(fc.size,fc.italic,fc.bold,fc.outline_size);
 	this->spacing=fc.spacing;
 	this->line_skip=fc.line_skip;
 	this->font_line_skip=fc.font_line_skip;
@@ -1914,14 +1685,14 @@ void NONS_FontCache::set_size(ulong size){
 	this->ascent=this->font.ascent;
 }
 
-void NONS_FontCache::resetStyle(ulong size,bool italic,bool bold,ulong outline_size){
+void NONS_FontCache::reset_style(ulong size,bool italic,bool bold,ulong outline_size){
 	this->set_size(size);
 	this->set_italic(italic);
 	this->set_bold(bold);
 	this->set_outline_size(outline_size);
 }
 
-NONS_Glyph *NONS_FontCache::getGlyph(wchar_t c){
+NONS_Glyph *NONS_FontCache::get_glyph(wchar_t c){
 	NONS_CommandLineOptions::replaceArray_t::iterator i=CLOptions.replaceArray.find(c);
 	if (i!=CLOptions.replaceArray.end())
 		c=i->second;
@@ -1983,7 +1754,7 @@ NONS_DebuggingConsole::~NONS_DebuggingConsole(){
 ulong getGlyphWidth(NONS_FontCache *cache){
 	ulong res=0;
 	for (wchar_t a='A';a<='Z';a++){
-		NONS_Glyph *g=cache->getGlyph(a);
+		NONS_Glyph *g=cache->get_glyph(a);
 		ulong w=g->get_advance();
 		g->done();
 		if (w>res)
@@ -2287,7 +2058,7 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 		startAt+=startFromLine+lineHeight;
 	if (startAt<0)
 		startAt=0;
-	this->cache->setColor(NONS_Color::white);
+	this->cache->set_color(NONS_Color::white);
 	for (ulong y=0;y<this->screenH;y++){
 		for (ulong x=0;x<this->screenW;x++){
 			if (CONLOCATE(x,y+startAt)>=this->screen.size())
@@ -2295,7 +2066,7 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 			wchar_t c=this->locate(x,y+startAt);
 			if (!c)
 				continue;
-			NONS_Glyph *g=this->cache->getGlyph(c);
+			NONS_Glyph *g=this->cache->get_glyph(c);
 			g->put(dst->screen->get_screen(),x*this->characterWidth,y*this->characterHeight);
 			g->done();
 		}
@@ -2323,8 +2094,8 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 					);
 					screen.fill(rect,NONS_Color::white);
 				}
-				this->cache->setColor((a!=cursor)?NONS_Color::white:NONS_Color::black);
-				NONS_Glyph *g=this->cache->getGlyph(line[a]);
+				this->cache->set_color((a!=cursor)?NONS_Color::white:NONS_Color::black);
+				NONS_Glyph *g=this->cache->get_glyph(line[a]);
 				g->put(screen,cursorX*this->characterWidth,cursorY*this->characterHeight);
 				g->done();
 			}
@@ -2335,10 +2106,10 @@ void NONS_DebuggingConsole::redraw(NONS_ScreenSpace *dst,long startFromLine,ulon
 			}
 		}
 	}else{
-		this->cache->setColor(NONS_Color::white);
+		this->cache->set_color(NONS_Color::white);
 		for (ulong a=0;a<line.size();a++){
 			if (cursorY<(long)this->screenH){
-				NONS_Glyph *g=this->cache->getGlyph(line[a]);
+				NONS_Glyph *g=this->cache->get_glyph(line[a]);
 				g->put(screen,cursorX*this->characterWidth,cursorY*this->characterHeight);
 				g->done();
 			}
