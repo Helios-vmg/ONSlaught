@@ -116,7 +116,8 @@ struct NONS_StandardOutput{
 	bool prepareForPrinting(std::wstring str);
 	bool print(ulong start,ulong end,NONS_VirtualScreen *dst,ulong *printedChars=0);
 	void endPrinting();
-	void ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,const NONS_Color *col);
+	void ephemeralOut(const std::wstring &str,const NONS_Surface &dst,bool writeToLayers,const NONS_Color *col);
+	void ephemeralOut(const std::wstring &str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,const NONS_Color *col);
 	float getCenterPolicy(char which);
 	void setCenterPolicy(char which,float val);
 	void setCenterPolicy(char which,long val);
@@ -141,8 +142,6 @@ private:
 	bool printingStarted;
 	ulong resumePrintingWhere;
 };
-
-std::wstring removeTags(const std::wstring &str);
 
 struct NONS_GraphicBar{
 	ulong current_value,

@@ -34,6 +34,7 @@
 #include "FileLog.h"
 #include "IOFunctions.h"
 #include "Archive.h"
+#include "ScreenSpace.h"
 #include "GUI.h"
 #include <SDL/SDL_image.h>
 #include <png.h>
@@ -1623,6 +1624,18 @@ NONS_Surface::NONS_Surface(
 	this->data=0;
 	this->assign(bounding_box.w,bounding_box.h);
 	write(*this,str,fc,bounding_box,center);
+}
+
+NONS_Surface::NONS_Surface(
+			ulong w,
+			ulong h,
+			const std::wstring &str,
+			NONS_StandardOutput &so,
+			const NONS_Color &col
+		){
+	this->data=0;
+	this->assign(w,h);
+	so.ephemeralOut(str,*this,0,&col);
 }
 
 void NONS_Surface::assign(ulong w,ulong h){

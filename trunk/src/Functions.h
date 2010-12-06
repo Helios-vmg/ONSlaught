@@ -300,7 +300,7 @@ inline std::basic_string<T> string_replace(
 #undef min
 //string parsing
 template <typename T>
-std::basic_string<T> tagName(const std::basic_string<T> &string,size_t off){
+std::basic_string<T> tag_name(const std::basic_string<T> &string,size_t off){
 	if (string[off]!='<')
 		return std::basic_string<T>();
 	ulong a=string.find('>',off+1),
@@ -314,7 +314,7 @@ std::basic_string<T> tagName(const std::basic_string<T> &string,size_t off){
 }
 
 template <typename T>
-std::basic_string<T> tagValue(const std::basic_string<T> &string,size_t off){
+std::basic_string<T> tag_value(const std::basic_string<T> &string,size_t off){
 	if (string[off]!='<')
 		return std::basic_string<T>();
 	ulong a=string.find('>',off+1),
@@ -327,6 +327,26 @@ std::basic_string<T> tagValue(const std::basic_string<T> &string,size_t off){
 	std::basic_string<T> temp(string,a,a-c);
 	trim_string(temp);
 	return temp;
+}
+
+template <typename T>
+std::basic_string<T> remove_tags(const std::basic_string<T> &str){
+	std::basic_string<T> res;
+	res.reserve(str.size());
+	for (ulong a=0;a<str.size();a++){
+		switch (str[a]){
+			case '<':
+				while (str[a]!='>')
+					a++;
+				break;
+			case '\\':
+				a++;
+			default:
+				res.push_back(str[a]);
+				break;
+		}
+	}
+	return res;
 }
 
 //binary parsing functions

@@ -72,9 +72,9 @@
 }
 #define GET_STR_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getWcsValue(stmt.parameters[(src)],(dst),0))
 #define GET_INT_OR_STR_VALUE(i,s,type,src) HANDLE_POSSIBLE_ERRORS(this->GET_INT_OR_STR_VALUE_helper((i),(s),(type),stmt.parameters[(src)]))
-#define GET_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getVar((varName),stmt.parameters[(src)],this->store))
-#define GET_INT_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getIntVar((varName),stmt.parameters[(src)],this->store))
-#define GET_STR_VARIABLE(varName,src) HANDLE_POSSIBLE_ERRORS(getStrVar((varName),stmt.parameters[(src)],this->store))
+#define GET_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getVar((dst),stmt.parameters[(src)],this->store))
+#define GET_INT_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getIntVar((dst),stmt.parameters[(src)],this->store))
+#define GET_STR_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getStrVar((dst),stmt.parameters[(src)],this->store))
 #define GET_LABEL(dst,src){                              \
 	std::wstring &GET_LABEL_temp=stmt.parameters[(src)]; \
 	if (GET_LABEL_temp[0]=='*')                          \
@@ -439,6 +439,8 @@ class NONS_ScriptInterpreter{
 	ErrorCode command_texec(NONS_Statement &stmt);
 	ErrorCode command_strsp(NONS_Statement &stmt);
 	ErrorCode command_spclclk(NONS_Statement &stmt);
+	ErrorCode command_logsp(NONS_Statement &stmt);
+	ErrorCode command_strip_format(NONS_Statement &stmt);
 public:
 	NONS_VariableStore *store;
 	NONS_GFXstore *gfx_store;

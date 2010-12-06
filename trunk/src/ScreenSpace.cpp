@@ -502,7 +502,7 @@ void NONS_StandardOutput::endPrinting(){
 	this->printingStarted=0;
 }
 
-void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,const NONS_Color *col){
+void NONS_StandardOutput::ephemeralOut(const std::wstring &str,const NONS_Surface &dst,bool writeToLayers,const NONS_Color *col){
 	int x=this->x0,
 		y=this->y0;
 	int lineSkip=this->foregroundLayer->fontCache->line_skip;
@@ -519,17 +519,17 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 		shadow->set_to_normal();
 	if (col)
 		cache.set_color(*col);
-	for (ulong a=0;a<str->size();a++){
-		wchar_t character=(*str)[a];
+	for (ulong a=0;a<str.size();a++){
+		wchar_t character=str[a];
 		if (character=='<'){
-			std::wstring tagname=tagName(*str,a);
+			std::wstring tagname=tag_name(str,a);
 			if (tagname.size()){
 				if (tagname==L"x"){
-					std::wstring tagvalue=tagValue(*str,a);
+					std::wstring tagvalue=tag_value(str,a);
 					if (tagvalue.size())
 						lastStart=x=atoi(tagvalue);
 				}else if (tagname==L"y"){
-					std::wstring tagvalue=tagValue(*str,a);
+					std::wstring tagvalue=tag_value(str,a);
 					if (tagvalue.size())
 						y=atoi(tagvalue);
 				}else if (tagname==L"italic"){
@@ -549,12 +549,12 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 					if (shadow)
 						shadow->set_bold(0);
 				}
-				a=str->find('>',a);
+				a=str.find('>',a);
 			}
 			continue;
 		}
 		if (character=='\\')
-			character=(*str)[++a];
+			character=str[++a];
 		NONS_Glyph *glyph=cache.get_glyph(character);
 		NONS_Glyph *glyph2=(this->shadowLayer)?shadow->get_glyph(character):0;
 		if (character=='\n'){
@@ -562,22 +562,11 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 			y+=lineSkip;
 		}else{
 			if (writeToLayers){
-				if (glyph2){
-					glyph2->put(this->shadowLayer->data,x+1,y+1);
-					if (dst)
-						glyph2->put(dst->get_screen(),x+1,y+1);
-				}
+				CHECK_POINTER_AND_CALL(glyph2,put(this->shadowLayer->data,x+1,y+1));
 				glyph->put(this->foregroundLayer->data,x,y);
-				if (!!dst){
-					NONS_Surface screen=dst->get_screen();
-					CHECK_POINTER_AND_CALL(glyph2,put(screen,x+1,y+1,0));
-					glyph->put(screen,x,y,0);
-				}
-			}else if (dst){
-				NONS_Surface screen=dst->get_screen();
-				CHECK_POINTER_AND_CALL(glyph2,put(screen,x+1,y+1));
-				glyph->put(screen,x,y);
 			}
+			CHECK_POINTER_AND_CALL(glyph2,put(dst,x+1,y+1));
+			glyph->put(dst,x,y);
 			x+=glyph->get_advance();
 			glyph->done();
 			CHECK_POINTER_AND_CALL(glyph2,done());
@@ -585,8 +574,14 @@ void NONS_StandardOutput::ephemeralOut(std::wstring *str,NONS_VirtualScreen *dst
 	}
 	if (shadow)
 		delete shadow;
-	if (update && !!dst)
-		dst->updateWholeScreen();
+}
+
+void NONS_StandardOutput::ephemeralOut(const std::wstring &str,NONS_VirtualScreen *dst,bool update,bool writeToLayers,const NONS_Color *col){
+	if (!!dst){
+		this->ephemeralOut(str,dst->get_screen(),writeToLayers,col);
+		if (update)
+			dst->updateWholeScreen();
+	}
 }
 
 int NONS_StandardOutput::setLineStart(std::wstring *arr,ulong start,NONS_LongRect *frame,float center){
@@ -709,25 +704,6 @@ bool NONS_StandardOutput::NewLine(){
 	else
 		this->currentBuffer.append(L"\n");
 	return 0;
-}
-
-std::wstring removeTags(const std::wstring &str){
-	std::wstring res;
-	res.reserve(str.size());
-	for (ulong a=0;a<str.size();a++){
-		switch (str[a]){
-			case '<':
-				while (str[a]!='>')
-					a++;
-				break;
-			case '\\':
-				a++;
-			default:
-				res.push_back(str[a]);
-				break;
-		}
-	}
-	return res;
 }
 
 NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){

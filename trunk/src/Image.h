@@ -300,6 +300,7 @@ public:
 };
 
 class NONS_FontCache;
+struct NONS_StandardOutput;
 
 NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache &cache,const NONS_LongRect &limit);
 
@@ -328,6 +329,13 @@ public:
 		const NONS_LongRect &limit,
 		float center,
 		const NONS_LongRect *bounding_box
+	);
+	NONS_Surface(
+		ulong w,
+		ulong h,
+		const std::wstring &str,
+		NONS_StandardOutput &so,
+		const NONS_Color &col
 	);
 	void assign(ulong w,ulong h);
 	NONS_Surface &operator=(const std::wstring &name);

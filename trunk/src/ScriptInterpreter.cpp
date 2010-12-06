@@ -366,7 +366,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"loadgame"]=                &NONS_ScriptInterpreter::command_loadgame                             |ALLOW_IN_RUN;
 	this->commandList[L"loadgosub"]=               &NONS_ScriptInterpreter::command_loadgosub            |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"locate"]=                  &NONS_ScriptInterpreter::command_locate                               |ALLOW_IN_RUN;
-	this->commandList[L"logsp"]=                   0                                                                     |ALLOW_IN_RUN;
+	this->commandList[L"logsp"]=                   &NONS_ScriptInterpreter::command_logsp                                |ALLOW_IN_RUN;
 	this->commandList[L"logsp2"]=                  0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"lookbackbutton"]=          &NONS_ScriptInterpreter::command_lookbackbutton       |ALLOW_IN_DEFINE             ;
 	this->commandList[L"lookbackcolor"]=           &NONS_ScriptInterpreter::command_lookbackcolor        |ALLOW_IN_DEFINE             ;
@@ -538,6 +538,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"base_resolution"]=         &NONS_ScriptInterpreter::command_base_resolution      |ALLOW_IN_DEFINE             ;
 	this->commandList[L"use_nice_svg"]=            &NONS_ScriptInterpreter::command_use_nice_svg                         |ALLOW_IN_RUN;
 	this->commandList[L"clock"]=                   &NONS_ScriptInterpreter::command_clock                                |ALLOW_IN_RUN;
+	this->commandList[L"strip_format"]=            &NONS_ScriptInterpreter::command_strip_format                         |ALLOW_IN_RUN;
 	/*
 	this->commandList[L""]=&NONS_ScriptInterpreter::command_;
 	*/
@@ -2078,7 +2079,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	//Preparations for audio
 	NONS_Audio *au=this->audio;
 	au->stopAllSound();
-	out->ephemeralOut(&out->currentBuffer,0,0,1,0);
+	out->ephemeralOut(out->currentBuffer,0,0,1,0);
 	{
 		ulong w=(ulong)scr->screen->inRect.w,
 			h=(ulong)scr->screen->inRect.h;
@@ -3490,7 +3491,7 @@ ErrorCode NONS_ScriptInterpreter::command_getlog(NONS_Statement &stmt){
 		return this->command_gettext(stmt);
 	if (out->log.size()<(ulong)page)
 		return NONS_NOT_ENOUGH_LOG_PAGES;
-	std::wstring text=removeTags(out->log[out->log.size()-page]);
+	std::wstring text=/*remove_tags*/(out->log[out->log.size()-page]);
 	dst->set(text);
 	return NONS_NO_ERROR;
 }
@@ -3647,7 +3648,7 @@ ErrorCode NONS_ScriptInterpreter::command_gettext(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *dst;
 	GET_STR_VARIABLE(dst,0);
-	std::wstring text=removeTags(this->screen->output->currentBuffer);
+	std::wstring text=/*remove_tags*/(this->screen->output->currentBuffer);
 	dst->set(text);
 	return NONS_NO_ERROR;
 }
@@ -3995,6 +3996,86 @@ ErrorCode NONS_ScriptInterpreter::command_locate(NONS_Statement &stmt){
 	if (x<0 || y<0)
 		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	this->screen->output->setPosition((int)x,(int)y);
+	return NONS_NO_ERROR;
+}
+
+NONS_Layer *text_to_surface(
+			const std::wstring &str,
+			NONS_FontCache *fc,
+			const NONS_LongRect &limit,
+			long x,
+			long y,
+			const std::vector<NONS_Color> &colors,
+			NONS_ScreenSpace *ss
+		){
+	NONS_Surface final;
+	if (ss){
+		NONS_LongRect size=ss->screen->get_screen().clip_rect();
+		for (size_t a=0;a<colors.size();a++){
+			if (!final)
+				final.assign(size.w,(size.h)*colors.size());
+			NONS_LongRect dst_rect=size;
+			dst_rect.y=dst_rect.h*a;
+			NONS_Surface temp(size.w,size.h,str,*ss->output,colors.front());
+			final.over(temp,&dst_rect);
+		}
+	}else{
+		fc->set_color(NONS_Color::black);
+		NONS_Surface surface(str,*fc,limit,0,0);
+		NONS_LongRect size=surface.clip_rect();
+		final.assign(size.w+1,(size.h+1)*colors.size());
+		{
+			NONS_LongRect dst_rect=size;
+			dst_rect.x=1;
+			dst_rect.y=1;
+			for (size_t a=0;a<colors.size();a++){
+				final.over(surface,&dst_rect);
+				dst_rect.y+=dst_rect.h;
+			}
+		}
+		{
+			NONS_LongRect dst_rect=size;
+			dst_rect.x=0;
+			dst_rect.y=0;
+			for (size_t a=0;a<colors.size();a++){
+				surface.color(colors[a]);
+				final.over(surface,&dst_rect);
+				dst_rect.y+=dst_rect.h;
+			}
+		}
+	}
+	final.divide_into_cells(colors.size());
+	NONS_Layer *layer=new NONS_Layer(final,NONS_Color::black);
+	layer->position.x=x;
+	layer->position.y=y;
+	return layer;
+}
+
+ErrorCode NONS_ScriptInterpreter::command_logsp(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(4);
+	long sprite_no;
+	std::wstring string;
+	long x,
+		y;
+	std::vector<NONS_Color> colors;
+	GET_INT_VALUE(sprite_no,0);
+	if (sprite_no<0 || (size_t)sprite_no>=this->screen->layerStack.size())
+		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
+	GET_STR_VALUE(string,1);
+	GET_INT_COORDINATE(x,0,2);
+	GET_INT_COORDINATE(y,1,3);
+	if (stmt.parameters.size()==4)
+		colors.push_back(this->screen->lookback?this->screen->lookback->foreground:NONS_Color::white);
+	else{
+		for (ulong a=4;a<stmt.parameters.size();a++){
+			long color;
+			GET_INT_VALUE(color,a);
+			colors.push_back(color);
+		}
+	}
+	NONS_Layer *layer=text_to_surface(string,0,NONS_LongRect(),x,y,colors,this->screen);
+	delete this->screen->layerStack[sprite_no];
+	this->screen->layerStack[sprite_no]=layer;
 	return NONS_NO_ERROR;
 }
 
@@ -5183,6 +5264,16 @@ ErrorCode NONS_ScriptInterpreter::command_stop(NONS_Statement &stmt){
 	return this->audio->stopAllSound();
 }
 
+ErrorCode NONS_ScriptInterpreter::command_strip_format(NONS_Statement &stmt){
+	MINIMUM_PARAMETERS(2);
+	std::wstring src;
+	NONS_VariableMember *dst;
+	GET_STR_VALUE(src,1);
+	GET_STR_VARIABLE(dst,0);
+	dst->set(remove_tags(src));
+	return NONS_NO_ERROR;
+}
+
 ErrorCode NONS_ScriptInterpreter::command_strsp(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(12);
 	long sprite_no;
@@ -5202,16 +5293,16 @@ ErrorCode NONS_ScriptInterpreter::command_strsp(NONS_Statement &stmt){
 	if (sprite_no<0 || (size_t)sprite_no>=this->screen->layerStack.size())
 		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
 	GET_STR_VALUE(string,1);
-	GET_INT_VALUE(x,2);
-	GET_INT_VALUE(y,3);
+	GET_INT_COORDINATE(x,0,2);
+	GET_INT_COORDINATE(y,1,3);
 	GET_INT_VALUE(columns,4);
 	GET_INT_VALUE(rows,5);
-	GET_INT_VALUE(width,6);
-	GET_INT_VALUE(height,7);
+	GET_INT_COORDINATE(width,0,6);
+	GET_INT_COORDINATE(height,1,7);
 	if (columns<=0 || rows<=0 || width<=0 || height<=0)
 		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
-	GET_INT_VALUE(x_space,8);
-	GET_INT_VALUE(y_space,9);
+	GET_INT_COORDINATE(x_space,0,8);
+	GET_INT_COORDINATE(y_space,1,9);
 	GET_INT_VALUE(bold,10);
 	GET_INT_VALUE(shadow,11);
 	if (stmt.parameters.size()==12)
@@ -5230,34 +5321,7 @@ ErrorCode NONS_ScriptInterpreter::command_strsp(NONS_Statement &stmt){
 	fc.reset_style(height,0,!!bold,0);
 	fc.line_skip=height+y_space;
 	fc.spacing=x_space;
-	fc.set_color(NONS_Color::black);
-	NONS_Surface surface(string,fc,NONS_LongRect(0,0,(width+x_space)*columns,(height+y_space)*rows),0,0);
-	NONS_LongRect size=surface.clip_rect();
-	NONS_Surface final(size.w+1,(size.h+1)*colors.size());
-	{
-		NONS_LongRect dst_rect=size;
-		dst_rect.x=1;
-		dst_rect.y=1;
-		for (size_t a=0;a<colors.size();a++){
-			final.over(surface,&dst_rect);
-			dst_rect.y+=dst_rect.h;
-		}
-	}
-	{
-		NONS_LongRect dst_rect=size;
-		dst_rect.x=0;
-		dst_rect.y=0;
-		for (size_t a=0;a<colors.size();a++){
-			surface.color(colors[a]);
-			final.over(surface,&dst_rect);
-			dst_rect.y+=dst_rect.h;
-		}
-	}
-	surface.unbind();
-	final.divide_into_cells(colors.size());
-	NONS_Layer *layer=new NONS_Layer(final,NONS_Color::black);
-	layer->position.x=x;
-	layer->position.y=y;
+	NONS_Layer *layer=text_to_surface(string,&fc,NONS_LongRect(0,0,(width+x_space)*columns,(height+y_space)*rows),x,y,colors,0);
 	if (!stdStrCmpCI(stmt.commandName,L"strsph"))
 		layer->visible=0;
 	delete this->screen->layerStack[sprite_no];

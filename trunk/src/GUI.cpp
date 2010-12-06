@@ -141,7 +141,7 @@ int NONS_Lookback::display(NONS_VirtualScreen *dst){
 	NONS_Surface dst_copy=dst->get_screen().clone();
 	long end=this->output->log.size(),
 		currentPage=end-1;
-	this->output->ephemeralOut(&this->output->log[currentPage],dst,0,0,&this->foreground);
+	this->output->ephemeralOut(this->output->log[currentPage],dst,0,0,&this->foreground);
 	NONS_Surface before_blit=dst->get_screen().clone();
 	int mouseOver=-1;
 	int x,y;
@@ -257,7 +257,7 @@ bool NONS_Lookback::changePage(
 	currentPage+=dir;
 	if (currentPage==end)
 		return 0;
-	this->output->ephemeralOut(&this->output->log[currentPage],dst,0,0,&this->foreground);
+	this->output->ephemeralOut(this->output->log[currentPage],dst,0,0,&this->foreground);
 	dst->get_screen().over(preBlit);
 	bool visibilitya[]={
 		!!currentPage,
