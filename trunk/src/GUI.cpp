@@ -247,7 +247,7 @@ bool NONS_Lookback::changePage(
 		long &currentPage,
 		const NONS_ConstSurface &copyDst,
 		NONS_VirtualScreen *dst,
-		const NONS_ConstSurface &preBlit,
+		NONS_Surface &preBlit,
 		uchar &visibility,
 		int &mouseOver){
 	long end=this->output->log.size();
@@ -258,7 +258,7 @@ bool NONS_Lookback::changePage(
 	if (currentPage==end)
 		return 0;
 	this->output->ephemeralOut(this->output->log[currentPage],dst,0,0,&this->foreground);
-	dst->get_screen().over(preBlit);
+	preBlit.copy_pixels(dst->get_screen());
 	bool visibilitya[]={
 		!!currentPage,
 		currentPage!=end-1

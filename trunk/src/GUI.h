@@ -458,7 +458,7 @@ private:
 		long &currentPage,
 		const NONS_ConstSurface &copyDst,
 		NONS_VirtualScreen *dst,
-		const NONS_ConstSurface &preBlit,
+		NONS_Surface &preBlit,
 		uchar &visibility,
 		int &mouseOver
 	);
