@@ -1,13 +1,15 @@
 ????????
 Newly implemented commands:
-  bar, barclear, btndown, chvol, csel, cselgoto, dwaveplay, dwaveplayloop,
-  dwavestop, getcselnum, getcselstr, getmousepos, getsevol, gettag, lookbacksp,
-  movemousecursor, pretextgosub, selectbtnwait, setwindow2, sevol, spbtn,
-  splitstring, texec, textcolor, texthide, textshow
+  bar, barclear, btndown, chvol, csel, cselbtn, cselgoto, dwaveplay,
+  dwaveplayloop, dwavestop, getcselnum, getcselstr, getmousepos, getsevol,
+  gettag, logsp, lookbacksp, movemousecursor, pretextgosub, selectbtnwait,
+  setwindow2, sevol, spbtn, spclclk, splitstring, strip_format, strsp, strsph,
+  texec, textcolor, texthide, textshow
 
 Important changes:
   * Moved macro interpreter to Python.
     TODO: Update documentation and add error handling.
+  * Added joystick support.
 
 Bug fixes:
   * Plugged memory leak in various routines.

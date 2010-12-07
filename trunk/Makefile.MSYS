@@ -5,7 +5,7 @@ NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 -lSDL_mixer -ltimidity -lS
 PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static-libgcc -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
 RC = windres
 RCFLAGS = -J rc -O coff
-INPUTS = objs/SJIS.table.o objs/ScriptInterpreter.o objs/GUI.o objs/ExpressionParser.tab.o objs/Image.o objs/MacroParser.tab.o objs/INIParser.tab.o objs/Archive.o objs/ScreenSpace.o objs/LZMA.o objs/VariableStore.o objs/Script.o objs/SaveFile.o objs/GFX.o objs/IOFunctions.o objs/VirtualScreen.o objs/Functions.o objs/Audio.o objs/CommandLineOptions.o objs/sha1.o objs/MacroParser.o objs/ONSlaught.o objs/ErrorCodes.o objs/Thread.o objs/ConfigFile.o objs/FileLog.o objs/INIfile.o objs/ThreadManager.o objs/OpenGL.o objs/LibraryLoader.o 
+INPUTS = objs/SJIS.table.o objs/ScriptInterpreter.o objs/Image.o objs/ExpressionParser.tab.o objs/GUI.o objs/MacroParser.tab.o objs/INIParser.tab.o objs/Archive.o objs/ScreenSpace.o objs/LZMA.o objs/VariableStore.o objs/Script.o objs/SaveFile.o objs/GFX.o objs/IOFunctions.o objs/VirtualScreen.o objs/Functions.o objs/Audio.o objs/CommandLineOptions.o objs/sha1.o objs/ONSlaught.o objs/MacroParser.o objs/ErrorCodes.o objs/Thread.o objs/ConfigFile.o objs/FileLog.o objs/INIfile.o objs/ThreadManager.o objs/OpenGL.o objs/LibraryLoader.o 
 
 all: objs bin-win32/ONSlaught.exe bin-win32/plugin.dll
 
@@ -29,11 +29,11 @@ objs/SJIS.table.o: src/SJIS.table.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ScriptInterpreter.o: src/ScriptInterpreter.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/GUI.o: src/GUI.cpp
+objs/Image.o: src/Image.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ExpressionParser.tab.o: src/ExpressionParser.tab.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/Image.o: src/Image.cpp
+objs/GUI.o: src/GUI.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/MacroParser.tab.o: src/MacroParser.tab.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
@@ -65,9 +65,9 @@ objs/CommandLineOptions.o: src/CommandLineOptions.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/sha1.o: src/sha1.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/MacroParser.o: src/MacroParser.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ONSlaught.o: src/ONSlaught.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/MacroParser.o: src/MacroParser.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ErrorCodes.o: src/ErrorCodes.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
