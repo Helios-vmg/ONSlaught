@@ -75,9 +75,45 @@ int lastClickY=0;
 bool useDebugMode=0,
 	video_playback=0;
 
-void handleInputEvent(SDL_Event &event){
+bool decode_joystick_event(SDL_Event &event){
+	if (event.type==SDL_JOYAXISMOTION){
+		int value=event.jaxis.value;
+		if (ABS(value)<(1<<14))
+			return 0;
+		int axis=0;
+		if (SDL_JoystickNumAxes(InputObserver.joysticks[event.jaxis.which])>=2)
+			axis=1;
+		if (event.jaxis.axis!=axis)
+			return 0;
+		SDLKey key=(value<0)?SDLK_UP:SDLK_DOWN;
+		event.type=SDL_KEYDOWN;
+		event.key.keysym.sym=key;
+	}else if (event.type==SDL_JOYBUTTONDOWN){
+		if (!event.jbutton.state || event.jbutton.button>=5)
+			return 0;
+		static SDLKey buttons[]={
+			SDLK_RETURN,
+			SDLK_ESCAPE,
+			SDLK_PERIOD,
+			SDLK_f,
+			SDLK_F12
+		};
+		SDLKey key=buttons[event.jbutton.button];
+		event.type=SDL_KEYDOWN;
+		event.key.keysym.sym=key;
+	}
+	return 1;
+}
+
+void handleInputEvent(SDL_Event event){
 	long x,y;
 	switch(event.type){
+		case SDL_JOYAXISMOTION:
+		case SDL_JOYBUTTONDOWN:
+			if (!decode_joystick_event(event))
+				return;
+			handleInputEvent(event);
+			break;
 		case SDL_QUIT:
 			enditall(1);
 			InputObserver.notify(&event);
@@ -242,6 +278,22 @@ PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 
 extern ConfigFile settings;
 
+std::string get_version_string(){
+	std::stringstream stream;
+	stream <<"ONSlaught: An ONScripter clone with Unicode support.\n";
+#if ONSLAUGHT_BUILD_VERSION<99999999
+	stream <<"Build "<<ONSLAUGHT_BUILD_VERSION<<", ";
+#endif
+	stream <<ONSLAUGHT_BUILD_VERSION_STR"\n"
+#ifdef NONS_LOW_MEMORY_ENVIRONMENT
+		"Low memory usage build.\n"
+#endif
+		"\n"
+		"Copyright (c) "ONSLAUGHT_COPYRIGHT_YEAR_STR", Helios (helios.vmg@gmail.com)\n"
+		"All rights reserved.\n\n\n";
+	return stream.str();
+}
+
 void initialize(int argc,char **argv){
 	srand((unsigned int)time(0));
 	signal(SIGTERM,handle_SIGTERM);
@@ -266,11 +318,14 @@ void initialize(int argc,char **argv){
 	SDL_EnableUNICODE(1);
 	SDL_EnableKeyRepeat(250,20);
 
+	InputObserver.setup_joysticks();
+
 	general_archive.init();
 
 	if (CLOptions.override_stdout){
 		o_stdout.redirect();
 		o_stderr.redirect();
+		o_stdout <<get_version_string();
 		std::cout <<"Redirecting.\n";
 	}
 
@@ -288,17 +343,11 @@ void initialize(int argc,char **argv){
 }
 
 void print_version_string(){
-	std::cout <<"ONSlaught: An ONScripter clone with Unicode support.\n";
-#if ONSLAUGHT_BUILD_VERSION<99999999
-	std::cout <<"Build "<<ONSLAUGHT_BUILD_VERSION<<", ";
-#endif
-	std::cout <<ONSLAUGHT_BUILD_VERSION_STR"\n"
-#ifdef NONS_LOW_MEMORY_ENVIRONMENT
-		"Low memory usage build.\n"
-#endif
-		"\n"
-		"Copyright (c) "ONSLAUGHT_COPYRIGHT_YEAR_STR", Helios (helios.vmg@gmail.com)\n"
-		"All rights reserved.\n\n\n";
+	std::cout <<get_version_string();
+}
+
+void uninitialize(){
+	InputObserver.free_joysticks();
 }
 
 void mainThread(void *);
@@ -329,6 +378,7 @@ int main(int argc,char **argv){
 	if (over_time_sum!=0)
 		std::cout <<"Alpha blending speed: "<<double(over_pixel_count)/over_time_sum/1000.0<<" kpx/ms.\n";
 #endif
+	uninitialize();
 	return 0;
 }
 

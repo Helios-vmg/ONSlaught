@@ -93,12 +93,15 @@ public:
 };
 
 struct NONS_InputObserver{
+	std::vector<SDL_Joystick *> joysticks;
 	std::vector<NONS_EventQueue *> data;
 	NONS_Mutex mutex;
 	NONS_InputObserver();
 	void attach(NONS_EventQueue *what);
 	void detach(NONS_EventQueue *what);
 	void notify(SDL_Event *event);
+	void setup_joysticks();
+	void free_joysticks();
 };
 
 ErrorCode handleErrors(ErrorCode error,ulong original_line,const char *caller,bool queue,std::wstring extraInfo=L"");

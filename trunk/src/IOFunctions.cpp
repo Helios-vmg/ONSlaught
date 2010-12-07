@@ -327,6 +327,7 @@ void NONS_InputObserver::attach(NONS_EventQueue *what){
 	else
 		this->data[pos]=what;
 }
+
 void NONS_InputObserver::detach(NONS_EventQueue *what){
 	NONS_MutexLocker ml(this->mutex);
 	for (ulong a=0;a<this->data.size();a++){
@@ -336,11 +337,32 @@ void NONS_InputObserver::detach(NONS_EventQueue *what){
 		}
 	}
 }
+
 void NONS_InputObserver::notify(SDL_Event *event){
 	NONS_MutexLocker ml(this->mutex);
 	for (ulong a=0;a<this->data.size();a++)
 		if (!!this->data[a])
 			this->data[a]->push(*event);
+}
+
+void NONS_InputObserver::setup_joysticks(){
+	this->free_joysticks();
+	int n=SDL_NumJoysticks();
+	for (int a=0;a<n;a++){
+		SDL_Joystick *j=SDL_JoystickOpen(a);
+		if (SDL_JoystickOpened(a) && (SDL_JoystickNumAxes(j)<1 || SDL_JoystickNumButtons(j)<2)){
+			SDL_JoystickClose(j);
+			j=0;
+		}
+		this->joysticks.push_back(j);
+	}
+	SDL_JoystickEventState(SDL_ENABLE);
+}
+
+void NONS_InputObserver::free_joysticks(){
+	for (size_t a=0;a<this->joysticks.size();a++)
+		SDL_JoystickClose(this->joysticks[a]);
+	this->joysticks.clear();
 }
 
 struct reportedError{

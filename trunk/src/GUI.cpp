@@ -799,13 +799,15 @@ bool NONS_ButtonLayer::react_to_movement(int &mouseOver,SDL_Event *event,const N
 
 void NONS_ButtonLayer::react_to_updown(int &mouseOver,SDLKey key,const NONS_ConstSurface &screenCopy){
 	if (mouseOver>=0)
-		this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
+		CHECK_POINTER_AND_CALL(this->buttons[mouseOver],merge(this->screen->screen,screenCopy,0));
 	mouseOver+=(key==SDLK_UP)?-1:1;
 	if (mouseOver<=-1)
 		mouseOver=this->buttons.size()-1;
 	else if ((ulong)mouseOver>=this->buttons.size())
 		mouseOver=0;
 	NONS_Button *button=this->buttons[mouseOver];
+	if (!button)
+		return;
 	button->merge(this->screen->screen,screenCopy,1);
 	NONS_LongRect rect=button->get_dimensions();
 	rect.x=rect.x+rect.w/2;
