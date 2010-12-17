@@ -612,9 +612,8 @@ NONS_ButtonLayer::NONS_ButtonLayer(const NONS_Surface &img,NONS_ScreenSpace *scr
 }
 
 NONS_ButtonLayer::~NONS_ButtonLayer(){
-	for (ulong a=0;a<this->buttons.size();a++)
-		if (this->buttons[a])
-			delete this->buttons[a];
+	for (map_t::iterator i=this->buttons.begin(),e=this->buttons.end();i!=e;++i)
+		delete i->second;
 	delete this->font_cache;
 }
 
@@ -630,8 +629,8 @@ void NONS_ButtonLayer::makeTextButtons(const std::vector<std::wstring> &arr,
 		int height){
 	if (!this->font_cache)
 		return;
-	for (ulong a=0;a<this->buttons.size();a++)
-		delete this->buttons[a];
+	for (map_t::iterator i=this->buttons.begin(),e=this->buttons.end();i!=e;++i)
+		delete i->second;
 	this->buttons.clear();
 	this->audio=audio;
 	if (entry)
@@ -646,7 +645,7 @@ void NONS_ButtonLayer::makeTextButtons(const std::vector<std::wstring> &arr,
 	this->boundingBox.h=0;
 	for (ulong a=0;a<arr.size();a++){
 		NONS_TextButton *button=new NONS_TextButton(arr[a],*this->font_cache,0,on,off,shadow,width,height);
-		this->buttons.push_back(button);
+		this->buttons[a]=button;
 		this->boundingBox.h+=(Uint16)button->getBox().h;
 		if (button->getBox().w>this->boundingBox.w)
 			this->boundingBox.w=(Uint16)button->getBox().w;
@@ -657,8 +656,8 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 	if (!this->buttons.size())
 		return -1;
 	if (override_placement){
-		for (ulong a=0;a<this->buttons.size();a++){
-			NONS_TextButton *cB=(NONS_TextButton *)this->buttons[a];
+		for (map_t::iterator i=this->buttons.begin(),e=this->buttons.end();i!=e;++i){
+			NONS_TextButton *cB=(NONS_TextButton *)i->second;
 			cB->setPosx()=x;
 			cB->setPosy()=y;
 			y+=int(cB->getBox().y+cB->getBox().h);
@@ -672,17 +671,17 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 		this->audio->loadAsyncBuffer(this->voiceEntry,7);
 	NONS_EventQueue queue;
 	NONS_Surface screenCopy=this->screen->screen->get_screen().clone();
-	int mouseOver=-1;
+	map_t::iterator mouseOver=this->buttons.end();
 	getCorrectedMousePosition(this->screen->screen,&x,&y);
-	for (ulong a=0;a<this->buttons.size();a++){
-		NONS_Button *b=this->buttons[a];
-		if (b){
-			if (b->MouseOver(x,y) && mouseOver<0){
-				mouseOver=a;
-				b->mergeWithoutUpdate(this->screen->screen,screenCopy,1,1);
-			}else
-				this->buttons[a]->mergeWithoutUpdate(this->screen->screen,screenCopy,0,1);
-		}
+	map_t::iterator e=this->buttons.end();
+	for (map_t::iterator i=this->buttons.begin();i!=e;++i){
+		NONS_Button *b=i->second;
+		if (!b)
+			continue;
+		bool state=(b->MouseOver(x,y) && mouseOver==e);
+		if (state)
+			mouseOver=i;
+		b->mergeWithoutUpdate(this->screen->screen,screenCopy,state,1);
 	}
 	this->screen->screen->updateWholeScreen();
 	while (1){
@@ -701,15 +700,14 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 				screen.copy_pixels(screenCopy);
 			}
 			getCorrectedMousePosition(this->screen->screen,&x,&y);
-			for (ulong a=0;a<this->buttons.size();a++){
-				NONS_Button *b=this->buttons[a];
-				if (b){
-					if (b->MouseOver(x,y)){
-						mouseOver=a;
-						b->mergeWithoutUpdate(this->screen->screen,screenCopy,1,1);
-					}else
-						this->buttons[a]->mergeWithoutUpdate(this->screen->screen,screenCopy,0,1);
-				}
+			for (map_t::iterator i=this->buttons.begin(),e=this->buttons.end();i!=e;++i){
+				NONS_Button *b=i->second;
+				if (!b)
+					continue;
+				bool state=(b->MouseOver(x,y) && mouseOver==e);
+				if (state)
+					mouseOver=i;
+				b->mergeWithoutUpdate(this->screen->screen,screenCopy,state,1);
 			}
 			this->screen->screen->updateWholeScreen();
 			continue;
@@ -733,15 +731,14 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 								return INT_MIN;
 							this->screen->screen->blitToScreen(screenCopy,0,0);
 							getCorrectedMousePosition(this->screen->screen,&x,&y);
-							for (ulong a=0;a<this->buttons.size();a++){
-								NONS_Button *b=this->buttons[a];
-								if (b){
-									if (b->MouseOver(x,y)){
-										mouseOver=a;
-										b->mergeWithoutUpdate(this->screen->screen,screenCopy,1,1);
-									}else
-										this->buttons[a]->mergeWithoutUpdate(this->screen->screen,screenCopy,0,1);
-								}
+							for (map_t::iterator i=this->buttons.begin(),e=this->buttons.end();i!=e;++i){
+								NONS_Button *b=i->second;
+								if (!b)
+									continue;
+								bool state=(b->MouseOver(x,y) && mouseOver==e);
+								if (state)
+									mouseOver=i;
+								b->mergeWithoutUpdate(this->screen->screen,screenCopy,state,1);
 							}
 							this->screen->screen->updateWholeScreen();
 						}
@@ -754,7 +751,7 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 						break;
 					case SDLK_RETURN:
 						if (this->react_to_click(mouseOver,screenCopy))
-							return mouseOver;
+							return mouseOver->first;
 						break;
 					case SDLK_PAUSE:
 						console.enter(this->screen);
@@ -771,41 +768,39 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				if (this->react_to_click(mouseOver,screenCopy))
-					return mouseOver;
+					return mouseOver->first;
 				break;
 		}
 	}
 }
 
-bool NONS_ButtonLayer::react_to_movement(int &mouseOver,SDL_Event *event,const NONS_ConstSurface &screenCopy){
-	if (mouseOver>=0 && this->buttons[mouseOver]->MouseOver(event))
+bool NONS_ButtonLayer::react_to_movement(map_t::iterator &mouseOver,SDL_Event *event,const NONS_ConstSurface &screenCopy){
+	map_t::iterator e=this->buttons.end(),
+		tempMO=e;
+	if (mouseOver!=e && mouseOver->second->MouseOver(event))
 		return 0;
-	int tempMO=-1;
-	for (ulong a=0;a<this->buttons.size() && tempMO==-1;a++)
-		if (this->buttons[a] && this->buttons[a]->MouseOver(event))
-			tempMO=a;
-	if (tempMO<0){
-		if (mouseOver>=0)
-			this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
-		mouseOver=-1;
+	for (map_t::iterator i=this->buttons.begin();i!=e && tempMO==e;++i)
+		if (i->second->MouseOver(event))
+			tempMO=i;
+	if (tempMO==e){
+		if (mouseOver!=e)
+			mouseOver->second->merge(this->screen->screen,screenCopy,0);
+		mouseOver=e;
 		return 0;
 	}
-	if (mouseOver>=0)
-		this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,0);
+	if (mouseOver!=e)
+		mouseOver->second->merge(this->screen->screen,screenCopy,0);
 	mouseOver=tempMO;
-	this->buttons[mouseOver]->merge(this->screen->screen,screenCopy,1);
+	mouseOver->second->merge(this->screen->screen,screenCopy,1);
 	return 1;
 }
 
-void NONS_ButtonLayer::react_to_updown(int &mouseOver,SDLKey key,const NONS_ConstSurface &screenCopy){
-	if (mouseOver>=0)
-		CHECK_POINTER_AND_CALL(this->buttons[mouseOver],merge(this->screen->screen,screenCopy,0));
-	mouseOver+=(key==SDLK_UP)?-1:1;
-	if (mouseOver<=-1)
-		mouseOver=this->buttons.size()-1;
-	else if ((ulong)mouseOver>=this->buttons.size())
-		mouseOver=0;
-	NONS_Button *button=this->buttons[mouseOver];
+void NONS_ButtonLayer::react_to_updown(map_t::iterator &mouseOver,SDLKey key,const NONS_ConstSurface &screenCopy){
+	map_t::iterator e=this->buttons.end();
+	if (mouseOver!=e)
+		mouseOver->second->merge(this->screen->screen,screenCopy,0);
+	mouseOver=advance_iterator(mouseOver,(key==SDLK_UP)?-1:1,this->buttons);
+	NONS_Button *button=mouseOver->second;
 	if (!button)
 		return;
 	button->merge(this->screen->screen,screenCopy,1);
@@ -815,8 +810,9 @@ void NONS_ButtonLayer::react_to_updown(int &mouseOver,SDLKey key,const NONS_Cons
 	SDL_WarpMouse((Uint16)rect.x,(Uint16)rect.y);
 }
 
-bool NONS_ButtonLayer::react_to_click(int &mouseOver,const NONS_ConstSurface &screenCopy){
-	if (mouseOver<0)
+bool NONS_ButtonLayer::react_to_click(map_t::iterator &mouseOver,const NONS_ConstSurface &screenCopy){
+	map_t::iterator e=this->buttons.end();
+	if (mouseOver==e)
 		return 0;
 	if (this->voiceClick.size())
 		this->audio->playSoundAsync(&this->voiceClick,7,0);
@@ -826,31 +822,17 @@ bool NONS_ButtonLayer::react_to_click(int &mouseOver,const NONS_ConstSurface &sc
 }
 
 void NONS_ButtonLayer::addImageButton(ulong index,int posx,int posy,int width,int height,int originX,int originY){
-	if (this->buttons.size()<index+1)
-		this->buttons.resize(index+1,0);
-	else if (this->buttons[index])
-		delete this->buttons[index];
+	delete this->buttons[index];
 	this->buttons[index]=new NONS_GraphicButton(this->loadedGraphic,posx,posy,width,height,originX,originY);
 }
 
 void NONS_ButtonLayer::addSpriteButton(ulong index,ulong sprite){
-	if (this->buttons.size()<index+1)
-		this->buttons.resize(index+1,0);
-	else if (this->buttons[index])
-		delete this->buttons[index];
+	delete this->buttons[index];
 	this->buttons[index]=new NONS_SpriteButton(sprite,this->screen);
 }
 
-ulong NONS_ButtonLayer::countActualButtons(){
-	ulong res=0;
-	for (ulong a=0;a<this->buttons.size();a++)
-		if (this->buttons[a])
-			res++;
-	return res;
-}
-
 int NONS_ButtonLayer::getUserInput(ulong expiration){
-	if (!this->countActualButtons()){
+	if (!this->buttons.size()){
 		NONS_LongRect rect=this->loadedGraphic.clip_rect();
 		this->addImageButton(0,0,0,rect.w,rect.h,0,0);
 		//return LONG_MIN;
@@ -859,18 +841,18 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 	this->screen->BlendNoText(0);
 	this->screen->copyBufferToScreenWithoutUpdating();
 	NONS_Surface screenCopy=this->screen->screen->get_screen().clone();
-	int mouseOver=-1;
+	map_t::iterator e=this->buttons.end(),
+		mouseOver=e;
 	int x,y;
 	getCorrectedMousePosition(this->screen->screen,&x,&y);
-	for (ulong a=0;a<this->buttons.size();a++){
-		NONS_Button *b=this->buttons[a];
-		if (b){
-			if (b->MouseOver(x,y) && mouseOver<0){
-				mouseOver=a;
-				b->mergeWithoutUpdate(this->screen->screen,screenCopy,1,1);
-			}else
-				this->buttons[a]->mergeWithoutUpdate(this->screen->screen,screenCopy,0,1);
-		}
+	for (map_t::iterator i=this->buttons.begin();i!=e;++i){
+		NONS_Button *b=i->second;
+		if (!b)
+			continue;
+		bool state=(b->MouseOver(x,y) && mouseOver==e);
+		if (state)
+			mouseOver=i;
+		b->mergeWithoutUpdate(this->screen->screen,screenCopy,state,1);
 	}
 	this->screen->screen->updateWholeScreen();
 	long expire=expiration;
@@ -937,7 +919,7 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 							break;
 						this->screen->screen->updateWholeScreen();
 						if (button==1)
-							return (mouseOver<0)?-1:mouseOver;
+							return (mouseOver==e)?-1:mouseOver->first;
 						else
 							return -button;
 					}
@@ -960,7 +942,7 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 							case SDLK_RETURN:
 								if (key==SDLK_RETURN && !*key_bool_map[key].second){
 									this->screen->screen->updateWholeScreen();
-									return (mouseOver<0)?-1:mouseOver;
+									return (mouseOver==e)?-1:mouseOver->first;
 								}
 							default:
 								{

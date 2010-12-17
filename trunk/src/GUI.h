@@ -313,7 +313,8 @@ protected:
 };
 
 struct NONS_ButtonLayer{
-	std::vector<NONS_Button *> buttons;
+	typedef std::map<ulong,NONS_Button *> map_t;
+	map_t buttons;
 	NONS_FontCache *font_cache;
 	NONS_ScreenSpace *screen;
 	std::wstring voiceEntry;
@@ -382,11 +383,10 @@ struct NONS_ButtonLayer{
 		INT_MIN if SDL_QUIT was received
 	*/
 	int getUserInput(ulong expiration=0);
-	ulong countActualButtons();
 private:
-	bool react_to_movement(int &mouseOver,SDL_Event *event,const NONS_ConstSurface &screenCopy);
-	void react_to_updown(int &mouseOver,SDLKey key,const NONS_ConstSurface &screenCopy);
-	bool react_to_click(int &mouseOver,const NONS_ConstSurface &screenCopy);
+	bool react_to_movement(map_t::iterator &mouseOver,SDL_Event *event,const NONS_ConstSurface &screenCopy);
+	void react_to_updown(map_t::iterator &mouseOver,SDLKey key,const NONS_ConstSurface &screenCopy);
+	bool react_to_click(map_t::iterator &mouseOver,const NONS_ConstSurface &screenCopy);
 };
 
 struct NONS_Menu{

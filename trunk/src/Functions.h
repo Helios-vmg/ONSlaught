@@ -822,4 +822,25 @@ void copy_container(dst_t &dst,const src_t &src){
 	dst.resize(src.size());
 	std::copy(src.begin(),src.end(),dst.begin());
 }
+
+template <typename Iterator,typename Container>
+Iterator advance_iterator(Iterator i,int dir,Container &m){
+	Iterator b=m.begin(),
+		e=m.end();
+	if (dir<0){
+		if (i==b)
+			i=e;
+		--i;
+	}else{
+		if (i==e)
+			i=b;
+		else{
+			++i;
+			if (i==e)
+				i=b;
+		}
+	}
+	return i;
+
+}
 #endif

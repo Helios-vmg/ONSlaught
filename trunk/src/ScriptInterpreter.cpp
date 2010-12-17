@@ -2943,10 +2943,9 @@ ErrorCode NONS_ScriptInterpreter::command_cselbtn(NONS_Statement &stmt){
 		frame->buttons->voiceClick=this->selectVoiceClick;
 		frame->buttons->audio=this->audio;
 	}
-	if (frame->buttons->buttons.size()<=(size_t)button_index)
-		frame->buttons->buttons.resize(button_index+1,0);
 	button->setPosx()=x;
 	button->setPosy()=y;
+	delete frame->buttons->buttons[button_index];
 	frame->buttons->buttons[button_index]=button;
 	return NONS_NO_ERROR;
 }
@@ -5070,9 +5069,11 @@ ErrorCode NONS_ScriptInterpreter::command_setwindow(NONS_Statement &stmt){
 		NONS_FontCache *fc[]={
 			this->font_cache,
 			this->screen->output->foregroundLayer->fontCache,
-			this->screen->output->shadowLayer->fontCache
+			(this->screen->output->shadowLayer)?this->screen->output->shadowLayer->fontCache:0
 		};
 		for (int a=0;a<3;a++){
+			if (!fc[a])
+				continue;
 			fc[a]->set_size((ulong)fontsize);
 			fc[a]->spacing=(long)spacingX;
 			if (forceLineSkip)
