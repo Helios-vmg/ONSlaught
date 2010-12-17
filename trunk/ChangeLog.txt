@@ -18,6 +18,8 @@ Bug fixes:
   * Fixed stack overflow in video player.
   * Incorrect behavior in volume setting fixed.
   * Fixed old bug when passing output variables to commands.
+  * Fixed bug in button code.
+  * Fixed old bug in setwindow command.
 
 
 20100714
