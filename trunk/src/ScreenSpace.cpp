@@ -340,8 +340,6 @@ void NONS_StandardOutput::set_size(ulong size){
 		this->shadowLayer->fontCache->set_size(size);
 }
 
-#define CHECK_POINTER_AND_CALL(p,c) if (p) p->c
-
 bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ulong *printedChars){
 	if (start>=this->cachedText.size())
 		return 0;

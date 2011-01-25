@@ -481,6 +481,7 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::load_image(const std::wstring 
 				r->svg_source=svg;
 			}
 		}
+		this->filelog->addString(filename);
 	}while (0);
 	general_archive.close(stream);
 	return r;
