@@ -11,6 +11,10 @@ Important changes:
     TODO: Update documentation and add error handling.
   * Added joystick support.
 
+Minor changes:
+  * Added -use-long-audio-buffers command line option to fix audio problems in
+    slow systems.
+
 Bug fixes:
   * Plugged memory leak in various routines.
   * Fixed minor bugs in video playback code.
@@ -20,6 +24,9 @@ Bug fixes:
   * Fixed old bug when passing output variables to commands.
   * Fixed bug in button code.
   * Fixed old bug in setwindow command.
+  * Fixed possible bug in NONS_FontCache::get_glyph().
+  * Fixed null dereference in NONS_ScriptInterpreter::load().
+  * Fixed graphical bug in savegame loading mechanism.
 
 
 20100714
