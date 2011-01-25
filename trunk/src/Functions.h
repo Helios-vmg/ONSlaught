@@ -63,7 +63,7 @@ const double pi=3.1415926535897932384626433832795;
 //Fast version:
 #define INTEGER_MULTIPLICATION(a,b) (((a)*(b))>>8)
 #endif
-#define CHECK_POINTER_AND_CALL(p,c) if (p) p->c
+#define CHECK_POINTER_AND_CALL(p,c) if (p) (p)->c
 
 //string functions
 template <typename T,typename T2>

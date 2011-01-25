@@ -69,6 +69,7 @@ NONS_CommandLineOptions::NONS_CommandLineOptions(){
 	this->outputPreprocessedFile=0;
 	this->noThreads=0;
 	this->preprocessAndQuit=0;
+	this->use_long_audio_buffers=0;
 }
 
 void usage(){
@@ -154,6 +155,9 @@ void usage(){
 		"  -replace <replacement string>\n"
 		"      Sets characters to be replaced in the printing mechanism.\n"
 		"      See the documentation for more information.\n"
+		"  -use-long-audio-buffers\n"
+		"      Allocates longer audio buffers. This fixes some problems with sound in\n"
+		"      older systems.\n"
 	;
 	exit(0);
 }
@@ -193,6 +197,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 		L"-pp-then-quit",           //28
 		L"-play",                   //29
 		L"-replace",                //30
+		L"-use-long-audio-buffers", //31
 		0
 	};
 
@@ -373,14 +378,6 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
 				else{
 					this->play=arguments[++a];
-					if (tolowerCopy(this->play)==L"a"){
-						this->play_from_archive=1;
-						this->play.clear();
-						if (a+1>=size)
-							std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
-						else
-							this->play=arguments[++a];
-					}
 					toforwardslash(this->play);
 				}
 				break;
@@ -394,6 +391,9 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					for (size_t b=0;b<str.size();b+=2)
 						CLOptions.replaceArray[str[b]]=str[b+1];
 				}
+				break;
+			case 32: //-use-long-audio-buffers
+				this->use_long_audio_buffers=1;
 				break;
 			case 7: //-image-cache-size
 			case 12: //-no-console

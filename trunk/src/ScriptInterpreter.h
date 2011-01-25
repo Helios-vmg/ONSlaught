@@ -469,7 +469,7 @@ public:
 	std::wstring getValue(const std::wstring &str);
 	std::wstring interpretFromConsole(const std::wstring &str);
 	void queue(NONS_ScriptLine *line);
-	bool generic_play(const std::wstring &filename,bool from_archive);
+	bool generic_play(const std::wstring &filename);
 	ErrorCode play_video(const std::wstring &filename,bool skippable);
 };
 

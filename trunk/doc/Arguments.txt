@@ -178,3 +178,8 @@ This example replaces lower case 'a's with upper case 'A's, and upper case 'B's
 with lower case 'b's.
 (The string only needs to be quoted if it contains spaces or other special
 characters.)
+
+
+-use-long-audio-buffers
+Allocates longer audio buffers. This fixes some problems with sound in older
+systems.

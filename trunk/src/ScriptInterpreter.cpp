@@ -1113,7 +1113,7 @@ ulong get_file_type(const std::wstring &filename){
 	return 3;
 }
 
-bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename,bool from_archive){
+bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename){
 	NONS_ScreenSpace *scr=this->screen;
 	ulong type=get_file_type(filename);
 	switch (type){
@@ -2042,7 +2042,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 		&scr->rightChar
 	};
 	for (int a=0;a<3;a++){
-		(*characters[a])->unload();
+		CHECK_POINTER_AND_CALL(*characters[a],unload());
 		if (!save.characters[a].string.size())
 			continue;
 		if (!*characters[a])

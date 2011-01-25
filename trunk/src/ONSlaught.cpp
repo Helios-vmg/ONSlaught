@@ -384,7 +384,7 @@ int main(int argc,char **argv){
 
 void mainThread(void *){
 	if (CLOptions.play.size())
-		gScriptInterpreter->generic_play(CLOptions.play,CLOptions.play_from_archive);
+		gScriptInterpreter->generic_play(CLOptions.play);
 	else
 		while (gScriptInterpreter->interpretNextLine());
 	stopEventHandling=1;

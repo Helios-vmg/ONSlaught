@@ -60,9 +60,9 @@ struct NONS_CommandLineOptions{
 	bool noThreads;
 	bool preprocessAndQuit;
 	std::wstring play;
-	bool play_from_archive;
 	typedef std::map<wchar_t,wchar_t> replaceArray_t;
 	replaceArray_t replaceArray;
+	bool use_long_audio_buffers;
 	NONS_CommandLineOptions();
 	~NONS_CommandLineOptions(){}
 	void parse(const std::vector<std::wstring> &arguments);

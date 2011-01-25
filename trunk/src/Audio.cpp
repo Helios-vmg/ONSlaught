@@ -128,6 +128,8 @@ NONS_CachedSound *NONS_SoundCache::newSound(const std::wstring &filename){
 	if (NONS_CachedSound *ret=this->getSound(filename))
 		return ret;
 	NONS_DataStream *stream=general_archive.open(filename);
+	if (!stream)
+		return 0;
 	SDL_RWops rwops=stream->to_rwops();
 	NONS_CachedSound *a=new NONS_CachedSound(rwops);
 	general_archive.close(stream);
@@ -259,7 +261,7 @@ NONS_Audio::NONS_Audio(const std::wstring &musicDir){
 		this->svol=0;
 		return;
 	}
-	Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,1024);
+	Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,1024*(CLOptions.use_long_audio_buffers?16:1));
 	Mix_AllocateChannels(50);
 	if (!musicDir.size())
 		this->musicDir=L"./CD";
