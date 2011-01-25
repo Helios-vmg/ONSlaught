@@ -1,10 +1,9 @@
-
-/* A Bison parser, made by GNU Bison 2.4.  */
+/* A Bison parser, made by GNU Bison 2.4.2.  */
 
 /* Skeleton implementation for Bison's Yacc-like parsers in C
    
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+      Copyright (C) 1984, 1989-1990, 2000-2006, 2009-2010 Free Software
+   Foundation, Inc.
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -46,7 +45,7 @@
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "2.4"
+#define YYBISON_VERSION "2.4.2"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -75,10 +74,14 @@
 
 /* Copy the first part of user declarations.  */
 
+/* Line 189 of yacc.c  */
+#line 29 "INIParser.ypp"
 
 #include "Functions.h"
 
 
+/* Line 189 of yacc.c  */
+#line 85 "INIParser.tab.cpp"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -100,6 +103,8 @@
 
 /* "%code requires" blocks.  */
 
+/* Line 209 of yacc.c  */
+#line 32 "INIParser.ypp"
 
 	#include <sstream>
 	#include <string>
@@ -107,6 +112,8 @@
 
 
 
+/* Line 209 of yacc.c  */
+#line 117 "INIParser.tab.cpp"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -127,6 +134,8 @@
 typedef union YYSTYPE
 {
 
+/* Line 214 of yacc.c  */
+#line 65 "INIParser.ypp"
 
 	std::map<std::wstring,std::map<std::wstring,std::wstring> > *ini_file;
 	std::pair<std::wstring,std::map<std::wstring,std::wstring> > *ini_section;
@@ -136,6 +145,8 @@ typedef union YYSTYPE
 
 
 
+/* Line 214 of yacc.c  */
+#line 150 "INIParser.tab.cpp"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -144,6 +155,8 @@ typedef union YYSTYPE
 
 /* "%code provides" blocks.  */
 
+/* Line 261 of yacc.c  */
+#line 38 "INIParser.ypp"
 
 	int INIParser_yyparse(
 		std::wstringstream &stream,
@@ -162,10 +175,14 @@ typedef union YYSTYPE
 
 
 
+/* Line 261 of yacc.c  */
+#line 180 "INIParser.tab.cpp"
 
 /* Copy the second part of user declarations.  */
 
 
+/* Line 264 of yacc.c  */
+#line 186 "INIParser.tab.cpp"
 
 #ifdef short
 # undef short
@@ -215,7 +232,7 @@ typedef short int yytype_int16;
 #define YYSIZE_MAXIMUM ((YYSIZE_T) -1)
 
 #ifndef YY_
-# if YYENABLE_NLS
+# if defined YYENABLE_NLS && YYENABLE_NLS
 #  if ENABLE_NLS
 #   include <libintl.h> /* INFRINGES ON USER NAME SPACE */
 #   define YY_(msgid) dgettext ("bison-runtime", msgid)
@@ -561,9 +578,18 @@ static const yytype_uint8 yystos[] =
 
 /* Like YYERROR except do call yyerror.  This remains here temporarily
    to ease the transition to the new meaning of YYERROR, for GCC.
-   Once GCC version 2 has supplanted version 1, this can go.  */
+   Once GCC version 2 has supplanted version 1, this can go.  However,
+   YYFAIL appears to be in use.  Nevertheless, it is formally deprecated
+   in Bison 2.4.2's NEWS entry, where a plan to phase it out is
+   discussed.  */
 
 #define YYFAIL		goto yyerrlab
+#if defined YYFAIL
+  /* This is here to suppress warnings from the GCC cpp's
+     -Wunused-macros.  Normally we don't worry about that warning, but
+     some users do, and we want to make it easy for users to remove
+     YYFAIL uses, which will produce warnings from Bison 2.5.  */
+#endif
 
 #define YYRECOVERING()  (!!yyerrstatus)
 
@@ -620,7 +646,7 @@ while (YYID (0))
    we won't break user code: when these are the locations we know.  */
 
 #ifndef YY_LOCATION_PRINT
-# if YYLTYPE_IS_TRIVIAL
+# if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
 #  define YY_LOCATION_PRINT(File, Loc)			\
      fprintf (File, "%d.%d-%d.%d",			\
 	      (Loc).first_line, (Loc).first_column,	\
@@ -1071,51 +1097,75 @@ yydestruct (yymsg, yytype, yyvaluep, stream, result)
     {
       case 6: /* "STRING" */
 
+/* Line 1009 of yacc.c  */
+#line 79 "INIParser.ypp"
 	{
 	if (!!(yyvaluep->string))
 		delete (yyvaluep->string);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1109 "INIParser.tab.cpp"
 	break;
       case 11: /* "ini_file" */
 
+/* Line 1009 of yacc.c  */
+#line 79 "INIParser.ypp"
 	{
 	if (!!(yyvaluep->ini_file))
 		delete (yyvaluep->ini_file);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1121 "INIParser.tab.cpp"
 	break;
       case 12: /* "section" */
 
+/* Line 1009 of yacc.c  */
+#line 79 "INIParser.ypp"
 	{
 	if (!!(yyvaluep->ini_section))
 		delete (yyvaluep->ini_section);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1133 "INIParser.tab.cpp"
 	break;
       case 13: /* "section_header" */
 
+/* Line 1009 of yacc.c  */
+#line 79 "INIParser.ypp"
 	{
 	if (!!(yyvaluep->string))
 		delete (yyvaluep->string);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1145 "INIParser.tab.cpp"
 	break;
       case 14: /* "section_body" */
 
+/* Line 1009 of yacc.c  */
+#line 79 "INIParser.ypp"
 	{
 	if (!!(yyvaluep->section_body))
 		delete (yyvaluep->section_body);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1157 "INIParser.tab.cpp"
 	break;
       case 15: /* "line" */
 
+/* Line 1009 of yacc.c  */
+#line 79 "INIParser.ypp"
 	{
 	if (!!(yyvaluep->line))
 		delete (yyvaluep->line);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1169 "INIParser.tab.cpp"
 	break;
 
       default:
@@ -1419,13 +1469,17 @@ yyreduce:
     {
         case 2:
 
+/* Line 1464 of yacc.c  */
+#line 87 "INIParser.ypp"
     {
 		(yyval.ini_file)=0;
-	}
+	;}
     break;
 
   case 3:
 
+/* Line 1464 of yacc.c  */
+#line 90 "INIParser.ypp"
     {
 		if (!(yyvsp[(1) - (2)].ini_file))
 			(yyval.ini_file)=new std::map<std::wstring,std::map<std::wstring,std::wstring> >;
@@ -1433,20 +1487,24 @@ yyreduce:
 			(yyval.ini_file)=(yyvsp[(1) - (2)].ini_file);
 		(*(yyval.ini_file))[(yyvsp[(2) - (2)].ini_section)->first]=(yyvsp[(2) - (2)].ini_section)->second;
 		delete (yyvsp[(2) - (2)].ini_section);
-	}
+	;}
     break;
 
   case 4:
 
+/* Line 1464 of yacc.c  */
+#line 98 "INIParser.ypp"
     {
 		(yyval.ini_file)=0;
 		result=(yyvsp[(1) - (2)].ini_file);
 		YYACCEPT;
-	}
+	;}
     break;
 
   case 5:
 
+/* Line 1464 of yacc.c  */
+#line 105 "INIParser.ypp"
     {
 		if (!(yyvsp[(2) - (2)].section_body))
 			(yyval.ini_section)=new std::pair <std::wstring,std::map<std::wstring,std::wstring> >;
@@ -1454,11 +1512,13 @@ yyreduce:
 			(yyval.ini_section)=new std::pair <std::wstring,std::map<std::wstring,std::wstring> >(L"",*(yyvsp[(2) - (2)].section_body));
 			delete (yyvsp[(2) - (2)].section_body);
 		}
-	}
+	;}
     break;
 
   case 6:
 
+/* Line 1464 of yacc.c  */
+#line 113 "INIParser.ypp"
     {
 		if (!(yyvsp[(2) - (2)].section_body)){
 			(yyval.ini_section)=new std::pair <std::wstring,std::map<std::wstring,std::wstring> >;
@@ -1468,44 +1528,54 @@ yyreduce:
 			delete (yyvsp[(2) - (2)].section_body);
 		}
 		delete (yyvsp[(1) - (2)].string);
-	}
+	;}
     break;
 
   case 7:
 
+/* Line 1464 of yacc.c  */
+#line 125 "INIParser.ypp"
     {
 		if (!(yyvsp[(2) - (4)].string)->size()){
 			delete (yyvsp[(2) - (4)].string);
 			YYABORT;
 		}
 		(yyval.string)=(yyvsp[(2) - (4)].string);
-	}
+	;}
     break;
 
   case 8:
 
+/* Line 1464 of yacc.c  */
+#line 134 "INIParser.ypp"
     {
 		(yyval.section_body)=0;
-	}
+	;}
     break;
 
   case 9:
 
+/* Line 1464 of yacc.c  */
+#line 137 "INIParser.ypp"
     {
 		(yyval.section_body)=(yyvsp[(1) - (2)].section_body);
-	}
+	;}
     break;
 
   case 10:
 
+/* Line 1464 of yacc.c  */
+#line 140 "INIParser.ypp"
     {
 		delete (yyvsp[(2) - (3)].string);
 		(yyval.section_body)=(yyvsp[(1) - (3)].section_body);
-	}
+	;}
     break;
 
   case 11:
 
+/* Line 1464 of yacc.c  */
+#line 144 "INIParser.ypp"
     {
 		if (!(yyvsp[(1) - (2)].section_body))
 			(yyval.section_body)=new std::map<std::wstring,std::wstring>;
@@ -1513,11 +1583,13 @@ yyreduce:
 			(yyval.section_body)=(yyvsp[(1) - (2)].section_body);
 		(*(yyval.section_body))[(yyvsp[(2) - (2)].line)->first]=(yyvsp[(2) - (2)].line)->second;
 		delete (yyvsp[(2) - (2)].line);
-	}
+	;}
     break;
 
   case 12:
 
+/* Line 1464 of yacc.c  */
+#line 154 "INIParser.ypp"
     {
 		if (!(yyvsp[(1) - (3)].string)->size()){
 			delete (yyvsp[(1) - (3)].string);
@@ -1525,11 +1597,13 @@ yyreduce:
 		}
 		(yyval.line)=new std::pair<std::wstring,std::wstring>(*(yyvsp[(1) - (3)].string),L"");
 		delete (yyvsp[(1) - (3)].string);		
-	}
+	;}
     break;
 
   case 13:
 
+/* Line 1464 of yacc.c  */
+#line 162 "INIParser.ypp"
     {
 		if (!(yyvsp[(1) - (4)].string)->size()){
 			delete (yyvsp[(1) - (4)].string);
@@ -1539,11 +1613,13 @@ yyreduce:
 		(yyval.line)=new std::pair<std::wstring,std::wstring>(*(yyvsp[(1) - (4)].string),*(yyvsp[(3) - (4)].string));
 		delete (yyvsp[(1) - (4)].string);
 		delete (yyvsp[(3) - (4)].string);
-	}
+	;}
     break;
 
 
 
+/* Line 1464 of yacc.c  */
+#line 1623 "INIParser.tab.cpp"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -1754,6 +1830,8 @@ yyreturn:
 
 
 
+/* Line 1684 of yacc.c  */
+#line 173 "INIParser.ypp"
 
 
 int INIParser_yylex(YYSTYPE *yylval,std::wstringstream &stream){

@@ -1,10 +1,9 @@
-
-/* A Bison parser, made by GNU Bison 2.4.  */
+/* A Bison parser, made by GNU Bison 2.4.2.  */
 
 /* Skeleton interface for Bison's Yacc-like parsers in C
    
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+      Copyright (C) 1984, 1989-1990, 2000-2006, 2009-2010 Free Software
+   Foundation, Inc.
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,6 +33,8 @@
 
 /* "%code requires" blocks.  */
 
+/* Line 1685 of yacc.c  */
+#line 32 "INIParser.ypp"
 
 	#include <sstream>
 	#include <string>
@@ -41,6 +42,8 @@
 
 
 
+/* Line 1685 of yacc.c  */
+#line 47 "INIParser.tab.hpp"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -61,6 +64,8 @@
 typedef union YYSTYPE
 {
 
+/* Line 1685 of yacc.c  */
+#line 65 "INIParser.ypp"
 
 	std::map<std::wstring,std::map<std::wstring,std::wstring> > *ini_file;
 	std::pair<std::wstring,std::map<std::wstring,std::wstring> > *ini_section;
@@ -70,6 +75,8 @@ typedef union YYSTYPE
 
 
 
+/* Line 1685 of yacc.c  */
+#line 80 "INIParser.tab.hpp"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -81,6 +88,8 @@ typedef union YYSTYPE
 
 /* "%code provides" blocks.  */
 
+/* Line 1685 of yacc.c  */
+#line 38 "INIParser.ypp"
 
 	int INIParser_yyparse(
 		std::wstringstream &stream,
@@ -99,3 +108,5 @@ typedef union YYSTYPE
 
 
 
+/* Line 1685 of yacc.c  */
+#line 113 "INIParser.tab.hpp"
