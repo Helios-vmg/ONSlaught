@@ -48,7 +48,6 @@ src/ConfigFile.cpp
 src/FileLog.cpp
 src/INIfile.cpp
 src/ThreadManager.cpp
-src/OpenGL.cpp
 src/Plugin/LibraryLoader.cpp 
 )
 
