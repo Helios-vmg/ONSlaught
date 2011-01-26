@@ -261,7 +261,7 @@ NONS_Audio::NONS_Audio(const std::wstring &musicDir){
 		this->svol=0;
 		return;
 	}
-	Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,1024*(CLOptions.use_long_audio_buffers?16:1));
+	Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,4096*(CLOptions.use_long_audio_buffers?4:1));
 	Mix_AllocateChannels(50);
 	if (!musicDir.size())
 		this->musicDir=L"./CD";

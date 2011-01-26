@@ -1195,6 +1195,7 @@ void NONS_GeneralArchive::init(){
 			L".sar",
 			L".nsa",
 			L".zip",
+			L".oaf",
 			0
 		};
 	this->archives.push_back(&filesystem);
@@ -1233,6 +1234,7 @@ void NONS_GeneralArchive::init(){
 				ds=new NONS_nsaArchiveSource(full_name,1);
 				break;
 			case 2:
+			case 3:
 				ds=new NONS_zipArchiveSource(full_name);
 				break;
 		}

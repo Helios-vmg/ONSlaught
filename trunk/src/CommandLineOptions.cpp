@@ -392,7 +392,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 						CLOptions.replaceArray[str[b]]=str[b+1];
 				}
 				break;
-			case 32: //-use-long-audio-buffers
+			case 31: //-use-long-audio-buffers
 				this->use_long_audio_buffers=1;
 				break;
 			case 7: //-image-cache-size
