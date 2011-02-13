@@ -1,8 +1,17 @@
-ONSlaught [options]
+This file describes the command line arguments that can be passed to ONSlaught
+to tweak its behavior.
+If a file exists in the working directory called "arguments.txt", ONSlaught
+will read its contents as UTF-8 and use them as though they were command line
+arguments.
+The actual command line arguments are processed /after/ the contents of this
+file.
 
---help
--?
+
+Usage: ONSlaught [options]
+
 -h
+-?
+--help
 Shows a message with all options.
 
 
@@ -17,19 +26,17 @@ Lists all implemented and unimplemented commands.
 -save-directory <directory name>
 Override the default save game subdirectory with a custom name.
 By default, the engine performs a partial SHA1 on the loaded script (not on the
-actual script file) and uses the first 64 bits to create a directory.
+script file) and uses the first 64 bits to create a directory.
 For example, calling ONSlaught without this option might cause the save games to
-go in
-"C:\Documents and Settings\User\My Documents\.ONSlaught\e38ba7ef 3bd29d16\" on
-Windows XP, and in "~/.ONSlaught/e38ba7ef 3bd29d16/" on UNIX, which is very
-cumbersome.
+go in "C:\Users\User\My Documents\.ONSlaught\e38ba7ef 3bd29d16\" on Windows 7,
+and in "~/.ONSlaught/e38ba7ef 3bd29d16/" on UNIX, which is very cumbersome.
 Using the following command line:
 ONSlaught -save-directory "Parrot Sketch"
 would cause save games to go in
-"C:\Documents and Settings\User\My Documents\.ONSlaught\Parrot Sketch\" under
-Windows XP, and in "~/.ONSlaught/Parrot Sketch/" under UNIX.
+"C:\Users\User\My Documents\.ONSlaught\Parrot Sketch\" under Windows XP, and in
+"~/.ONSlaught/Parrot Sketch/" under UNIX.
 
-At the time of this writing (2009-01-24), this option only has effect on UNIX
+At the time of this writing (2011-02-11), this option only has effect on UNIX
 and Windows. Any other platform the engine is compiled for will put its save
 game files in the working directory.
 
@@ -61,7 +68,7 @@ Start in fullscreen.
 
 -r <number> <number> <number> <number>
 Sets the screen resolution. The first two numbers are width and height of the
-virtual screen (script coordinates shound be given based on this resolution).
+virtual screen (script coordinates should be given based on this resolution).
 The second two numbers are width and height of the physical screen, or window,
 graphical output will go to. Linear interpolation is used to resize the picture,
 so the rescale ratio (realResolution/virtualResolution) should never be above 2
@@ -70,12 +77,13 @@ not be greater than 1280x960). Interpolation artifacts are obvious for scales
 greater than 2. If the ratios don't match, the difference will be compensated
 with vertical black bars at the sides or horizontal bars at the top and bottom,
 depending on the case. The picture is never cropped. Wasted screen space is
-better than lost picture. Specially for resizes such as 16:9->4:3.
+better than lost pixels, specially for resizes such as 16:9->4:3.
 
 
 -script {auto|<path> <encryption method>}
-Selects a script file and encryption method or enables auto-selection.
-Files are sought in this order (in auto):
+Selects a script file and encryption method or enables auto-selection. Default
+is auto.
+Files are searched in this order (in auto):
 
  1. "0.txt", mode 0
  2. "00.txt", mode 0
@@ -91,11 +99,8 @@ Mode 2, or rotating xor: Given an array ring[]={0x79,0x57,0x0D,0x80,0x04},
 Mode 3, or transform and xor: Not supported.
 
 
--encoding {auto|sjis|iso-8859-1|utf8|ucs2}
+-encoding {auto|sjis|iso-8859-1|utf8}
 Selects the encoding to be used on the script file. Default is auto.
-Note: auto will only choose between utf8, sjis, and iso-8859-1. ucs2 will never
-be chosen. If your script is in that encoding, you'll need to specify it
-manually.
 
 
 -dump-text <filename>
@@ -119,12 +124,8 @@ Selects where to look for the music. Defaults to "./CD"
 
 
 -redirect
-Redirects stdout to "stdout.txt", stderr to "stderr.txt", and stdlog to
-"stdlog.txt".
-Error messages are sent to stderr. Debug messages (both internal and external)
-are sent to stdlog. Any other information that doesn't fit in these two
-categories is sent to stdout.
-This option also unconditionally disables debug.
+Redirects stdout to "stdout.txt" and stderr to "stderr.txt".
+This option unconditionally disables debug.
 
 
 -!redirect
@@ -140,9 +141,7 @@ and puts the date and time as identification.
 
 -debug
 Enables debug mode. In debug mode, it is possible to view and change the value
-of variables.
-At the time of writing, some commands cause the engine to crash. A queueing
-system is being worked out.
+of variables, and to run some commands. To enter debug mode, hit Pause/Break.
 
 
 -stop-on-first-error
@@ -165,7 +164,7 @@ Disables threading for blit operations.
 
 -play <filename>
 Play a file and quit. The file can be a graphics, audio, or video file.
-      This option can be used to test whether the engine can find and read the file.
+This option can be used to test whether the engine can find and read the file.
 
 
 -replace <replacement string>

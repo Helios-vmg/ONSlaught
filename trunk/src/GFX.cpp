@@ -36,7 +36,7 @@
 #include <cmath>
 #include <iostream>
 
-#if defined _DEBUG
+#if defined _DEBUG && !defined BENCHMARK_EFFECTS
 #define BENCHMARK_EFFECTS
 #endif
 
