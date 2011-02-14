@@ -215,8 +215,17 @@ audio_buffer::audio_buffer(void *buffer,size_t length,ulong freq,ulong channels,
 }
 
 audio_stream::audio_stream(const std::wstring &filename){
-	NONS_DataStream *stream=general_archive.open(filename);
-	this->decoder=new ogg_decoder(stream);
+	NONS_DataStream *stream;
+	std::wstring copy=filename;
+	tolower(copy);
+	if (ends_with(copy,L".ogg"))
+		this->decoder=new ogg_decoder(general_archive.open(filename));
+	else if (ends_with(copy,L".flac"))
+		this->decoder=new flac_decoder(general_archive.open(filename));
+	else if (ends_with(copy,L".mp3"))
+		this->decoder=new mp3_decoder(general_archive.open(filename));
+	else
+		this->decoder=0;
 	this->sink=0;
 	this->loop=0;
 	this->playing=0;

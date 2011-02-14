@@ -295,7 +295,7 @@ int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,std::deque<wcha
 		if (stream.eof())
 			return 0;
 		line=stream.getline();
-		if (!firstchars(line,0,L";#")){
+		if (!begins_with(line,0,L";#")){
 			yylval->str=new std::wstring(line);
 			yylval->str->push_back('\n');
 			return TEXT;
