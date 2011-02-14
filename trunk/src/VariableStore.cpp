@@ -838,7 +838,7 @@ NONS_VariableStore::NONS_VariableStore(){
 			this->variables[stackpos]=var;
 		}
 	}else{
-		if (firstchars((char *)buffer,"BZh")){
+		if (begins_with((char *)buffer,"BZh")){
 			uchar *temp=decompressBuffer_BZ2(buffer,l,l);
 			delete[] buffer;
 			buffer=(uchar *)temp;

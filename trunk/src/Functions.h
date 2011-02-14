@@ -180,7 +180,7 @@ template <typename T> inline std::string  itohexc(T n,unsigned w=0){ return itoh
 template <typename T> inline std::wstring itohexw(T n,unsigned w=0){ return itohex<wchar_t>(n,w); }
 
 template <typename T>
-bool firstchars(const T *s1,const T *s2){
+bool begins_with(const T *s1,const T *s2){
 	for (;*s2;s1++,s2++)
 		if (*s1!=*s2)
 			return 0;
@@ -199,15 +199,15 @@ std::basic_string<T> normalize_path(std::basic_string<T> path){
 			static T string_0[]={'/','/',0};
 			static T string_1[]={'/','.','/',0};
 			static T string_2[]={'.','.','/',0};
-			if (firstchars(&path[a],string_0)){
+			if (begins_with(&path[a],string_0)){
 				c='/';
 				r=1;
 				a+=2;
-			}else if (firstchars(&path[a],string_1)){
+			}else if (begins_with(&path[a],string_1)){
 				c='/';
 				r=1;
 				a+=3;
-			}else if (firstchars(&path[a],string_2)){
+			}else if (begins_with(&path[a],string_2)){
 				c=0;
 				if (temp.size()){
 					temp.erase(temp.end()-1);
@@ -229,20 +229,25 @@ std::basic_string<T> normalize_path(std::basic_string<T> path){
 
 //1 if the s1 begins with s2 at off
 template <typename T>
-bool firstchars(const std::basic_string<T> &s1,size_t off,const std::basic_string<T> &s2){
+bool begins_with(const std::basic_string<T> &s1,size_t off,const std::basic_string<T> &s2){
 	if (s1.size()-off<s2.size())
 		return 0;
-	return firstchars(&s1[off],&s2[0]);
+	return begins_with(&s1[off],&s2[0]);
 }
 
 template <typename T>
-bool firstchars(const std::basic_string<T> &s1,size_t off,const T *s2){
+bool begins_with(const std::basic_string<T> &s1,size_t off,const T *s2){
 	ulong l=0;
 	while (s2[l])
 		l++;
 	if (s1.size()-off<l)
 		return 0;
-	return firstchars(&s1[off],s2);
+	return begins_with(&s1[off],s2);
+}
+
+template <typename T>
+inline bool ends_with(const std::basic_string<T> &s1,const std::basic_string<T> &s2){
+	return begins_with(s1,s1.size()-s2.size(),s2);
 }
 
 template <typename T>
