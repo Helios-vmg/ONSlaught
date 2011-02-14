@@ -764,23 +764,6 @@ SDL_RWops NONS_DataStream::to_rwops(){
 
 int SDLCALL NONS_DataStream::rw_seek(SDL_RWops *ops,int offset,int whence){
 	return (int)((NONS_DataStream *)ops->hidden.unknown.data1)->stdio_seek(offset,whence);
-#if 0
-	NONS_DataStream *ds=(NONS_DataStream *)ops->hidden.unknown.data1;
-	switch (whence){
-		case RW_SEEK_SET:
-			whence=1;
-			break;
-		case RW_SEEK_CUR:
-			whence=0;
-			if (!offset)
-				return (int)ds->get_offset();
-			break;
-		case RW_SEEK_END:
-			whence=-1;
-			break;
-	}
-	return (int)ds->seek(offset,whence);
-#endif
 }
 
 int SDLCALL NONS_DataStream::rw_read(SDL_RWops *ops,void *dst,int a,int b){
