@@ -737,6 +737,20 @@ Uint64 NONS_DataStream::seek(Sint64 offset,int direction){
 	return this->offset;
 }
 
+Uint64 NONS_DataStream::stdio_seek(Sint64 offset,int direction){
+	switch (direction){
+		case SEEK_CUR:
+			direction=0;
+			break;
+		case SEEK_END:
+			direction=-1;
+			break;
+		case SEEK_SET:
+			direction=1;
+	}
+	return this->seek(offset,direction);
+}
+
 SDL_RWops NONS_DataStream::to_rwops(){
 	SDL_RWops ops;
 	memset(&ops,0,sizeof(ops));
@@ -749,6 +763,8 @@ SDL_RWops NONS_DataStream::to_rwops(){
 }
 
 int SDLCALL NONS_DataStream::rw_seek(SDL_RWops *ops,int offset,int whence){
+	return (int)((NONS_DataStream *)ops->hidden.unknown.data1)->stdio_seek(offset,whence);
+#if 0
 	NONS_DataStream *ds=(NONS_DataStream *)ops->hidden.unknown.data1;
 	switch (whence){
 		case RW_SEEK_SET:
@@ -764,6 +780,7 @@ int SDLCALL NONS_DataStream::rw_seek(SDL_RWops *ops,int offset,int whence){
 			break;
 	}
 	return (int)ds->seek(offset,whence);
+#endif
 }
 
 int SDLCALL NONS_DataStream::rw_read(SDL_RWops *ops,void *dst,int a,int b){

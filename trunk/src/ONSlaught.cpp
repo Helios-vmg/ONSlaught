@@ -294,6 +294,8 @@ std::string get_version_string(){
 	return stream.str();
 }
 
+#include "OpenAL.h"
+
 void initialize(int argc,char **argv){
 	srand((unsigned int)time(0));
 	signal(SIGTERM,handle_SIGTERM);
@@ -321,6 +323,22 @@ void initialize(int argc,char **argv){
 	InputObserver.setup_joysticks();
 
 	general_archive.init();
+
+	{
+		audio_device dev;
+		if (!dev)
+			exit(-1);
+		audio_stream stream(L"CD/track01.ogg");
+		if (!stream)
+			exit(-1);
+		dev.add(stream);
+		stream.start();
+		stream.loop=1;
+		while (1){
+			dev.update();
+			SDL_Delay(10);
+		}
+	}
 
 	if (CLOptions.override_stdout){
 		o_stdout.redirect();

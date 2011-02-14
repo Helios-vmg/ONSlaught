@@ -362,20 +362,8 @@ namespace protocol{
 		file_protocol *fp=(file_protocol *)p;
 		if (!fp)
 			return 0;
-		switch (whence){
-			case SEEK_SET:
-				whence=1;
-				break;
-			case SEEK_CUR:
-				whence=0;
-				break;
-			case SEEK_END:
-				whence=-1;
-				break;
-			case AVSEEK_SIZE:
-				whence=2;
-				break;
-		}
+		if (whence==AVSEEK_SIZE)
+			whence=-1;
 		return fp->seek(fp->data,pos,whence);
 	}
 };

@@ -924,8 +924,8 @@ struct ff_file{
 		ff_file *_this=(ff_file *)p;
 		if (b<-1 || b>2)
 			return -1;
-		if (b!=2)
-			return _this->stream->seek(a,b);
+		if (b>=0)
+			return _this->stream->stdio_seek(a,b);
 		return _this->stream->get_size();
 	}
 };

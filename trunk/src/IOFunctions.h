@@ -217,6 +217,7 @@ public:
 	virtual ~NONS_DataStream(){}
 	virtual bool read(void *dst,size_t &bytes_read,size_t count)=0;
 	virtual Uint64 seek(Sint64 offset,int direction);
+	Uint64 stdio_seek(Sint64 offset,int direction);
 	void reset(){ this->seek(0,1); }
 	void read_all(std::vector<uchar> &dst){
 		this->reset();
