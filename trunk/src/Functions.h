@@ -236,11 +236,6 @@ bool begins_with(const std::basic_string<T> &s1,size_t off,const std::basic_stri
 }
 
 template <typename T>
-inline bool ends_with(const std::basic_string<T> &s1,const std::basic_string<T> &s2){
-	return begins_with(s1,s1.size()-s2.size(),s2);
-}
-
-template <typename T>
 bool begins_with(const std::basic_string<T> &s1,size_t off,const T *s2){
 	ulong l=0;
 	while (s2[l])
@@ -248,6 +243,11 @@ bool begins_with(const std::basic_string<T> &s1,size_t off,const T *s2){
 	if (s1.size()-off<l)
 		return 0;
 	return begins_with(&s1[off],s2);
+}
+
+template <typename T>
+inline bool ends_with(const std::basic_string<T> &s1,const std::basic_string<T> &s2){
+	return begins_with(s1,s1.size()-s2.size(),s2);
 }
 
 template <typename T>

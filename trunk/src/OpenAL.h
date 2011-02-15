@@ -83,7 +83,7 @@ protected:
 public:
 	decoder(NONS_DataStream *stream);
 	virtual ~decoder();
-	operator bool(){ return this->good; }
+	virtual operator bool(){ return this->good; }
 	virtual audio_buffer *get_buffer(bool &error)=0;
 	virtual void loop()=0;
 };

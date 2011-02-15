@@ -28,110 +28,13 @@
 */
 
 #include "OpenAL.h"
-#include <vorbis/vorbisfile.h>
+#include "AudioFormats.h"
 
 decoder::decoder(NONS_DataStream *stream):stream(stream),buffer(0),good(stream){}
 
 decoder::~decoder(){
 	general_archive.close(this->stream);
 	free(this->buffer);
-}
-
-size_t ogg_read(void *buffer,size_t size,size_t nmemb,void *s){
-	NONS_DataStream *stream=(NONS_DataStream *)s;
-	if (!stream->read(buffer,size,size*nmemb)){
-		errno=1;
-		return 0;
-	}
-	errno=0;
-	return size;
-}
-
-int ogg_seek(void *s,ogg_int64_t offset,int whence){
-	NONS_DataStream *stream=(NONS_DataStream *)s;
-	stream->stdio_seek(offset,whence);
-	return 0;
-}
-
-long ogg_tell(void *s){
-	return (long)((NONS_DataStream *)s)->seek(0,0);
-}
-
-std::string ogg_code_to_string(int e){
-	switch (e){
-		case 0:
-			return "no error";
-		case OV_EREAD:
-			return "a read from media returned an error";
-		case OV_ENOTVORBIS:
-			return "bitstream does not contain any Vorbis data";
-		case OV_EVERSION:
-			return "vorbis version mismatch";
-		case OV_EBADHEADER:
-			return "invalid Vorbis bitstream header";
-		case OV_EFAULT:
-			return "internal logic fault; indicates a bug or heap/stack corruption";
-		default:
-			return "unknown error";
-	}
-}
-
-class ogg_decoder:public decoder{
-	OggVorbis_File file;
-	int bitstream;
-public:
-	ogg_decoder(NONS_DataStream *stream);
-	~ogg_decoder();
-	audio_buffer *get_buffer(bool &error);
-	void loop();
-};
-
-ogg_decoder::ogg_decoder(NONS_DataStream *stream):decoder(stream){
-	if (!*this)
-		return;
-	this->bitstream=0;
-	ov_callbacks cb;
-	cb.read_func=ogg_read;
-	cb.seek_func=ogg_seek;
-	cb.tell_func=ogg_tell;
-	cb.close_func=0;
-	int error=ov_open_callbacks(stream,&this->file,0,0,cb);
-	if (error<0){
-		o_stderr <<ogg_code_to_string(error);
-		this->good=0;
-		return;
-	}
-}
-
-ogg_decoder::~ogg_decoder(){
-	ov_clear(&this->file);
-}
-
-audio_buffer *ogg_decoder::get_buffer(bool &error){
-	static char nativeEndianness=checkNativeEndianness();
-	const size_t n=1<<12;
-	char *temp=(char *)malloc(n);
-	size_t size=0;
-	while (size<n){
-		int r=ov_read(&this->file,temp+size,n-size,nativeEndianness==NONS_BIG_ENDIAN,2,1,&this->bitstream);
-		if (r<0){
-			error=1;
-			return 0;
-		}
-		error=0;
-		if (!r){
-			if (!size)
-				return 0;
-			break;
-		}
-		size+=r;
-	}
-	vorbis_info *i=ov_info(&this->file,this->bitstream);
-	return new audio_buffer(&temp[0],size/4,i->rate,2,16,1);
-}
-
-void ogg_decoder::loop(){
-	ov_pcm_seek(&this->file,0);
 }
 
 audio_sink::audio_sink(){
@@ -167,8 +70,6 @@ bool audio_sink::needs_more_data(){
 	return !(!finished && queued>=n && (state==AL_PLAYING || state==AL_PAUSED));
 }
 
-#include <iostream>
-
 void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth){
 	if (!*this)
 		return;
@@ -179,7 +80,6 @@ void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels
 	alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
 	state=this->get_state();
 	assert(state!=AL_PAUSED);
-	std::cout <<std::string(queued,'X')<<std::endl;
 	bool call_play=(finished==queued || state!=AL_PLAYING);
 	std::vector<ALuint> temp(queued);
 	ALuint new_buffer;
@@ -215,15 +115,14 @@ audio_buffer::audio_buffer(void *buffer,size_t length,ulong freq,ulong channels,
 }
 
 audio_stream::audio_stream(const std::wstring &filename){
-	NONS_DataStream *stream;
 	std::wstring copy=filename;
 	tolower(copy);
-	if (ends_with(copy,L".ogg"))
+	if (ends_with(copy,(std::wstring)L".ogg"))
 		this->decoder=new ogg_decoder(general_archive.open(filename));
-	else if (ends_with(copy,L".flac"))
+	else if (ends_with(copy,(std::wstring)L".flac"))
 		this->decoder=new flac_decoder(general_archive.open(filename));
-	else if (ends_with(copy,L".mp3"))
-		this->decoder=new mp3_decoder(general_archive.open(filename));
+	/*else if (ends_with(copy,L".mp3"))
+		this->decoder=new mp3_decoder(general_archive.open(filename));*/
 	else
 		this->decoder=0;
 	this->sink=0;
