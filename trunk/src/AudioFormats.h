@@ -31,8 +31,10 @@
 #define NONS_AUDIOFORMATS_H
 #include "OpenAL.h"
 #include "IOFunctions.h"
+#include "ThreadManager.h"
 #include <vorbis/vorbisfile.h>
 #include <FLAC++/decoder.h>
+#include <mpg123.h>
 
 class ogg_decoder:public decoder{
 	OggVorbis_File file;
@@ -61,6 +63,17 @@ public:
 	operator bool(){
 		return decoder::operator bool() && FLAC::Decoder::Stream::operator bool();
 	}
+	audio_buffer *get_buffer(bool &error);
+	void loop();
+};
+
+class mp3_decoder:public decoder{
+	static NONS_Mutex mutex;
+	static bool mpg123_initialized;
+	mpg123_handle *handle;
+public:
+	mp3_decoder(NONS_DataStream *stream);
+	~mp3_decoder();
 	audio_buffer *get_buffer(bool &error);
 	void loop();
 };

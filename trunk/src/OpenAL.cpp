@@ -70,6 +70,8 @@ bool audio_sink::needs_more_data(){
 	return !(!finished && queued>=n && (state==AL_PLAYING || state==AL_PAUSED));
 }
 
+#include <iostream>
+
 void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth){
 	if (!*this)
 		return;
@@ -80,6 +82,7 @@ void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels
 	alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
 	state=this->get_state();
 	assert(state!=AL_PAUSED);
+	std::cout <<std::string(queued,'X')<<std::endl;
 	bool call_play=(finished==queued || state!=AL_PLAYING);
 	std::vector<ALuint> temp(queued);
 	ALuint new_buffer;
@@ -114,15 +117,15 @@ audio_buffer::audio_buffer(void *buffer,size_t length,ulong freq,ulong channels,
 	this->bit_depth=bit_depth;
 }
 
+#define HANDLE_TYPE_WITH_TYPE(s,t) if (ends_with(copy,(std::wstring)s))\
+	this->decoder=new t(general_archive.open(filename))
+
 audio_stream::audio_stream(const std::wstring &filename){
 	std::wstring copy=filename;
 	tolower(copy);
-	if (ends_with(copy,(std::wstring)L".ogg"))
-		this->decoder=new ogg_decoder(general_archive.open(filename));
-	else if (ends_with(copy,(std::wstring)L".flac"))
-		this->decoder=new flac_decoder(general_archive.open(filename));
-	/*else if (ends_with(copy,L".mp3"))
-		this->decoder=new mp3_decoder(general_archive.open(filename));*/
+	HANDLE_TYPE_WITH_TYPE(L".ogg",ogg_decoder);
+	else HANDLE_TYPE_WITH_TYPE(L".flac",flac_decoder);
+	else HANDLE_TYPE_WITH_TYPE(L".mp3",mp3_decoder);
 	else
 		this->decoder=0;
 	this->sink=0;
@@ -214,6 +217,7 @@ audio_device::audio_device(){
 	this->device=0;
 	this->context=0;
 	this->good=0;
+	al_static_init();
 	this->device=alcOpenDevice(0);
 	if (!this->device)
 		return;
@@ -234,6 +238,7 @@ audio_device::~audio_device(){
 		alcDestroyContext(this->context);
 	if (this->device)
 		alcCloseDevice(this->device);
+	al_static_uninit();
 }
 
 void audio_device::update(){

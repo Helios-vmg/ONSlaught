@@ -328,7 +328,7 @@ void initialize(int argc,char **argv){
 		audio_device dev;
 		if (!dev)
 			exit(-1);
-		audio_stream stream(L"f:/Data/Music/sakura_sakura.flac");
+		audio_stream stream(L"f:/Data/Music/Eagles - Journey of a Sorcerer.mp3");
 		if (!stream)
 			exit(-1);
 		dev.add(stream);

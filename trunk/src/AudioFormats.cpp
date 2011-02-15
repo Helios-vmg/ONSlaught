@@ -92,7 +92,7 @@ ogg_decoder::~ogg_decoder(){
 audio_buffer *ogg_decoder::get_buffer(bool &error){
 	static char nativeEndianness=checkNativeEndianness();
 	const size_t n=1<<12;
-	char *temp=(char *)malloc(n);
+	char *temp=(char *)audio_buffer::allocate(n/4,2,2);
 	size_t size=0;
 	while (size<n){
 		int r=ov_read(&this->file,temp+size,n-size,nativeEndianness==NONS_BIG_ENDIAN,2,1,&this->bitstream);
@@ -243,4 +243,104 @@ audio_buffer *flac_decoder::get_buffer(bool &error){
 
 void flac_decoder::loop(){
 	this->seek_absolute(0);
+}
+
+NONS_Mutex mp3_decoder::mutex;
+bool mp3_decoder::mpg123_initialized=0;
+
+struct fd_tracker{
+	NONS_Mutex mutex;
+	int counter;
+	typedef std::map<int,NONS_DataStream *> map_t;
+	map_t map;
+	fd_tracker():counter(0){}
+	int add(NONS_DataStream *);
+	NONS_DataStream *get(int);
+} tracker;
+
+int fd_tracker::add(NONS_DataStream *s){
+	NONS_MutexLocker ml(this->mutex);
+	this->map[this->counter]=s;
+	return this->counter++;
+}
+
+NONS_DataStream *fd_tracker::get(int fd){
+	NONS_MutexLocker ml(this->mutex);
+	return this->map[fd];
+}
+
+ssize_t mp3_read(int fd,void *dst,size_t n){
+	NONS_DataStream *stream=tracker.get(fd);
+	stream->read(dst,n,n);
+	return n;
+}
+
+off_t mp3_seek(int fd,off_t offset,int whence){
+	NONS_DataStream *stream=tracker.get(fd);
+	return (off_t)stream->stdio_seek(offset,whence);
+}
+
+#define HANDLE_MPG123_ERRORS(call,r) {                 \
+	error=call;                                        \
+	if (error!=MPG123_OK){                             \
+		o_stderr <<mpg123_plain_strerror(error)<<"\n"; \
+		return r;                                      \
+	}                                                  \
+}
+
+#include <iostream>
+
+mp3_decoder::mp3_decoder(NONS_DataStream *stream):decoder(stream){
+	if (!*this)
+		return;
+	this->good=0;
+	int error;
+	{
+		NONS_MutexLocker ml(mp3_decoder::mutex);
+		if (!mp3_decoder::mpg123_initialized){
+			HANDLE_MPG123_ERRORS(mpg123_init(),);
+			for (const char **p=mpg123_supported_decoders();*p;p++)
+				std::cout <<*p<<std::endl;
+			mp3_decoder::mpg123_initialized=1;
+		}
+	}
+	this->handle=mpg123_new(0,&error);
+	if (!this->handle){
+		o_stderr <<mpg123_plain_strerror(error)<<"\n";
+		return;
+	}
+	HANDLE_MPG123_ERRORS(mpg123_replace_reader(this->handle,mp3_read,mp3_seek),);
+	HANDLE_MPG123_ERRORS(mpg123_open_fd(this->handle,tracker.add(stream)),);
+	HANDLE_MPG123_ERRORS(mpg123_format_none(this->handle),);
+}
+
+mp3_decoder::~mp3_decoder(){
+	mpg123_close(this->handle);
+	mpg123_delete(this->handle);
+}
+
+audio_buffer *mp3_decoder::get_buffer(bool &there_was_an_error){
+	there_was_an_error=1;
+	int error;
+	HANDLE_MPG123_ERRORS(mpg123_format(this->handle,44100,MPG123_STEREO,MPG123_ENC_SIGNED_16),0);
+	uchar *buffer;
+	off_t offset;
+	size_t size;
+	error=mpg123_decode_frame(this->handle,&offset,&buffer,&size);
+	if (error==MPG123_DONE){
+		there_was_an_error=0;
+		return 0;
+	}
+	if (error!=MPG123_OK && error!=MPG123_NEW_FORMAT){
+		o_stderr <<mpg123_plain_strerror(error)<<"\n";
+		return 0;
+	}
+	ulong channels=2;
+	there_was_an_error=0;
+	return new audio_buffer(buffer,size/(channels*2),44100,channels,16);
+}
+
+void mp3_decoder::loop(){
+	std::cout <<"Looping.\n";
+	mpg123_seek(this->handle,0,SEEK_SET);
 }

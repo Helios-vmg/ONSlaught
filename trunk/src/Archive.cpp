@@ -1259,6 +1259,7 @@ NONS_GeneralArchive::~NONS_GeneralArchive(){
 }
 
 uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem){
+	NONS_MutexLocker ml(this->mutex);
 	uchar *res=0;
 	size_t end=this->archives.size();
 	if (!use_filesystem)
@@ -1269,6 +1270,7 @@ uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &b
 }
 
 NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path){
+	NONS_MutexLocker ml(this->mutex);
 	for (size_t a=0;a<this->archives.size();a++){
 		NONS_DataStream *stream=this->archives[a]->open(path);
 		if (stream)
@@ -1278,6 +1280,7 @@ NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path){
 }
 
 bool NONS_GeneralArchive::close(NONS_DataStream *stream){
+	NONS_MutexLocker ml(this->mutex);
 	if (stream){
 		for (size_t a=0;a<this->archives.size();a++)
 			if (this->archives[a]->close(stream))
@@ -1287,6 +1290,7 @@ bool NONS_GeneralArchive::close(NONS_DataStream *stream){
 }
 
 bool NONS_GeneralArchive::exists(const std::wstring &filepath){
+	NONS_MutexLocker ml(this->mutex);
 	for (size_t a=0;a<this->archives.size();a++)
 		if (this->archives[a]->exists(filepath))
 			return 1;

@@ -165,8 +165,10 @@ public:
 	                    EOCDR64_signature=0x06064b50;
 };
 
-struct NONS_GeneralArchive{
+class NONS_GeneralArchive{
+	NONS_Mutex mutex;
 	std::vector<NONS_DataSource *> archives;
+public:
 	~NONS_GeneralArchive();
 	void init();
 	uchar *getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem=1);

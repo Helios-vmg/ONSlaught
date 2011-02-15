@@ -744,6 +744,7 @@ Uint64 NONS_DataStream::stdio_seek(Sint64 offset,int direction){
 			break;
 		case SEEK_END:
 			direction=-1;
+			offset=-offset;
 			break;
 		case SEEK_SET:
 			direction=1;
