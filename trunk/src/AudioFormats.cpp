@@ -109,7 +109,7 @@ audio_buffer *ogg_decoder::get_buffer(bool &error){
 		size+=r;
 	}
 	vorbis_info *i=ov_info(&this->file,this->bitstream);
-	return new audio_buffer(&temp[0],size/4,i->rate,2,16,1);
+	return new audio_buffer(temp,size/(i->channels*2),i->rate,i->channels,16,1);
 }
 
 void ogg_decoder::loop(){

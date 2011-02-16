@@ -848,4 +848,12 @@ Iterator advance_iterator(Iterator i,int dir,Container &m){
 	return i;
 
 }
+
+template <typename T>
+void saturate_value(T &dst,const T &min,const T &max){
+	if (dst<min)
+		dst=min;
+	else if (dst>max)
+		dst=max;
+}
 #endif

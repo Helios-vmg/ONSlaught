@@ -41,11 +41,6 @@
 class audio_sink{
 	ALuint source;
 	static const size_t n=16;
-	ALint get_state(){
-		ALint state;
-		alGetSourcei(this->source,AL_SOURCE_STATE,&state);
-		return state;
-	}
 public:
 	audio_sink();
 	~audio_sink();
@@ -55,6 +50,11 @@ public:
 	void pause(){ alSourcePause(this->source); }
 	void unpause(){ alSourcePlay(this->source); }
 	void set_volume(float vol){ alSourcef(this->source,AL_GAIN,vol); }
+	ALint get_state(){
+		ALint state;
+		alGetSourcei(this->source,AL_SOURCE_STATE,&state);
+		return state;
+	}
 };
 
 struct audio_buffer{
@@ -89,31 +89,12 @@ public:
 };
 
 class audio_stream;
-typedef std::list<audio_stream *> list_t;
-
-class audio_stream{
-	audio_sink *sink;
-	decoder *decoder;
-	bool good,
-		playing,
-		paused;
-	float volume;
-public:
-	bool loop;
-	list_t::iterator iterator;
-	audio_stream(const std::wstring &filename);
-	~audio_stream();
-	operator bool(){ return this->good; }
-	void start();
-	void stop();
-	void pause();
-	void update();
-	bool is_playing(){ return this->playing; }
-	bool is_paused(){ return this->paused; }
-	void set_volume(float);
-};
 
 class audio_device{
+	friend class NONS_AudioDeviceManager;
+public:
+	typedef std::list<audio_stream *> list_t;
+private:
 	ALCdevice *device;
 	ALCcontext *context;
 	list_t streams;
@@ -123,7 +104,45 @@ public:
 	~audio_device();
 	operator bool(){ return this->good; }
 	void update();
-	void add(audio_stream &);
-	void remove(list_t::iterator &);
+	void add(audio_stream *);
+	void remove(audio_stream *);
+};
+
+class audio_stream{
+	audio_sink *sink;
+	decoder *decoder;
+	bool good,
+		playing,
+		paused;
+	float volume,
+		general_volume;
+	bool muted;
+	float get_compound_volume(bool including_mute=1){
+		return (including_mute && this->muted)?0:this->volume*this->general_volume;
+	}
+	void set_internal_volume(){
+		CHECK_POINTER_AND_CALL(this->sink,set_volume(this->get_compound_volume()));
+	}
+	std::vector<NONS_Event *> notify;
+public:
+	std::wstring filename;
+	int loop;
+	bool cleanup;
+	audio_device::list_t::iterator iterator;
+	audio_stream(const std::wstring &filename);
+	~audio_stream();
+	operator bool(){ return this->good; }
+	void start();
+	void stop();
+	void pause(int mode=-1);
+	bool update();
+	bool is_playing() const{ return this->playing; }
+	bool is_sink_playing() const;
+	bool is_paused() const{ return this->paused; }
+	void set_volume(float);
+	void set_general_volume(float);
+	void mute(int mode=-1);
+	float get_volume() const{ return this->volume; }
+	void notify_on_stop(NONS_Event *event){ this->notify.push_back(event); }
 };
 #endif

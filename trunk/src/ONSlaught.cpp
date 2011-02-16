@@ -315,7 +315,7 @@ void initialize(int argc,char **argv){
 	useArgumentsFile("arguments.txt",cmdl_arg);
 	CLOptions.parse(cmdl_arg);
 
-	SDL_Init(SDL_INIT_EVERYTHING);
+	SDL_Init(SDL_INIT_EVERYTHING&~SDL_INIT_AUDIO);
 	atexit(SDL_Quit);
 	SDL_EnableUNICODE(1);
 	SDL_EnableKeyRepeat(250,20);
@@ -324,6 +324,7 @@ void initialize(int argc,char **argv){
 
 	general_archive.init();
 
+	/*
 	{
 		audio_device dev;
 		if (!dev)
@@ -339,6 +340,7 @@ void initialize(int argc,char **argv){
 			SDL_Delay(10);
 		}
 	}
+	*/
 
 	if (CLOptions.override_stdout){
 		o_stdout.redirect();

@@ -117,12 +117,12 @@ audio_buffer::audio_buffer(void *buffer,size_t length,ulong freq,ulong channels,
 	this->bit_depth=bit_depth;
 }
 
-#define HANDLE_TYPE_WITH_TYPE(s,t) if (ends_with(copy,(std::wstring)s))\
-	this->decoder=new t(general_archive.open(filename))
+#define HANDLE_TYPE_WITH_TYPE(s,t) if (ends_with(this->filename,(std::wstring)s))\
+	this->decoder=new t(general_archive.open(this->filename))
 
 audio_stream::audio_stream(const std::wstring &filename){
-	std::wstring copy=filename;
-	tolower(copy);
+	this->filename=filename;
+	tolower(this->filename);
 	HANDLE_TYPE_WITH_TYPE(L".ogg",ogg_decoder);
 	else HANDLE_TYPE_WITH_TYPE(L".flac",flac_decoder);
 	else HANDLE_TYPE_WITH_TYPE(L".mp3",mp3_decoder);
@@ -133,7 +133,9 @@ audio_stream::audio_stream(const std::wstring &filename){
 	this->playing=0;
 	this->paused=0;
 	this->good=this->decoder;
-	this->volume=1.0;
+	this->general_volume=this->volume=1.f;
+	this->muted=0;
+	this->cleanup=0;
 }
 
 audio_stream::~audio_stream(){
@@ -149,7 +151,7 @@ void audio_stream::start(){
 	}else{
 		this->playing=1;
 		this->paused=0;
-		this->sink->set_volume(this->volume);
+		this->set_internal_volume();
 	}
 }
 
@@ -160,19 +162,42 @@ void audio_stream::stop(){
 	this->paused=0;
 }
 
-void audio_stream::pause(){
-	if (this->paused){
+void audio_stream::pause(int mode){
+	bool switch_to_paused=0,
+		switch_to_unpaused=0;
+	if (mode<0){
+		if (this->paused)
+			switch_to_unpaused=1;
+		else if (this->playing)
+			switch_to_paused=1;
+	}else if (!mode && this->paused)
+		switch_to_unpaused=1;
+	else if (this->playing)
+		switch_to_paused=1;
+	if (switch_to_unpaused){
 		this->sink->unpause();
 		this->paused=0;
-	}else if (this->playing){
+	}
+	if (switch_to_paused){
 		this->sink->pause();
 		this->paused=1;
 	}
 }
 
-void audio_stream::update(){
-	if (!this->sink || !this->playing || this->paused || !*this)
-		return;
+bool audio_stream::update(){
+	if (!this->sink)
+		return 0;
+	if (!this->playing){
+		if (this->sink->get_state()==AL_STOPPED){
+			while (this->notify.size()){
+				this->notify.back()->set();
+				this->notify.pop_back();
+			}
+		}
+		return 1;
+	}
+	if (this->paused || !*this)
+		return 0;
 	while (this->sink->needs_more_data()){
 		bool error;
 		audio_buffer *buffer;
@@ -181,6 +206,7 @@ void audio_stream::update(){
 		if (!buffer && !error){
 			if (this->loop){
 				this->decoder->loop();
+				this->loop--;
 				buffer=this->decoder->get_buffer(error);
 				if (!buffer && !error)
 					stop=1;
@@ -189,35 +215,52 @@ void audio_stream::update(){
 		}
 		if (stop){
 			this->playing=0;
-			return;
+			return 0;
 		}
 		if (error){
 			delete buffer;
 			delete this->sink;
 			this->sink=0;
 			this->good=0;
-			return;
+			return 1;
 		}
 		buffer->push(*this->sink);
 		delete buffer;
 	}
+	//Shut the compiler up.
+	return 0;
+}
+
+bool audio_stream::is_sink_playing() const{
+	if (!this->sink)
+		return 0;
+	return this->sink->get_state()==AL_PLAYING;
 }
 
 void audio_stream::set_volume(float vol){
-	if (vol<0)
-		vol=0;
-	else if (vol>1.f)
-		vol=1.f;
+	saturate_value(vol,0.f,1.f);
 	this->volume=vol;
-	if (this->sink)
-		this->sink->set_volume(vol);
+	this->set_internal_volume();
+}
+
+void audio_stream::set_general_volume(float vol){
+	saturate_value(vol,0.f,1.f);
+	this->general_volume=vol;
+	this->set_internal_volume();
+}
+
+void audio_stream::mute(int mode){
+	if (mode<0)
+		this->muted=!this->muted;
+	else
+		this->muted=!!mode;
+	this->set_internal_volume();
 }
 
 audio_device::audio_device(){
 	this->device=0;
 	this->context=0;
 	this->good=0;
-	al_static_init();
 	this->device=alcOpenDevice(0);
 	if (!this->device)
 		return;
@@ -238,15 +281,32 @@ audio_device::~audio_device(){
 		alcDestroyContext(this->context);
 	if (this->device)
 		alcCloseDevice(this->device);
-	al_static_uninit();
 }
 
 void audio_device::update(){
-	for (list_t::iterator i=this->streams.begin(),e=this->streams.end();i!=e;i++)
-		(*i)->update();
+	std::vector<audio_stream *> remove;
+	for (list_t::iterator i=this->streams.begin(),e=this->streams.end();i!=e;i++){
+		audio_stream &stream=**i;
+		if (stream.update() && stream.cleanup)
+			remove.push_back(&stream);
+	}
+	while (remove.size()){
+		this->remove(remove.back());
+		remove.pop_back();
+	}
 }
 
-void audio_device::add(audio_stream &stream){
-	this->streams.push_front(&stream);
-	stream.iterator=this->streams.begin();
+void audio_device::add(audio_stream *stream){
+	this->streams.push_front(stream);
+	stream->iterator=this->streams.begin();
+}
+
+void audio_device::remove(audio_stream *stream){
+	for (list_t::iterator i=this->streams.begin(),e=this->streams.end();i!=e;++i){
+		if (stream!=*i)
+			continue;
+		delete stream;
+		this->streams.erase(i);
+		break;
+	}
 }

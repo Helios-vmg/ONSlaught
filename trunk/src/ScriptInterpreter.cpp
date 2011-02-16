@@ -1131,9 +1131,9 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename){
 			}
 			return 1;
 		case 2:
-			if (!CHECK_FLAG(this->audio->playMusic(&filename,1),NONS_NO_ERROR_FLAG))
+			if (!CHECK_FLAG(this->audio->playMusic(filename,1),NONS_NO_ERROR_FLAG))
 				return 0;
-			generic_play_loop(this->audio->music->is_playing());
+			generic_play_loop(this->audio->is_playing(NONS_Audio::music_channel));
 			return 1;
 		case 3:
 			return !CHECK_FLAG(handleErrors(
@@ -2102,15 +2102,15 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	if (save.musicTrack>=0){
 		std::wstring temp=L"track";
 		temp+=itoaw(save.musicTrack,2);
-		au->playMusic(&temp,save.loopMp3?-1:0);
+		au->playMusic(temp,save.loopMp3?-1:0);
 	}else if (save.music.size())
-		this->audio->playMusic(&save.music,save.loopMp3?-1:0);
+		this->audio->playMusic(save.music,save.loopMp3?-1:0);
 	au->musicVolume(save.musicVolume);
 	for (ushort a=0;a<save.channels.size();a++){
 		NONS_SaveFile::Channel *c=save.channels[a];
 		if (!c->name.size())
 			continue;
-		au->playSoundAsync(&c->name,a,c->loop?-1:0);
+		au->playSound(c->name,a,c->loop?-1:0,1);
 	}
 	if (this->loadgosub.size())
 		this->gosub_label(this->loadgosub);
@@ -2299,26 +2299,23 @@ bool NONS_ScriptInterpreter::save(int file){
 	}
 	{
 		NONS_Audio *au=this->audio;
-		if (!Mix_PlayingMusic()){
-			this->saveGame->musicTrack=-1;
-			this->saveGame->music.clear();
-		}else
+		channel_listing cl;
+		au->getChannelListing(cl);
+		if (cl.music.filename.size())
 			this->saveGame->loopMp3=this->mp3_loop;
-		int vol=au->musicVolume(-1);
-		this->saveGame->musicVolume=vol<0?100:vol;
-		if (au->isInitialized()){
-			NONS_MutexLocker ml(au->soundcache->mutex);
-			for (std::list<NONS_SoundEffect *>::iterator i=au->soundcache->channelWatch.begin();i!=au->soundcache->channelWatch.end();i++){
-				NONS_SoundEffect *ch=*i;
-				if (!ch || !ch->sound || !ch->isplaying)
-					continue;
-				NONS_SaveFile::Channel *cha=new NONS_SaveFile::Channel();
-				cha->name=ch->sound->name;
-				cha->loop=!!ch->loops;
-				if (ch->channel>=ch->channel)
-					this->saveGame->channels.resize(ch->channel+1,0);
-				this->saveGame->channels[ch->channel]=cha;
-			}
+		this->saveGame->musicVolume=this->audio->musicVolume(-1);
+		this->saveGame->channels.clear();
+		typedef std::map<int,channel_listing::channel> map_t;
+		for (map_t::iterator i=cl.sounds.begin(),e=cl.sounds.end();i!=e;++i){
+			if (i->second.loop>=0)
+				continue;
+			NONS_SaveFile::Channel *ch=new NONS_SaveFile::Channel();
+			ch->name=i->second.filename;
+			ch->loop=1;
+			ch->volume=i->second.volume;
+			if ((size_t)i->first>=this->saveGame->channels.size())
+				this->saveGame->channels.resize(i->first+1,0);
+			this->saveGame->channels[i->first]=ch;
 		}
 	}
 	bool ret=this->saveGame->save(save_directory+L"save"+itoaw(file)+L".dat");
@@ -2817,8 +2814,7 @@ ErrorCode NONS_ScriptInterpreter::command_chvol(NONS_Statement &stmt){
 		volume;
 	GET_INT_VALUE(channel,0);
 	GET_INT_VALUE(volume,1);
-	NONS_Audio::set_channel_volume(channel,volume);
-	Mix_Volume(channel,volume);
+	this->audio->channelVolume(channel,volume);
 	return NONS_NO_ERROR;
 }
 
@@ -3247,23 +3243,21 @@ ErrorCode NONS_ScriptInterpreter::command_dwave(NONS_Statement &stmt){
 	tolower(name);
 	toforwardslash(name);
 	long loop=!stdStrCmpCI(stmt.commandName,L"dwave")?0:-1;
-	return this->audio->playSoundAsync(&name,channel,loop);
+	return this->audio->playSound(name,channel,loop,0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwaveload(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
-	long channel;
-	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	long chan;
+	GET_INT_VALUE(chan,0);
+	if (chan<0 || chan>49)
 		return NONS_INVALID_CHANNEL_INDEX;
 	std::wstring name;
 	GET_STR_VALUE(name,1);
 	tolower(name);
 	toforwardslash(name);
-	ErrorCode error=NONS_NO_ERROR;
-	if (!this->audio->bufferIsLoaded(name))
-		this->audio->loadAsyncBuffer(name,channel);
-	return error;
+	int channel=chan;
+	return this->audio->loadSoundOnAChannel(name,channel,1);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwaveplay(NONS_Statement &stmt){
@@ -3273,7 +3267,7 @@ ErrorCode NONS_ScriptInterpreter::command_dwaveplay(NONS_Statement &stmt){
 	if (channel<0 || channel>49)
 		return NONS_INVALID_CHANNEL_INDEX;
 	long loop=!stdStrCmpCI(stmt.commandName,L"dwaveplay")?0:-1;
-	return this->audio->playSoundAsync(0,channel,loop);
+	return this->audio->play(channel,loop,0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwavestop(NONS_Statement &stmt){
@@ -3282,7 +3276,7 @@ ErrorCode NONS_ScriptInterpreter::command_dwavestop(NONS_Statement &stmt){
 	GET_INT_VALUE(channel,0);
 	if (channel<0 || channel>49)
 		return NONS_INVALID_CHANNEL_INDEX;
-	return this->audio->stopSoundAsync(channel);
+	return this->audio->stopSound(channel);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_effect(NONS_Statement &stmt){
@@ -4514,12 +4508,12 @@ ErrorCode NONS_ScriptInterpreter::command_play(NONS_Statement &stmt){
 		int track=atoi(name.substr(1));
 		std::wstring temp=L"track";
 		temp+=itoaw(track,2);
-		error=this->audio->playMusic(&temp,this->mp3_loop?-1:0);
+		error=this->audio->playMusic(temp,this->mp3_loop?-1:0);
 		if (error==NONS_NO_ERROR)
 			this->saveGame->musicTrack=track;
 		else
 			this->saveGame->musicTrack=-1;
-	}else if ((error=this->audio->playMusic(&name,this->mp3_loop?-1:0))==NONS_NO_ERROR)
+	}else if ((error=this->audio->playMusic(name,this->mp3_loop?-1:0))==NONS_NO_ERROR)
 		this->saveGame->music=name;
 	else
 		this->saveGame->music.clear();
@@ -5627,13 +5621,13 @@ ErrorCode NONS_ScriptInterpreter::command_wave(NONS_Statement &stmt){
 	toforwardslash(name);
 	ErrorCode error;
 	this->wav_loop=!!stdStrCmpCI(stmt.commandName,L"wave");
-	error=this->audio->playSoundAsync(&name,0,this->wav_loop?-1:0);
+	error=this->audio->playSound(name,0,this->wav_loop?-1:0,0);
 	return error;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_wavestop(NONS_Statement &stmt){
 	this->wav_loop=0;
-	return this->audio->stopSoundAsync(0);
+	return this->audio->stopSound(0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_windoweffect(NONS_Statement &stmt){
