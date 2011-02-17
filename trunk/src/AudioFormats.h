@@ -35,6 +35,7 @@
 #include <vorbis/vorbisfile.h>
 #include <FLAC++/decoder.h>
 #include <mpg123.h>
+#include <mikmod.h>
 
 class ogg_decoder:public decoder{
 	OggVorbis_File file;
@@ -77,4 +78,16 @@ public:
 	audio_buffer *get_buffer(bool &error);
 	void loop();
 };
+
+#if 0
+class mod_decoder:public decoder{
+	static NONS_Mutex mutex;
+	static bool mikmod_initialized;
+public:
+	mod_decoder(NONS_DataStream *stream);
+	~mod_decoder();
+	audio_buffer *get_buffer(bool &error);
+	void loop();
+};
+#endif
 #endif

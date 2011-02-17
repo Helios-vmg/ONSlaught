@@ -117,37 +117,37 @@ class NONS_Audio{
 	int mvol,
 		svol;
 public:
+	static const long max_valid_channel=(long)initial_channel_counter-1;
 	static const int music_channel=-1;
 	std::wstring musicDir,
 		musicFormat;
 	NONS_Audio(const std::wstring &musicDir);
 	~NONS_Audio();
-	ErrorCode playMusic(const std::wstring &filename,long times=-1);
-	ErrorCode stopMusic();
-	ErrorCode pauseMusic();
-	ErrorCode playSoundOnce(const std::wstring &filename){
-		return this->playSound(filename,-1,0,1);
+	ErrorCode play_music(const std::wstring &filename,long times=-1);
+	ErrorCode stop_music();
+	ErrorCode pause_music();
+	ErrorCode play_sound_once(const std::wstring &filename){
+		return this->play_sound(filename,-1,0,1);
 	}
-	ErrorCode playSound(const std::wstring &filename,int channel,long times,bool automatic_cleanup);
-	ErrorCode stopSound(int channel);
-	ErrorCode stopAllSound();
-	ErrorCode loadSoundOnAChannel(const std::wstring &filename,int &channel,bool use_channel_as_input=0);
-	ErrorCode unloadSoundFromChannel(int channel);
+	ErrorCode play_sound(const std::wstring &filename,int channel,long times,bool automatic_cleanup);
+	ErrorCode stop_sound(int channel);
+	ErrorCode stop_all_sound();
+	ErrorCode load_sound_on_a_channel(const std::wstring &filename,int &channel,bool use_channel_as_input=0);
+	ErrorCode unload_sound_from_channel(int channel);
 	ErrorCode play(int channel,long times,bool automatic_cleanup);
-	void waitForChannel(int channel);
-	int musicVolume(int vol);
-	int soundVolume(int vol);
-	int channelVolume(int channel,int vol);
-	bool toggleMute();
+	void wait_for_channel(int channel);
+	int music_volume(int vol);
+	int sound_volume(int vol);
+	int channel_volume(int channel,int vol);
+	bool toggle_mute();
 	bool is_playing(int channel);
-	bool isInitialized(){
+	bool is_initialized(){
 		return !this->uninitialized;
 	}
-	void getChannelListing(channel_listing &cl){
+	void get_channel_listing(channel_listing &cl){
 		if (!this->uninitialized)
 			this->manager->get_channel_listing(cl);
 	}
-	//static int set_channel_volume(int channel,int volume);
 };
 
 class NONS_ScopedAudioStream{
@@ -155,18 +155,25 @@ class NONS_ScopedAudioStream{
 	NONS_Audio *audio;
 	bool good;
 public:
-	NONS_ScopedAudioStream(NONS_Audio *audio,const std::wstring &filename):audio(audio){
-		this->good=this->audio->loadSoundOnAChannel(filename,this->channel)==NONS_NO_ERROR;
+	NONS_ScopedAudioStream():audio(0),good(0){}
+	NONS_ScopedAudioStream(NONS_Audio *audio,const std::wstring &filename){
+		this->init(audio,filename);
 	}
 	~NONS_ScopedAudioStream(){
 		if (this->good)
-			this->audio->unloadSoundFromChannel(this->channel);
+			this->audio->unload_sound_from_channel(this->channel);
+	}
+	void init(NONS_Audio *audio,const std::wstring &filename){
+		this->audio=audio;
+		this->good=this->audio && this->audio->load_sound_on_a_channel(filename,this->channel)==NONS_NO_ERROR;
 	}
 	void play(bool loop){
-		this->audio->play(this->channel,loop?-1:0,0);
+		if (this->good)
+			this->audio->play(this->channel,loop?-1:0,0);
 	}
 	void stop(){
-		this->audio->stopSound(this->channel);
+		if (this->good)
+			this->audio->stop_sound(this->channel);
 	}
 };
 #endif

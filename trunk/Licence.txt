@@ -46,10 +46,6 @@ tools/src/LZMA.h
 
                                   Permissive
 
-Mark Adler (madler@alumni.caltech.edu):
-src/puff.c
-src/puff.h
-
 Paul E. Jones (paulej@arid.us):
 src/sha1.cpp
 src/sha1.h

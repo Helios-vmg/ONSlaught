@@ -28,6 +28,7 @@
 */
 
 #include "AudioFormats.h"
+#include <iostream>
 
 size_t ogg_read(void *buffer,size_t size,size_t nmemb,void *s){
 	NONS_DataStream *stream=(NONS_DataStream *)s;
@@ -288,8 +289,6 @@ off_t mp3_seek(int fd,off_t offset,int whence){
 	}                                                  \
 }
 
-#include <iostream>
-
 mp3_decoder::mp3_decoder(NONS_DataStream *stream):decoder(stream){
 	if (!*this)
 		return;
@@ -299,8 +298,6 @@ mp3_decoder::mp3_decoder(NONS_DataStream *stream):decoder(stream){
 		NONS_MutexLocker ml(mp3_decoder::mutex);
 		if (!mp3_decoder::mpg123_initialized){
 			HANDLE_MPG123_ERRORS(mpg123_init(),);
-			for (const char **p=mpg123_supported_decoders();*p;p++)
-				std::cout <<*p<<std::endl;
 			mp3_decoder::mpg123_initialized=1;
 		}
 	}
@@ -341,6 +338,36 @@ audio_buffer *mp3_decoder::get_buffer(bool &there_was_an_error){
 }
 
 void mp3_decoder::loop(){
-	std::cout <<"Looping.\n";
 	mpg123_seek(this->handle,0,SEEK_SET);
 }
+
+#if 0
+bool mod_decoder::mikmod_initialized=0;
+NONS_Mutex mod_decoder::mutex;
+
+mod_decoder::mod_decoder(NONS_DataStream *stream):decoder(stream){
+	if (!*this)
+		return;
+	this->good=0;
+	{
+		NONS_MutexLocker ml(mod_decoder::mutex);
+		if (!mod_decoder::mpg123_initialized){
+			MikMod_Init(
+			MDRIVER d;
+			d.
+			MikMod_RegisterDriver
+			MikMod_RegisterDriver
+			mp3_decoder::mpg123_initialized=1;
+		}
+	}
+}
+
+mod_decoder::~mod_decoder(){
+}
+
+audio_buffer *mod_decoder::get_buffer(bool &error){
+}
+
+void mod_decoder::loop(){
+}
+#endif

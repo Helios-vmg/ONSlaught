@@ -666,7 +666,7 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 			return -2;
 	}
 	if (this->voiceEntry.size())
-		this->audio->playSoundOnce(this->voiceEntry);
+		this->audio->play_sound_once(this->voiceEntry);
 	NONS_ScopedAudioStream voiceMouseOver_channel(this->audio,this->voiceMouseOver);
 	NONS_EventQueue queue;
 	NONS_Surface screenCopy=this->screen->screen->get_screen().clone();
@@ -813,7 +813,7 @@ bool NONS_ButtonLayer::react_to_click(map_t::iterator &mouseOver,const NONS_Cons
 	if (mouseOver==e)
 		return 0;
 	if (this->voiceClick.size())
-		this->audio->playSoundOnce(this->voiceClick);
+		this->audio->play_sound_once(this->voiceClick);
 	this->screen->screen->get_screen().copy_pixels(screenCopy);
 	this->screen->screen->updateWholeScreen();
 	return 1;
@@ -1035,7 +1035,7 @@ int NONS_Menu::callMenu(){
 	int choice=this->buttons->getUserInput(this->x,this->y);
 	if (choice<0){
 		if (choice!=INT_MIN && this->voiceCancel.size())
-			this->audio->playSoundOnce(this->voiceCancel);
+			this->audio->play_sound_once(this->voiceCancel);
 		return 0;
 	}
 	return this->call(this->commands[choice]);
@@ -1187,7 +1187,7 @@ int NONS_Menu::save(){
 				continue;
 			}
 			if (choice<0 && this->voiceCancel.size())
-				this->audio->playSoundOnce(this->voiceCancel);
+				this->audio->play_sound_once(this->voiceCancel);
 			ret=choice+1;
 		}
 		break;
@@ -1253,7 +1253,7 @@ int NONS_Menu::load(){
 				continue;
 			}
 			if (choice<0 && this->voiceCancel.size())
-				this->audio->playSoundOnce(this->voiceCancel);
+				this->audio->play_sound_once(this->voiceCancel);
 			ret=choice+1;
 		}
 		break;

@@ -36,7 +36,7 @@
 NONS_AudioDeviceManager::NONS_AudioDeviceManager():stop_thread(0){
 	if (!*this)
 		return;
-	this->thread.call(member_bind(&NONS_AudioDeviceManager::controller_thread,this));
+	this->thread.call(member_bind(&NONS_AudioDeviceManager::controller_thread,this),1);
 }
 
 NONS_AudioDeviceManager::~NONS_AudioDeviceManager(){
@@ -61,6 +61,9 @@ void NONS_AudioDeviceManager::process_instruction(const instruction &i){
 					delete stream;
 				else
 					this->dev.add(this->channels[i.channel]=stream);
+				int count=0;
+				for (chan_t::iterator j=this->channels.begin(),e=this->channels.end();j!=e;++j)
+					std::cout <<++count<<": "<<j->second->filename<<std::endl;
 			}
 			break;
 		case instruction::UNLOAD:
@@ -188,7 +191,9 @@ void NONS_AudioDeviceManager::process_instruction(const instruction &i){
 }
 
 void NONS_AudioDeviceManager::controller_thread(){
+	NONS_Clock clock;
 	while (1){
+		NONS_Clock::t t0=clock.get();
 		{
 			NONS_MutexLocker ml(this->mutex);
 			if (this->stop_thread)
@@ -206,7 +211,9 @@ void NONS_AudioDeviceManager::controller_thread(){
 			}
 			this->dev.update();
 		}
-		SDL_Delay(50);
+		NONS_Clock::t t1=clock.get()-t0;
+		if (t1<40)
+			SDL_Delay(50-(Uint32)t1);
 	}
 }
 
@@ -387,7 +394,7 @@ NONS_Audio::~NONS_Audio(){
 
 extern const wchar_t *sound_formats[];
 
-ErrorCode NONS_Audio::playMusic(const std::wstring &filename,long times){
+ErrorCode NONS_Audio::play_music(const std::wstring &filename,long times){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	const int channel=NONS_Audio::music_channel;
@@ -411,32 +418,32 @@ ErrorCode NONS_Audio::playMusic(const std::wstring &filename,long times){
 	return NONS_NO_ERROR;
 }
 
-ErrorCode NONS_Audio::stopMusic(){
+ErrorCode NONS_Audio::stop_music(){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	return (this->manager->stop(NONS_Audio::music_channel))?NONS_NO_ERROR:NONS_NO_MUSIC_LOADED;
 }
 
-ErrorCode NONS_Audio::pauseMusic(){
+ErrorCode NONS_Audio::pause_music(){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	return (this->manager->pause(NONS_Audio::music_channel))?NONS_NO_ERROR:NONS_NO_MUSIC_LOADED;
 }
 
-ErrorCode NONS_Audio::playSound(const std::wstring &filename,int channel,long times,bool automatic_cleanup){
+ErrorCode NONS_Audio::play_sound(const std::wstring &filename,int channel,long times,bool automatic_cleanup){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	if (!general_archive.exists(filename))
 		return NONS_FILE_NOT_FOUND;
 	ErrorCode e;
-	e=this->loadSoundOnAChannel(filename,channel,channel>=0);
+	e=this->load_sound_on_a_channel(filename,channel,channel>=0);
 	if (!CHECK_FLAG(e,NONS_NO_ERROR_FLAG))
 		return e;
 	e=this->play(channel,times,automatic_cleanup);
 	return (!CHECK_FLAG(e,NONS_NO_ERROR_FLAG))?e:NONS_NO_ERROR;
 }
 
-ErrorCode NONS_Audio::loadSoundOnAChannel(const std::wstring &filename,int &channel,bool use_channel_as_input){
+ErrorCode NONS_Audio::load_sound_on_a_channel(const std::wstring &filename,int &channel,bool use_channel_as_input){
 	if (!use_channel_as_input)
 		channel=INT_MAX;
 	if (this->uninitialized)
@@ -450,7 +457,7 @@ ErrorCode NONS_Audio::loadSoundOnAChannel(const std::wstring &filename,int &chan
 	return NONS_NO_ERROR;
 }
 
-ErrorCode NONS_Audio::unloadSoundFromChannel(int channel){
+ErrorCode NONS_Audio::unload_sound_from_channel(int channel){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	if (!this->manager->unload(channel))
@@ -466,27 +473,27 @@ ErrorCode NONS_Audio::play(int channel,long times,bool automatic_cleanup){
 	return NONS_NO_ERROR;
 }
 
-void NONS_Audio::waitForChannel(int channel){
+void NONS_Audio::wait_for_channel(int channel){
 	NONS_Event event;
 	event.init();
 	this->manager->notify(channel,&event);
 	event.wait();
 }
 
-ErrorCode NONS_Audio::stopSound(int channel){
+ErrorCode NONS_Audio::stop_sound(int channel){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	return (this->manager->stop(channel))?NONS_NO_ERROR:NONS_NO_SOUND_EFFECT_LOADED;
 }
 
-ErrorCode NONS_Audio::stopAllSound(){
+ErrorCode NONS_Audio::stop_all_sound(){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	return this->manager->stop_all();
 	return NONS_NO_ERROR;
 }
 
-int NONS_Audio::musicVolume(int vol){
+int NONS_Audio::music_volume(int vol){
 	if (this->uninitialized)
 		return 0;
 	if (vol<0)
@@ -496,7 +503,7 @@ int NONS_Audio::musicVolume(int vol){
 	return (!this->manager->set_volume_music(float(vol)/100.f))?0:vol;
 }
 
-int NONS_Audio::soundVolume(int vol){
+int NONS_Audio::sound_volume(int vol){
 	if (this->uninitialized)
 		return 0;
 	if (vol<0)
@@ -506,14 +513,14 @@ int NONS_Audio::soundVolume(int vol){
 	return (!this->manager->set_volume_sfx(float(vol)/100.f))?0:vol;
 }
 
-int NONS_Audio::channelVolume(int channel,int vol){
+int NONS_Audio::channel_volume(int channel,int vol){
 	if (this->uninitialized)
 		return 0;
 	saturate_value(vol,0,100);
 	return (!this->manager->set_volume(channel,float(vol)/100.f))?0:vol;
 }
 
-bool NONS_Audio::toggleMute(){
+bool NONS_Audio::toggle_mute(){
 	if (this->uninitialized)
 		return 0;
 	this->notmute=!this->notmute;

@@ -1131,7 +1131,7 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename){
 			}
 			return 1;
 		case 2:
-			if (!CHECK_FLAG(this->audio->playMusic(filename,1),NONS_NO_ERROR_FLAG))
+			if (!CHECK_FLAG(this->audio->play_music(filename,1),NONS_NO_ERROR_FLAG))
 				return 0;
 			generic_play_loop(this->audio->is_playing(NONS_Audio::music_channel));
 			return 1;
@@ -2078,7 +2078,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	this->screen->filterPipeline=save.pipelines[0];
 	//Preparations for audio
 	NONS_Audio *au=this->audio;
-	au->stopAllSound();
+	au->stop_all_sound();
 	out->ephemeralOut(out->currentBuffer,0,0,1,0);
 	{
 		ulong w=(ulong)scr->screen->inRect.w,
@@ -2102,15 +2102,15 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	if (save.musicTrack>=0){
 		std::wstring temp=L"track";
 		temp+=itoaw(save.musicTrack,2);
-		au->playMusic(temp,save.loopMp3?-1:0);
+		au->play_music(temp,save.loopMp3?-1:0);
 	}else if (save.music.size())
-		this->audio->playMusic(save.music,save.loopMp3?-1:0);
-	au->musicVolume(save.musicVolume);
+		this->audio->play_music(save.music,save.loopMp3?-1:0);
+	au->music_volume(save.musicVolume);
 	for (ushort a=0;a<save.channels.size();a++){
 		NONS_SaveFile::Channel *c=save.channels[a];
 		if (!c->name.size())
 			continue;
-		au->playSound(c->name,a,c->loop?-1:0,1);
+		au->play_sound(c->name,a,c->loop?-1:0,1);
 	}
 	if (this->loadgosub.size())
 		this->gosub_label(this->loadgosub);
@@ -2300,10 +2300,10 @@ bool NONS_ScriptInterpreter::save(int file){
 	{
 		NONS_Audio *au=this->audio;
 		channel_listing cl;
-		au->getChannelListing(cl);
+		au->get_channel_listing(cl);
 		if (cl.music.filename.size())
 			this->saveGame->loopMp3=this->mp3_loop;
-		this->saveGame->musicVolume=this->audio->musicVolume(-1);
+		this->saveGame->musicVolume=this->audio->music_volume(-1);
 		this->saveGame->channels.clear();
 		typedef std::map<int,channel_listing::channel> map_t;
 		for (map_t::iterator i=cl.sounds.begin(),e=cl.sounds.end();i!=e;++i){
@@ -2814,7 +2814,7 @@ ErrorCode NONS_ScriptInterpreter::command_chvol(NONS_Statement &stmt){
 		volume;
 	GET_INT_VALUE(channel,0);
 	GET_INT_VALUE(volume,1);
-	this->audio->channelVolume(channel,volume);
+	this->audio->channel_volume(channel,volume);
 	return NONS_NO_ERROR;
 }
 
@@ -3236,35 +3236,35 @@ ErrorCode NONS_ScriptInterpreter::command_dwave(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	if (channel<0 || channel>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
 	std::wstring name;
 	GET_STR_VALUE(name,1);
 	tolower(name);
 	toforwardslash(name);
 	long loop=!stdStrCmpCI(stmt.commandName,L"dwave")?0:-1;
-	return this->audio->playSound(name,channel,loop,0);
+	return this->audio->play_sound(name,channel,loop,0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwaveload(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	long chan;
 	GET_INT_VALUE(chan,0);
-	if (chan<0 || chan>49)
+	if (chan<0 || chan>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
 	std::wstring name;
 	GET_STR_VALUE(name,1);
 	tolower(name);
 	toforwardslash(name);
 	int channel=chan;
-	return this->audio->loadSoundOnAChannel(name,channel,1);
+	return this->audio->load_sound_on_a_channel(name,channel,1);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwaveplay(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	if (channel<0 || channel>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
 	long loop=!stdStrCmpCI(stmt.commandName,L"dwaveplay")?0:-1;
 	return this->audio->play(channel,loop,0);
@@ -3274,9 +3274,9 @@ ErrorCode NONS_ScriptInterpreter::command_dwavestop(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	if (channel<0 || channel>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
-	return this->audio->stopSound(channel);
+	return this->audio->stop_sound(channel);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_effect(NONS_Statement &stmt){
@@ -3506,7 +3506,7 @@ ErrorCode NONS_ScriptInterpreter::command_getmp3vol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *dst;
 	GET_INT_VARIABLE(dst,0);
-	dst->set(this->audio->musicVolume(-1));
+	dst->set(this->audio->music_volume(-1));
 	return NONS_NO_ERROR;
 }
 
@@ -3603,7 +3603,7 @@ ErrorCode NONS_ScriptInterpreter::command_getsevol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *dst;
 	GET_INT_VARIABLE(dst,0);
-	dst->set(this->audio->soundVolume(-1));
+	dst->set(this->audio->sound_volume(-1));
 	return NONS_NO_ERROR;
 }
 
@@ -4345,10 +4345,10 @@ ErrorCode NONS_ScriptInterpreter::command_mp3fadeout(NONS_Statement &stmt){
 	long ms;
 	GET_INT_VALUE(ms,0);
 	if (ms<25){
-		this->audio->stopMusic();
+		this->audio->stop_music();
 		return NONS_NO_ERROR;
 	}
-	float original_vol=(float)this->audio->musicVolume(-1);
+	float original_vol=(float)this->audio->music_volume(-1);
 	float advance=original_vol/(float(ms)/25.0f);
 	float current_vol=original_vol;
 	while (current_vol>0){
@@ -4356,10 +4356,10 @@ ErrorCode NONS_ScriptInterpreter::command_mp3fadeout(NONS_Statement &stmt){
 		current_vol-=advance;
 		if (current_vol<0)
 			current_vol=0;
-		this->audio->musicVolume((int)current_vol);
+		this->audio->music_volume((int)current_vol);
 	}
-	HANDLE_POSSIBLE_ERRORS(this->audio->stopMusic());
-	this->audio->musicVolume((int)original_vol);
+	HANDLE_POSSIBLE_ERRORS(this->audio->stop_music());
+	this->audio->music_volume((int)original_vol);
 	return NONS_NO_ERROR;
 }
 
@@ -4367,7 +4367,7 @@ ErrorCode NONS_ScriptInterpreter::command_mp3vol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long vol;
 	GET_INT_VALUE(vol,0);
-	this->audio->musicVolume(vol);
+	this->audio->music_volume(vol);
 	return NONS_NO_ERROR;
 }
 
@@ -4508,12 +4508,12 @@ ErrorCode NONS_ScriptInterpreter::command_play(NONS_Statement &stmt){
 		int track=atoi(name.substr(1));
 		std::wstring temp=L"track";
 		temp+=itoaw(track,2);
-		error=this->audio->playMusic(temp,this->mp3_loop?-1:0);
+		error=this->audio->play_music(temp,this->mp3_loop?-1:0);
 		if (error==NONS_NO_ERROR)
 			this->saveGame->musicTrack=track;
 		else
 			this->saveGame->musicTrack=-1;
-	}else if ((error=this->audio->playMusic(name,this->mp3_loop?-1:0))==NONS_NO_ERROR)
+	}else if ((error=this->audio->play_music(name,this->mp3_loop?-1:0))==NONS_NO_ERROR)
 		this->saveGame->music=name;
 	else
 		this->saveGame->music.clear();
@@ -4523,7 +4523,7 @@ ErrorCode NONS_ScriptInterpreter::command_play(NONS_Statement &stmt){
 ErrorCode NONS_ScriptInterpreter::command_playstop(NONS_Statement &stmt){
 	this->mp3_loop=0;
 	this->mp3_save=0;
-	return this->audio->stopMusic();
+	return this->audio->stop_music();
 }
 
 ErrorCode NONS_ScriptInterpreter::command_pretextgosub(NONS_Statement &stmt){
@@ -4606,7 +4606,7 @@ ErrorCode NONS_ScriptInterpreter::command_reset(NONS_Statement &stmt){
 	delete this->gfx_store;
 	this->gfx_store=new NONS_GFXstore();
 	this->screen->gfx_store=this->gfx_store;
-	this->audio->stopAllSound();
+	this->audio->stop_all_sound();
 	return NONS_NO_ERROR;
 }
 
@@ -5125,7 +5125,7 @@ ErrorCode NONS_ScriptInterpreter::command_sevol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long vol;
 	GET_INT_VALUE(vol,0);
-	this->audio->soundVolume(vol);
+	this->audio->sound_volume(vol);
 	return NONS_NO_ERROR;
 }
 
@@ -5256,7 +5256,7 @@ ErrorCode NONS_ScriptInterpreter::command_stop(NONS_Statement &stmt){
 	this->mp3_loop=0;
 	this->mp3_save=0;
 	this->wav_loop=0;
-	return this->audio->stopAllSound();
+	return this->audio->stop_all_sound();
 }
 
 ErrorCode NONS_ScriptInterpreter::command_strip_format(NONS_Statement &stmt){
@@ -5619,15 +5619,13 @@ ErrorCode NONS_ScriptInterpreter::command_wave(NONS_Statement &stmt){
 	GET_STR_VALUE(name,0);
 	tolower(name);
 	toforwardslash(name);
-	ErrorCode error;
 	this->wav_loop=!!stdStrCmpCI(stmt.commandName,L"wave");
-	error=this->audio->playSound(name,0,this->wav_loop?-1:0,0);
-	return error;
+	return this->audio->play_sound(name,0,this->wav_loop?-1:0,!this->wav_loop);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_wavestop(NONS_Statement &stmt){
 	this->wav_loop=0;
-	return this->audio->stopSound(0);
+	return this->audio->stop_sound(0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_windoweffect(NONS_Statement &stmt){

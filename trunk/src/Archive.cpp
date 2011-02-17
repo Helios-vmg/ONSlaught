@@ -485,7 +485,7 @@ TreeNode::~TreeNode(){
 }
 
 TreeNode *TreeNode::get_branch(const std::wstring &_path,bool create){
-	if (_path[0]=='/' || _path[0]=='\\')
+	if (!_path.size() || _path[0]=='/' || _path[0]=='\\')
 		//Path is absolute and to a file in the file system. Do nothing.
 		return 0;
 	TreeNode *_this=this;

@@ -174,7 +174,7 @@ void handleInputEvent(SDL_Event event){
 						break;
 					case SDLK_s:
 						if (gScriptInterpreter->audio)
-							gScriptInterpreter->audio->toggleMute();
+							gScriptInterpreter->audio->toggle_mute();
 						break;
 					case SDLK_RETURN:
 						if (CHECK_FLAG(event.key.keysym.mod,KMOD_ALT) && !video_playback)
@@ -323,24 +323,6 @@ void initialize(int argc,char **argv){
 	InputObserver.setup_joysticks();
 
 	general_archive.init();
-
-	/*
-	{
-		audio_device dev;
-		if (!dev)
-			exit(-1);
-		audio_stream stream(L"f:/Data/Music/Eagles - Journey of a Sorcerer.mp3");
-		if (!stream)
-			exit(-1);
-		dev.add(stream);
-		stream.start();
-		stream.loop=1;
-		while (1){
-			dev.update();
-			SDL_Delay(10);
-		}
-	}
-	*/
 
 	if (CLOptions.override_stdout){
 		o_stdout.redirect();

@@ -44,8 +44,9 @@ audio_sink::audio_sink(){
 }
 
 audio_sink::~audio_sink(){
-	if (*this)
-		alDeleteSources(1,&this->source);
+	if (!*this)
+		return;
+	alDeleteSources(1,&this->source);
 }
 
 ALenum make_format(ulong channels,ulong bit_depth){
@@ -261,6 +262,9 @@ audio_device::audio_device(){
 	this->device=0;
 	this->context=0;
 	this->good=0;
+#ifdef AL_STATIC_BUILD
+	al_static_init();
+#endif
 	this->device=alcOpenDevice(0);
 	if (!this->device)
 		return;
@@ -281,6 +285,9 @@ audio_device::~audio_device(){
 		alcDestroyContext(this->context);
 	if (this->device)
 		alcCloseDevice(this->device);
+#ifdef AL_STATIC_BUILD
+	al_static_uninit();
+#endif
 }
 
 void audio_device::update(){
