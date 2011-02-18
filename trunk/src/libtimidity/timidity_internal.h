@@ -49,7 +49,7 @@
 #define SWAPLE32(x) XCHG_LONG(x)
 #endif
 
-#ifdef DEBUG
+#if defined DEBUG //|| defined _DEBUG
 #define DEBUG_MSG(...) fprintf(stderr, __VA_ARGS__)
 #else
 #define DEBUG_MSG(...)

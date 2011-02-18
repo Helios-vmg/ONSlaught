@@ -45,8 +45,8 @@
 NONS_InputObserver InputObserver;
 NONS_RedirectedOutput o_stdout(std::cout);
 NONS_RedirectedOutput o_stderr(std::cerr);
-//NONS_RedirectedOutput o_stdlog(std::clog);
 NONS_FileSystem filesystem;
+NONS_MemoryFS memoryFS;
 
 NONS_File::NONS_File(const std::wstring &path,bool read){
 	this->is_open=0;
@@ -139,7 +139,7 @@ void NONS_File::close(){
 	this->is_open=0;
 }
 	
-bool NONS_File::operator!(){
+bool NONS_File::operator!() const{
 	return
 #if NONS_SYS_WINDOWS
 		this->file==INVALID_HANDLE_VALUE;
@@ -150,7 +150,7 @@ bool NONS_File::operator!(){
 #endif
 }
 
-bool NONS_File::read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offset){
+bool NONS_File::read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offset) const{
 	if (!this->is_open || !this->opened_for_read){
 		bytes_read=0;
 		return 0;
@@ -186,7 +186,7 @@ bool NONS_File::read(void *dst,size_t read_bytes,size_t &bytes_read,Uint64 offse
 	return 1;
 }
 
-NONS_File::type *NONS_File::read(size_t read_bytes,size_t &bytes_read,Uint64 offset){
+NONS_File::type *NONS_File::read(size_t read_bytes,size_t &bytes_read,Uint64 offset) const{
 	bool a;
 	if (!(a=this->read(0,read_bytes,bytes_read,offset)) || !bytes_read){
 		bytes_read=0;
@@ -688,17 +688,24 @@ NONS_DataSource::~NONS_DataSource(){
 
 NONS_DataStream *NONS_DataSource::open(NONS_DataStream *p,const std::wstring &path){
 	p->original_path=path;
-	if (CLOptions.verbosity>=2)
+	if (CLOptions.verbosity>=2 && p->original_path.size())
 		o_stderr <<"Opening stream to "<<p->original_path<<"\n";
 	this->streams.push_back(p);
 	return p;
 }
 
-NONS_DataStream *NONS_FileSystem::open(const std::wstring &name){
+NONS_DataStream *NONS_FileSystem::open(const std::wstring &name,bool keep_in_memory){
 	if (!NONS_File::file_exists(name))
 		return 0;
-	NONS_InputFile *p=new NONS_InputFile(*this,name);
+	NONS_DataStream *p;
+	if (!keep_in_memory)
+		p=new NONS_InputFile(*this,name);
+	else{
+		NONS_File file(name,1);
+		p=new NONS_MemoryFile(*this,file);
+	}
 	return NONS_DataSource::open(p,normalize_path(p->get_name()));
+
 }
 
 bool NONS_DataSource::close(NONS_DataStream *p){
@@ -709,7 +716,7 @@ bool NONS_DataSource::close(NONS_DataStream *p){
 	);
 	if (i==this->streams.end())
 		return 0;
-	if (CLOptions.verbosity>=2)
+	if (CLOptions.verbosity>=2 && p->original_path.size())
 		o_stderr <<"Closing stream to "<<p->original_path<<"\n";
 	delete *i;
 	this->streams.erase(i);
@@ -718,6 +725,10 @@ bool NONS_DataSource::close(NONS_DataStream *p){
 
 NONS_DataStream *NONS_FileSystem::new_temporary_file(const std::wstring &path){
 	return new NONS_TemporaryFile(*this,path);
+}
+
+NONS_DataStream *NONS_MemoryFS::new_temporary_file(const void *src,size_t n){
+	return new NONS_MemoryFile(*this,src,n);
 }
 
 Uint64 NONS_DataStream::seek(Sint64 offset,int direction){
@@ -765,23 +776,6 @@ SDL_RWops NONS_DataStream::to_rwops(){
 
 int SDLCALL NONS_DataStream::rw_seek(SDL_RWops *ops,int offset,int whence){
 	return (int)((NONS_DataStream *)ops->hidden.unknown.data1)->stdio_seek(offset,whence);
-#if 0
-	NONS_DataStream *ds=(NONS_DataStream *)ops->hidden.unknown.data1;
-	switch (whence){
-		case RW_SEEK_SET:
-			whence=1;
-			break;
-		case RW_SEEK_CUR:
-			whence=0;
-			if (!offset)
-				return (int)ds->get_offset();
-			break;
-		case RW_SEEK_END:
-			whence=-1;
-			break;
-	}
-	return (int)ds->seek(offset,whence);
-#endif
 }
 
 int SDLCALL NONS_DataStream::rw_read(SDL_RWops *ops,void *dst,int a,int b){
@@ -816,13 +810,42 @@ bool NONS_InputFile::read(void *dst,size_t &bytes_read,size_t count){
 	return 1;
 }
 
-NONS_TemporaryFile::NONS_TemporaryFile(NONS_DataSource &ds,const std::wstring &name)
-		:NONS_InputFile(ds,name){
-}
-
 NONS_TemporaryFile::~NONS_TemporaryFile(){
 	this->file.close();
 	NONS_File::delete_file(this->name);
+}
+
+NONS_MemoryFile::NONS_MemoryFile(NONS_DataSource &ds,const void *src,size_t n):NONS_DataStream(ds,L""){
+	this->data=(uchar *)malloc(n);
+	memcpy(this->data,src,n);
+	this->size=n;
+}
+
+NONS_MemoryFile::NONS_MemoryFile(NONS_DataSource &ds,NONS_File &file):NONS_DataStream(ds,L""){
+	if (!file){
+		this->data=0;
+		this->size=0;
+	}
+	this->size=(size_t)file.filesize();
+	this->data=(uchar *)malloc((size_t)this->size);
+	size_t temp=(size_t)this->size;
+	file.read(this->data,temp,temp,0);
+	this->size=temp;
+}
+
+NONS_MemoryFile::~NONS_MemoryFile(){
+	free(this->data);
+}
+
+bool NONS_MemoryFile::read(void *dst,size_t &bytes_read,size_t count){
+	if (!this->data){
+		bytes_read=0;
+		return 0;
+	}
+	bytes_read=(count>this->size-this->offset)?(size_t)(this->size-this->offset):count;
+	memcpy(dst,this->data+this->offset,bytes_read);
+	this->offset+=bytes_read;
+	return 1;
 }
 
 NONS_Clock::t NONS_Clock::MAX=DBL_MAX;

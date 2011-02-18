@@ -82,7 +82,7 @@ void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels
 	alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
 	state=this->get_state();
 	assert(state!=AL_PAUSED);
-	std::cout <<std::string(queued,'X')<<std::endl;
+	//std::cout <<std::string(queued,'X')<<std::endl;
 	bool call_play=(finished==queued || state!=AL_PLAYING);
 	std::vector<ALuint> temp(queued);
 	ALuint new_buffer;
@@ -131,11 +131,15 @@ audio_stream::audio_stream(const std::wstring &filename){
 	else HANDLE_TYPE_WITH_TYPE(L".s3m",midi_decoder);
 	else
 		this->decoder=0;
+	if (this->decoder && !*this->decoder){
+		delete this->decoder;
+		this->decoder=0;
+	}
 	this->sink=0;
 	this->loop=0;
 	this->playing=0;
 	this->paused=0;
-	this->good=*this->decoder;
+	this->good=this->decoder;
 	this->volume=1.f;
 	this->general_volume=0;
 	this->muted=0;

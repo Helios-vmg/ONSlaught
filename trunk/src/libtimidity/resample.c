@@ -499,9 +499,9 @@ void pre_resample(MidSong *song, MidSample *sp)
     };
 #endif
 
-    DEBUG_MSG(" * pre-resampling for note %d (%s%d)\n",
+    /*DEBUG_MSG(" * pre-resampling for note %d (%s%d)\n",
               sp->note_to_use,
-              note_name[sp->note_to_use % 12], (sp->note_to_use & 0x7F) / 12);
+              note_name[sp->note_to_use % 12], (sp->note_to_use & 0x7F) / 12);*/
 
     a = ((double) (sp->sample_rate) * freq_table[(int) (sp->note_to_use)]) /
         ((double) (sp->root_freq) * song->rate);

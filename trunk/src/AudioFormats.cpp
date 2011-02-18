@@ -432,24 +432,14 @@ void mod_decoder::loop(){
 }
 #endif
 
-bool midi_decoder::timidity_initialized=0;
-NONS_Mutex midi_decoder::mutex;
-
-size_t midi_read(void *ctx,void *ptr,size_t size,size_t nmemb){
-	((NONS_DataStream *)ctx)->read(ptr,nmemb,size*nmemb);
-	return nmemb/size;
-}
-
-int midi_close(void *ctx){
-	return 0;
-}
+midi_static_data midi_decoder::data;
 
 custom_FILE NONS_fopen(const char *filename){
-	return general_archive.open(UniFromUTF8(std::string(filename)));
+	return midi_decoder::data.get_file(filename);
 }
 
 int NONS_fclose(custom_FILE file){
-	return file && general_archive.close((NONS_DataStream *)file)?0:EOF;
+	return 0;
 }
 
 size_t NONS_fread(void *ptr,size_t size,size_t nmemb,custom_FILE file){
@@ -461,22 +451,69 @@ int NONS_fseek(custom_FILE stream,long int offset,int origin){
 	return (int)((NONS_DataStream *)stream)->stdio_seek(offset,origin);
 }
 
-midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
-	if (!*this)
-		return;
-	this->good=0;
+custom_stdio init_stdio(){
 	custom_stdio stdio;
 	stdio.fopen=NONS_fopen;
 	stdio.fclose=NONS_fclose;
 	stdio.fread=NONS_fread;
 	stdio.fseek=NONS_fseek;
-	{
-		NONS_MutexLocker ml(midi_decoder::mutex);
-		if (!midi_decoder::timidity_initialized){
-			mid_init(0,&stdio);
-			midi_decoder::timidity_initialized=1;
-		}
+	return stdio;
+}
+
+midi_static_data::~midi_static_data(){
+	//if (this->initialized)
+}
+
+bool midi_static_data::init(){
+	NONS_MutexLocker ml(this->mutex);
+	if (this->initialized)
+		return 1;
+	this->initialized=1;
+	return 1;
+}
+
+void midi_static_data::cache_file(const char *path,NONS_DataStream *stream){
+	std::wstring temp=UniFromUTF8(std::string(path));
+	tolower(temp);
+	toforwardslash(temp);
+	NONS_MutexLocker ml(this->mutex);
+	this->cached_files[temp]=stream;
+}
+
+NONS_DataStream *midi_static_data::get_file(const char *path){
+	std::wstring temp=UniFromUTF8(std::string(path));
+	tolower(temp);
+	toforwardslash(temp);
+	NONS_MutexLocker ml(this->mutex);
+	midi_static_data::map_t::iterator i=this->cached_files.find(temp);
+	if (i!=this->cached_files.end()){
+		i->second->reset();
+		return i->second;
 	}
+	NONS_DataStream *stream=general_archive.open(temp,1);
+	if (!stream)
+		return 0;
+	return this->cached_files[temp]=stream;
+}
+
+size_t midi_read(void *ctx,void *ptr,size_t size,size_t nmemb){
+	((NONS_DataStream *)ctx)->read(ptr,nmemb,size*nmemb);
+	return nmemb/size;
+}
+
+int midi_close(void *ctx){
+	return 0;
+}
+
+midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
+	if (!*this)
+		return;
+	this->good=0;
+	if (!midi_decoder::data.init())
+		return;
+	custom_stdio stdio=init_stdio();
+	if (mid_init(0,&stdio))
+		return;
 	MidIStream *file=mid_istream_open_callbacks(midi_read,midi_close,stream);
 	if (!file)
 		return;
@@ -485,6 +522,7 @@ midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
 	options.channels=2;
 	options.format=MID_AUDIO_S16LSB;
 	options.rate=44100;
+	//custom_stdio stdio=init_stdio();
 	this->song=mid_song_load(file,&options,&stdio);
 	mid_istream_close(file);
 	if (!this->song)
@@ -495,8 +533,10 @@ midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
 }
 
 midi_decoder::~midi_decoder(){
-	if (*this)
+	if (*this){
 		mid_song_free(this->song);
+		mid_exit();
+	}
 }
 
 audio_buffer *midi_decoder::get_buffer(bool &error){

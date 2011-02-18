@@ -365,12 +365,14 @@ static int read_config_file(char *name,struct custom_stdio *stdio)
 
 int mid_init_no_config()
 {
+	memset(master_tonebank,0,sizeof(master_tonebank));
     /* Allocate memory for the standard tonebank and drumset */
     master_tonebank[0] = safe_malloc(sizeof(MidToneBank));
     memset(master_tonebank[0], 0, sizeof(MidToneBank));
     master_tonebank[0]->tone = safe_malloc(128 * sizeof(MidToneBankElement));
     memset(master_tonebank[0]->tone, 0, 128 * sizeof(MidToneBankElement));
 
+	memset(master_drumset,0,sizeof(master_drumset));
     master_drumset[0] = safe_malloc(sizeof(MidToneBank));
     memset(master_drumset[0], 0, sizeof(MidToneBank));
     master_drumset[0]->tone = safe_malloc(128 * sizeof(MidToneBankElement));

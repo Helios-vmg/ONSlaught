@@ -632,9 +632,18 @@ ulong figure_out_compression(std::string extension,Uint64 filesize,long compress
 		"mkv","avi","mpeg","mpg","mp4","flv",
 		0
 	};
+	//files with these extensions will be compressed minimally to speed up
+	//decompression
+	static const char *fast_types[]={
+		"pat",
+		0
+	};
 	for (const char **p=compressed_types;*p;p++)
 		if (extension==*p)
 			return COMPRESSION_NONE;
+	for (const char **p=fast_types;*p;p++)
+		if (extension==*p)
+			return COMPRESSION_DEFLATE;
 	switch (compression){
 		case COMPRESSION_AUTOH:
 			return COMPRESSION_LZMA;

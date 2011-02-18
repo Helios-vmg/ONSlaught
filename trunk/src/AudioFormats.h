@@ -91,12 +91,26 @@ public:
 };
 #endif
 
+class midi_static_data{
+public:
+	typedef std::map<std::wstring,NONS_DataStream *> map_t;
+private:
+	map_t cached_files;
+	bool initialized;
+	NONS_Mutex mutex;
+public:
+	midi_static_data():initialized(0){}
+	~midi_static_data();
+	bool init();
+	void cache_file(const char *path,NONS_DataStream *stream);
+	NONS_DataStream *get_file(const char *path);
+};
+
 class midi_decoder:public decoder{
-	static NONS_Mutex mutex;
-	static bool timidity_initialized;
 	MidSong *song;
 	uint32 length;
 public:
+	static midi_static_data data;
 	midi_decoder(NONS_DataStream *stream);
 	~midi_decoder();
 	audio_buffer *get_buffer(bool &error);
