@@ -30,11 +30,10 @@
 #include "OpenAL.h"
 #include "AudioFormats.h"
 
-decoder::decoder(NONS_DataStream *stream):stream(stream),buffer(0),good(stream){}
+decoder::decoder(NONS_DataStream *stream):stream(stream),good(stream){}
 
 decoder::~decoder(){
 	general_archive.close(this->stream);
-	free(this->buffer);
 }
 
 audio_sink::audio_sink(){
@@ -127,14 +126,18 @@ audio_stream::audio_stream(const std::wstring &filename){
 	HANDLE_TYPE_WITH_TYPE(L".ogg",ogg_decoder);
 	else HANDLE_TYPE_WITH_TYPE(L".flac",flac_decoder);
 	else HANDLE_TYPE_WITH_TYPE(L".mp3",mp3_decoder);
+	else HANDLE_TYPE_WITH_TYPE(L".mid",midi_decoder);
+	else HANDLE_TYPE_WITH_TYPE(L".mod",midi_decoder);
+	else HANDLE_TYPE_WITH_TYPE(L".s3m",midi_decoder);
 	else
 		this->decoder=0;
 	this->sink=0;
 	this->loop=0;
 	this->playing=0;
 	this->paused=0;
-	this->good=this->decoder;
-	this->general_volume=this->volume=1.f;
+	this->good=*this->decoder;
+	this->volume=1.f;
+	this->general_volume=0;
 	this->muted=0;
 	this->cleanup=0;
 }
@@ -244,9 +247,8 @@ void audio_stream::set_volume(float vol){
 	this->set_internal_volume();
 }
 
-void audio_stream::set_general_volume(float vol){
-	saturate_value(vol,0.f,1.f);
-	this->general_volume=vol;
+void audio_stream::set_general_volume(float &vol){
+	this->general_volume=&vol;
 	this->set_internal_volume();
 }
 

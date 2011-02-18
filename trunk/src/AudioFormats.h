@@ -35,7 +35,7 @@
 #include <vorbis/vorbisfile.h>
 #include <FLAC++/decoder.h>
 #include <mpg123.h>
-#include <mikmod.h>
+#include "libtimidity/timidity.h"
 
 class ogg_decoder:public decoder{
 	OggVorbis_File file;
@@ -48,7 +48,7 @@ public:
 };
 
 class flac_decoder:public decoder,public FLAC::Decoder::Stream{
-private:
+	audio_buffer *buffer;
 	FLAC__StreamDecoderWriteStatus write_callback(const FLAC__Frame *frame,const FLAC__int32 * const *buffer);
 	FLAC__StreamDecoderReadStatus read_callback(FLAC__byte *buffer,size_t *bytes);
 	FLAC__StreamDecoderSeekStatus seek_callback(FLAC__uint64 absolute_byte_offset);
@@ -90,4 +90,16 @@ public:
 	void loop();
 };
 #endif
+
+class midi_decoder:public decoder{
+	static NONS_Mutex mutex;
+	static bool timidity_initialized;
+	MidSong *song;
+	uint32 length;
+public:
+	midi_decoder(NONS_DataStream *stream);
+	~midi_decoder();
+	audio_buffer *get_buffer(bool &error);
+	void loop();
+};
 #endif

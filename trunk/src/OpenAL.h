@@ -73,12 +73,14 @@ struct audio_buffer{
 	static void *allocate(ulong samples,ulong bytes_per_channel,ulong channels){
 		return malloc(samples*bytes_per_channel*channels);
 	}
+	static void deallocate(void *buffer){
+		free(buffer);
+	}
 };
 
 class decoder{
 protected:
 	NONS_DataStream *stream;
-	audio_buffer *buffer;
 	bool good;
 public:
 	decoder(NONS_DataStream *stream);
@@ -115,10 +117,14 @@ class audio_stream{
 		playing,
 		paused;
 	float volume,
-		general_volume;
+		*general_volume;
 	bool muted;
 	float get_compound_volume(bool including_mute=1){
-		return (including_mute && this->muted)?0:this->volume*this->general_volume;
+		if (including_mute && this->muted)
+			return 0;
+		if (!this->general_volume)
+			return this->volume;
+		return this->volume* *this->general_volume;
 	}
 	void set_internal_volume(){
 		CHECK_POINTER_AND_CALL(this->sink,set_volume(this->get_compound_volume()));
@@ -140,7 +146,7 @@ public:
 	bool is_sink_playing() const;
 	bool is_paused() const{ return this->paused; }
 	void set_volume(float);
-	void set_general_volume(float);
+	void set_general_volume(float &);
 	void mute(int mode=-1);
 	float get_volume() const{ return this->volume; }
 	void notify_on_stop(NONS_Event *event){ this->notify.push_back(event); }

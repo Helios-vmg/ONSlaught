@@ -33,363 +33,56 @@
 #include "Archive.h"
 #include <iostream>
 
-NONS_AudioDeviceManager::NONS_AudioDeviceManager():stop_thread(0){
-	if (!*this)
-		return;
-	this->thread.call(member_bind(&NONS_AudioDeviceManager::controller_thread,this),1);
-}
-
-NONS_AudioDeviceManager::~NONS_AudioDeviceManager(){
-	{
-		NONS_MutexLocker ml(this->mutex);
-		this->stop_thread=1;
-	}
-	this->thread.join();
-}
-
-void NONS_AudioDeviceManager::process_instruction(const instruction &i){
-	bool r;
-	switch (i.opcode){
-		case instruction::LOAD:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it!=this->channels.end())
-					this->remove(it);
-				audio_stream *stream=new audio_stream(i.path);
-				r=*stream;
-				if (!r)
-					delete stream;
-				else
-					this->dev.add(this->channels[i.channel]=stream);
-				int count=0;
-				for (chan_t::iterator j=this->channels.begin(),e=this->channels.end();j!=e;++j)
-					std::cout <<++count<<": "<<j->second->filename<<std::endl;
-			}
-			break;
-		case instruction::UNLOAD:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				this->remove(it);
-			}
-			break;
-		case instruction::SETLOOP:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				it->second->loop=i.loop_times;
-			}
-			break;
-		case instruction::PLAY:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				it->second->cleanup=i.automatic_cleanup;
-				it->second->start();
-			}
-			break;
-		case instruction::STOP:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				it->second->stop();
-			}
-			break;
-		case instruction::STOPALL:
-			r=1;
-			for (chan_t::iterator it=this->channels.begin(),e=this->channels.end();it!=e;++it)
-				it->second->stop();
-			break;
-		case instruction::PAUSE:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				it->second->pause();
-			}
-			break;
-		case instruction::SETVOL:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				it->second->set_volume(i.volume);
-			}
-			break;
-		case instruction::SETVOL_POSITIVE:
-			{
-				r=1;
-				for (chan_t::iterator it=this->channels.begin(),e=this->channels.end();it!=e;++it){
-					if (it->first<0)
-						continue;
-					it->second->set_general_volume(i.volume);
-				}
-			}
-			break;
-		case instruction::SETVOL_NEGATIVE:
-			{
-				r=1;
-				for (chan_t::iterator it=this->channels.begin(),e=this->channels.end();it!=e;++it){
-					if (it->first>=0)
-						continue;
-					it->second->set_general_volume(i.volume);
-				}
-			}
-			break;
-		case instruction::MUTE:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				it->second->mute();
-			}
-			break;
-		case instruction::MUTEALL:
-			r=1;
-			for (chan_t::iterator it=this->channels.begin(),e=this->channels.end();it!=e;++it)
-				it->second->mute();
-			break;
-		case instruction::NOTIFY:
-			{
-				chan_t::iterator it=this->channels.find(i.channel);
-				if (it==this->channels.end()){
-					r=0;
-					break;
-				}
-				r=1;
-				it->second->notify_on_stop(i.event_param);
-			}
-			break;
-	}
-	this->success_stack.push_back(r);
-	i.event->set();
-}
-
-void NONS_AudioDeviceManager::controller_thread(){
-	NONS_Clock clock;
-	while (1){
-		NONS_Clock::t t0=clock.get();
-		{
-			NONS_MutexLocker ml(this->mutex);
-			if (this->stop_thread)
-				break;
-			bool i_set=0;
-			instruction i;
-			if (this->queue.size()){
-				i=this->queue.front();
-				this->queue.pop_front();
-				i_set=1;
-			}
-			if (i_set){
-				this->process_instruction(i);
-				continue;
-			}
-			this->dev.update();
-		}
-		NONS_Clock::t t1=clock.get()-t0;
-		if (t1<40)
-			SDL_Delay(50-(Uint32)t1);
-	}
-}
-
-void NONS_AudioDeviceManager::remove(chan_t::iterator i){
-	this->dev.remove(i->second);
-	this->channels.erase(i);
-}
-
-bool NONS_AudioDeviceManager::push(instruction &i){
-	NONS_Event event;
-	event.init();
-	i.event=&event;
-	{
-		NONS_MutexLocker ml(this->mutex);
-		this->queue.push_back(i);
-	}
-	event.wait();
-	bool r;
-	{
-		NONS_MutexLocker ml(this->mutex);
-		r=this->success_stack.back();
-		this->success_stack.pop_back();
-	}
-	return r;
-}
-
-bool NONS_AudioDeviceManager::load(int channel,const std::wstring &path){
-	instruction i;
-	i.opcode=instruction::LOAD;
-	i.channel=channel;
-	i.path=path;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::unload(int channel){
-	instruction i;
-	i.opcode=instruction::UNLOAD;
-	i.channel=channel;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::set_loop(int channel,long loop){
-	instruction i;
-	i.opcode=instruction::SETLOOP;
-	i.channel=channel;
-	i.loop_times=loop;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::play(int channel,bool automatic_cleanup){
-	instruction i;
-	i.opcode=instruction::PLAY;
-	i.channel=channel;
-	i.automatic_cleanup=automatic_cleanup;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::stop(int channel){
-	instruction i;
-	i.opcode=instruction::STOP;
-	i.channel=channel;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::stop_all(){
-	instruction i;
-	i.opcode=instruction::STOPALL;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::pause(int channel){
-	instruction i;
-	i.opcode=instruction::PAUSE;
-	i.channel=channel;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::set_volume(int channel,float vol){
-	instruction i;
-	i.opcode=instruction::SETVOL;
-	i.channel=channel;
-	i.volume=vol;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::set_volume_music(float vol){
-	instruction i;
-	i.opcode=instruction::SETVOL_NEGATIVE;
-	i.volume=vol;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::set_volume_sfx(float vol){
-	instruction i;
-	i.opcode=instruction::SETVOL_POSITIVE;
-	i.volume=vol;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::mute(int channel){
-	instruction i;
-	i.opcode=instruction::MUTE;
-	i.channel=channel;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::mute_all(){
-	instruction i;
-	i.opcode=instruction::MUTEALL;
-	return this->push(i);
-}
-
-bool NONS_AudioDeviceManager::notify(int channel,NONS_Event *event){
-	instruction i;
-	i.opcode=instruction::NOTIFY;
-	i.channel=channel;
-	i.event_param=event;
-	return this->push(i);
-}
-
-void read_channel(channel_listing::channel &c,const audio_stream &stream){
-	if (!stream.is_playing()){
-		c.filename.clear();
-		c.loop=0;
-		c.volume=100;
-	}else{
-		c.filename=stream.filename;
-		c.loop=(stream.loop>0)?-1:0;
-		c.volume=int(stream.get_volume()*100.f);
-	}
-}
-
-void NONS_AudioDeviceManager::get_channel_listing(channel_listing &cl){
-	NONS_MutexLocker ml(this->mutex);
-	for (chan_t::iterator i=this->channels.begin(),e=this->channels.end();i!=e;++i){
-		if (i->first==-1)
-			read_channel(cl.music,*i->second);
-		else{
-			channel_listing::channel c;
-			read_channel(c,*i->second);
-			cl.sounds[i->first]=c;
-		}
-	}
-}
-
-bool NONS_AudioDeviceManager::is_playing(int channel){
-	NONS_MutexLocker ml(this->mutex);
-	chan_t::iterator i=this->channels.find(channel);
-	if (i==this->channels.end())
-		return 0;
-	return i->second->is_sink_playing();
-}
+#define NONS_Audio_FOREACH() for (chan_t::iterator i=this->channels.begin(),e=this->channels.end();i!=e;++i)
 
 NONS_Audio::NONS_Audio(const std::wstring &musicDir){
+	this->notmute=0;
+	this->uninitialized=1;
 	if (CLOptions.no_sound){
-		this->uninitialized=1;
-		this->manager=0;
-		this->notmute=0;
+		this->dev=0;
 		return;
 	}
-	this->manager=new NONS_AudioDeviceManager;
-	if (!musicDir.size())
-		this->musicDir=L"./CD";
-	else
-		this->musicDir=musicDir;
-	this->musicFormat=CLOptions.musicFormat;
-	this->notmute=1;
+	this->dev=new audio_device;
+	if (!*this->dev){
+		delete this->dev;
+		this->dev=0;
+		return;
+	}
 	this->uninitialized=0;
+	this->notmute=1;
+	if (!musicDir.size())
+		this->music_dir=L"./CD";
+	else
+		this->music_dir=musicDir;
+	this->music_format=CLOptions.musicFormat;
 	this->channel_counter=initial_channel_counter;
-	this->mvol=this->svol=100;
+	this->mvol=this->svol=1.f;
+	this->stop_thread=0;
+	this->thread.call(member_bind(&NONS_Audio::update_thread,this),1);
 }
 
 NONS_Audio::~NONS_Audio(){
 	if (this->uninitialized)
 		return;
-	delete this->manager;
+	this->stop_thread=1;
+	this->thread.join();
+	delete this->dev;
+}
+
+void NONS_Audio::update_thread(){
+	while (!this->stop_thread){
+		{
+			NONS_MutexLocker ml(this->mutex);
+			this->dev->update();
+		}
+		SDL_Delay(10);
+	}
+}
+
+audio_stream *NONS_Audio::get_channel(int channel){
+	NONS_MutexLocker ml(this->mutex);
+	chan_t::iterator i=this->channels.find(channel);
+	return (i==this->channels.end())?0:i->second;
 }
 
 extern const wchar_t *sound_formats[];
@@ -399,35 +92,58 @@ ErrorCode NONS_Audio::play_music(const std::wstring &filename,long times){
 		return NONS_NO_ERROR;
 	const int channel=NONS_Audio::music_channel;
 	std::wstring temp;
-	if (!this->musicFormat.size()){
+	if (!this->music_format.size()){
 		ulong a=0;
 		while (1){
 			if (!sound_formats[a])
 				break;
-			temp=this->musicDir+L"/"+filename+L"."+sound_formats[a];
+			temp=this->music_dir+L"/"+filename+L"."+sound_formats[a];
 			if (general_archive.exists(temp))
 				break;
 			a++;
 		}
 	}else
-		temp=this->musicDir+L"/"+filename+L"."+this->musicFormat;
+		temp=this->music_dir+L"/"+filename+L"."+this->music_format;
 	if (!general_archive.exists(temp) && !general_archive.exists(temp=filename))
 		return NONS_FILE_NOT_FOUND;
-	if (!this->manager->load(channel,temp) || !this->manager->set_loop(channel,times) || !this->manager->play(channel,0))
+
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (stream)
+		this->dev->remove(stream);
+	stream=new audio_stream(temp);
+	if (!*stream){
+		delete stream;
 		return NONS_UNDEFINED_ERROR;
+	}
+	stream->loop=times;
+	stream->cleanup=0;
+	stream->set_general_volume(this->mvol);
+	stream->start();
+	this->dev->add(stream);
+	this->channels[NONS_Audio::music_channel]=stream;
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_Audio::stop_music(){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	return (this->manager->stop(NONS_Audio::music_channel))?NONS_NO_ERROR:NONS_NO_MUSIC_LOADED;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(NONS_Audio::music_channel);
+	if (!stream)
+		return NONS_NO_MUSIC_LOADED;
+	stream->stop();
+	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_Audio::pause_music(){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	return (this->manager->pause(NONS_Audio::music_channel))?NONS_NO_ERROR:NONS_NO_MUSIC_LOADED;
+	audio_stream *stream=this->get_channel(NONS_Audio::music_channel);
+	if (!stream)
+		return NONS_NO_MUSIC_LOADED;
+	stream->pause();
+	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_Audio::play_sound(const std::wstring &filename,int channel,long times,bool automatic_cleanup){
@@ -452,83 +168,151 @@ ErrorCode NONS_Audio::load_sound_on_a_channel(const std::wstring &filename,int &
 		return NONS_FILE_NOT_FOUND;
 	if (!use_channel_as_input)
 		channel=this->channel_counter++;
-	if (!this->manager->load(channel,filename))
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (stream)
+		this->dev->remove(stream);
+	stream=new audio_stream(filename);
+	if (!*stream){
+		delete stream;
 		return NONS_UNDEFINED_ERROR;
+	}
+	this->dev->add(stream);
+	this->channels[channel]=stream;
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_Audio::unload_sound_from_channel(int channel){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	if (!this->manager->unload(channel))
-		return NONS_UNDEFINED_ERROR;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return NONS_NO_SOUND_EFFECT_LOADED;
+	this->dev->remove(stream);
 	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_Audio::play(int channel,long times,bool automatic_cleanup){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	if (!this->manager->set_loop(channel,times) || !this->manager->play(channel,automatic_cleanup))
-		return NONS_UNDEFINED_ERROR;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return NONS_NO_SOUND_EFFECT_LOADED;
+	stream->loop=times;
+	stream->cleanup=automatic_cleanup;
+	stream->set_general_volume(this->svol);
+	stream->start();
 	return NONS_NO_ERROR;
 }
 
 void NONS_Audio::wait_for_channel(int channel){
 	NONS_Event event;
 	event.init();
-	this->manager->notify(channel,&event);
+	{
+		NONS_MutexLocker ml(this->mutex);
+		audio_stream *stream=this->get_channel(channel);
+		stream->notify_on_stop(&event);
+	}
 	event.wait();
 }
 
 ErrorCode NONS_Audio::stop_sound(int channel){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	return (this->manager->stop(channel))?NONS_NO_ERROR:NONS_NO_SOUND_EFFECT_LOADED;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return NONS_NO_SOUND_EFFECT_LOADED;
+	stream->stop();
+	return NONS_NO_ERROR;
 }
 
 ErrorCode NONS_Audio::stop_all_sound(){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	return this->manager->stop_all();
+	NONS_MutexLocker ml(this->mutex);
+	NONS_Audio_FOREACH()
+		i->second->stop();
 	return NONS_NO_ERROR;
 }
 
-int NONS_Audio::music_volume(int vol){
+int NONS_Audio::set_volume(float &p,int vol){
 	if (this->uninitialized)
 		return 0;
-	if (vol<0)
-		return this->mvol;
+	if (vol<0){
+		NONS_MutexLocker ml(this->mutex);
+		return int(p*100.f);
+	}
 	saturate_value(vol,0,100);
-	this->mvol=vol;
-	return (!this->manager->set_volume_music(float(vol)/100.f))?0:vol;
-}
-
-int NONS_Audio::sound_volume(int vol){
-	if (this->uninitialized)
-		return 0;
-	if (vol<0)
-		return this->svol;
-	saturate_value(vol,0,100);
-	this->svol=vol;
-	return (!this->manager->set_volume_sfx(float(vol)/100.f))?0:vol;
+	NONS_MutexLocker ml(this->mutex);
+	p=vol/100.f;
+	return vol;
 }
 
 int NONS_Audio::channel_volume(int channel,int vol){
 	if (this->uninitialized)
 		return 0;
+	if (vol<0){
+		NONS_MutexLocker ml(this->mutex);
+		audio_stream *stream=this->get_channel(channel);
+		if (!stream)
+			return 0;
+		return int(stream->get_volume()*100.f);
+	}
 	saturate_value(vol,0,100);
-	return (!this->manager->set_volume(channel,float(vol)/100.f))?0:vol;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return 0;
+	stream->set_volume(vol/100.f);
+	return vol;
 }
 
 bool NONS_Audio::toggle_mute(){
 	if (this->uninitialized)
 		return 0;
+	NONS_MutexLocker ml(this->mutex);
 	this->notmute=!this->notmute;
-	this->manager->mute_all();
+	NONS_Audio_FOREACH()
+		i->second->mute(!this->notmute);
 	return this->notmute;
 }
 
 bool NONS_Audio::is_playing(int channel){
-	bool r=this->manager->is_playing(channel);
-	return r;
+	if (this->uninitialized)
+		return 0;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return 0;
+	return stream->is_sink_playing();
+}
+
+void read_channel(channel_listing::channel &c,const audio_stream &stream){
+	if (!stream.is_playing()){
+		c.filename.clear();
+		c.loop=0;
+		c.volume=100;
+	}else{
+		c.filename=stream.filename;
+		c.loop=(stream.loop>0)?-1:0;
+		c.volume=int(stream.get_volume()*100.f);
+	}
+}
+
+void NONS_Audio::get_channel_listing(channel_listing &cl){
+	if (this->uninitialized)
+		return;
+	NONS_MutexLocker ml(this->mutex);
+	NONS_Audio_FOREACH(){
+		if (i->first==-1)
+			read_channel(cl.music,*i->second);
+		else{
+			channel_listing::channel c;
+			read_channel(c,*i->second);
+			cl.sounds[i->first]=c;
+		}
+	}
 }

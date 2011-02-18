@@ -32,12 +32,12 @@
 
 size_t ogg_read(void *buffer,size_t size,size_t nmemb,void *s){
 	NONS_DataStream *stream=(NONS_DataStream *)s;
-	if (!stream->read(buffer,size,size*nmemb)){
+	if (!stream->read(buffer,nmemb,size*nmemb)){
 		errno=1;
 		return 0;
 	}
 	errno=0;
-	return size;
+	return nmemb/size;
 }
 
 int ogg_seek(void *s,ogg_int64_t offset,int whence){
@@ -99,12 +99,15 @@ audio_buffer *ogg_decoder::get_buffer(bool &error){
 		int r=ov_read(&this->file,temp+size,n-size,nativeEndianness==NONS_BIG_ENDIAN,2,1,&this->bitstream);
 		if (r<0){
 			error=1;
+			audio_buffer::deallocate(temp);
 			return 0;
 		}
 		error=0;
 		if (!r){
-			if (!size)
+			if (!size){
+				audio_buffer::deallocate(temp);
 				return 0;
+			}
 			break;
 		}
 		size+=r;
@@ -128,7 +131,7 @@ inline int16_t fix_32bit_sample(FLAC__int32 v){
 	return (v+0x80)>>8;
 }
 
-flac_decoder::flac_decoder(NONS_DataStream *stream):decoder(stream){
+flac_decoder::flac_decoder(NONS_DataStream *stream):decoder(stream),buffer(0){
 	if (!*this)
 		return;
 	this->set_md5_checking(1);
@@ -139,6 +142,7 @@ flac_decoder::flac_decoder(NONS_DataStream *stream):decoder(stream){
 }
 
 flac_decoder::~flac_decoder(){
+	delete this->buffer;
 }
 
 FLAC__StreamDecoderWriteStatus flac_decoder::write_callback(const FLAC__Frame *frame,const FLAC__int32 * const *buffer){
@@ -344,6 +348,62 @@ void mp3_decoder::loop(){
 #if 0
 bool mod_decoder::mikmod_initialized=0;
 NONS_Mutex mod_decoder::mutex;
+static const size_t BUFFERSIZE=32768;
+static std::vector<SBYTE> audiobuffer;
+
+static BOOL openal_Init(){
+	audiobuffer.resize(BUFFERSIZE);
+	return VC_Init();
+}
+
+void openal_Exit(){
+	VC_Exit();
+	audiobuffer.clear();
+}
+
+void openal_Update(){
+	size_t n=VC_WriteBytes(&audiobuffer[0],BUFFERSIZE);
+}
+
+BOOL openal_Reset(){
+	VC_Exit();
+	return VC_Init();
+}
+
+MDRIVER drv_openal={
+	NULL,
+	"openal",
+	"OpenAL",
+	0,255,
+	"openal",
+
+	0,
+	0,
+	VC_SampleLoad,
+	VC_SampleUnload,
+	VC_SampleSpace,
+	VC_SampleLength,
+	openal_Init,
+	openal_Exit,
+	openal_Reset,
+	VC_SetNumVoices,
+	VC_PlayStart,
+	VC_PlayStop,
+	openal_Update,
+	0,
+	VC_VoiceSetVolume,
+	VC_VoiceGetVolume,
+	VC_VoiceSetFrequency,
+	VC_VoiceGetFrequency,
+	VC_VoiceSetPanning,
+	VC_VoiceGetPanning,
+	VC_VoicePlay,
+	VC_VoiceStop,
+	VC_VoiceStopped,
+	VC_VoiceGetPosition,
+	VC_VoiceRealVolume
+};
+
 
 mod_decoder::mod_decoder(NONS_DataStream *stream):decoder(stream){
 	if (!*this)
@@ -371,3 +431,64 @@ audio_buffer *mod_decoder::get_buffer(bool &error){
 void mod_decoder::loop(){
 }
 #endif
+
+bool midi_decoder::timidity_initialized=0;
+NONS_Mutex midi_decoder::mutex;
+
+size_t midi_read(void *ctx,void *ptr,size_t size,size_t nmemb){
+	NONS_DataStream *stream=(NONS_DataStream *)ctx;
+	stream->read(ptr,nmemb,size*nmemb);
+	return nmemb/size;
+}
+
+int midi_close(void *ctx){
+	return 0;
+}
+
+midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
+	if (!*this)
+		return;
+	this->good=0;
+	{
+		NONS_MutexLocker ml(midi_decoder::mutex);
+		if (!midi_decoder::timidity_initialized){
+			mid_init(0);
+			midi_decoder::timidity_initialized=1;
+		}
+	}
+	MidIStream *file=mid_istream_open_callbacks(midi_read,midi_close,stream);
+	if (!file)
+		return;
+	MidSongOptions options;
+	options.buffer_size=1024;
+	options.channels=2;
+	options.format=MID_AUDIO_S16LSB;
+	options.rate=44100;
+	this->song=mid_song_load(file,&options);
+	mid_istream_close(file);
+	if (!this->song)
+		return;
+	this->good=1;
+	this->length=mid_song_get_total_time(this->song);
+	mid_song_start(this->song);
+}
+
+midi_decoder::~midi_decoder(){
+	if (*this)
+		mid_song_free(this->song);
+}
+
+audio_buffer *midi_decoder::get_buffer(bool &error){
+	error=0;
+	audio_buffer *buffer=(audio_buffer *)audio_buffer::allocate(1024,2,2);
+	size_t bytes_read=mid_song_read_wave(this->song,buffer,1024*4);
+	if (!bytes_read){
+		audio_buffer::deallocate(buffer);
+		return 0;
+	}
+	return new audio_buffer(buffer,bytes_read/4,44100,2,16,1);
+}
+
+void midi_decoder::loop(){
+	mid_song_seek(this->song,0);
+}

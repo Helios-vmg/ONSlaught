@@ -651,7 +651,7 @@ void NONS_ScriptInterpreter::init(){
 		o_stdout <<"Local files go in \""<<save_directory<<"\".\n";
 		this->audio=new NONS_Audio(CLOptions.musicDirectory);
 		if (CLOptions.musicFormat.size())
-			this->audio->musicFormat=CLOptions.musicFormat;
+			this->audio->music_format=CLOptions.musicFormat;
 		if (!this->screen)
 			this->screen=init_screen(*this->font_cache);
 	}
@@ -1131,8 +1131,9 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename){
 			}
 			return 1;
 		case 2:
-			if (!CHECK_FLAG(this->audio->play_music(filename,1),NONS_NO_ERROR_FLAG))
+			if (!CHECK_FLAG(this->audio->play_music(filename,0),NONS_NO_ERROR_FLAG))
 				return 0;
+			while (!this->audio->is_playing(NONS_Audio::music_channel));
 			generic_play_loop(this->audio->is_playing(NONS_Audio::music_channel));
 			return 1;
 		case 3:

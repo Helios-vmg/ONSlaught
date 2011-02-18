@@ -50,77 +50,30 @@ struct channel_listing{
 	std::map<int,channel> sounds;
 };
 
-class NONS_AudioDeviceManager{
-	audio_device dev;
+class NONS_Audio{
+	static const int initial_channel_counter=1<<20;
+
+	audio_device *dev;
 	typedef std::map<int,audio_stream *> chan_t;
 	chan_t channels;
-	struct instruction{
-		enum operation{
-			LOAD,
-			UNLOAD,
-			SETLOOP,
-			PLAY,
-			STOP,
-			STOPALL,
-			PAUSE,
-			SETVOL,
-			SETVOL_POSITIVE,
-			SETVOL_NEGATIVE,
-			MUTE,
-			MUTEALL,
-			NOTIFY
-		} opcode;
-		int channel;
-		std::wstring path;
-		long loop_times;
-		float volume;
-		NONS_Event *event,
-			*event_param;
-		bool automatic_cleanup;
-	};
-	std::deque<instruction> queue;
-	std::vector<bool> success_stack;
-	NONS_Thread thread;
-	NONS_Mutex mutex;
-	bool stop_thread;
-	void controller_thread();
-	void process_instruction(const instruction &i);
-	void remove(chan_t::iterator i);
-	bool push(instruction &i);
-public:
-	NONS_AudioDeviceManager();
-	~NONS_AudioDeviceManager();
-	operator bool(){ return this->dev; }
-	bool load(int channel,const std::wstring &path);
-	bool unload(int channel);
-	bool set_loop(int channel,long loop);
-	bool play(int channel,bool automatic_cleanup);
-	bool stop(int channel);
-	bool stop_all();
-	bool pause(int channel);
-	bool set_volume(int channel,float vol);
-	bool set_volume_music(float vol);
-	bool set_volume_sfx(float vol);
-	bool mute(int channel);
-	bool mute_all();
-	bool notify(int channel,NONS_Event *event);
-	void get_channel_listing(channel_listing &cl);
-	bool is_playing(int channel);
-};
-
-class NONS_Audio{
-	NONS_AudioDeviceManager *manager;
 	bool uninitialized,
 		notmute;
-	static const int initial_channel_counter=1<<20;
 	int channel_counter;
-	int mvol,
+	float mvol,
 		svol;
+
+	NONS_Thread thread;
+	void update_thread();
+	NONS_Mutex mutex;
+	bool stop_thread;
+
+	audio_stream *get_channel(int channel);
+	int set_volume(float &,int);
 public:
 	static const long max_valid_channel=(long)initial_channel_counter-1;
 	static const int music_channel=-1;
-	std::wstring musicDir,
-		musicFormat;
+	std::wstring music_dir,
+		music_format;
 	NONS_Audio(const std::wstring &musicDir);
 	~NONS_Audio();
 	ErrorCode play_music(const std::wstring &filename,long times=-1);
@@ -136,18 +89,19 @@ public:
 	ErrorCode unload_sound_from_channel(int channel);
 	ErrorCode play(int channel,long times,bool automatic_cleanup);
 	void wait_for_channel(int channel);
-	int music_volume(int vol);
-	int sound_volume(int vol);
+	int music_volume(int vol){
+		return this->set_volume(this->mvol,vol);
+	}
+	int sound_volume(int vol){
+		return this->set_volume(this->svol,vol);
+	}
 	int channel_volume(int channel,int vol);
 	bool toggle_mute();
 	bool is_playing(int channel);
 	bool is_initialized(){
 		return !this->uninitialized;
 	}
-	void get_channel_listing(channel_listing &cl){
-		if (!this->uninitialized)
-			this->manager->get_channel_listing(cl);
-	}
+	void get_channel_listing(channel_listing &cl);
 };
 
 class NONS_ScopedAudioStream{
