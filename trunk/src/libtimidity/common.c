@@ -29,9 +29,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* I guess "rb" should be right for any libc */
-#define OPEN_MODE "rb"
-
 #include "timidity.h"
 #include "timidity_internal.h"
 #include "options.h"
@@ -41,9 +38,9 @@
 static PathList *pathlist = NULL; /* This is a linked list */
 
 /* This is meant to find and open files for reading */
-FILE *open_file(char *name)
+custom_FILE open_file(char *name,struct custom_stdio *stdio)
 {
-    FILE *fp;
+    custom_FILE fp;
 
     if (!name || !(*name)) {
         DEBUG_MSG("Attempted to open nameless file.\n");
@@ -53,7 +50,7 @@ FILE *open_file(char *name)
     /* First try the given name */
 
     DEBUG_MSG("Trying to open %s\n", name);
-    if ((fp = fopen(name, OPEN_MODE)))
+	if ((fp = stdio->fopen(name)))
         return fp;
 
     if (name[0] != PATH_SEP) {
@@ -73,7 +70,7 @@ FILE *open_file(char *name)
             }
             strcat(current_filename, name);
             DEBUG_MSG("Trying to open %s\n", current_filename);
-            if ((fp = fopen(current_filename, OPEN_MODE)))
+            if ((fp = stdio->fopen(current_filename)))
                 return fp;
             plp = plp->next;
         }
@@ -90,8 +87,9 @@ void *safe_malloc(size_t count)
     void *p;
 
     p = malloc(count);
-    if (p == NULL)
+	if (p == NULL){
         DEBUG_MSG("Sorry. Couldn't malloc %d bytes.\n", count);
+	}
 
     return p;
 }

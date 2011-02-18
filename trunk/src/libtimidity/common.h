@@ -26,7 +26,10 @@ typedef struct {
     void *next;
 } PathList;
 
-extern FILE *open_file(char *name);
+typedef void *custom_FILE;
+struct custom_stdio;
+
+extern custom_FILE open_file(char *name,struct custom_stdio *stdio);
 extern void add_to_pathlist(char *s);
 extern void *safe_malloc(size_t count);
 extern void free_pathlist(void);

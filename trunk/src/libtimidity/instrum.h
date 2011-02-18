@@ -36,6 +36,6 @@
 
 #define SPECIAL_PROGRAM -1
 
-extern int load_missing_instruments(MidSong *song);
+extern int load_missing_instruments(MidSong *song,struct custom_stdio *stdio);
 extern void free_instruments(MidSong *song);
-extern int set_default_instrument(MidSong *song, char *name);
+extern int set_default_instrument(MidSong *song, char *name,struct custom_stdio *stdio);

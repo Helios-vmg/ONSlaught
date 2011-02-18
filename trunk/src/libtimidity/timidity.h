@@ -86,10 +86,20 @@ extern "C"
      * ======================
      */
 
+	typedef void *custom_FILE;
+	struct custom_stdio{
+		custom_FILE (*fopen)(const char *filename);
+		int (*fclose)(custom_FILE stream);
+		size_t (*fread)(void *ptr,size_t size,size_t count,custom_FILE stream);
+		int (*fseek)(custom_FILE stream,long int offset,int origin);
+	};
+	typedef struct custom_stdio custom_stdio;
+	extern struct custom_stdio cstdio;
+
     /* Initialize the library. If config_file is NULL
      * search for configuratin file in default directories
      */
-    extern int mid_init (char *config_file);
+    extern int mid_init (char *config_file,struct custom_stdio *stdio);
 
     /* Initialize the library without reading any
      * configuratin file
@@ -158,13 +168,15 @@ extern "C"
     /* Load MIDI song
      */
     extern MidSong *mid_song_load (MidIStream * stream,
-                                   MidSongOptions * options);
+                                   MidSongOptions * options,
+                                   struct custom_stdio *stdio);
 
     /* Load MIDI song with specified DLS pathes
      */
     extern MidSong *mid_song_load_dls (MidIStream * stream,
                                        MidDLSPatches * patches,
-                                       MidSongOptions * options);
+                                       MidSongOptions * options,
+                                       struct custom_stdio *stdio);
 
     /* Set song amplification value
      */

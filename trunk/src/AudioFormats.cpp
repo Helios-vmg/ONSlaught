@@ -436,8 +436,7 @@ bool midi_decoder::timidity_initialized=0;
 NONS_Mutex midi_decoder::mutex;
 
 size_t midi_read(void *ctx,void *ptr,size_t size,size_t nmemb){
-	NONS_DataStream *stream=(NONS_DataStream *)ctx;
-	stream->read(ptr,nmemb,size*nmemb);
+	((NONS_DataStream *)ctx)->read(ptr,nmemb,size*nmemb);
 	return nmemb/size;
 }
 
@@ -445,14 +444,36 @@ int midi_close(void *ctx){
 	return 0;
 }
 
+custom_FILE NONS_fopen(const char *filename){
+	return general_archive.open(UniFromUTF8(std::string(filename)));
+}
+
+int NONS_fclose(custom_FILE file){
+	return file && general_archive.close((NONS_DataStream *)file)?0:EOF;
+}
+
+size_t NONS_fread(void *ptr,size_t size,size_t nmemb,custom_FILE file){
+	((NONS_DataStream *)file)->read(ptr,nmemb,size*nmemb);
+	return nmemb/size;
+}
+
+int NONS_fseek(custom_FILE stream,long int offset,int origin){
+	return (int)((NONS_DataStream *)stream)->stdio_seek(offset,origin);
+}
+
 midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
 	if (!*this)
 		return;
 	this->good=0;
+	custom_stdio stdio;
+	stdio.fopen=NONS_fopen;
+	stdio.fclose=NONS_fclose;
+	stdio.fread=NONS_fread;
+	stdio.fseek=NONS_fseek;
 	{
 		NONS_MutexLocker ml(midi_decoder::mutex);
 		if (!midi_decoder::timidity_initialized){
-			mid_init(0);
+			mid_init(0,&stdio);
 			midi_decoder::timidity_initialized=1;
 		}
 	}
@@ -464,7 +485,7 @@ midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
 	options.channels=2;
 	options.format=MID_AUDIO_S16LSB;
 	options.rate=44100;
-	this->song=mid_song_load(file,&options);
+	this->song=mid_song_load(file,&options,&stdio);
 	mid_istream_close(file);
 	if (!this->song)
 		return;

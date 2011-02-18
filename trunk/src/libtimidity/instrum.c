@@ -160,11 +160,11 @@ static void reverse_data(sint16 *sp, sint32 ls, sint32 le)
 static MidInstrument *load_instrument(MidSong *song, char *name, int percussion,
                                       int panning, int amp, int note_to_use,
                                       int strip_loop, int strip_envelope,
-                                      int strip_tail)
+									  int strip_tail,custom_stdio *stdio)
 {
     MidInstrument *ip;
     MidSample *sp;
-    FILE *fp;
+    custom_FILE fp;
     char tmp[1024];
     int i,j,noluck=0;
     static char *patch_ext[] = PATCH_EXT_LIST;
@@ -172,14 +172,14 @@ static MidInstrument *load_instrument(MidSong *song, char *name, int percussion,
     if (!name) return 0;
 
     /* Open patch file */
-    if ((fp=open_file(name)) == NULL) {
+    if ((fp=open_file(name,stdio)) == NULL) {
         noluck=1;
         /* Try with various extensions */
         for (i=0; patch_ext[i]; i++) {
             if (strlen(name)+strlen(patch_ext[i])<1024) {
                 strcpy(tmp, name);
                 strcat(tmp, patch_ext[i]);
-                if ((fp=open_file(tmp)) != NULL) {
+                if ((fp=open_file(tmp,stdio)) != NULL) {
                     noluck=0;
                     break;
                 }
@@ -197,7 +197,7 @@ static MidInstrument *load_instrument(MidSong *song, char *name, int percussion,
     /* Read some headers and do cursory sanity checks. There are loads
        of magic offsets. This could be rewritten... */
 
-    if ((239 != fread(tmp, 1, 239, fp)) ||
+    if ((239 != stdio->fread(tmp, 1, 239, fp)) ||
             (memcmp(tmp, "GF1PATCH110\0ID#000002", 22) &&
              memcmp(tmp, "GF1PATCH100\0ID#000002", 22))) /* don't know what the
 						      differences are */
@@ -229,18 +229,18 @@ static MidInstrument *load_instrument(MidSong *song, char *name, int percussion,
         uint8 tmpchar;
 
 #define READ_CHAR(thing) \
-      if (1 != fread(&tmpchar, 1, 1, fp)) goto fail; \
+      if (1 != stdio->fread(&tmpchar, 1, 1, fp)) goto fail; \
       thing = tmpchar;
 #define READ_SHORT(thing) \
-      if (1 != fread(&tmpshort, 2, 1, fp)) goto fail; \
+      if (1 != stdio->fread(&tmpshort, 2, 1, fp)) goto fail; \
       thing = SWAPLE16(tmpshort);
 #define READ_LONG(thing) \
-      if (1 != fread(&tmplong, 4, 1, fp)) goto fail; \
+      if (1 != stdio->fread(&tmplong, 4, 1, fp)) goto fail; \
       thing = SWAPLE32(tmplong);
 
-        fseek(fp, 7, SEEK_CUR); /* Skip the wave name */
+        stdio->fseek(fp, 7, SEEK_CUR); /* Skip the wave name */
 
-        if (1 != fread(&fractions, 1, 1, fp)) {
+        if (1 != stdio->fread(&fractions, 1, 1, fp)) {
 fail:
             DEBUG_MSG("Error reading sample %d\n", i);
             for (j=0; j<i; j++)
@@ -261,7 +261,7 @@ fail:
         READ_LONG(sp->root_freq);
         sp->low_vel = 0;
         sp->high_vel = 127;
-        fseek(fp, 2, SEEK_CUR); /* Why have a "root frequency" and then
+        stdio->fseek(fp, 2, SEEK_CUR); /* Why have a "root frequency" and then
 				    * "tuning"?? */
 
         READ_CHAR(tmp[0]);
@@ -272,7 +272,7 @@ fail:
             sp->panning=(uint8)(panning & 0x7F);
 
         /* envelope, tremolo, and vibrato */
-        if (18 != fread(tmp, 1, 18, fp)) goto fail;
+        if (18 != stdio->fread(tmp, 1, 18, fp)) goto fail;
 
         if (!tmp[13] || !tmp[14]) {
             sp->tremolo_sweep_increment=
@@ -304,7 +304,7 @@ fail:
 
         READ_CHAR(sp->modes);
 
-        fseek(fp, 40, SEEK_CUR); /* skip the useless scale frequency, scale
+        stdio->fseek(fp, 40, SEEK_CUR); /* skip the useless scale frequency, scale
 				       factor (what's it mean?), and reserved
 				       space */
 
@@ -332,8 +332,9 @@ fail:
         }
 
         if (strip_envelope==1) {
-            if (sp->modes & MODES_ENVELOPE)
+			if (sp->modes & MODES_ENVELOPE){
                 DEBUG_MSG(" - Removing envelope\n");
+			}
             sp->modes &= ~MODES_ENVELOPE;
         } else if (strip_envelope != 0) {
             /* Have to make a guess. */
@@ -366,7 +367,7 @@ fail:
 
         /* Then read the sample data */
         sp->data = safe_malloc(sp->data_length);
-        if (1 != fread(sp->data, sp->data_length, 1, fp))
+        if (1 != stdio->fread(sp->data, sp->data_length, 1, fp))
             goto fail;
 
         if (!(sp->modes & MODES_16BIT)) { /* convert to 16-bit data */
@@ -474,11 +475,11 @@ fail:
         }
     }
 
-    fclose(fp);
+    stdio->fclose(fp);
     return ip;
 }
 
-static int fill_bank(MidSong *song, int dr, int b)
+static int fill_bank(MidSong *song, int dr, int b,struct custom_stdio *stdio)
 {
     int i, errors=0;
     MidToneBank *bank=((dr) ? song->drumset[b] : song->tonebank[b]);
@@ -527,7 +528,7 @@ static int fill_bank(MidSong *song, int dr, int b)
                                              (bank->tone[i].strip_envelope != -1) ?
                                              bank->tone[i].strip_envelope :
                                              ((dr) ? 1 : -1),
-                                             bank->tone[i].strip_tail ))) {
+                                             bank->tone[i].strip_tail,stdio ))) {
                 DEBUG_MSG("Couldn't load instrument %s (%s %d, program %d)\n",
                           bank->tone[i].name,
                           (dr)? "drum set" : "tone bank", b, i);
@@ -538,14 +539,14 @@ static int fill_bank(MidSong *song, int dr, int b)
     return errors;
 }
 
-int load_missing_instruments(MidSong *song)
+int load_missing_instruments(MidSong *song,struct custom_stdio *stdio)
 {
     int i=128,errors=0;
     while (i--) {
         if (song->tonebank[i])
-            errors+=fill_bank(song,0,i);
+            errors+=fill_bank(song,0,i,stdio);
         if (song->drumset[i])
-            errors+=fill_bank(song,1,i);
+            errors+=fill_bank(song,1,i,stdio);
     }
     return errors;
 }
@@ -561,10 +562,10 @@ void free_instruments(MidSong *song)
     }
 }
 
-int set_default_instrument(MidSong *song, char *name)
+int set_default_instrument(MidSong *song, char *name,struct custom_stdio *stdio)
 {
     MidInstrument *ip;
-    if (!(ip=load_instrument(song, name, 0, -1, -1, -1, 0, 0, 0)))
+    if (!(ip=load_instrument(song, name, 0, -1, -1, -1, 0, 0, 0,stdio)))
         return -1;
     song->default_instrument = ip;
     song->default_program = SPECIAL_PROGRAM;

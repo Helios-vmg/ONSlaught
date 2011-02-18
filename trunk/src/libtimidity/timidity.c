@@ -45,15 +45,38 @@ static char def_instr_name[256] = "";
 
 #define MAXWORDS 10
 
+custom_FILE mid_fopen(const char *filename){
+	return fopen(filename,"rb");
+}
+
+int mid_fclose(custom_FILE file){
+	return fclose((FILE *)file);
+}
+
+size_t mid_fread(void *ptr,size_t size,size_t nmemb,custom_FILE file){
+	return fread(ptr,size,nmemb,(FILE *)file);
+}
+
+int mid_fseek(custom_FILE stream,long int offset,int origin){
+	return fseek((FILE *)stream,offset,origin);
+}
+
+struct custom_stdio cstdio={
+	mid_fopen,
+	mid_fclose,
+	mid_fread,
+	mid_fseek
+};
+
 /* Quick-and-dirty fgets() replacement. */
 
-static char *__fgets(char *s, int size, FILE *fp)
+static char *__fgets(char *s, int size, custom_FILE fp,custom_stdio *stdio)
 {
     int num_read = 0;
     int newline = 0;
 
     while (num_read < size && !newline) {
-        if (fread(&s[num_read], 1, 1, fp) != 1)
+        if (stdio->fread(&s[num_read], 1, 1, fp) != 1)
             break;
 
         /* Unlike fgets(), don't store newline. Under Windows/DOS we'll
@@ -73,9 +96,9 @@ static char *__fgets(char *s, int size, FILE *fp)
     return (num_read != 0) ? s : NULL;
 }
 
-static int read_config_file(char *name)
+static int read_config_file(char *name,struct custom_stdio *stdio)
 {
-    FILE *fp;
+    custom_FILE fp;
     char tmp[1024], *w[MAXWORDS], *cp;
     MidToneBank *bank=0;
     int i, j, k, line=0, words;
@@ -86,10 +109,10 @@ static int read_config_file(char *name)
         return (-1);
     }
 
-    if (!(fp=open_file(name)))
+    if (!(fp=open_file(name,stdio)))
         return -1;
 
-    while (__fgets(tmp, sizeof(tmp), fp)) {
+    while (__fgets(tmp, sizeof(tmp), fp,stdio)) {
         line++;
         w[words=0]=strtok(tmp, " \t\240");
         if (!w[0]) continue;
@@ -201,7 +224,7 @@ static int read_config_file(char *name)
             }
             for (i=1; i<words; i++) {
                 rcf_count++;
-                read_config_file(w[i]);
+                read_config_file(w[i],stdio);
                 rcf_count--;
             }
         } else if (!strcmp(w[0], "default")) {
@@ -336,7 +359,7 @@ static int read_config_file(char *name)
             }
         }
     }
-    fclose(fp);
+    stdio->fclose(fp);
     return 0;
 }
 
@@ -356,7 +379,7 @@ int mid_init_no_config()
     return 0;
 }
 
-int mid_init(char *config_file)
+int mid_init(char *config_file,struct custom_stdio *stdio)
 {
     /* !!! FIXME: This may be ugly, but slightly less so than requiring the
      *            default search path to have only one element. I think.
@@ -377,10 +400,10 @@ int mid_init(char *config_file)
     if (config_file == NULL || *config_file == '\0')
         config_file = CONFIG_FILE;
 
-    return read_config_file(config_file);
+    return read_config_file(config_file,stdio);
 }
 
-MidSong *mid_song_load_dls(MidIStream *stream, MidDLSPatches *patches, MidSongOptions *options)
+MidSong *mid_song_load_dls(MidIStream *stream, MidDLSPatches *patches, MidSongOptions *options,struct custom_stdio *stdio)
 {
     MidSong *song;
     int i;
@@ -470,16 +493,16 @@ MidSong *mid_song_load_dls(MidIStream *stream, MidDLSPatches *patches, MidSongOp
     song->default_program = DEFAULT_PROGRAM;
 
     if (*def_instr_name)
-        set_default_instrument(song, def_instr_name);
+        set_default_instrument(song, def_instr_name,stdio);
 
-    load_missing_instruments(song);
+    load_missing_instruments(song,stdio);
 
     return(song);
 }
 
-MidSong *mid_song_load(MidIStream *stream, MidSongOptions *options)
+MidSong *mid_song_load(MidIStream *stream, MidSongOptions *options,struct custom_stdio *stdio)
 {
-    return mid_song_load_dls(stream, NULL, options);
+    return mid_song_load_dls(stream, NULL, options,stdio);
 }
 
 void mid_song_free(MidSong *song)
