@@ -35,6 +35,7 @@
 #include <vorbis/vorbisfile.h>
 #include <FLAC++/decoder.h>
 #include <mpg123.h>
+#include <mikmod.h>
 #include "libtimidity/timidity.h"
 
 class ogg_decoder:public decoder{
@@ -68,9 +69,25 @@ public:
 	void loop();
 };
 
+class static_initializer{
+protected:
+	bool initialized;
+	NONS_Mutex mutex;
+	virtual bool perform_initialization()=0;
+public:
+	static_initializer():initialized(0){}
+	virtual ~static_initializer(){}
+	bool init();
+};
+
+class mp3_static_data:public static_initializer{
+	bool perform_initialization();
+public:
+	~mp3_static_data();
+};
+
 class mp3_decoder:public decoder{
-	static NONS_Mutex mutex;
-	static bool mpg123_initialized;
+	static mp3_static_data static_data;
 	mpg123_handle *handle;
 public:
 	mp3_decoder(NONS_DataStream *stream);
@@ -79,38 +96,38 @@ public:
 	void loop();
 };
 
-#if 0
+class mod_static_data:public static_initializer{
+	bool perform_initialization();
+public:
+	~mod_static_data();
+};
+
 class mod_decoder:public decoder{
-	static NONS_Mutex mutex;
-	static bool mikmod_initialized;
+	static mod_static_data static_data;
+	MODULE *module;
 public:
 	mod_decoder(NONS_DataStream *stream);
 	~mod_decoder();
 	audio_buffer *get_buffer(bool &error);
 	void loop();
 };
-#endif
 
-class midi_static_data{
+class midi_static_data:public static_initializer{
+	bool perform_initialization();
 public:
 	typedef std::map<std::wstring,NONS_DataStream *> map_t;
-private:
-	map_t cached_files;
-	bool initialized;
-	NONS_Mutex mutex;
-public:
-	midi_static_data():initialized(0){}
+
 	~midi_static_data();
-	bool init();
 	void cache_file(const char *path,NONS_DataStream *stream);
 	NONS_DataStream *get_file(const char *path);
+private:
+	map_t cached_files;
 };
 
 class midi_decoder:public decoder{
 	MidSong *song;
-	uint32 length;
 public:
-	static midi_static_data data;
+	static midi_static_data static_data;
 	midi_decoder(NONS_DataStream *stream);
 	~midi_decoder();
 	audio_buffer *get_buffer(bool &error);

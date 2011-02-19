@@ -30,6 +30,10 @@
 #include "AudioFormats.h"
 #include <iostream>
 
+mp3_static_data mp3_decoder::static_data;
+mod_static_data mod_decoder::static_data;
+midi_static_data midi_decoder::static_data;
+
 size_t ogg_read(void *buffer,size_t size,size_t nmemb,void *s){
 	NONS_DataStream *stream=(NONS_DataStream *)s;
 	if (!stream->read(buffer,nmemb,size*nmemb)){
@@ -250,9 +254,6 @@ void flac_decoder::loop(){
 	this->seek_absolute(0);
 }
 
-NONS_Mutex mp3_decoder::mutex;
-bool mp3_decoder::mpg123_initialized=0;
-
 struct fd_tracker{
 	NONS_Mutex mutex;
 	int counter;
@@ -293,18 +294,34 @@ off_t mp3_seek(int fd,off_t offset,int whence){
 	}                                                  \
 }
 
+bool static_initializer::init(){
+	NONS_MutexLocker ml(this->mutex);
+	if (this->initialized)
+		return 1;
+	if (!this->perform_initialization())
+		return 0;
+	this->initialized=1;
+	return 1;
+}
+
+bool mp3_static_data::perform_initialization(){
+	int error;
+	HANDLE_MPG123_ERRORS(mpg123_init(),0);
+	return 1;
+}
+
+mp3_static_data::~mp3_static_data(){
+	if (this->initialized)
+		mpg123_exit();
+}
+
 mp3_decoder::mp3_decoder(NONS_DataStream *stream):decoder(stream){
 	if (!*this)
 		return;
 	this->good=0;
 	int error;
-	{
-		NONS_MutexLocker ml(mp3_decoder::mutex);
-		if (!mp3_decoder::mpg123_initialized){
-			HANDLE_MPG123_ERRORS(mpg123_init(),);
-			mp3_decoder::mpg123_initialized=1;
-		}
-	}
+	if (!mp3_decoder::static_data.init())
+		return;
 	this->handle=mpg123_new(0,&error);
 	if (!this->handle){
 		o_stderr <<mpg123_plain_strerror(error)<<"\n";
@@ -313,6 +330,7 @@ mp3_decoder::mp3_decoder(NONS_DataStream *stream):decoder(stream){
 	HANDLE_MPG123_ERRORS(mpg123_replace_reader(this->handle,mp3_read,mp3_seek),);
 	HANDLE_MPG123_ERRORS(mpg123_open_fd(this->handle,tracker.add(stream)),);
 	HANDLE_MPG123_ERRORS(mpg123_format_none(this->handle),);
+	this->good=1;
 }
 
 mp3_decoder::~mp3_decoder(){
@@ -345,16 +363,8 @@ void mp3_decoder::loop(){
 	mpg123_seek(this->handle,0,SEEK_SET);
 }
 
-#if 0
-bool mod_decoder::mikmod_initialized=0;
-NONS_Mutex mod_decoder::mutex;
 static const size_t BUFFERSIZE=32768;
 static std::vector<SBYTE> audiobuffer;
-
-static BOOL openal_Init(){
-	audiobuffer.resize(BUFFERSIZE);
-	return VC_Init();
-}
 
 void openal_Exit(){
 	VC_Exit();
@@ -362,12 +372,18 @@ void openal_Exit(){
 }
 
 void openal_Update(){
+	audiobuffer.resize(BUFFERSIZE);
 	size_t n=VC_WriteBytes(&audiobuffer[0],BUFFERSIZE);
+	audiobuffer.resize(n);
 }
 
 BOOL openal_Reset(){
 	VC_Exit();
 	return VC_Init();
+}
+
+BOOL openal_IsPresent(){
+	return 1;
 }
 
 MDRIVER drv_openal={
@@ -378,12 +394,12 @@ MDRIVER drv_openal={
 	"openal",
 
 	0,
-	0,
+	openal_IsPresent,
 	VC_SampleLoad,
 	VC_SampleUnload,
 	VC_SampleSpace,
 	VC_SampleLength,
-	openal_Init,
+	VC_Init,
 	openal_Exit,
 	openal_Reset,
 	VC_SetNumVoices,
@@ -404,38 +420,93 @@ MDRIVER drv_openal={
 	VC_VoiceRealVolume
 };
 
+bool mod_static_data::perform_initialization(){
+	MikMod_RegisterDriver(&drv_openal);
+	md_mode|=DMODE_SOFT_MUSIC|DMODE_16BITS|DMODE_STEREO;
+	md_mixfreq=44100;
+	md_volume=100;
+	MikMod_RegisterAllLoaders();
+	if (MikMod_Init(""))
+		return 0;
+	return 1;
+}
+
+mod_static_data::~mod_static_data(){
+	MikMod_Exit();
+}
+
+struct NONS_MREADER{
+	MREADER base;
+	NONS_DataStream *stream;
+};
+
+BOOL mod_seek(MREADER *stream,long offset,int whence){
+	((NONS_MREADER *)stream)->stream->stdio_seek(offset,whence);
+	return 1;
+}
+
+long mod_tell(MREADER *stream){
+	return (long)((NONS_MREADER *)stream)->stream->get_offset();
+}
+
+BOOL mod_read(MREADER *stream,void *dst,size_t n){
+	return ((NONS_MREADER *)stream)->stream->read(dst,n,n);
+}
+
+int mod_get(MREADER *stream){
+	uchar byte;
+	size_t n=1;
+	if (!((NONS_MREADER *)stream)->stream->read(&byte,n,n) || !n)
+		return -1;
+	return byte;
+}
+
+BOOL mod_eof(MREADER *stream){
+	return ((NONS_MREADER *)stream)->stream->get_offset()>=((NONS_MREADER *)stream)->stream->get_size();
+}
 
 mod_decoder::mod_decoder(NONS_DataStream *stream):decoder(stream){
 	if (!*this)
 		return;
 	this->good=0;
-	{
-		NONS_MutexLocker ml(mod_decoder::mutex);
-		if (!mod_decoder::mpg123_initialized){
-			MikMod_Init(
-			MDRIVER d;
-			d.
-			MikMod_RegisterDriver
-			MikMod_RegisterDriver
-			mp3_decoder::mpg123_initialized=1;
-		}
+	if (!mod_decoder::static_data.init())
+		return;
+	NONS_MREADER reader;
+	reader.base.Eof=mod_eof;
+	reader.base.Get=mod_get;
+	reader.base.Read=mod_read;
+	reader.base.Seek=mod_seek;
+	reader.base.Tell=mod_tell;
+	reader.stream=stream;
+	this->module=Player_LoadGeneric((MREADER *)&reader,64,0);
+	this->good=this->module;
+	if (!this->good){
+		o_stderr <<MikMod_strerror(MikMod_errno)<<"\n";
+		return;
 	}
+	Player_Start(this->module);
 }
 
 mod_decoder::~mod_decoder(){
+	if (this->good)
+		Player_Free(this->module);
 }
 
 audio_buffer *mod_decoder::get_buffer(bool &error){
+	error=0;
+	if (!Player_Active())
+		return 0;
+	MikMod_Update();
+	return new audio_buffer(&audiobuffer[0],audiobuffer.size()/4,44100,2,16);
 }
 
 void mod_decoder::loop(){
+	Player_SetPosition(0);
+	Player_Start(this->module);
 }
-#endif
-
-midi_static_data midi_decoder::data;
 
 custom_FILE NONS_fopen(const char *filename){
-	return midi_decoder::data.get_file(filename);
+	return midi_decoder::static_data.get_file(filename);
 }
 
 int NONS_fclose(custom_FILE file){
@@ -460,16 +531,18 @@ custom_stdio init_stdio(){
 	return stdio;
 }
 
-midi_static_data::~midi_static_data(){
-	//if (this->initialized)
+bool midi_static_data::perform_initialization(){
+	custom_stdio stdio=init_stdio();
+	if (mid_init(0,&stdio))
+		return 0;
+	if (!general_archive.addArchive(L"timidity.zip"))
+		general_archive.addArchive(L"timidity.oaf");
+	return 1;
 }
 
-bool midi_static_data::init(){
-	NONS_MutexLocker ml(this->mutex);
+midi_static_data::~midi_static_data(){
 	if (this->initialized)
-		return 1;
-	this->initialized=1;
-	return 1;
+		mid_exit();
 }
 
 void midi_static_data::cache_file(const char *path,NONS_DataStream *stream){
@@ -509,10 +582,7 @@ midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
 	if (!*this)
 		return;
 	this->good=0;
-	if (!midi_decoder::data.init())
-		return;
-	custom_stdio stdio=init_stdio();
-	if (mid_init(0,&stdio))
+	if (!midi_decoder::static_data.init())
 		return;
 	MidIStream *file=mid_istream_open_callbacks(midi_read,midi_close,stream);
 	if (!file)
@@ -522,21 +592,18 @@ midi_decoder::midi_decoder(NONS_DataStream *stream):decoder(stream){
 	options.channels=2;
 	options.format=MID_AUDIO_S16LSB;
 	options.rate=44100;
-	//custom_stdio stdio=init_stdio();
+	custom_stdio stdio=init_stdio();
 	this->song=mid_song_load(file,&options,&stdio);
 	mid_istream_close(file);
 	if (!this->song)
 		return;
 	this->good=1;
-	this->length=mid_song_get_total_time(this->song);
 	mid_song_start(this->song);
 }
 
 midi_decoder::~midi_decoder(){
-	if (*this){
+	if (*this)
 		mid_song_free(this->song);
-		mid_exit();
-	}
 }
 
 audio_buffer *midi_decoder::get_buffer(bool &error){
@@ -552,4 +619,5 @@ audio_buffer *midi_decoder::get_buffer(bool &error){
 
 void midi_decoder::loop(){
 	mid_song_seek(this->song,0);
+	mid_song_start(this->song);
 }

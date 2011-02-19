@@ -120,17 +120,61 @@ audio_buffer::audio_buffer(void *buffer,size_t length,ulong freq,ulong channels,
 #define HANDLE_TYPE_WITH_TYPE(s,t) if (ends_with(this->filename,(std::wstring)s))\
 	this->decoder=new t(general_archive.open(this->filename))
 
+template <typename T>
+decoder *new_decoder(const std::wstring &filename){
+	return new T(general_archive.open(filename));
+}
+
+/*
+669 (Composer 669, Unis 669),
+AMF (DSMI Advanced Module Format),
+AMF (ASYLUM Music Format V1.0),
+APUN (APlayer),
+DSM (DSIK internal format),
+FAR (Farandole Composer),
+GDM (General DigiMusic),
+IT (Impulse Tracker),
+IMF (Imago Orpheus),
+MOD (15 and 31 instruments),
+MED (OctaMED),
+MTM (MultiTracker Module editor),
+OKT (Amiga Oktalyzer),
+S3M (Scream Tracker 3),
+STM (Scream Tracker),
+STX (Scream Tracker Music Interface Kit),
+ULT (UltraTracker),
+UNI (MikMod),
+XM (FastTracker 2) 
+*/
+
+decoder *initialize_decoder(const std::wstring &filename){
+	struct pair{
+		std::wstring ext;
+		decoder *(*f)(const std::wstring &);
+	};
+	static pair array[]={
+		{L".ogg",new_decoder<ogg_decoder>},
+		{L".mp3",new_decoder<mp3_decoder>},
+		{L".flac",new_decoder<flac_decoder>},
+		{L".mid",new_decoder<midi_decoder>},
+		{L".it",new_decoder<mod_decoder>},
+		{L".xm",new_decoder<mod_decoder>},
+		{L".s3m",new_decoder<mod_decoder>},
+		{L".mod",new_decoder<mod_decoder>},
+		{L".669",new_decoder<mod_decoder>},
+		{L".med",new_decoder<mod_decoder>}
+	};
+	const size_t n=sizeof(array)/sizeof(*array);
+	for (size_t a=0;a<n;a++)
+		if (ends_with(filename,array[a].ext))
+			return array[a].f(filename);
+	return 0;
+}
+
 audio_stream::audio_stream(const std::wstring &filename){
 	this->filename=filename;
 	tolower(this->filename);
-	HANDLE_TYPE_WITH_TYPE(L".ogg",ogg_decoder);
-	else HANDLE_TYPE_WITH_TYPE(L".flac",flac_decoder);
-	else HANDLE_TYPE_WITH_TYPE(L".mp3",mp3_decoder);
-	else HANDLE_TYPE_WITH_TYPE(L".mid",midi_decoder);
-	else HANDLE_TYPE_WITH_TYPE(L".mod",midi_decoder);
-	else HANDLE_TYPE_WITH_TYPE(L".s3m",midi_decoder);
-	else
-		this->decoder=0;
+	this->decoder=initialize_decoder(filename);
 	if (this->decoder && !*this->decoder){
 		delete this->decoder;
 		this->decoder=0;

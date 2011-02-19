@@ -294,8 +294,6 @@ std::string get_version_string(){
 	return stream.str();
 }
 
-#include "OpenAL.h"
-
 void initialize(int argc,char **argv){
 	srand((unsigned int)time(0));
 	signal(SIGTERM,handle_SIGTERM);

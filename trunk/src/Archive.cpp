@@ -1191,20 +1191,21 @@ ZIParchive::SignatureType ZIParchive::getSignatureType(void *buffer){
 	return ZIParchive::NOT_A_SIGNATURE;
 }
 
+static const wchar_t *formats[]={
+	L".sar",
+	L".nsa",
+	L".zip",
+	L".oaf",
+	0
+};
+
 void NONS_GeneralArchive::init(){
 	std::wstring path;
 	if (CLOptions.archiveDirectory.size())
 		path=CLOptions.archiveDirectory+L"/";
 	else
 		path=L"./";
-	const wchar_t *base=L"arc",
-		*formats[]={
-			L".sar",
-			L".nsa",
-			L".zip",
-			L".oaf",
-			0
-		};
+	const wchar_t *base=L"arc";
 	this->archives.push_back(&filesystem);
 	for (ulong a=ULONG_MAX;;a++){
 		std::wstring full_name;
@@ -1232,27 +1233,48 @@ void NONS_GeneralArchive::init(){
 				continue;
 			format=0;
 		}
-		NONS_ArchiveSource *ds=0;
-		switch (format){
-			case 0:
-				ds=new NONS_nsaArchiveSource(full_name,0);
-				break;
-			case 1:
-				ds=new NONS_nsaArchiveSource(full_name,1);
-				break;
-			case 2:
-			case 3:
-				ds=new NONS_zipArchiveSource(full_name);
-				break;
-		}
-		if (ds->good())
-			this->archives.push_back(ds);
-		else{
-			delete ds;
-			std::cout <<"Archive "<<full_name<<" is invalid."<<std::endl;
-		}
+		this->addArchive_private(full_name,format);
+
 	}
 	std::reverse(this->archives.begin(),this->archives.end());
+}
+
+bool NONS_GeneralArchive::addArchive_private(const std::wstring &path,int format){
+	NONS_MutexLocker ml(this->mutex);
+	bool reverse=0;
+	if (format<0){
+		reverse=1;
+		for (int a=0;format<0 && formats[a];a++)
+			if (ends_with(path,(std::wstring)formats[a]))
+				format=a;
+		if (format<0)
+			return 0;
+		std::reverse(this->archives.begin(),this->archives.end());
+	}
+	NONS_ArchiveSource *ds=0;
+	switch (format){
+		case 0:
+			ds=new NONS_nsaArchiveSource(path,0);
+			break;
+		case 1:
+			ds=new NONS_nsaArchiveSource(path,1);
+			break;
+		case 2:
+		case 3:
+			ds=new NONS_zipArchiveSource(path);
+			break;
+	}
+	bool r=ds->good();
+	if (r)
+		this->archives.push_back(ds);
+	else{
+		delete ds;
+		if (!reverse)
+			o_stderr <<"Archive "<<path<<" is invalid.\n";
+	}
+	if (reverse)
+		std::reverse(this->archives.begin(),this->archives.end());
+	return r;
 }
 
 NONS_GeneralArchive::~NONS_GeneralArchive(){

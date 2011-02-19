@@ -37,17 +37,22 @@ src/GFX.cpp
 src/IOFunctions.cpp
 src/VirtualScreen.cpp
 src/Functions.cpp
-src/Audio.cpp
+src/AudioFormats.cpp
 src/CommandLineOptions.cpp
 src/sha1.cpp
 src/ONSlaught.cpp
 src/MacroParser.cpp
+src/Audio.cpp
 src/ErrorCodes.cpp
+src/OpenAL.cpp
 src/Thread.cpp
 src/ConfigFile.cpp
 src/FileLog.cpp
 src/INIfile.cpp
 src/ThreadManager.cpp
+src/libFLAC++/metadata.cpp
+src/libFLAC++/stream_encoder.cpp
+src/libFLAC++/stream_decoder.cpp
 src/Plugin/LibraryLoader.cpp 
 )
 

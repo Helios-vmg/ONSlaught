@@ -168,6 +168,7 @@ public:
 class NONS_GeneralArchive{
 	NONS_Mutex mutex;
 	std::vector<NONS_DataSource *> archives;
+	bool addArchive_private(const std::wstring &path,int format=-1);
 public:
 	~NONS_GeneralArchive();
 	void init();
@@ -179,6 +180,9 @@ public:
 	NONS_DataStream *open(const std::wstring &path,bool keep_in_memory=0);
 	bool close(NONS_DataStream *stream);
 	bool exists(const std::wstring &filepath);
+	bool addArchive(const std::wstring &path){
+		return addArchive_private(path);
+	}
 };
 
 extern NONS_GeneralArchive general_archive;
