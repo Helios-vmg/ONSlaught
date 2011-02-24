@@ -42,6 +42,7 @@ class audio_sink{
 	ALuint source;
 	static const size_t n=16;
 public:
+	double time_offset;
 	audio_sink();
 	~audio_sink();
 	operator bool(){ return !!this->source; }
@@ -63,7 +64,7 @@ struct audio_buffer{
 	ulong frequency;
 	ulong channels;
 	ulong bit_depth;
-	audio_buffer(void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth,bool take_ownership=0);
+	audio_buffer(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth,bool take_ownership=0);
 	~audio_buffer(){
 		free(this->buffer);
 	}
@@ -111,6 +112,7 @@ public:
 };
 
 class audio_stream{
+protected:
 	audio_sink *sink;
 	decoder *decoder;
 	bool good,
@@ -136,12 +138,12 @@ public:
 	bool cleanup;
 	audio_device::list_t::iterator iterator;
 	audio_stream(const std::wstring &filename);
-	~audio_stream();
+	virtual ~audio_stream();
 	operator bool(){ return this->good; }
 	void start();
 	void stop();
 	void pause(int mode=-1);
-	bool update();
+	virtual bool update();
 	bool is_playing() const{ return this->playing; }
 	bool is_sink_playing() const;
 	bool is_paused() const{ return this->paused; }
@@ -150,5 +152,16 @@ public:
 	void mute(int mode=-1);
 	float get_volume() const{ return this->volume; }
 	void notify_on_stop(NONS_Event *event){ this->notify.push_back(event); }
+	int needs_update();
+};
+
+class asynchronous_audio_stream:public audio_stream{
+	NONS_Mutex mutex;
+public:
+	asynchronous_audio_stream();
+	~asynchronous_audio_stream(){}
+	bool update();
+	bool asynchronous_buffer_push(audio_buffer *buffer);
+	double get_time_offset();
 };
 #endif

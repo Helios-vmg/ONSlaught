@@ -882,6 +882,7 @@ void playback_input_thread(bool allow_quit,int *stop,int *toggle_fullscreen,int 
 struct video_playback_params{
 	NONS_VirtualScreen *vs;
 	NONS_Surface screen;
+	asynchronous_audio_stream *stream;
 };
 
 SDL_Surface *playback_fullscreen_callback(volatile SDL_Surface *screen,void *user_data){
@@ -929,6 +930,20 @@ struct ff_file{
 		return _this->stream->get_size();
 	}
 };
+
+bool video_write(const void *src,ulong length,ulong channels,ulong frequency,void *user_data){
+	audio_buffer buffer(src,length,frequency,channels,16);
+	return ((video_playback_params *)user_data)->stream->asynchronous_buffer_push(&buffer);
+}
+
+double video_get_time_offset(void *user_data){
+	return ((video_playback_params *)user_data)->stream->get_time_offset();
+}
+
+void video_wait(void *user_data){
+	while (((video_playback_params *)user_data)->stream->is_sink_playing())
+		SDL_Delay(10);
+}
 
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){
 	NONS_LibraryLoader video_player("video_player",0);
@@ -987,9 +1002,12 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		int stop=0,
 			toggle_fullscreen=0,
 			take_screenshot=0;
+		asynchronous_audio_stream *stream=this->audio->new_video_stream();
+		stream->start();
 		video_playback_params playback_params={
 			this->screen->screen,
-			screen
+			screen,
+			stream
 		};
 		NONS_Thread input_thread(bind(playback_input_thread,skippable,&stop,&toggle_fullscreen,&take_screenshot));
 		C_play_video_params::trigger_callback_pair pairs[]={
@@ -1001,11 +1019,17 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			utf8_filename_copy.push_back('/');
 			utf8_filename_copy.append(itoac(&fp));
 		}
+		audio_f audio_functions={
+			video_write,
+			video_get_time_offset,
+			video_wait
+		};
 		C_play_video_params parameters={
 			C_PLAY_VIDEO_PARAMS_VERSION,
 			screen.get_SDL_screen(),
 			&utf8_filename_copy[0],
 			&playback_params,
+			audio_functions,
 			sizeof(pairs)/sizeof(*pairs),
 			pairs,
 			&stop,
@@ -1014,7 +1038,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			exception_string.size(),
 			fp
 		};
-#if NONS_SYS_UNIX
+#if NONS_SYS_UNIX && 0
 		//If the audio isn't stopped under UNIX, C_play_video() will fail
 		//because it won't be able to open the audio device.
 		delete this->audio;
@@ -1022,7 +1046,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		void *player=new_player();
 		success=!!C_play_video(player,&parameters);
 		delete_player(player);
-#if NONS_SYS_UNIX
+#if NONS_SYS_UNIX && 0
 		//Restore audio.
 		this->audio=new NONS_Audio(CLOptions.musicDirectory);
 		if (CLOptions.musicFormat.size())
@@ -1031,6 +1055,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		exception_string.resize(strlen(exception_string.c_str()));
 		stop=1;
 		file.close(&file);
+		this->audio->delete_video_stream(stream);
 	}
 	if (!success){
 		if (exception_string.size())

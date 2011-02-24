@@ -432,7 +432,8 @@ bool mod_static_data::perform_initialization(){
 }
 
 mod_static_data::~mod_static_data(){
-	MikMod_Exit();
+	if (this->initialized)
+		MikMod_Exit();
 }
 
 struct NONS_MREADER{

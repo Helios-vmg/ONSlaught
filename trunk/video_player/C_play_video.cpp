@@ -30,6 +30,7 @@
 		const char *input,                    \
 		volatile int *stop,                   \
 		void *user_data,                      \
+		audio_f audio_output,                 \
 		int print_debug,                      \
 		std::string &exception_string,        \
 		cb_vector &callback_pairs,            \
@@ -58,6 +59,7 @@ bool play_video_1(void *player,void *void_params){
 			params->input,
 			params->stop,
 			params->user_data,
+			params->audio_output,
 			params->print_debug,
 			temp,
 			callback_pairs,

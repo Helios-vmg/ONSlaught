@@ -61,8 +61,13 @@
 #define VIDEO_DLLimport
 #endif
 
-typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *,void *);
 typedef unsigned long ulong;
+typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *,void *);
+typedef struct{
+	bool (*write)(const void *src,ulong length,ulong channels,ulong frequency,void *);
+	double (*get_time_offset)(void *);
+	void (*wait)(void *);
+} audio_f;
 #endif
 
 typedef struct{
@@ -81,6 +86,7 @@ typedef struct{
 	SDL_Surface *screen;
 	const char *input;
 	void *user_data;
+	audio_f audio_output;
 	ulong trigger_callback_pairs_n;
 	typedef struct{
 		volatile int *trigger;
@@ -197,6 +203,8 @@ VIDEO_DESTRUCTOR_SIGNATURE;
  *     void *user_data
  *         This pointer will be passed to the callback functions if they are
  *         called.
+ *     audio_output_cb audio_output
+ *         Pointer to a function that handles writing to an audio device.
  *     ulong trigger_callback_pairs_n
  *         The size of the array pointed to by pairs.
  *     trigger_callback_pair *pairs

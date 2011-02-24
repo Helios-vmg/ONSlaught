@@ -102,6 +102,11 @@ public:
 		return !this->uninitialized;
 	}
 	void get_channel_listing(channel_listing &cl);
+	asynchronous_audio_stream *new_video_stream();
+	void delete_video_stream(asynchronous_audio_stream *stream){
+		if (stream)
+			this->dev->remove(stream);
+	}
 };
 
 class NONS_ScopedAudioStream{

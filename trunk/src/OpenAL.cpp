@@ -37,6 +37,7 @@ decoder::~decoder(){
 }
 
 audio_sink::audio_sink(){
+	this->time_offset=0;
 	alGenSources(1,&this->source);
 	if (alGetError()!=AL_NO_ERROR)
 		this->source=0;
@@ -49,13 +50,26 @@ audio_sink::~audio_sink(){
 }
 
 ALenum make_format(ulong channels,ulong bit_depth){
-	static const ALenum array[]={
-		AL_FORMAT_MONO8,
-		AL_FORMAT_MONO16,
-		AL_FORMAT_STEREO8,
-		AL_FORMAT_STEREO16
+	if (channels<=2){
+		static const ALenum array[]={
+			AL_FORMAT_MONO8,
+			AL_FORMAT_MONO16,
+			AL_FORMAT_STEREO8,
+			AL_FORMAT_STEREO16
+		};
+		return array[((channels==2)<<1)|(bit_depth==16)];
+	}
+	std::string s;
+	static const char *array[]={
+		0,0,0,0,
+		"AL_FORMAT_QUAD",
+		0,
+		"AL_FORMAT_51CHN",
+		"AL_FORMAT_61CHN"
+		"AL_FORMAT_71CHN"
 	};
-	return array[((channels==2)<<1)|(bit_depth==16)];
+	s=array[channels]+itoac(bit_depth);
+	return alGetEnumValue(s.c_str());
 }
 
 bool audio_sink::needs_more_data(){
@@ -73,6 +87,7 @@ bool audio_sink::needs_more_data(){
 #include <iostream>
 
 void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth){
+	static double t=NONS_Clock::NONS_Clock().get();
 	if (!*this)
 		return;
 	ALint queued,
@@ -82,12 +97,25 @@ void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels
 	alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
 	state=this->get_state();
 	assert(state!=AL_PAUSED);
-	//std::cout <<std::string(queued,'X')<<std::endl;
+	//std::cout <<"["<<NONS_Clock::NONS_Clock().get()-t<<"] - "<<std::string(queued,'X')<<std::endl;
 	bool call_play=(finished==queued || state!=AL_PLAYING);
 	std::vector<ALuint> temp(queued);
 	ALuint new_buffer;
 	if (finished){
-		alSourceUnqueueBuffers(this->source,finished,&temp[0]);
+		ALuint *temp_p=&temp[0];
+		alSourceUnqueueBuffers(this->source,finished,temp_p);
+		for (size_t a=0;a<(size_t)finished;a++){
+			ALint local_freq,
+				local_bits,
+				local_channels,
+				local_size;
+			alGetBufferi(temp[a],AL_FREQUENCY,&local_freq);
+			alGetBufferi(temp[a],AL_BITS,&local_bits);
+			local_bits>>=3;
+			alGetBufferi(temp[a],AL_CHANNELS,&local_channels);
+			alGetBufferi(temp[a],AL_SIZE,&local_size);
+			this->time_offset+=double(local_size/(local_channels*local_bits))/double(local_freq);
+		}
 		alDeleteBuffers(finished-1,&temp[0]);
 		new_buffer=temp[finished-1];
 	}else
@@ -104,13 +132,13 @@ void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels
 		alSourcePlay(this->source);
 }
 
-audio_buffer::audio_buffer(void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth,bool take_ownership){
+audio_buffer::audio_buffer(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth,bool take_ownership){
 	size_t n=length*(bit_depth/8)*channels;
 	if (!take_ownership){
 		this->buffer=malloc(n);
 		memcpy(this->buffer,buffer,n);
 	}else
-		this->buffer=buffer;
+		this->buffer=(void *)buffer;
 	this->length=length;
 	this->frequency=freq;
 	this->channels=channels;
@@ -237,19 +265,11 @@ void audio_stream::pause(int mode){
 }
 
 bool audio_stream::update(){
-	if (!this->sink)
-		return 0;
-	if (!this->playing){
-		if (this->sink->get_state()==AL_STOPPED){
-			while (this->notify.size()){
-				this->notify.back()->set();
-				this->notify.pop_back();
-			}
-		}
-		return 1;
+	{
+		int a=this->needs_update();
+		if (a>=0)
+			return (bool)a;
 	}
-	if (this->paused || !*this)
-		return 0;
 	while (this->sink->needs_more_data()){
 		bool error;
 		audio_buffer *buffer;
@@ -279,7 +299,6 @@ bool audio_stream::update(){
 		buffer->push(*this->sink);
 		delete buffer;
 	}
-	//Shut the compiler up.
 	return 0;
 }
 
@@ -306,6 +325,23 @@ void audio_stream::mute(int mode){
 	else
 		this->muted=!!mode;
 	this->set_internal_volume();
+}
+
+int audio_stream::needs_update(){
+	if (!this->sink)
+		return 0;
+	if (!this->playing){
+		if (this->sink->get_state()==AL_STOPPED){
+			while (this->notify.size()){
+				this->notify.back()->set();
+				this->notify.pop_back();
+			}
+		}
+		return 1;
+	}
+	if (this->paused || !*this)
+		return 0;
+	return -1;
 }
 
 audio_device::audio_device(){
@@ -366,4 +402,27 @@ void audio_device::remove(audio_stream *stream){
 		this->streams.erase(i);
 		break;
 	}
+}
+
+asynchronous_audio_stream::asynchronous_audio_stream():audio_stream(L""){
+	this->good=1;
+}
+
+bool asynchronous_audio_stream::update(){
+	NONS_MutexLocker ml(this->mutex);
+	int a=this->needs_update();
+	return (a>=0)?(bool)a:0;
+}
+
+bool asynchronous_audio_stream::asynchronous_buffer_push(audio_buffer *buffer){
+	NONS_MutexLocker ml(this->mutex);
+	if (this->needs_update()>=0 || !this->sink->needs_more_data())
+		return 0;
+	buffer->push(*this->sink);
+	return 1;
+}
+
+double asynchronous_audio_stream::get_time_offset(){
+	NONS_MutexLocker ml(this->mutex);
+	return (!this->sink)?0:this->sink->time_offset*1000.0;
 }

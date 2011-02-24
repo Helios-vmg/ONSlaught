@@ -316,3 +316,12 @@ void NONS_Audio::get_channel_listing(channel_listing &cl){
 		}
 	}
 }
+
+asynchronous_audio_stream *NONS_Audio::new_video_stream(){
+	if (this->uninitialized)
+		return 0;
+	NONS_MutexLocker ml(this->mutex);
+	asynchronous_audio_stream *stream=new asynchronous_audio_stream();
+	this->dev->add(stream);
+	return stream;
+}
