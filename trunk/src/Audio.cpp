@@ -119,6 +119,7 @@ ErrorCode NONS_Audio::play_music(const std::wstring &filename,long times){
 	stream->loop=times;
 	stream->cleanup=0;
 	stream->set_general_volume(this->mvol);
+	stream->mute(!this->notmute);
 	stream->start();
 	this->dev->add(stream);
 	this->channels[NONS_Audio::music_channel]=stream;
@@ -203,6 +204,7 @@ ErrorCode NONS_Audio::play(int channel,long times,bool automatic_cleanup){
 	stream->loop=times;
 	stream->cleanup=automatic_cleanup;
 	stream->set_general_volume(this->svol);
+	stream->mute(!this->notmute);
 	stream->start();
 	return NONS_NO_ERROR;
 }

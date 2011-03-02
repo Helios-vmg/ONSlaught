@@ -14,6 +14,8 @@ Important changes:
 Minor changes:
   * Added -use-long-audio-buffers command line option to fix audio problems in
     slow systems.
+  * Replaced SDL_mixer with OpenAL-based sound system.
+  * Discontinued WAV support. Replaced with FLAC.
 
 Bug fixes:
   * Plugged memory leak in various routines.
