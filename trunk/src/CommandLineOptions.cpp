@@ -62,7 +62,7 @@ NONS_CommandLineOptions::NONS_CommandLineOptions(){
 	this->realWidth=DEFAULT_OUTPUT_WIDTH;
 	this->realHeight=DEFAULT_OUTPUT_HEIGHT;
 	this->startFullscreen=0;
-	this->verbosity=0;
+	this->verbosity=VERBOSITY_LOG_NOTHING;
 	this->no_sound=0;
 	this->stopOnFirstError=0;
 	this->listImplementation=0;

@@ -55,7 +55,6 @@ NONS_Lookback::NONS_Lookback(NONS_StandardOutput *output,const NONS_Color &color
 	this->up=0;
 	this->down=0;
 	this->resetButtons();
-	memset(this->surfaces,0,sizeof(this->surfaces));
 }
 
 void NONS_Lookback::resetButtons(){
@@ -666,9 +665,8 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 			return -2;
 	}
 	if (this->voiceEntry.size())
-		this->audio->playSoundAsync(&this->voiceEntry,7,0);
-	if (this->voiceMouseOver.size())
-		this->audio->loadAsyncBuffer(this->voiceEntry,7);
+		this->audio->play_sound_once(this->voiceEntry);
+	NONS_ScopedAudioStream voiceMouseOver_channel(this->audio,this->voiceMouseOver);
 	NONS_EventQueue queue;
 	NONS_Surface screenCopy=this->screen->screen->get_screen().clone();
 	map_t::iterator mouseOver=this->buttons.end();
@@ -746,8 +744,7 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 					case SDLK_UP:
 					case SDLK_DOWN:
 						this->react_to_updown(mouseOver,event.key.keysym.sym,screenCopy);
-						if (this->voiceMouseOver.size())
-							this->audio->playSoundAsync(&this->voiceMouseOver,7,0);
+						voiceMouseOver_channel.play(0);
 						break;
 					case SDLK_RETURN:
 						if (this->react_to_click(mouseOver,screenCopy))
@@ -764,7 +761,7 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 				break;
 			case SDL_MOUSEMOTION:
 				if (this->react_to_movement(mouseOver,&event,screenCopy) && this->voiceMouseOver.size())
-					this->audio->playSoundAsync(&this->voiceMouseOver,7,0);
+					voiceMouseOver_channel.play(0);
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				if (this->react_to_click(mouseOver,screenCopy))
@@ -815,7 +812,7 @@ bool NONS_ButtonLayer::react_to_click(map_t::iterator &mouseOver,const NONS_Cons
 	if (mouseOver==e)
 		return 0;
 	if (this->voiceClick.size())
-		this->audio->playSoundAsync(&this->voiceClick,7,0);
+		this->audio->play_sound_once(this->voiceClick);
 	this->screen->screen->get_screen().copy_pixels(screenCopy);
 	this->screen->screen->updateWholeScreen();
 	return 1;
@@ -1037,7 +1034,7 @@ int NONS_Menu::callMenu(){
 	int choice=this->buttons->getUserInput(this->x,this->y);
 	if (choice<0){
 		if (choice!=INT_MIN && this->voiceCancel.size())
-			this->audio->playSoundAsync(&this->voiceCancel,7,0);
+			this->audio->play_sound_once(this->voiceCancel);
 		return 0;
 	}
 	return this->call(this->commands[choice]);
@@ -1189,7 +1186,7 @@ int NONS_Menu::save(){
 				continue;
 			}
 			if (choice<0 && this->voiceCancel.size())
-				this->audio->playSoundAsync(&this->voiceCancel,7,0);
+				this->audio->play_sound_once(this->voiceCancel);
 			ret=choice+1;
 		}
 		break;
@@ -1255,7 +1252,7 @@ int NONS_Menu::load(){
 				continue;
 			}
 			if (choice<0 && this->voiceCancel.size())
-				this->audio->playSoundAsync(&this->voiceCancel,7,0);
+				this->audio->play_sound_once(this->voiceCancel);
 			ret=choice+1;
 		}
 		break;

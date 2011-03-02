@@ -174,7 +174,7 @@ void handleInputEvent(SDL_Event event){
 						break;
 					case SDLK_s:
 						if (gScriptInterpreter->audio)
-							gScriptInterpreter->audio->toggleMute();
+							gScriptInterpreter->audio->toggle_mute();
 						break;
 					case SDLK_RETURN:
 						if (CHECK_FLAG(event.key.keysym.mod,KMOD_ALT) && !video_playback)
@@ -296,10 +296,11 @@ std::string get_version_string(){
 
 void initialize(int argc,char **argv){
 	srand((unsigned int)time(0));
+#if !defined NONS_SVN && !defined _DEBUG
 	signal(SIGTERM,handle_SIGTERM);
 	signal(SIGINT,handle_SIGINT);
-	signal(SIGSEGV,handle_SIGINT);
 	signal(SIGABRT,handle_SIGINT);
+#endif
 	initialize_conversion_tables();
 	//initialize lookup table/s
 	memset(integer_division_lookup,0,256);
@@ -313,7 +314,7 @@ void initialize(int argc,char **argv){
 	useArgumentsFile("arguments.txt",cmdl_arg);
 	CLOptions.parse(cmdl_arg);
 
-	SDL_Init(SDL_INIT_EVERYTHING);
+	SDL_Init(SDL_INIT_EVERYTHING&~SDL_INIT_AUDIO);
 	atexit(SDL_Quit);
 	SDL_EnableUNICODE(1);
 	SDL_EnableKeyRepeat(250,20);

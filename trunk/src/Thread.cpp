@@ -35,6 +35,7 @@
 #include <windows.h>
 #elif NONS_SYS_UNIX
 #include <unistd.h>
+#include <cerrno>
 #elif NONS_SYS_PSP
 #undef NONS_PARALLELIZE
 #endif

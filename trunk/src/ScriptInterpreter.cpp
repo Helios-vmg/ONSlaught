@@ -36,6 +36,44 @@
 #include <iostream>
 #include "version.h"
 
+#define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
+#define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
+#define GET_COORDINATE(dst,axis,src) {                                                                                 \
+	long GET_COORDINATE_temp;                                                                                          \
+	float GET_COORDINATE_temp_f;                                                                                       \
+	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
+	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
+	if (GET_COORDINATE_temp_f>=0)                                                                                      \
+		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
+	else                                                                                                               \
+		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
+	(dst)=GET_COORDINATE_temp_f;                                                                                       \
+}
+#define GET_INT_COORDINATE(dst,axis,src) {                                                                             \
+	long GET_COORDINATE_temp;                                                                                          \
+	float GET_COORDINATE_temp_f;                                                                                       \
+	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
+	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
+	if (GET_COORDINATE_temp_f>=0)                                                                                      \
+		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
+	else                                                                                                               \
+		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
+	(dst)=(long)GET_COORDINATE_temp_f;                                                                                 \
+}
+#define GET_STR_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getWcsValue(stmt.parameters[(src)],(dst),0))
+#define GET_INT_OR_STR_VALUE(i,s,type,src) HANDLE_POSSIBLE_ERRORS(this->GET_INT_OR_STR_VALUE_helper((i),(s),(type),stmt.parameters[(src)]))
+#define GET_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getVar((dst),stmt.parameters[(src)],this->store))
+#define GET_INT_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getIntVar((dst),stmt.parameters[(src)],this->store))
+#define GET_STR_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getStrVar((dst),stmt.parameters[(src)],this->store))
+#define GET_LABEL(dst,src){                              \
+	std::wstring &GET_LABEL_temp=stmt.parameters[(src)]; \
+	if (GET_LABEL_temp[0]=='*')                          \
+		(dst)=GET_LABEL_temp;                            \
+	else{                                                \
+		GET_STR_VALUE((dst),(src));                      \
+	}                                                    \
+}
+
 #if NONS_SYS_WINDOWS
 #include <windows.h>
 HWND mainWindow=0;
@@ -651,7 +689,7 @@ void NONS_ScriptInterpreter::init(){
 		o_stdout <<"Local files go in \""<<save_directory<<"\".\n";
 		this->audio=new NONS_Audio(CLOptions.musicDirectory);
 		if (CLOptions.musicFormat.size())
-			this->audio->musicFormat=CLOptions.musicFormat;
+			this->audio->music_format=CLOptions.musicFormat;
 		if (!this->screen)
 			this->screen=init_screen(*this->font_cache);
 	}
@@ -882,6 +920,7 @@ void playback_input_thread(bool allow_quit,int *stop,int *toggle_fullscreen,int 
 struct video_playback_params{
 	NONS_VirtualScreen *vs;
 	NONS_Surface screen;
+	asynchronous_audio_stream *stream;
 };
 
 SDL_Surface *playback_fullscreen_callback(volatile SDL_Surface *screen,void *user_data){
@@ -929,6 +968,20 @@ struct ff_file{
 		return _this->stream->get_size();
 	}
 };
+
+bool video_write(const void *src,ulong length,ulong channels,ulong frequency,void *user_data){
+	audio_buffer buffer(src,length,frequency,channels,16);
+	return ((video_playback_params *)user_data)->stream->asynchronous_buffer_push(&buffer);
+}
+
+double video_get_time_offset(void *user_data){
+	return ((video_playback_params *)user_data)->stream->get_time_offset();
+}
+
+void video_wait(void *user_data){
+	while (((video_playback_params *)user_data)->stream->is_sink_playing())
+		SDL_Delay(10);
+}
 
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){
 	NONS_LibraryLoader video_player("video_player",0);
@@ -987,9 +1040,12 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		int stop=0,
 			toggle_fullscreen=0,
 			take_screenshot=0;
+		asynchronous_audio_stream *stream=this->audio->new_video_stream();
+		stream->start();
 		video_playback_params playback_params={
 			this->screen->screen,
-			screen
+			screen,
+			stream
 		};
 		NONS_Thread input_thread(bind(playback_input_thread,skippable,&stop,&toggle_fullscreen,&take_screenshot));
 		C_play_video_params::trigger_callback_pair pairs[]={
@@ -1001,20 +1057,26 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			utf8_filename_copy.push_back('/');
 			utf8_filename_copy.append(itoac(&fp));
 		}
+		audio_f audio_functions={
+			video_write,
+			video_get_time_offset,
+			video_wait
+		};
 		C_play_video_params parameters={
 			C_PLAY_VIDEO_PARAMS_VERSION,
 			screen.get_SDL_screen(),
 			&utf8_filename_copy[0],
 			&playback_params,
+			audio_functions,
 			sizeof(pairs)/sizeof(*pairs),
 			pairs,
 			&stop,
-			CLOptions.verbosity>=255,
+			CLOptions.verbosity>=VERBOSITY_RESERVED,
 			&exception_string[0],
 			exception_string.size(),
 			fp
 		};
-#if NONS_SYS_UNIX
+#if NONS_SYS_UNIX && 0
 		//If the audio isn't stopped under UNIX, C_play_video() will fail
 		//because it won't be able to open the audio device.
 		delete this->audio;
@@ -1022,7 +1084,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		void *player=new_player();
 		success=!!C_play_video(player,&parameters);
 		delete_player(player);
-#if NONS_SYS_UNIX
+#if NONS_SYS_UNIX && 0
 		//Restore audio.
 		this->audio=new NONS_Audio(CLOptions.musicDirectory);
 		if (CLOptions.musicFormat.size())
@@ -1031,6 +1093,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 		exception_string.resize(strlen(exception_string.c_str()));
 		stop=1;
 		file.close(&file);
+		this->audio->delete_video_stream(stream);
 	}
 	if (!success){
 		if (exception_string.size())
@@ -1131,9 +1194,10 @@ bool NONS_ScriptInterpreter::generic_play(const std::wstring &filename){
 			}
 			return 1;
 		case 2:
-			if (!CHECK_FLAG(this->audio->playMusic(&filename,1),NONS_NO_ERROR_FLAG))
+			if (!CHECK_FLAG(this->audio->play_music(filename,0),NONS_NO_ERROR_FLAG))
 				return 0;
-			generic_play_loop(this->audio->music->is_playing());
+			while (!this->audio->is_playing(NONS_Audio::music_channel));
+			generic_play_loop(this->audio->is_playing(NONS_Audio::music_channel));
 			return 1;
 		case 3:
 			return !CHECK_FLAG(handleErrors(
@@ -1206,7 +1270,7 @@ void NONS_ScriptInterpreter::handleKeys(SDL_Event &event){
 	}
 }
 
-void print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstring &commandName,const std::vector<std::wstring> &parameters,ulong mode){
+void NONS_ScriptInterpreter::print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstring &commandName,const std::vector<std::wstring> &parameters,ulong mode){
 	if (mode<2){
 		ro <<"{\n";
 		ro.indent(1);
@@ -1218,11 +1282,21 @@ void print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstri
 			ro.indent(1);
 			for (ulong a=0;;a++){
 				ro <<"["<<parameters[a]<<"]";
+				NONS_Expression::Value *val=this->store->evaluate(parameters[a],0);
+				if (!val->is_err()){
+					ro <<" (";
+					if (val->is_int())
+						ro <<val->integer;
+					else
+						ro <<"\""<<val->string<<"\"";
+					ro <<")";
+				}
 				if (a==parameters.size()-1){
 					ro <<"\n";
 					break;
 				}
 				ro <<",\n";
+				delete val;
 			}
 			ro.indent(-1);
 			ro <<")\n";
@@ -1267,9 +1341,9 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 		return 0;
 	stmt->parse(this->script);
 	ulong current_line=stmt->lineOfOrigin->lineNumber;
-	if (CLOptions.verbosity>=1 && CLOptions.verbosity<255)
+	if (CLOptions.verbosity>=VERBOSITY_LOG_LINE_NUMBERS && CLOptions.verbosity<VERBOSITY_RESERVED)
 		o_stderr <<"Interpreting line "<<current_line<<"\n";
-	if (CLOptions.verbosity>=4 && CLOptions.verbosity<255 && stmt->type==StatementType::COMMAND)
+	if (CLOptions.verbosity>=VERBOSITY_LOG_EVERYTHING && CLOptions.verbosity<VERBOSITY_RESERVED && stmt->type==StatementType::COMMAND)
 		print_command(o_stderr,current_line,stmt->commandName,stmt->parameters,0);
 	this->saveGame->textX=this->screen->output->x;
 	this->saveGame->textY=this->screen->output->y;
@@ -1411,7 +1485,7 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 	stmt.parse(this->script);
 	stmt.lineOfOrigin=line;
 	stmt.fileOffset=offset;
-	if (CLOptions.verbosity>=4 && CLOptions.verbosity<255 && stmt.type==StatementType::COMMAND){
+	if (CLOptions.verbosity>=VERBOSITY_LOG_EVERYTHING && CLOptions.verbosity<VERBOSITY_RESERVED && stmt.type==StatementType::COMMAND){
 		o_stderr <<"String: ";
 		print_command(o_stderr,0,stmt.commandName,stmt.parameters,0);
 	}
@@ -2078,7 +2152,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	this->screen->filterPipeline=save.pipelines[0];
 	//Preparations for audio
 	NONS_Audio *au=this->audio;
-	au->stopAllSound();
+	au->stop_all_sound();
 	out->ephemeralOut(out->currentBuffer,0,0,1,0);
 	{
 		ulong w=(ulong)scr->screen->inRect.w,
@@ -2102,15 +2176,15 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	if (save.musicTrack>=0){
 		std::wstring temp=L"track";
 		temp+=itoaw(save.musicTrack,2);
-		au->playMusic(&temp,save.loopMp3?-1:0);
+		au->play_music(temp,save.loopMp3?-1:0);
 	}else if (save.music.size())
-		this->audio->playMusic(&save.music,save.loopMp3?-1:0);
-	au->musicVolume(save.musicVolume);
+		this->audio->play_music(save.music,save.loopMp3?-1:0);
+	au->music_volume(save.musicVolume);
 	for (ushort a=0;a<save.channels.size();a++){
 		NONS_SaveFile::Channel *c=save.channels[a];
 		if (!c->name.size())
 			continue;
-		au->playSoundAsync(&c->name,a,c->loop?-1:0);
+		au->play_sound(c->name,a,c->loop?-1:0,1);
 	}
 	if (this->loadgosub.size())
 		this->gosub_label(this->loadgosub);
@@ -2299,26 +2373,23 @@ bool NONS_ScriptInterpreter::save(int file){
 	}
 	{
 		NONS_Audio *au=this->audio;
-		if (!Mix_PlayingMusic()){
-			this->saveGame->musicTrack=-1;
-			this->saveGame->music.clear();
-		}else
+		channel_listing cl;
+		au->get_channel_listing(cl);
+		if (cl.music.filename.size())
 			this->saveGame->loopMp3=this->mp3_loop;
-		int vol=au->musicVolume(-1);
-		this->saveGame->musicVolume=vol<0?100:vol;
-		if (au->isInitialized()){
-			NONS_MutexLocker ml(au->soundcache->mutex);
-			for (std::list<NONS_SoundEffect *>::iterator i=au->soundcache->channelWatch.begin();i!=au->soundcache->channelWatch.end();i++){
-				NONS_SoundEffect *ch=*i;
-				if (!ch || !ch->sound || !ch->isplaying)
-					continue;
-				NONS_SaveFile::Channel *cha=new NONS_SaveFile::Channel();
-				cha->name=ch->sound->name;
-				cha->loop=!!ch->loops;
-				if (ch->channel>=ch->channel)
-					this->saveGame->channels.resize(ch->channel+1,0);
-				this->saveGame->channels[ch->channel]=cha;
-			}
+		this->saveGame->musicVolume=this->audio->music_volume(-1);
+		this->saveGame->channels.clear();
+		typedef std::map<int,channel_listing::channel> map_t;
+		for (map_t::iterator i=cl.sounds.begin(),e=cl.sounds.end();i!=e;++i){
+			if (i->second.loop>=0)
+				continue;
+			NONS_SaveFile::Channel *ch=new NONS_SaveFile::Channel();
+			ch->name=i->second.filename;
+			ch->loop=1;
+			ch->volume=i->second.volume;
+			if ((size_t)i->first>=this->saveGame->channels.size())
+				this->saveGame->channels.resize(i->first+1,0);
+			this->saveGame->channels[i->first]=ch;
 		}
 	}
 	bool ret=this->saveGame->save(save_directory+L"save"+itoaw(file)+L".dat");
@@ -2549,6 +2620,7 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	NONS_ScreenSpace *scr=this->screen;
 	long color=0;
 	scr->hideTextWindow();
+	ErrorCode ret=NONS_NO_ERROR;
 	if (!stdStrCmpCI(stmt.parameters[0],L"white")){
 		scr->Background->setShade(NONS_Color::white);
 		scr->Background->Clear();
@@ -2561,10 +2633,14 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	}else{
 		std::wstring filename;
 		GET_STR_VALUE(filename,0);
+		if (!general_archive.exists(filename))
+			return NONS_FILE_NOT_FOUND;
 		if (scr->Background)
 			scr->Background->load(&filename);
 		else
 			scr->Background=new NONS_Layer(&filename);
+		if (!scr->Background->data)
+			ret=NONS_UNDEFINED_ERROR;
 		NONS_LongRect rect=NONS_LongRect(scr->screen->inRect);
 		scr->Background->position.x=(rect.w-scr->Background->clip_rect.w)/2;
 		scr->Background->position.y=(rect.h-scr->Background->clip_rect.h)/2;
@@ -2573,16 +2649,18 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	CHECK_POINTER_AND_CALL(scr->rightChar,unload());
 	CHECK_POINTER_AND_CALL(scr->centerChar,unload());
 	long number,duration;
-	ErrorCode ret;
 	GET_INT_VALUE(number,1);
+	ErrorCode error;
 	if (stmt.parameters.size()>2){
 		std::wstring rule;
 		GET_INT_VALUE(duration,2);
 		if (stmt.parameters.size()>3)
 			GET_STR_VALUE(rule,3);
-		ret=scr->BlendNoCursor(number,duration,&rule);
+		error=scr->BlendNoCursor(number,duration,&rule);
 	}else
-		ret=scr->BlendNoCursor(number);
+		error=scr->BlendNoCursor(number);
+	if (ret==NONS_NO_ERROR)
+		ret=error;
 	return ret;
 }
 
@@ -2817,8 +2895,7 @@ ErrorCode NONS_ScriptInterpreter::command_chvol(NONS_Statement &stmt){
 		volume;
 	GET_INT_VALUE(channel,0);
 	GET_INT_VALUE(volume,1);
-	NONS_Audio::set_channel_volume(channel,volume);
-	Mix_Volume(channel,volume);
+	this->audio->channel_volume(channel,volume);
 	return NONS_NO_ERROR;
 }
 
@@ -3240,49 +3317,47 @@ ErrorCode NONS_ScriptInterpreter::command_dwave(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	if (channel<0 || channel>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
 	std::wstring name;
 	GET_STR_VALUE(name,1);
 	tolower(name);
 	toforwardslash(name);
 	long loop=!stdStrCmpCI(stmt.commandName,L"dwave")?0:-1;
-	return this->audio->playSoundAsync(&name,channel,loop);
+	return this->audio->play_sound(name,channel,loop,0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwaveload(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
-	long channel;
-	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	long chan;
+	GET_INT_VALUE(chan,0);
+	if (chan<0 || chan>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
 	std::wstring name;
 	GET_STR_VALUE(name,1);
 	tolower(name);
 	toforwardslash(name);
-	ErrorCode error=NONS_NO_ERROR;
-	if (!this->audio->bufferIsLoaded(name))
-		this->audio->loadAsyncBuffer(name,channel);
-	return error;
+	int channel=chan;
+	return this->audio->load_sound_on_a_channel(name,channel,1);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwaveplay(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	if (channel<0 || channel>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
 	long loop=!stdStrCmpCI(stmt.commandName,L"dwaveplay")?0:-1;
-	return this->audio->playSoundAsync(0,channel,loop);
+	return this->audio->play(channel,loop,0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_dwavestop(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long channel;
 	GET_INT_VALUE(channel,0);
-	if (channel<0 || channel>49)
+	if (channel<0 || channel>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
-	return this->audio->stopSoundAsync(channel);
+	return this->audio->stop_sound(channel);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_effect(NONS_Statement &stmt){
@@ -3512,7 +3587,7 @@ ErrorCode NONS_ScriptInterpreter::command_getmp3vol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *dst;
 	GET_INT_VARIABLE(dst,0);
-	dst->set(this->audio->musicVolume(-1));
+	dst->set(this->audio->music_volume(-1));
 	return NONS_NO_ERROR;
 }
 
@@ -3609,7 +3684,7 @@ ErrorCode NONS_ScriptInterpreter::command_getsevol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	NONS_VariableMember *dst;
 	GET_INT_VARIABLE(dst,0);
-	dst->set(this->audio->soundVolume(-1));
+	dst->set(this->audio->sound_volume(-1));
 	return NONS_NO_ERROR;
 }
 
@@ -4351,10 +4426,10 @@ ErrorCode NONS_ScriptInterpreter::command_mp3fadeout(NONS_Statement &stmt){
 	long ms;
 	GET_INT_VALUE(ms,0);
 	if (ms<25){
-		this->audio->stopMusic();
+		this->audio->stop_music();
 		return NONS_NO_ERROR;
 	}
-	float original_vol=(float)this->audio->musicVolume(-1);
+	float original_vol=(float)this->audio->music_volume(-1);
 	float advance=original_vol/(float(ms)/25.0f);
 	float current_vol=original_vol;
 	while (current_vol>0){
@@ -4362,10 +4437,10 @@ ErrorCode NONS_ScriptInterpreter::command_mp3fadeout(NONS_Statement &stmt){
 		current_vol-=advance;
 		if (current_vol<0)
 			current_vol=0;
-		this->audio->musicVolume((int)current_vol);
+		this->audio->music_volume((int)current_vol);
 	}
-	HANDLE_POSSIBLE_ERRORS(this->audio->stopMusic());
-	this->audio->musicVolume((int)original_vol);
+	HANDLE_POSSIBLE_ERRORS(this->audio->stop_music());
+	this->audio->music_volume((int)original_vol);
 	return NONS_NO_ERROR;
 }
 
@@ -4373,7 +4448,7 @@ ErrorCode NONS_ScriptInterpreter::command_mp3vol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long vol;
 	GET_INT_VALUE(vol,0);
-	this->audio->musicVolume(vol);
+	this->audio->music_volume(vol);
 	return NONS_NO_ERROR;
 }
 
@@ -4514,12 +4589,12 @@ ErrorCode NONS_ScriptInterpreter::command_play(NONS_Statement &stmt){
 		int track=atoi(name.substr(1));
 		std::wstring temp=L"track";
 		temp+=itoaw(track,2);
-		error=this->audio->playMusic(&temp,this->mp3_loop?-1:0);
+		error=this->audio->play_music(temp,this->mp3_loop?-1:0);
 		if (error==NONS_NO_ERROR)
 			this->saveGame->musicTrack=track;
 		else
 			this->saveGame->musicTrack=-1;
-	}else if ((error=this->audio->playMusic(&name,this->mp3_loop?-1:0))==NONS_NO_ERROR)
+	}else if ((error=this->audio->play_music(name,this->mp3_loop?-1:0))==NONS_NO_ERROR)
 		this->saveGame->music=name;
 	else
 		this->saveGame->music.clear();
@@ -4529,7 +4604,7 @@ ErrorCode NONS_ScriptInterpreter::command_play(NONS_Statement &stmt){
 ErrorCode NONS_ScriptInterpreter::command_playstop(NONS_Statement &stmt){
 	this->mp3_loop=0;
 	this->mp3_save=0;
-	return this->audio->stopMusic();
+	return this->audio->stop_music();
 }
 
 ErrorCode NONS_ScriptInterpreter::command_pretextgosub(NONS_Statement &stmt){
@@ -4612,7 +4687,7 @@ ErrorCode NONS_ScriptInterpreter::command_reset(NONS_Statement &stmt){
 	delete this->gfx_store;
 	this->gfx_store=new NONS_GFXstore();
 	this->screen->gfx_store=this->gfx_store;
-	this->audio->stopAllSound();
+	this->audio->stop_all_sound();
 	return NONS_NO_ERROR;
 }
 
@@ -5131,7 +5206,7 @@ ErrorCode NONS_ScriptInterpreter::command_sevol(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	long vol;
 	GET_INT_VALUE(vol,0);
-	this->audio->soundVolume(vol);
+	this->audio->sound_volume(vol);
 	return NONS_NO_ERROR;
 }
 
@@ -5262,7 +5337,7 @@ ErrorCode NONS_ScriptInterpreter::command_stop(NONS_Statement &stmt){
 	this->mp3_loop=0;
 	this->mp3_save=0;
 	this->wav_loop=0;
-	return this->audio->stopAllSound();
+	return this->audio->stop_all_sound();
 }
 
 ErrorCode NONS_ScriptInterpreter::command_strip_format(NONS_Statement &stmt){
@@ -5625,15 +5700,13 @@ ErrorCode NONS_ScriptInterpreter::command_wave(NONS_Statement &stmt){
 	GET_STR_VALUE(name,0);
 	tolower(name);
 	toforwardslash(name);
-	ErrorCode error;
 	this->wav_loop=!!stdStrCmpCI(stmt.commandName,L"wave");
-	error=this->audio->playSoundAsync(&name,0,this->wav_loop?-1:0);
-	return error;
+	return this->audio->play_sound(name,0,this->wav_loop?-1:0,!this->wav_loop);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_wavestop(NONS_Statement &stmt){
 	this->wav_loop=0;
-	return this->audio->stopSoundAsync(0);
+	return this->audio->stop_sound(0);
 }
 
 ErrorCode NONS_ScriptInterpreter::command_windoweffect(NONS_Statement &stmt){

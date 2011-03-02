@@ -73,12 +73,16 @@ Uint32 CRC32::CRC32lookup[]={
 	0xB3667A2E,0xC4614AB8,0x5D681B02,0x2A6F2B94,0xB40BBE37,0xC30C8EA1,0x5A05DF1B,0x2D02EF8D
 };
 
+
+
 template <typename T>
 inline size_t find_slash(const std::basic_string<T> &str,size_t off=0){
-	size_t r=str.find('/',off);
-	if (r==str.npos)
-		r=str.find('\\',off);
-	return r;
+	const T *p=&str[0];
+	size_t n=str.size();
+	for (size_t a=off;a<n;a++)
+		if (p[a]=='/' || p[a]=='\\')
+			return a;
+	return str.npos;
 }
 
 //------------------------------------------------------------------------------
@@ -149,11 +153,13 @@ int decompress_to_file::out_f(void *p,unsigned char *buffer,unsigned size){
 }
 
 int decompress_to_memory::out_f(void *p,unsigned char *buffer,unsigned size){
-	Uint64 &limit=((decompress_to_file *)p)->output_limit;
+	decompress_to_memory *_this=(decompress_to_memory *)p;
+	Uint64 &limit=_this->output_limit;
 	if (size>limit)
 		size=(unsigned)limit;
-	memcpy(((decompress_to_memory *)p)->buffer,buffer,size);
+	memcpy(_this->buffer,buffer,size);
 	limit-=size;
+	_this->buffer=(uchar *)_this->buffer+size;
 	return 0;
 }
 
@@ -400,7 +406,7 @@ bool decompress_file_to_file(
 }
 
 template <typename T>
-bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const T &data,const std::wstring &name){
+bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const T &data,const std::wstring &name,Uint64 offset=0){
 	decompression_f f=select_function(data.compression);
 	if (!f){
 		o_stderr <<"Unsupported compression method used for "<<name<<".\n";
@@ -410,6 +416,7 @@ bool decompress_file_to_memory(void *dst,Archive *a,TreeNode *n,const T &data,co
 	decompress_to_memory dtm;
 	dff.archive=a;
 	dff.node=n;
+	dff.offset=offset;
 	dtm.buffer=dst;
 	dtm.output_limit=data.uncompressed;
 	if (!f(&dtm,&dff)){
@@ -485,7 +492,7 @@ TreeNode::~TreeNode(){
 }
 
 TreeNode *TreeNode::get_branch(const std::wstring &_path,bool create){
-	if (_path[0]=='/' || _path[0]=='\\')
+	if (!_path.size() || _path[0]=='/' || _path[0]=='\\')
 		//Path is absolute and to a file in the file system. Do nothing.
 		return 0;
 	TreeNode *_this=this;
@@ -603,7 +610,7 @@ NSAarchive::NSAarchive(const std::wstring &path,bool nsa)
 			extraData.compression=(NSAdata::compression_type)readByte(buffer,offset);
 		else
 			extraData.compression=NSAdata::COMPRESSION_NONE;
-		extraData.offset=file_data_start+readBigEndian(4,buffer,offset);
+		extraData.data_offset=file_data_start+readBigEndian(4,buffer,offset);
 		extraData.compressed=readBigEndian(4,buffer,offset);
 		if (nsa)
 			extraData.uncompressed=readBigEndian(4,buffer,offset);
@@ -721,7 +728,7 @@ bool NSAarchive::read_raw_bytes(void *dst,size_t read_bytes,size_t &bytes_read,T
 		bytes_read=0;
 		return 1;
 	}
-	offset+=nd.offset;
+	offset+=nd.data_offset;
 	this->file.read(dst,read_bytes,bytes_read,offset);
 	return 1;
 }
@@ -1184,20 +1191,21 @@ ZIParchive::SignatureType ZIParchive::getSignatureType(void *buffer){
 	return ZIParchive::NOT_A_SIGNATURE;
 }
 
+static const wchar_t *formats[]={
+	L".sar",
+	L".nsa",
+	L".zip",
+	L".oaf",
+	0
+};
+
 void NONS_GeneralArchive::init(){
 	std::wstring path;
 	if (CLOptions.archiveDirectory.size())
 		path=CLOptions.archiveDirectory+L"/";
 	else
 		path=L"./";
-	const wchar_t *base=L"arc",
-		*formats[]={
-			L".sar",
-			L".nsa",
-			L".zip",
-			L".oaf",
-			0
-		};
+	const wchar_t *base=L"arc";
 	this->archives.push_back(&filesystem);
 	for (ulong a=ULONG_MAX;;a++){
 		std::wstring full_name;
@@ -1225,27 +1233,48 @@ void NONS_GeneralArchive::init(){
 				continue;
 			format=0;
 		}
-		NONS_ArchiveSource *ds=0;
-		switch (format){
-			case 0:
-				ds=new NONS_nsaArchiveSource(full_name,0);
-				break;
-			case 1:
-				ds=new NONS_nsaArchiveSource(full_name,1);
-				break;
-			case 2:
-			case 3:
-				ds=new NONS_zipArchiveSource(full_name);
-				break;
-		}
-		if (ds->good())
-			this->archives.push_back(ds);
-		else{
-			delete ds;
-			std::cout <<"Archive "<<full_name<<" is invalid."<<std::endl;
-		}
+		this->addArchive_private(full_name,format);
+
 	}
 	std::reverse(this->archives.begin(),this->archives.end());
+}
+
+bool NONS_GeneralArchive::addArchive_private(const std::wstring &path,int format){
+	NONS_MutexLocker ml(this->mutex);
+	bool reverse=0;
+	if (format<0){
+		reverse=1;
+		for (int a=0;format<0 && formats[a];a++)
+			if (ends_with(path,(std::wstring)formats[a]))
+				format=a;
+		if (format<0)
+			return 0;
+		std::reverse(this->archives.begin(),this->archives.end());
+	}
+	NONS_ArchiveSource *ds=0;
+	switch (format){
+		case 0:
+			ds=new NONS_nsaArchiveSource(path,0);
+			break;
+		case 1:
+			ds=new NONS_nsaArchiveSource(path,1);
+			break;
+		case 2:
+		case 3:
+			ds=new NONS_zipArchiveSource(path);
+			break;
+	}
+	bool r=ds->good();
+	if (r)
+		this->archives.push_back(ds);
+	else{
+		delete ds;
+		if (!reverse)
+			o_stderr <<"Archive "<<path<<" is invalid.\n";
+	}
+	if (reverse)
+		std::reverse(this->archives.begin(),this->archives.end());
+	return r;
 }
 
 NONS_GeneralArchive::~NONS_GeneralArchive(){
@@ -1259,6 +1288,7 @@ NONS_GeneralArchive::~NONS_GeneralArchive(){
 }
 
 uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem){
+	NONS_MutexLocker ml(this->mutex);
 	uchar *res=0;
 	size_t end=this->archives.size();
 	if (!use_filesystem)
@@ -1268,27 +1298,34 @@ uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &b
 	return res;
 }
 
-NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path){
+NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path,bool keep_in_memory){
+	NONS_MutexLocker ml(this->mutex);
 	for (size_t a=0;a<this->archives.size();a++){
-		NONS_DataStream *stream=this->archives[a]->open(path);
+		NONS_DataStream *stream=this->archives[a]->open(path,keep_in_memory);
 		if (stream)
 			return stream;
 	}
+	if (CLOptions.verbosity>=VERBOSITY_LOG_OPEN_FAILURES)
+		o_stderr <<"NONS_GeneralArchive::open(): Failed to open stream to \""<<path<<"\".\n";
 	return 0;
 }
 
 bool NONS_GeneralArchive::close(NONS_DataStream *stream){
+	NONS_MutexLocker ml(this->mutex);
 	if (stream){
 		for (size_t a=0;a<this->archives.size();a++)
 			if (this->archives[a]->close(stream))
 				return 1;
+		if (memoryFS.close(stream))
+			return 1;
 	}
 	return 0;
 }
 
-bool NONS_GeneralArchive::exists(const std::wstring &filepath){
+bool NONS_GeneralArchive::exists(const std::wstring &path){
+	NONS_MutexLocker ml(this->mutex);
 	for (size_t a=0;a<this->archives.size();a++)
-		if (this->archives[a]->exists(filepath))
+		if (this->archives[a]->exists(path))
 			return 1;
 	return 0;
 }
@@ -1338,7 +1375,8 @@ bool NONS_ArchiveSource::exists(const std::wstring &name){
 //NONS_nsaArchiveSource
 //------------------------------------------------------------------------------
 
-NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
+NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name,bool keep_in_memory){
+	NONS_DataStream *stream;
 	NONS_nsaArchiveStream *p=new NONS_nsaArchiveStream(*this,name);
 	TreeNode *node=p->get_node();
 	if (!node){
@@ -1348,6 +1386,7 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 	NSAdata data=NSAarchive::derefED(node->extraData);
 	if (data.compression!=NSAdata::COMPRESSION_NONE){
 		delete p;
+		stream=0;
 		std::wstring path=filesystem.new_temp_name();
 		Uint64 offset=0;
 		switch (data.compression){
@@ -1356,23 +1395,33 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name){
 			case NSAdata::COMPRESSION_DEFLATE:
 				{
 					Uint32 a=0;
-					decompress_file_to_file(path,this->archive,node,data,name,a,offset);
+					if (!keep_in_memory)
+						decompress_file_to_file(path,this->archive,node,data,name,a,offset);
+					else{
+						std::vector<uchar> temp(data.uncompressed);
+						decompress_file_to_memory(&temp[0],this->archive,node,data,name,offset);
+						stream=memoryFS.new_temporary_file(&temp[0],temp.size());
+					}
 				}
 				break;
 			default:
 				{
 					size_t l;
 					uchar *decompressed=this->read_all(node,l);
-					NONS_File::write(path,decompressed,l);
+					if (!keep_in_memory)
+						NONS_File::write(path,decompressed,l);
+					else
+						stream=memoryFS.new_temporary_file(decompressed,data.uncompressed);
 					delete[] decompressed;
 				}
 				break;
 		}
-		NONS_DataStream *stream=filesystem.new_temporary_file(path);
+		if (!stream)
+			stream=filesystem.new_temporary_file(path);
 		assert(!!stream);
-		return NONS_DataSource::open(stream,normalize_path(this->archive->path+L"/"+name));
-	}
-	return NONS_DataSource::open(p,normalize_path(this->archive->path+L"/"+name));
+	}else
+		stream=p;
+	return NONS_DataSource::open(stream,normalize_path(this->archive->path+L"/"+name));
 }
 
 NONS_nsaArchiveSource::NONS_nsaArchiveSource(const std::wstring &name,bool nsa){
@@ -1443,7 +1492,7 @@ Uint32 crc32_from_stream(NONS_DataStream *stream){
 	return crc32.Result();
 }
 
-NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
+NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name,bool keep_in_memory){
 	NONS_DataStream *stream;
 	NONS_zipArchiveStream *p=new NONS_zipArchiveStream(*this,name);
 	stream=p;
@@ -1457,15 +1506,24 @@ NONS_DataStream *NONS_zipArchiveSource::open(const std::wstring &name){
 	Uint32 crc32=1;
 	if (data.compression!=ZIPdata::COMPRESSION_NONE){
 		delete p;
-		std::wstring path=filesystem.new_temp_name();
-		decompress_file_to_file(path,this->archive,node,data,name,crc32);
-		stream=filesystem.new_temporary_file(path);
+		if (!keep_in_memory){
+			std::wstring path=filesystem.new_temp_name();
+			decompress_file_to_file(path,this->archive,node,data,name,crc32);
+			stream=filesystem.new_temporary_file(path);
+		}else{
+			std::vector<uchar> temp((size_t)data.uncompressed);
+			decompress_file_to_memory(&temp[0],this->archive,node,data,name);
+			stream=memoryFS.new_temporary_file(&temp[0],temp.size());
+			CRC32 crc_temp;
+			crc_temp.Input(&temp[0],temp.size());
+			crc32=crc_temp.Result();
+		}
 		assert(!!stream);
 	}else if (!skip_crc)
 		crc32=crc32_from_stream(stream);
 	if (!skip_crc && crc32!=data.crc32){
-		delete stream;
 		o_stderr <<"File "<<name<<" did not pass CRC32 test.\n";
+		delete stream;
 		return 0;
 	}
 	return NONS_DataSource::open(stream,normalize_path(this->archive->path+L"/"+name));

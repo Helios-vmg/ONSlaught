@@ -270,8 +270,7 @@ public:
 	NONS_ConstSurface &operator=(const NONS_ConstSurface &);
 	virtual ~NONS_ConstSurface();
 	//Returns whether the object points to something valid.
-	bool good() const{ return !!this->data; }
-	operator bool() const{ return this->good(); }
+	operator bool() const{ return !!this->data; }
 	//Invalidates the object. The pointed surface's reference count gets
 	//decremented.
 	void unbind();
@@ -310,7 +309,7 @@ class NONS_DECLSPEC NONS_Surface:public NONS_ConstSurface{
 public:
 	static const NONS_Surface null;
 	NONS_Surface(){}
-	NONS_Surface(const NONS_Surface &a){
+	NONS_Surface(const NONS_Surface &a):NONS_ConstSurface(){
 		this->data=0;
 		*this=a;
 	}

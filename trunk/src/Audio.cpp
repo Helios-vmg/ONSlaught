@@ -33,454 +33,297 @@
 #include "Archive.h"
 #include <iostream>
 
-NONS_SoundCache::NONS_SoundCache(){
-	this->kill_thread=0;
-	this->thread.call(member_bind(&NONS_SoundCache::GarbageCollector,this));
-}
-
-NONS_SoundCache::~NONS_SoundCache(){
-	this->kill_thread=1;
-	this->thread.join();
-	for (cache_map_t::iterator i=this->cache.begin();i!=this->cache.end();i++)
-		delete i->second;
-}
-
-//Sound effects stay in the cache for this amount of seconds
-#define SE_EXPIRATION_TIME 60
-
-void NONS_SoundCache::GarbageCollector(){
-	NONS_EventQueue queue;
-	while (!this->kill_thread){
-		{
-			NONS_MutexLocker ml(this->mutex);
-			if (!this->cache.empty()){
-				ulong now=secondsSince1970();
-				for (cache_map_t::iterator i=this->cache.begin();i!=this->cache.end();){
-					if (!i->second->references){
-						i->second->references=-1;
-						i->second->lastused=now;
-						i++;
-					}else if (i->second->references<0 && now-i->second->lastused>SE_EXPIRATION_TIME){
-						if (CLOptions.verbosity>=255)
-							std::cout <<"At "<<now<<" removed "<<i->second->chunk<<" ("<<UniToUTF8(i->first)<<")"<<std::endl;
-						delete i->second;
-						this->cache.erase(i);
-						if (CLOptions.verbosity>=255)
-							std::cout <<"Currently in cache: "<<this->cache.size()<<" items."<<std::endl;
-						i=this->cache.begin();
-					}else
-						i++;
-				}
-				for (ulong a=0;this->channelWatch.size()>0 && a<10;a++){
-					std::list<NONS_SoundEffect *>::iterator i2=this->channelWatch.begin();
-					for (;i2!=this->channelWatch.end();){
-						if (!Mix_Playing((*i2)->channel) && (*i2)->playingHasStarted){
-							if (CLOptions.verbosity>=255)
-								std::cout <<"At "<<now<<" stopped "<<*i2<<" ("<<(*i2)->path<<")\n"
-									"    cache item "<<(*i2)->sound->chunk<<"\n"
-									"    on channel "<<(*i2)->channel<<std::endl;
-							(*i2)->unload();
-							this->channelWatch.erase(i2);
-							i2=this->channelWatch.begin();
-						}else
-							i2++;
-					}
-				}
-			}
-			bool justreported=0;
-			while (!queue.empty()){
-				SDL_Event event=queue.pop();
-				if (!justreported && event.type==SDL_KEYDOWN && event.key.keysym.sym==SDLK_F11){
-					if (CLOptions.verbosity>=255)
-						std::cout <<"Currently in cache: "<<this->cache.size()<<" items."<<std::endl;
-					justreported=1;
-				}
-			}
-		}
-		SDL_Delay(100);
-	}
-}
-
-NONS_CachedSound *NONS_SoundCache::checkSound(const std::wstring &filename){
-	NONS_MutexLocker ml(this->mutex);
-	if (this->cache.empty())
-		return 0;
-	cache_map_t::iterator i=this->cache.find(filename);
-	if (i==this->cache.end())
-		return 0;
-	return i->second;
-}
-
-NONS_CachedSound *NONS_SoundCache::getSound(const std::wstring &filename){
-	NONS_MutexLocker ml(this->mutex);
-	NONS_CachedSound *res=this->checkSound(filename);
-	if (!res)
-		return 0;
-	if (res->references>=0)
-		res->references++;
-	else
-		res->references=1;
-	return res;
-}
-
-NONS_CachedSound *NONS_SoundCache::newSound(const std::wstring &filename){
-	NONS_MutexLocker ml(this->mutex);
-	if (NONS_CachedSound *ret=this->getSound(filename))
-		return ret;
-	NONS_DataStream *stream=general_archive.open(filename);
-	if (!stream)
-		return 0;
-	SDL_RWops rwops=stream->to_rwops();
-	NONS_CachedSound *a=new NONS_CachedSound(rwops);
-	general_archive.close(stream);
-	std::wstring temp=filename;
-	toforwardslash(temp);
-	a->name=temp;
-	this->cache[temp]=a;
-	return a;
-}
-
-NONS_CachedSound::NONS_CachedSound(SDL_RWops &rwops){
-	this->chunk=Mix_LoadWAV_RW(&rwops,0);
-	this->references=1;
-	this->lastused=secondsSince1970();
-}
-
-NONS_CachedSound::~NONS_CachedSound(){
-	Mix_FreeChunk(this->chunk);
-}
-
-NONS_SoundEffect::NONS_SoundEffect(int chan){
-	this->channel=chan;
-	this->sound=0;
-	this->playingHasStarted=0;
-	this->isplaying=0;
-	this->loops=0;
-}
-
-NONS_SoundEffect::~NONS_SoundEffect(){
-	if (this->sound)
-		this->sound->references--;
-}
-
-void NONS_SoundEffect::play(bool synchronous,long times){
-	this->stop();
-	Mix_PlayChannel(this->channel,this->sound->chunk,times);
-	this->playingHasStarted=1;
-	this->isplaying=1;
-	this->loops=times;
-}
-
-void NONS_SoundEffect::stop(){
-	if (Mix_Playing(this->channel))
-		Mix_HaltChannel(this->channel);
-	this->isplaying=0;
-}
-
-bool NONS_SoundEffect::loaded(){
-	return !!this->sound;
-}
-
-void NONS_SoundEffect::load(NONS_CachedSound *sound){
-	this->unload();
-	this->sound=sound;
-	this->playingHasStarted=0;
-}
-
-void NONS_SoundEffect::unload(){
-	if (this->loaded()){
-		this->stop();
-		this->sound->references--;
-		this->sound=0;
-		this->playingHasStarted=0;
-	}
-}
-
-int NONS_SoundEffect::volume(int vol){
-	NONS_Audio::set_channel_volume(this->channel,vol);
-	return NONS_Audio::set_channel_volume(this->channel,-1);
-}
-
-NONS_Music::NONS_Music(const std::wstring &filename){
-	this->stream=general_archive.open(filename);
-	this->data=0;
-	if (!stream)
-		return;
-	//keep the SDL_RWops to keep SDL_mixer from killing itself
-	this->rwops=this->stream->to_rwops();
-	this->data=Mix_LoadMUS_RW(&rwops);
-	this->filename=filename;
-}
-
-NONS_Music::~NONS_Music(){
-	this->stop();
-	if (this->data)
-		Mix_FreeMusic(this->data);
-	general_archive.close(stream);
-}
-
-void NONS_Music::play(long times){
-	if (Mix_PlayingMusic())
-		return;
-	Mix_PlayMusic(this->data,times);
-}
-
-void NONS_Music::stop(){
-	if (Mix_PlayingMusic() || Mix_PausedMusic())
-		Mix_HaltMusic();
-}
-
-void NONS_Music::pause(){
-	if (Mix_PlayingMusic() && !Mix_PausedMusic())
-		Mix_PauseMusic();
-	else
-		Mix_ResumeMusic();
-}
-
-bool NONS_Music::loaded(){
-	return this->data!=0;
-}
-
-int NONS_Music::volume(int vol){
-	Mix_VolumeMusic(vol);
-	return Mix_VolumeMusic(-1);
-}
-
-bool NONS_Music::is_playing(){
-	return !!Mix_PlayingMusic();
-}
+#define NONS_Audio_FOREACH() for (chan_t::iterator i=this->channels.begin(),e=this->channels.end();i!=e;++i)
 
 NONS_Audio::NONS_Audio(const std::wstring &musicDir){
-	this->music=0;
+	this->notmute=0;
+	this->uninitialized=1;
 	if (CLOptions.no_sound){
-		this->uninitialized=1;
-		this->soundcache=0;
-		this->soundcache=0;
-		this->notmute=0;
-		this->mvol=0;
-		this->svol=0;
+		this->dev=0;
 		return;
 	}
-	Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,4096*(CLOptions.use_long_audio_buffers?4:1));
-	Mix_AllocateChannels(50);
-	if (!musicDir.size())
-		this->musicDir=L"./CD";
-	else
-		this->musicDir=musicDir;
-	this->musicFormat=CLOptions.musicFormat;
-	this->soundcache=new NONS_SoundCache();
-	this->mvol=100;
-	this->svol=100;
-	this->notmute=1;
+	this->dev=new audio_device;
+	if (!*this->dev){
+		delete this->dev;
+		this->dev=0;
+		return;
+	}
 	this->uninitialized=0;
+	this->notmute=1;
+	if (!musicDir.size())
+		this->music_dir=L"./CD";
+	else
+		this->music_dir=musicDir;
+	this->music_format=CLOptions.musicFormat;
+	this->channel_counter=initial_channel_counter;
+	this->mvol=this->svol=1.f;
+	this->stop_thread=0;
+	this->thread.call(member_bind(&NONS_Audio::update_thread,this),1);
 }
 
 NONS_Audio::~NONS_Audio(){
 	if (this->uninitialized)
 		return;
-	this->stopAllSound();
-	if (this->music)
-		delete this->music;
-	delete this->soundcache;
-	for (channels_map_t::iterator i=this->asynchronous_seffect.begin();i!=this->asynchronous_seffect.end();i++)
-		delete i->second;
-	Mix_CloseAudio();
+	this->stop_thread=1;
+	this->thread.join();
+	delete this->dev;
 }
 
-void NONS_Audio::freeCacheElement(int channel){
-	if (this->uninitialized)
-		return;
-	channels_map_t::iterator i=this->asynchronous_seffect.find(channel);
-	if (i==this->asynchronous_seffect.end() || !i->second)
-		return;
-	i->second->sound->references--;
-	i->second->unload();
+void NONS_Audio::update_thread(){
+	while (!this->stop_thread){
+		{
+			NONS_MutexLocker ml(this->mutex);
+			this->dev->update();
+		}
+		SDL_Delay(10);
+	}
+}
+
+audio_stream *NONS_Audio::get_channel(int channel){
+	NONS_MutexLocker ml(this->mutex);
+	chan_t::iterator i=this->channels.find(channel);
+	return (i==this->channels.end())?0:i->second;
 }
 
 extern const wchar_t *sound_formats[];
 
-ErrorCode NONS_Audio::playMusic(const std::wstring *filename,long times){
+ErrorCode NONS_Audio::play_music(const std::wstring &filename,long times){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	if (!filename){
-		if (!this->music)
-			return NONS_NO_MUSIC_LOADED;
-		this->music->play(times);
-		return NONS_NO_ERROR;
-	}else{
-		std::wstring temp;
-		if (this->music){
-			this->music->stop();
-			delete this->music;
+	const int channel=NONS_Audio::music_channel;
+	std::wstring temp;
+	if (!this->music_format.size()){
+		ulong a=0;
+		while (1){
+			if (!sound_formats[a])
+				break;
+			temp=this->music_dir+L"/"+filename+L"."+sound_formats[a];
+			if (general_archive.exists(temp))
+				break;
+			a++;
 		}
-		if (!this->musicFormat.size()){
-			ulong a=0;
-			while (1){
-				if (!sound_formats[a])
-					break;
-				temp=this->musicDir+L"/"+*filename+L"."+sound_formats[a];
-				if (general_archive.exists(temp))
-					break;
-				a++;
-			}
-		}else
-			temp=this->musicDir+L"/"+*filename+L"."+this->musicFormat;
-		if (!general_archive.exists(temp) && !general_archive.exists(temp=*filename))
-			return NONS_FILE_NOT_FOUND;
-		this->music=new NONS_Music(temp);
-		if (!this->music->loaded()){
-			o_stderr <<Mix_GetError()<<"\n";
-			return NONS_UNDEFINED_ERROR;
-		}
-		return this->playMusic(0,times);
-	}
-}
+	}else
+		temp=this->music_dir+L"/"+filename+L"."+this->music_format;
+	if (!general_archive.exists(temp) && !general_archive.exists(temp=filename))
+		return NONS_FILE_NOT_FOUND;
 
-ErrorCode NONS_Audio::stopMusic(){
-	if (this->uninitialized)
-		return NONS_NO_ERROR;
-	if (this->music){
-		this->music->stop();
-		return NONS_NO_ERROR;
-	}
-	return NONS_NO_MUSIC_LOADED;
-}
-
-ErrorCode NONS_Audio::pauseMusic(){
-	if (this->uninitialized)
-		return NONS_NO_ERROR;
-	if (this->music){
-		this->music->pause();
-		return NONS_NO_ERROR;
-	}
-	return NONS_NO_MUSIC_LOADED;
-}
-
-ErrorCode NONS_Audio::playSoundAsync(const std::wstring *filename,int channel,long times){
-	if (this->uninitialized)
-		return NONS_NO_ERROR;
-	if (!filename){
-		NONS_SoundEffect *se=this->asynchronous_seffect[channel];
-		if (!se || !se->loaded())
-			return NONS_NO_SOUND_EFFECT_LOADED;
-		if (this->notmute)
-			se->volume(this->svol);
-		else
-			se->volume(0);
-		if (CLOptions.verbosity>=255)
-			std::cout <<"At "<<secondsSince1970()<<" started "<<se<<" ("<<se->path<<")\n"
-				"    cache item "<<se->sound->chunk<<"\n"
-				"    on channel "<<se->channel<<std::endl;
-		se->play(0,times);
-		{
-			NONS_MutexLocker(this->soundcache->mutex);
-			this->soundcache->channelWatch.push_back(se);
-		}
-		return NONS_NO_ERROR;
-	}else{
-		HANDLE_POSSIBLE_ERRORS(this->loadAsyncBuffer(*filename,channel));
-		return this->playSoundAsync(0,channel,times);
-	}
-}
-
-ErrorCode NONS_Audio::stopSoundAsync(int channel){
-	if (this->uninitialized)
-		return NONS_NO_ERROR;
-	std::map<int,NONS_SoundEffect *>::iterator i=this->asynchronous_seffect.find(channel);
-	if (i==this->asynchronous_seffect.end() || !i->second)
-		return NONS_NO_SOUND_EFFECT_LOADED;
-	i->second->stop();
-	return NONS_NO_ERROR;
-}
-
-ErrorCode NONS_Audio::stopAllSound(){
-	if (this->uninitialized)
-		return NONS_NO_ERROR;
-	this->stopMusic();
-	for (std::map<int,NONS_SoundEffect *>::iterator i=this->asynchronous_seffect.begin();i!=this->asynchronous_seffect.end();i++){
-		if (i->second)
-			i->second->stop();
-	}
-	return NONS_NO_ERROR;
-}
-
-ErrorCode NONS_Audio::loadAsyncBuffer(const std::wstring &filename,int channel){
-	if (this->uninitialized)
-		return NONS_NO_ERROR;
-	std::map<int,NONS_SoundEffect *>::iterator i=this->asynchronous_seffect.find(channel);
-	if (i==this->asynchronous_seffect.end() || !i->second){
-		this->asynchronous_seffect[channel]=new NONS_SoundEffect(channel);
-		i=this->asynchronous_seffect.find(channel);
-	}
-	NONS_CachedSound *cs=this->soundcache->getSound(filename);
-	if (!cs){
-		cs=this->soundcache->newSound(filename);
-	}
-	i->second->load(cs);
-	if (!i->second->loaded())
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (stream)
+		this->dev->remove(stream);
+	stream=new audio_stream(temp);
+	if (!*stream){
+		delete stream;
 		return NONS_UNDEFINED_ERROR;
-	i->second->path=filename;
+	}
+	stream->loop=times;
+	stream->cleanup=0;
+	stream->set_general_volume(this->mvol);
+	stream->mute(!this->notmute);
+	stream->start();
+	this->dev->add(stream);
+	this->channels[NONS_Audio::music_channel]=stream;
 	return NONS_NO_ERROR;
 }
 
-bool NONS_Audio::bufferIsLoaded(const std::wstring &filename){
+ErrorCode NONS_Audio::stop_music(){
 	if (this->uninitialized)
-		return 1;
-	return this->soundcache->checkSound(filename)!=0;
+		return NONS_NO_ERROR;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(NONS_Audio::music_channel);
+	if (!stream)
+		return NONS_NO_MUSIC_LOADED;
+	stream->stop();
+	return NONS_NO_ERROR;
 }
 
-int NONS_Audio::musicVolume(int vol){
+ErrorCode NONS_Audio::pause_music(){
 	if (this->uninitialized)
-		return 0;
+		return NONS_NO_ERROR;
+	audio_stream *stream=this->get_channel(NONS_Audio::music_channel);
+	if (!stream)
+		return NONS_NO_MUSIC_LOADED;
+	stream->pause();
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_Audio::play_sound(const std::wstring &filename,int channel,long times,bool automatic_cleanup){
+	if (this->uninitialized)
+		return NONS_NO_ERROR;
+	if (!general_archive.exists(filename))
+		return NONS_FILE_NOT_FOUND;
+	ErrorCode e;
+	e=this->load_sound_on_a_channel(filename,channel,channel>=0);
+	if (!CHECK_FLAG(e,NONS_NO_ERROR_FLAG))
+		return e;
+	e=this->play(channel,times,automatic_cleanup);
+	return (!CHECK_FLAG(e,NONS_NO_ERROR_FLAG))?e:NONS_NO_ERROR;
+}
+
+ErrorCode NONS_Audio::load_sound_on_a_channel(const std::wstring &filename,int &channel,bool use_channel_as_input){
+	if (!use_channel_as_input)
+		channel=INT_MAX;
+	if (this->uninitialized)
+		return NONS_NO_ERROR;
+	if (!general_archive.exists(filename))
+		return NONS_FILE_NOT_FOUND;
+	if (!use_channel_as_input)
+		channel=this->channel_counter++;
 	NONS_MutexLocker ml(this->mutex);
-	if (!music){
-		int ret=this->mvol;
-		return ret;
+	audio_stream *stream=this->get_channel(channel);
+	if (stream)
+		this->dev->remove(stream);
+	stream=new audio_stream(filename);
+	if (!*stream){
+		delete stream;
+		return NONS_UNDEFINED_ERROR;
 	}
-	if (this->notmute)
-		this->mvol=this->music->volume(vol);
-	else if (vol>=0)
-		this->mvol=(vol<100)?vol:100;
-	return this->mvol;
+	this->dev->add(stream);
+	this->channels[channel]=stream;
+	return NONS_NO_ERROR;
 }
 
-int NONS_Audio::soundVolume(int vol){
+ErrorCode NONS_Audio::unload_sound_from_channel(int channel){
+	if (this->uninitialized)
+		return NONS_NO_ERROR;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return NONS_NO_SOUND_EFFECT_LOADED;
+	this->dev->remove(stream);
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_Audio::play(int channel,long times,bool automatic_cleanup){
+	if (this->uninitialized)
+		return NONS_NO_ERROR;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return NONS_NO_SOUND_EFFECT_LOADED;
+	stream->loop=times;
+	stream->cleanup=automatic_cleanup;
+	stream->set_general_volume(this->svol);
+	stream->mute(!this->notmute);
+	stream->start();
+	return NONS_NO_ERROR;
+}
+
+void NONS_Audio::wait_for_channel(int channel){
+	NONS_Event event;
+	event.init();
+	{
+		NONS_MutexLocker ml(this->mutex);
+		audio_stream *stream=this->get_channel(channel);
+		stream->notify_on_stop(&event);
+	}
+	event.wait();
+}
+
+ErrorCode NONS_Audio::stop_sound(int channel){
+	if (this->uninitialized)
+		return NONS_NO_ERROR;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return NONS_NO_SOUND_EFFECT_LOADED;
+	stream->stop();
+	return NONS_NO_ERROR;
+}
+
+ErrorCode NONS_Audio::stop_all_sound(){
+	if (this->uninitialized)
+		return NONS_NO_ERROR;
+	NONS_MutexLocker ml(this->mutex);
+	NONS_Audio_FOREACH()
+		i->second->stop();
+	return NONS_NO_ERROR;
+}
+
+int NONS_Audio::set_volume(float &p,int vol){
 	if (this->uninitialized)
 		return 0;
+	if (vol<0){
+		NONS_MutexLocker ml(this->mutex);
+		return int(p*100.f);
+	}
+	saturate_value(vol,0,100);
 	NONS_MutexLocker ml(this->mutex);
-	if (this->notmute){
-		this->svol=0;
-		for (std::map<int,NONS_SoundEffect *>::iterator i=this->asynchronous_seffect.begin();i!=this->asynchronous_seffect.end();i++)
-			this->svol+=i->second->volume(vol);
-		if (this->svol)
-			this->svol/=this->asynchronous_seffect.size();
-		else
-			this->svol=100;
-	}else if (vol>=0)
-		this->svol=(vol<100)?vol:100;
-	return this->svol;
+	p=vol/100.f;
+	return vol;
 }
 
-bool NONS_Audio::toggleMute(){
+int NONS_Audio::channel_volume(int channel,int vol){
+	if (this->uninitialized)
+		return 0;
+	if (vol<0){
+		NONS_MutexLocker ml(this->mutex);
+		audio_stream *stream=this->get_channel(channel);
+		if (!stream)
+			return 0;
+		return int(stream->get_volume()*100.f);
+	}
+	saturate_value(vol,0,100);
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return 0;
+	stream->set_volume(vol/100.f);
+	return vol;
+}
+
+bool NONS_Audio::toggle_mute(){
 	if (this->uninitialized)
 		return 0;
 	NONS_MutexLocker ml(this->mutex);
 	this->notmute=!this->notmute;
-	if (this->notmute){
-		this->music->volume(this->mvol);
-		for (std::map<int,NONS_SoundEffect *>::iterator i=this->asynchronous_seffect.begin();i!=this->asynchronous_seffect.end();i++)
-			i->second->volume(this->svol);
-	}else{
-		this->music->volume(0);
-		for (std::map<int,NONS_SoundEffect *>::iterator i=this->asynchronous_seffect.begin();i!=this->asynchronous_seffect.end();i++)
-			i->second->volume(0);
-	}
+	NONS_Audio_FOREACH()
+		i->second->mute(!this->notmute);
 	return this->notmute;
-
 }
 
-int NONS_Audio::set_channel_volume(int channel,int volume){
-	if (!CLOptions.no_sound)
-		return Mix_Volume(channel,volume*128/100);
-	return -1;
+bool NONS_Audio::is_playing(int channel){
+	if (this->uninitialized)
+		return 0;
+	NONS_MutexLocker ml(this->mutex);
+	audio_stream *stream=this->get_channel(channel);
+	if (!stream)
+		return 0;
+	return stream->is_sink_playing();
+}
+
+void read_channel(channel_listing::channel &c,const audio_stream &stream){
+	if (!stream.is_playing()){
+		c.filename.clear();
+		c.loop=0;
+		c.volume=100;
+	}else{
+		c.filename=stream.filename;
+		c.loop=(stream.loop>0)?-1:0;
+		c.volume=int(stream.get_volume()*100.f);
+	}
+}
+
+void NONS_Audio::get_channel_listing(channel_listing &cl){
+	if (this->uninitialized)
+		return;
+	NONS_MutexLocker ml(this->mutex);
+	NONS_Audio_FOREACH(){
+		if (i->first==-1)
+			read_channel(cl.music,*i->second);
+		else{
+			channel_listing::channel c;
+			read_channel(c,*i->second);
+			cl.sounds[i->first]=c;
+		}
+	}
+}
+
+asynchronous_audio_stream *NONS_Audio::new_video_stream(){
+	if (this->uninitialized)
+		return 0;
+	NONS_MutexLocker ml(this->mutex);
+	asynchronous_audio_stream *stream=new asynchronous_audio_stream();
+	this->dev->add(stream);
+	return stream;
 }

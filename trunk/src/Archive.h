@@ -78,7 +78,7 @@ public:
 };
 
 struct NSAdata{
-	ulong offset;
+	ulong data_offset;
 	enum compression_type{
 		COMPRESSION_NONE=0,
 		COMPRESSION_SPB=1,
@@ -88,7 +88,7 @@ struct NSAdata{
 	} compression;
 	size_t compressed,
 		uncompressed;
-	NSAdata():offset(0),compression(COMPRESSION_NONE),compressed(0),uncompressed(0){}
+	NSAdata():data_offset(0),compression(COMPRESSION_NONE),compressed(0),uncompressed(0){}
 };
 
 class NSAarchive:public Archive{
@@ -165,8 +165,11 @@ public:
 	                    EOCDR64_signature=0x06064b50;
 };
 
-struct NONS_GeneralArchive{
+class NONS_GeneralArchive{
+	NONS_Mutex mutex;
 	std::vector<NONS_DataSource *> archives;
+	bool addArchive_private(const std::wstring &path,int format=-1);
+public:
 	~NONS_GeneralArchive();
 	void init();
 	uchar *getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem=1);
@@ -174,9 +177,12 @@ struct NONS_GeneralArchive{
 	uchar *getFileBufferWithoutFS(const std::wstring &filepath,size_t &buffersize){
 		return this->getFileBuffer(filepath,buffersize,0);
 	}
-	NONS_DataStream *open(const std::wstring &path);
+	NONS_DataStream *open(const std::wstring &path,bool keep_in_memory=0);
 	bool close(NONS_DataStream *stream);
 	bool exists(const std::wstring &filepath);
+	bool addArchive(const std::wstring &path){
+		return addArchive_private(path);
+	}
 };
 
 extern NONS_GeneralArchive general_archive;
@@ -202,7 +208,7 @@ class NONS_nsaArchiveSource:public NONS_ArchiveSource{
 public:
 	NONS_nsaArchiveSource(const std::wstring &name,bool nsa);
 	~NONS_nsaArchiveSource();
-	NONS_DataStream *open(const std::wstring &name);
+	NONS_DataStream *open(const std::wstring &name,bool keep_in_memory);
 	uchar *read_all(TreeNode *node,size_t &bytes_read);
 };
 
@@ -210,7 +216,7 @@ class NONS_zipArchiveSource:public NONS_ArchiveSource{
 public:
 	NONS_zipArchiveSource(const std::wstring &name);
 	~NONS_zipArchiveSource();
-	NONS_DataStream *open(const std::wstring &name);
+	NONS_DataStream *open(const std::wstring &name,bool keep_in_memory);
 	uchar *read_all(TreeNode *node,size_t &bytes_read);
 };
 

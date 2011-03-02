@@ -189,6 +189,7 @@
 			>
 <File RelativePath="..\..\src\Archive.cpp"></File>
 <File RelativePath="..\..\src\Audio.cpp"></File>
+<File RelativePath="..\..\src\AudioFormats.cpp"></File>
 <File RelativePath="..\..\src\CommandLineOptions.cpp"></File>
 <File RelativePath="..\..\src\ConfigFile.cpp"></File>
 <File RelativePath="..\..\src\ErrorCodes.cpp"></File>
@@ -205,6 +206,7 @@
 <File RelativePath="..\..\src\MacroParser.cpp"></File>
 <File RelativePath="..\..\src\MacroParser.tab.cpp"></File>
 <File RelativePath="..\..\src\ONSlaught.cpp"></File>
+<File RelativePath="..\..\src\OpenAL.cpp"></File>
 <File RelativePath="..\..\src\SJIS.table.cpp"></File>
 <File RelativePath="..\..\src\SaveFile.cpp"></File>
 <File RelativePath="..\..\src\ScreenSpace.cpp"></File>
@@ -217,6 +219,7 @@
 <File RelativePath="..\..\src\sha1.cpp"></File>
 <File RelativePath="..\..\src\Archive.h"></File>
 <File RelativePath="..\..\src\Audio.h"></File>
+<File RelativePath="..\..\src\AudioFormats.h"></File>
 <File RelativePath="..\..\src\Binder.h"></File>
 <File RelativePath="..\..\src\CommandLineOptions.h"></File>
 <File RelativePath="..\..\src\Common.h"></File>
@@ -234,6 +237,7 @@
 <File RelativePath="..\..\src\LZMA.h"></File>
 <File RelativePath="..\..\src\MacroParser.h"></File>
 <File RelativePath="..\..\src\MacroParser.tab.hpp"></File>
+<File RelativePath="..\..\src\OpenAL.h"></File>
 <File RelativePath="..\..\src\SaveFile.h"></File>
 <File RelativePath="..\..\src\ScreenSpace.h"></File>
 <File RelativePath="..\..\src\Script.h"></File>

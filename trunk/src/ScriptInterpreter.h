@@ -44,45 +44,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
-//#include <SDL/smpeg.h>
-
-#define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
-#define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
-#define GET_COORDINATE(dst,axis,src) {                                                                                 \
-	long GET_COORDINATE_temp;                                                                                          \
-	float GET_COORDINATE_temp_f;                                                                                       \
-	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
-	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
-	if (GET_COORDINATE_temp_f>=0)                                                                                      \
-		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
-	else                                                                                                               \
-		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
-	(dst)=GET_COORDINATE_temp_f;                                                                                       \
-}
-#define GET_INT_COORDINATE(dst,axis,src) {                                                                             \
-	long GET_COORDINATE_temp;                                                                                          \
-	float GET_COORDINATE_temp_f;                                                                                       \
-	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
-	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
-	if (GET_COORDINATE_temp_f>=0)                                                                                      \
-		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
-	else                                                                                                               \
-		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
-	(dst)=(long)GET_COORDINATE_temp_f;                                                                                 \
-}
-#define GET_STR_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getWcsValue(stmt.parameters[(src)],(dst),0))
-#define GET_INT_OR_STR_VALUE(i,s,type,src) HANDLE_POSSIBLE_ERRORS(this->GET_INT_OR_STR_VALUE_helper((i),(s),(type),stmt.parameters[(src)]))
-#define GET_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getVar((dst),stmt.parameters[(src)],this->store))
-#define GET_INT_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getIntVar((dst),stmt.parameters[(src)],this->store))
-#define GET_STR_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getStrVar((dst),stmt.parameters[(src)],this->store))
-#define GET_LABEL(dst,src){                              \
-	std::wstring &GET_LABEL_temp=stmt.parameters[(src)]; \
-	if (GET_LABEL_temp[0]=='*')                          \
-		(dst)=GET_LABEL_temp;                            \
-	else{                                                \
-		GET_STR_VALUE((dst),(src));                      \
-	}                                                    \
-}
 
 typedef std::map<std::wstring,INIfile *> INIcacheType;
 
@@ -185,6 +146,7 @@ class NONS_ScriptInterpreter{
 	NONS_StackElement *get_last_csel_frame() const{ return this->get_last_frame_of_type(StackFrameType::CSEL_CALL); }
 	void parse_tag(std::wstring &s);
 	void handle_wait_state(std::vector<printingPage> &pages,std::vector<printingPage>::iterator,ulong stop,wchar_t trigger,long add);
+	void print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstring &commandName,const std::vector<std::wstring> &parameters,ulong mode);
 
 	bool stop_interpreting;
 	commandMapType commandList;

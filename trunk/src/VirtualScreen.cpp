@@ -249,7 +249,7 @@ bool NONS_VirtualScreen::toggleFullscreen(uchar mode){
 		tempCopy=screen.clone();
 	this->screens[REAL]=
 		screen=NONS_Surface::assign_screen(allocate_screen(sp.w,sp.h,this->fullscreen));
-	if (tempCopy.good()){
+	if (tempCopy){
 		if (!this->usingFeature[OVERALL_FILTER])
 			this->screens[VIRTUAL]=this->screens[REAL];
 		screen.copy_pixels(tempCopy);

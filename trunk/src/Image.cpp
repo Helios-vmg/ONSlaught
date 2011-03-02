@@ -37,6 +37,7 @@
 #include "ScreenSpace.h"
 #include "GUI.h"
 #include <SDL/SDL_image.h>
+#define PNG_SKIP_SETJMP_CHECK
 #include <png.h>
 #include <list>
 #include <cmath>
@@ -417,24 +418,20 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::allocate(ulong w,ulong h,ulong
 }
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
-const int rmask=0xFF000000;
-const int gmask=0x00FF0000;
-const int bmask=0x0000FF00;
-const int amask=0x000000FF;
 const int rshift=24;
 const int gshift=16;
 const int bshift=8;
 const int ashift=0;
 #else
-const int rmask=0x000000FF;
-const int gmask=0x0000FF00;
-const int bmask=0x00FF0000;
-const int amask=0xFF000000;
 const int rshift=0;
 const int gshift=8;
 const int bshift=16;
 const int ashift=24;
 #endif
+const int rmask=0xFF<<rshift;
+const int gmask=0xFF<<gshift;
+const int bmask=0xFF<<bshift;
+const int amask=0xFF<<ashift;
 
 NONS_SurfaceManager::index_t SDL_to_index_t(NONS_SurfaceManager *sm,SDL_Surface *s,bool free=1){
 	NONS_SurfaceManager::index_t r;
@@ -1379,7 +1376,7 @@ void NONS_ConstSurface::save_bitmap(const std::wstring &filename,bool fill_alpha
 }
 
 void NONS_ConstSurface::get_properties(NONS_ConstSurfaceProperties &sp) const{
-	if (this->good())
+	if (*this)
 		this->data->surface->get_properties(sp);
 }
 
@@ -1705,7 +1702,7 @@ void NONS_Surface::copy_pixels(
 }
 
 void NONS_Surface::get_properties(NONS_SurfaceProperties &sp) const{
-	if (this->good())
+	if (*this)
 		this->data->surface->get_properties(sp);
 }
 

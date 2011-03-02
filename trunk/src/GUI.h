@@ -487,7 +487,7 @@ struct NONS_CursorPair{
 	NONS_Cursor *off;
 };
 
-struct NONS_GeneralArchive;
+class NONS_GeneralArchive;
 
 #define CONLOCATE(x,y) ((x)+(y)*this->screenW)
 

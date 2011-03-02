@@ -31,109 +31,108 @@
 #define NONS_AUDIO_H
 
 #include <SDL/SDL.h>
-#include <SDL/SDL_mixer.h>
 #include "Common.h"
 #include "ErrorCodes.h"
 #include "ThreadManager.h"
 #include "IOFunctions.h"
+#include "OpenAL.h"
 #include <map>
 #include <list>
 #include <string>
 
-struct NONS_CachedSound{
-	SDL_RWops *RWop;
-	Mix_Chunk *chunk;
-	long references;
-	Uint32 lastused;
-	std::wstring name;
-	NONS_CachedSound(SDL_RWops &rwops);
-	~NONS_CachedSound();
+struct channel_listing{
+	struct channel{
+		std::wstring filename;
+		long loop;
+		int volume;
+	};
+	channel music;
+	std::map<int,channel> sounds;
 };
 
-struct NONS_SoundEffect{
-	NONS_CachedSound *sound;
-	int channel;
-	bool playingHasStarted;
-	bool isplaying;
-	long loops;
-	std::wstring path;
-	NONS_SoundEffect(int chan=0);
-	~NONS_SoundEffect();
-	bool loaded();
-	void load(NONS_CachedSound *sound);
-	void unload();
-	void play(bool synchronous,long times=-1);
-	void stop();
-	int volume(int vol);
-};
+class NONS_Audio{
+	static const int initial_channel_counter=1<<20;
 
-typedef std::map<std::wstring,NONS_CachedSound *> cache_map_t;
+	audio_device *dev;
+	typedef std::map<int,audio_stream *> chan_t;
+	chan_t channels;
+	bool uninitialized,
+		notmute;
+	int channel_counter;
+	float mvol,
+		svol;
 
-struct NONS_SoundCache{
-	cache_map_t cache;
-	std::list<NONS_SoundEffect *> channelWatch;
-	NONS_SoundCache();
-	~NONS_SoundCache();
-	NONS_CachedSound *getSound(const std::wstring &filename);
-	NONS_CachedSound *checkSound(const std::wstring &filename);
-	NONS_CachedSound *newSound(const std::wstring &filename);
-	void GarbageCollector();
-	NONS_Mutex mutex;
-private:
-	bool kill_thread;
 	NONS_Thread thread;
-};
+	void update_thread();
+	NONS_Mutex mutex;
+	bool stop_thread;
 
-class NONS_Music{
-	Mix_Music *data;
-	NONS_DataStream *stream;
-	SDL_RWops rwops;
-	long playingTimes;
+	audio_stream *get_channel(int channel);
+	int set_volume(float &,int);
 public:
-	std::wstring filename;
-	NONS_Music(const std::wstring &filename);
-	~NONS_Music();
-	void play(long times=-1);
-	void stop();
-	void pause();
-	int volume(int vol);
-	bool loaded();
-	bool is_playing();
-};
-
-typedef std::map<int,NONS_SoundEffect *> channels_map_t;
-
-struct NONS_Audio{
-	NONS_Music *music;
-	std::wstring musicDir;
-	std::wstring musicFormat;
-	NONS_SoundCache *soundcache;
+	static const long max_valid_channel=(long)initial_channel_counter-1;
+	static const int music_channel=-1;
+	std::wstring music_dir,
+		music_format;
 	NONS_Audio(const std::wstring &musicDir);
 	~NONS_Audio();
-	ErrorCode playMusic(const std::wstring *filename,long times=-1);
-	ErrorCode stopMusic();
-	ErrorCode pauseMusic();
-	ErrorCode playSoundAsync(const std::wstring *filename,int channel,long times=-1);
-	ErrorCode stopSoundAsync(int channel);
-	ErrorCode loadAsyncBuffer(const std::wstring &filename,int channel);
-	ErrorCode stopAllSound();
-	bool bufferIsLoaded(const std::wstring &filename);
-	bool asyncBufferIsLoaded(int channel,std::wstring *filename=0);
-	ErrorCode unloadSyncBuffer(int channel);
-	int musicVolume(int vol);
-	int soundVolume(int vol);
-	void freeCacheElement(int chan);
-	bool toggleMute();
-	bool isInitialized(){
+	ErrorCode play_music(const std::wstring &filename,long times=-1);
+	ErrorCode stop_music();
+	ErrorCode pause_music();
+	ErrorCode play_sound_once(const std::wstring &filename){
+		return this->play_sound(filename,-1,0,1);
+	}
+	ErrorCode play_sound(const std::wstring &filename,int channel,long times,bool automatic_cleanup);
+	ErrorCode stop_sound(int channel);
+	ErrorCode stop_all_sound();
+	ErrorCode load_sound_on_a_channel(const std::wstring &filename,int &channel,bool use_channel_as_input=0);
+	ErrorCode unload_sound_from_channel(int channel);
+	ErrorCode play(int channel,long times,bool automatic_cleanup);
+	void wait_for_channel(int channel);
+	int music_volume(int vol){
+		return this->set_volume(this->mvol,vol);
+	}
+	int sound_volume(int vol){
+		return this->set_volume(this->svol,vol);
+	}
+	int channel_volume(int channel,int vol);
+	bool toggle_mute();
+	bool is_playing(int channel);
+	bool is_initialized(){
 		return !this->uninitialized;
 	}
-	static int set_channel_volume(int channel,int volume);
-private:
-	channels_map_t asynchronous_seffect;
-	NONS_Mutex mutex;
-	int mvol,
-		svol;
-	bool notmute;
-	bool uninitialized;
+	void get_channel_listing(channel_listing &cl);
+	asynchronous_audio_stream *new_video_stream();
+	void delete_video_stream(asynchronous_audio_stream *stream){
+		if (stream)
+			this->dev->remove(stream);
+	}
+};
+
+class NONS_ScopedAudioStream{
+	int channel;
+	NONS_Audio *audio;
+	bool good;
+public:
+	NONS_ScopedAudioStream():audio(0),good(0){}
+	NONS_ScopedAudioStream(NONS_Audio *audio,const std::wstring &filename){
+		this->init(audio,filename);
+	}
+	~NONS_ScopedAudioStream(){
+		if (this->good)
+			this->audio->unload_sound_from_channel(this->channel);
+	}
+	void init(NONS_Audio *audio,const std::wstring &filename){
+		this->audio=audio;
+		this->good=this->audio && this->audio->load_sound_on_a_channel(filename,this->channel)==NONS_NO_ERROR;
+	}
+	void play(bool loop){
+		if (this->good)
+			this->audio->play(this->channel,loop?-1:0,0);
+	}
+	void stop(){
+		if (this->good)
+			this->audio->stop_sound(this->channel);
+	}
 };
 #endif

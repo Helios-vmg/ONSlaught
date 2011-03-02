@@ -6,49 +6,74 @@ include_directories(include)
 set(EXECUTABLE_OUTPUT_PATH .)
 set(CMAKE_BUILD_TYPE Release)
 add_definitions(-DNONS_SVN)
-add_definitions(-DBUILD_ONSLAUGHT -DHAVE_INTTYPES_H -DSDL_HAS_64BIT_TYPE -w)
+add_definitions(-DBUILD_ONSLAUGHT -DHAVE_INTTYPES_H -DSDL_HAS_64BIT_TYPE -w -fno-exceptions)
 
 set(LIBS
 	${LIBS}
-	SDL
 	SDL_image
-	SDL_mixer
+	SDL
 	bz2
 	freetype
+	FLAC
+	vorbisfile
+	vorbis
+	ogg
+	jpeg
+	png
+	tiff
+	mikmod
+	openal
+	mpg123
 	dl
 	z
 )
 
 add_executable(ONSlaught
-src/SJIS.table.cpp
-src/ScriptInterpreter.cpp
-src/Image.cpp
-src/ExpressionParser.tab.cpp
-src/GUI.cpp
-src/MacroParser.tab.cpp
-src/INIParser.tab.cpp
 src/Archive.cpp
-src/ScreenSpace.cpp
-src/LZMA.c
-src/VariableStore.cpp
-src/Script.cpp
-src/SaveFile.cpp
-src/GFX.cpp
-src/IOFunctions.cpp
-src/VirtualScreen.cpp
-src/Functions.cpp
 src/Audio.cpp
+src/AudioFormats.cpp
 src/CommandLineOptions.cpp
-src/sha1.cpp
-src/ONSlaught.cpp
-src/MacroParser.cpp
-src/ErrorCodes.cpp
-src/Thread.cpp
 src/ConfigFile.cpp
+src/ErrorCodes.cpp
+src/ExpressionParser.tab.cpp
 src/FileLog.cpp
+src/Functions.cpp
+src/GFX.cpp
+src/GUI.cpp
+src/Image.cpp
 src/INIfile.cpp
+src/INIParser.tab.cpp
+src/IOFunctions.cpp
+src/libFLAC++/metadata.cpp
+src/libFLAC++/stream_decoder.cpp
+src/libFLAC++/stream_encoder.cpp
+src/libtimidity/common.c
+src/libtimidity/instrum.c
+src/libtimidity/instrum_dls.c
+src/libtimidity/mix.c
+src/libtimidity/output.c
+src/libtimidity/playmidi.c
+src/libtimidity/readmidi.c
+src/libtimidity/resample.c
+src/libtimidity/stream.c
+src/libtimidity/tables.c
+src/libtimidity/timidity.c
+src/LZMA.c
+src/MacroParser.cpp
+src/MacroParser.tab.cpp
+src/ONSlaught.cpp
+src/OpenAL.cpp
+src/Plugin/LibraryLoader.cpp
+src/SaveFile.cpp
+src/ScreenSpace.cpp
+src/Script.cpp
+src/ScriptInterpreter.cpp
+src/sha1.cpp
+src/SJIS.table.cpp
+src/Thread.cpp
 src/ThreadManager.cpp
-src/Plugin/LibraryLoader.cpp 
+src/VariableStore.cpp
+src/VirtualScreen.cpp
 )
 
 add_library(plugin SHARED

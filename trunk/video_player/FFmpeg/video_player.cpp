@@ -40,8 +40,6 @@ extern "C"{
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 }
-#include <al.h>
-#include <alc.h>
 #include <SDL/SDL_gfxPrimitives.h>
 
 #if NONS_SYS_WINDOWS
@@ -303,16 +301,10 @@ struct audioBuffer{
 struct video_player;
 
 class AudioOutput{
-	ALCdevice *device;
-	ALCcontext *context;
-	ALuint source;
 	NONS_Thread thread;
-	ulong frequency;
-	ALenum format;
-	static const size_t n=2;
-	ALuint ALbuffers[n];
-	ulong current;
-	int16_t *buffers[n];
+	ulong frequency,
+		channels;
+	int16_t *buffer;
 	size_t buffers_size;
 	thread_safe_queue<audioBuffer> *incoming_queue;
 	volatile bool stop_thread;
@@ -321,12 +313,12 @@ class AudioOutput{
 public:
 	bool good,
 		expect_buffers;
+	audio_f audio_output;
 	AudioOutput(ulong channels,ulong frequency);
 	~AudioOutput();
 	thread_safe_queue<audioBuffer> *startThread(video_player *vp);
 	void stopThread(bool join);
-	void play();
-	void wait_until_stop();
+	void wait_until_stop(video_player *vp);
 };
 
 class CompleteVideoFrame{
@@ -398,6 +390,7 @@ struct video_player{
 	volatile bool stop_playback;
 	volatile SDL_Surface *global_screen;
 	uint64_t global_pts;
+	void *user_data;
 	typedef thread_safe_queue<Packet *> packet_queue;
 
 	video_player():global_pts(AV_NOPTS_VALUE){
@@ -427,6 +420,7 @@ struct video_player{
 		const char *input,
 		volatile int *stop,
 		void *user_data,
+		audio_f audio_output,
 		int print_debug,
 		std::string &exception_string,
 		cb_vector &callback_pairs,
@@ -436,54 +430,18 @@ struct video_player{
 AudioOutput::AudioOutput(ulong channels,ulong frequency){
 	this->stop_thread=0;
 	this->buffers_size=frequency/10*channels;
-	for (ulong a=0;a<n;a++){
-		this->buffers[a]=new int16_t[this->buffers_size];
-		memset(this->buffers[a],0,this->buffers_size*sizeof(int16_t));
-	}
-	this->device=0;
-	this->context=0;
+	this->buffer=new int16_t[this->buffers_size];
+	memset(this->buffer,0,this->buffers_size*sizeof(int16_t));
 	this->good=0;
-	this->device=alcOpenDevice(0);
-	if (!this->device)
-		return;
-	this->context=alcCreateContext(this->device,0);
-	if (!this->context)
-		return;
-	alcMakeContextCurrent(this->context);
 	this->frequency=frequency;
-	switch (channels){
-		case 1:
-			this->format=AL_FORMAT_MONO16;
-			break;
-		case 2:
-			this->format=AL_FORMAT_STEREO16;
-			break;
-		case 4:
-			this->format=alGetEnumValue("AL_FORMAT_QUAD16");
-			break;
-		case 6:
-			this->format=alGetEnumValue("AL_FORMAT_51CHN16");
-			break;
-	}
-	alGenSources(1,&this->source);
+	this->channels=channels;
 	this->good=1;
-	alGenBuffers(n,this->ALbuffers);
-	this->current=0;
 }
 
 AudioOutput::~AudioOutput(){
 	this->stop_thread=1;
 	this->thread.join();
-	alcMakeContextCurrent(0);
-	for (ulong a=0;a<n;a++)
-		delete[] this->buffers[a];
-	if (this->context){
-		alDeleteSources(1,&this->source);
-		alDeleteBuffers(n,this->ALbuffers);
-		alcDestroyContext(this->context);
-	}
-	if (this->device)
-		alcCloseDevice(this->device);
+	delete this->buffer;
 }
 
 thread_safe_queue<audioBuffer> *AudioOutput::startThread(video_player *vp){
@@ -500,27 +458,9 @@ void AudioOutput::stopThread(bool join){
 }
 
 void AudioOutput::running_thread(video_player *vp){
-	if (this->expect_buffers){
-		while (this->incoming_queue->is_empty());
-		for (ulong a=0;a<this->n;a++){
-			this->current=a;
-			ulong t;
-			fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
-			alBufferData(
-				this->ALbuffers[this->current],
-				this->format,
-				this->buffers[this->current],
-				this->buffers_size*sizeof(int16_t),
-				this->frequency
-			);
-			alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
-		}
-		this->current=0;
-	}
-
+	while (this->incoming_queue->is_empty());
 	vp->real_start_time=vp->start_time=SDL_GetTicks();
-	if (this->expect_buffers)
-		this->play();
+	bool buffer_is_full=0;
 	while (!this->stop_thread){
 		SDL_Delay(10);
 		ulong now=SDL_GetTicks();
@@ -528,56 +468,19 @@ void AudioOutput::running_thread(video_player *vp){
 		vp->real_global_time=now-vp->real_start_time;
 		if (!this->expect_buffers)
 			continue;
-		ALint buffers_finished=0,
-			queued;
-		alGetSourcei(this->source,AL_BUFFERS_PROCESSED,&buffers_finished);
-		alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
-		bool call_play=0;
-		ulong count=0;
-		if (buffers_finished==this->n){
-			call_play=1;
-#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
-			vp->vc[VC_AUDIO_RENDER]->put("Critical point!\n");
-#endif
-		}
-		if (!call_play){
-			ALint state;
-			alGetSourcei(this->source,AL_SOURCE_STATE,&state);
-			if (state!=AL_PLAYING){
-#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
-				vp->vc[VC_AUDIO_RENDER]->put("The source has stopped playing!\n");
-#endif
-				call_play=1;
-				buffers_finished=this->n;
+		this->incoming_queue->lock();
+		while (this->incoming_queue->size()){
+			audioBuffer *buffer=&this->incoming_queue->peek();
+			if (this->audio_output.write(buffer->buffer,buffer->size/this->channels,this->channels,this->frequency,vp->user_data)){
+				this->incoming_queue->pop_without_copy();
+				continue;
 			}
+			break;
 		}
-		for (;buffers_finished;buffers_finished--,count++){
-			ALuint temp;
-			alSourceUnqueueBuffers(this->source,1,&temp);
-			bool loop=1;
-			ulong t;
-			fill(this->buffers[this->current],this->buffers_size,this->incoming_queue,t);
-			//correct time
-			if (t+100*(buffers_finished)!=vp->global_time)
-				vp->start_time=now-t+100*(buffers_finished);
-			alBufferData(
-				this->ALbuffers[this->current],
-				this->format,
-				this->buffers[this->current],
-				this->buffers_size*sizeof(int16_t),
-				this->frequency
-			);
-			alSourceQueueBuffers(this->source,1,this->ALbuffers+this->current);
-			this->current=(this->current+1)%n;
-		}
-		if (call_play){
-#if NONS_SYS_WINDOWS && ENABLE_VIRTUAL_CONSOLE
-			vp->vc[VC_AUDIO_RENDER]->put("count: "+itoa<char>(count)+"\n");
-#endif
-			this->play();
-		}
+		this->incoming_queue->unlock();
+		vp->start_time=now-(ulong)this->audio_output.get_time_offset(vp->user_data);
 	}
-	this->wait_until_stop();
+	this->wait_until_stop(vp);
 	delete this->incoming_queue;
 	this->incoming_queue=0;
 }
@@ -620,18 +523,8 @@ bool AudioOutput::fill(int16_t *buffer,size_t size,thread_safe_queue<audioBuffer
 	return ret;
 }
 
-void AudioOutput::play(){
-	ALint state;
-	alGetSourcei(this->source,AL_SOURCE_STATE,&state);
-	if (state!=AL_PLAYING)
-		alSourcePlay(this->source);
-}
-
-void AudioOutput::wait_until_stop(){
-	ALint state;
-	do
-		alGetSourcei(this->source,AL_SOURCE_STATE,&state);
-	while (state==AL_PLAYING);
+void AudioOutput::wait_until_stop(video_player *vp){
+	this->audio_output.wait(vp->user_data);
 }
 
 CompleteVideoFrame::CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts,NONS_Mutex &mutex)
@@ -997,6 +890,7 @@ bool video_player::play_video(
 		const char *input,
 		volatile int *stop,
 		void *user_data,
+		audio_f audio_output,
 		int print_debug,
 		std::string &exception_string,
 		cb_vector &callback_pairs,
@@ -1005,6 +899,7 @@ bool video_player::play_video(
 	debug_messages=!!print_debug;
 	global_screen=screen;
 	this->global_time=0;
+	this->user_data=user_data;
 	av_register_all();
 	AVFormatContext *avfc;
 	SDL_FillRect(screen,0,0);
@@ -1024,9 +919,9 @@ bool video_player::play_video(
 		aif=av_probe_input_format(&pd,1);
 	}
 	
-	fp.seek(fp.data,0,1);
+	fp.seek(fp.data,0,0);
 	if (av_open_input_stream(&avfc,&bioc,input,aif,0)!=0){
-		exception_string="File not found.";
+		exception_string="Unrecognized file format.";
 		return 0;
 	}
 	auto_stream as(avfc);
@@ -1098,6 +993,7 @@ bool video_player::play_video(
 			exception_string="Open audio output failed.";
 			return 0;
 		}
+		output.audio_output=audio_output;
 		output.expect_buffers=useAudio;
 
 		AVPacket packet;
@@ -1124,7 +1020,7 @@ bool video_player::play_video(
 		video_decoder.join();
 		if (!useAudio)
 			output.stopThread(0);
-		output.wait_until_stop();
+		output.wait_until_stop(this);
 	}
 	return 1;
 }
@@ -1143,6 +1039,7 @@ play_video_SIGNATURE{
 		input,
 		stop,
 		user_data,
+		audio_output,
 		print_debug,
 		exception_string,
 		callback_pairs,

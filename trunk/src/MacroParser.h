@@ -40,7 +40,7 @@ class cheap_input_stream{
 	std::vector<wchar_t> characters_put_back;
 	size_t offset;
 	cheap_input_stream(const cheap_input_stream &){}
-	cheap_input_stream &operator=(const cheap_input_stream &){}
+	void operator=(const cheap_input_stream &){}
 public:
 	cheap_input_stream(const std::wstring &);
 	int peek() const;
