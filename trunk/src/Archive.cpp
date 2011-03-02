@@ -1305,6 +1305,8 @@ NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path,bool keep_in
 		if (stream)
 			return stream;
 	}
+	if (CLOptions.verbosity>=VERBOSITY_LOG_OPEN_FAILURES)
+		o_stderr <<"NONS_GeneralArchive::open(): Failed to open stream to \""<<path<<"\".\n";
 	return 0;
 }
 
@@ -1320,10 +1322,10 @@ bool NONS_GeneralArchive::close(NONS_DataStream *stream){
 	return 0;
 }
 
-bool NONS_GeneralArchive::exists(const std::wstring &filepath){
+bool NONS_GeneralArchive::exists(const std::wstring &path){
 	NONS_MutexLocker ml(this->mutex);
 	for (size_t a=0;a<this->archives.size();a++)
-		if (this->archives[a]->exists(filepath))
+		if (this->archives[a]->exists(path))
 			return 1;
 	return 0;
 }
@@ -1417,7 +1419,8 @@ NONS_DataStream *NONS_nsaArchiveSource::open(const std::wstring &name,bool keep_
 		if (!stream)
 			stream=filesystem.new_temporary_file(path);
 		assert(!!stream);
-	}
+	}else
+		stream=p;
 	return NONS_DataSource::open(stream,normalize_path(this->archive->path+L"/"+name));
 }
 

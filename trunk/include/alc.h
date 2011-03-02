@@ -5,18 +5,29 @@
 extern "C" {
 #endif
 
+#if defined _WIN32 || defined _WIN64
 #define AL_STATIC_BUILD
+#endif
+
 #if defined(_WIN32) && !defined(_XBOX)
  #if defined(AL_BUILD_LIBRARY)
   #define ALC_API __declspec(dllexport)
  #else
-  #define ALC_API extern
+  #ifdef AL_STATIC_BUILD
+   #define ALC_API extern
+  #else
+   #define ALC_API
+  #endif
  #endif
 #else
  #if defined(AL_BUILD_LIBRARY) && defined(HAVE_GCC_VISIBILITY)
   #define ALC_API __attribute__((visibility("protected")))
  #else
-  #define ALC_API extern
+  #ifdef AL_STATIC_BUILD
+   #define ALC_API extern
+  #else
+   #define ALC_API
+  #endif
  #endif
 #endif
 
@@ -269,7 +280,7 @@ typedef void           (ALC_APIENTRY *LPALCCAPTURESAMPLES)( ALCdevice *device, A
  #pragma export off
 #endif
 
-#ifdef _WIN32
+#ifdef AL_STATIC_BUILD
 ALC_API void al_static_init();
 ALC_API void al_static_uninit();
 #endif

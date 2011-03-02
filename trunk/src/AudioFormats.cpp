@@ -29,6 +29,7 @@
 
 #include "AudioFormats.h"
 #include <iostream>
+#include <cerrno>
 
 mp3_static_data mp3_decoder::static_data;
 mod_static_data mod_decoder::static_data;
@@ -150,10 +151,10 @@ flac_decoder::~flac_decoder(){
 }
 
 FLAC__StreamDecoderWriteStatus flac_decoder::write_callback(const FLAC__Frame *frame,const FLAC__int32 * const *buffer){
-	void *push_me;
+	void *push_me=0;
 	bool stereo=frame->header.channels!=1;
 	ulong channels=stereo?2:1,
-		bits;
+		bits=0;
 	switch (frame->header.bits_per_sample){
 		case 8:
 			bits=8;

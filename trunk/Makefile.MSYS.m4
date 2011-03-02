@@ -1,8 +1,29 @@
 changequote([,])dnl
+define(LIBS,[dnl
+-lSDL_image dnl
+-lbz2 dnl
+-lFLAC_static dnl
+-lfreetype dnl
+-ljpeg dnl
+-lmikmod dnl
+-lmpg123 dnl
+-lpng dnl
+-lOpenAL32 dnl
+-lSDL dnl
+-lSDLmain dnl
+-ltiff dnl
+-ltimidity dnl
+-lvorbisfile dnl
+-lvorbis dnl
+-logg dnl
+-lz dnl
+])dnl
+CC = gcc
 CXX = g++
-NONSCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 ifdef([SVN],[-DNONS_SVN ])-DBUILD_ONSLAUGHT -W -O3 -Iinclude -c
-PLUGINCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 ifdef([SVN],[-DNONS_SVN ])-DBUILD_PLUGIN -W -O3 -Iinclude
-NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 -lSDL_mixer -ltimidity -lSDL_image -lsmpeg -lSDLmain -lSDL -lvorbisfile -lvorbis -ltiff -lpng -lmikmod -logg -ljpeg -lfreetype -lbz2 -lz -mwindows -Wl,--out-implib=bin-win32/libONSlaught.a
+NONSCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 ifdef([SVN],[-DNONS_SVN ])-DBUILD_ONSLAUGHT -w -g0 -O3 -Iinclude -Iinclude/mpg123 -Iinclude/mpg123/mingw -c
+NONSCFLAGS = $(NONSCXXFLAGS)
+PLUGINCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 ifdef([SVN],[-DNONS_SVN ])-DBUILD_PLUGIN -w -g0 -O3 -Iinclude
+NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 LIBS -mwindows -Wl,--out-implib=bin-win32/libONSlaught.a
 PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static-libgcc -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
 RC = windres
 RCFLAGS = -J rc -O coff
@@ -14,7 +35,7 @@ clean:
 	rm -rf objs
 
 objs:
-	(mkdir bin-win32 || mkdir objs) && mkdir objs
+	(mkdir -p bin-win32 || mkdir -p objs) && mkdir -p objs
 
 bin-win32/ONSlaught.exe: $(INPUTS) objs/onslaught.res
 	$(CXX) $^ $(NONSLDFLAGS) -o bin-win32/ONSlaught.exe
@@ -26,4 +47,4 @@ bin-win32/libONSlaught.a: bin-win32/ONSlaught.exe
 
 objs/onslaught.res: onslaught.rc
 	$(RC) $(RCFLAGS) $< -o $@
-syscmd([cat sources.lst | gawk '{ strings[0]; match($0,"(.*)/(.*)\\.(.*)",strings); printf("objs/%s.o: %s/%s.%s\n\t$(CXX) $(NONSCXXFLAGS) $< -o $@\n",strings[2],strings[1],strings[2],strings[3]); }'])dnl
+syscmd([cat sources.lst | gawk '{ strings[0]; match($0,"(.*)/(.*)\\.(.*)",strings); format=""; if (strings[3]=="cpp") format="objs/%s.o: %s/%s.%s\n\t$(CXX) $(NONSCXXFLAGS) $< -o $@\n"; else format="objs/%s.o: %s/%s.%s\n\t$(CC) $(NONSCFLAGS) $< -o $@\n"; printf(format,strings[2],strings[1],strings[2],strings[3]); }'])dnl

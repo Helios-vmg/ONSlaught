@@ -581,7 +581,7 @@ NONS_RedirectedOutput::~NONS_RedirectedOutput(){
 
 void NONS_RedirectedOutput::write_to_stream(const std::stringstream &str){
 #if NONS_SYS_WINDOWS
-	if (CLOptions.verbosity>=255 && this->vc)
+	if (CLOptions.verbosity>=VERBOSITY_RESERVED && this->vc)
 		this->vc->put(str.str());
 	else
 #endif
@@ -643,7 +643,7 @@ void NONS_RedirectedOutput::redirect(){
 	}else
 		str="stdlog.txt";
 #if NONS_SYS_WINDOWS
-	if (CLOptions.verbosity>=255){
+	if (CLOptions.verbosity>=VERBOSITY_RESERVED){
 		this->vc=new VirtualConsole(str,color);
 		if (this->vc->good)
 			return;
@@ -688,13 +688,15 @@ NONS_DataSource::~NONS_DataSource(){
 
 NONS_DataStream *NONS_DataSource::open(NONS_DataStream *p,const std::wstring &path){
 	p->original_path=path;
-	if (CLOptions.verbosity>=2 && p->original_path.size())
+	if (CLOptions.verbosity>=VERBOSITY_LOG_OPEN_STREAMS && p->original_path.size())
 		o_stderr <<"Opening stream to "<<p->original_path<<"\n";
 	this->streams.push_back(p);
 	return p;
 }
 
-NONS_DataStream *NONS_FileSystem::open(const std::wstring &name,bool keep_in_memory){
+NONS_DataStream *NONS_FileSystem::open(const std::wstring &path,bool keep_in_memory){
+	std::wstring name=path;
+	toforwardslash(name);
 	if (!NONS_File::file_exists(name))
 		return 0;
 	NONS_DataStream *p;
@@ -716,7 +718,7 @@ bool NONS_DataSource::close(NONS_DataStream *p){
 	);
 	if (i==this->streams.end())
 		return 0;
-	if (CLOptions.verbosity>=2 && p->original_path.size())
+	if (CLOptions.verbosity>=VERBOSITY_LOG_OPEN_STREAMS && p->original_path.size())
 		o_stderr <<"Closing stream to "<<p->original_path<<"\n";
 	delete *i;
 	this->streams.erase(i);

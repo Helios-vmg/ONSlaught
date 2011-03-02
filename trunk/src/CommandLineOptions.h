@@ -36,6 +36,14 @@
 #include <vector>
 #include <map>
 
+static const int VERBOSITY_LOG_NOTHING=0,
+	VERBOSITY_LOG_LINE_NUMBERS=1,
+	VERBOSITY_LOG_OPEN_STREAMS=2,
+	VERBOSITY_LOG_OPEN_FAILURES=3,
+	VERBOSITY_LOG_EXPRESSIONS=4,
+	VERBOSITY_LOG_EVERYTHING=5,
+	VERBOSITY_RESERVED=255;
+
 struct NONS_CommandLineOptions{
 	ENCODING::ENCODING scriptencoding;
 	std::wstring musicFormat;

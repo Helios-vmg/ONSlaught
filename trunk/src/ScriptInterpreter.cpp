@@ -36,6 +36,44 @@
 #include <iostream>
 #include "version.h"
 
+#define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
+#define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
+#define GET_COORDINATE(dst,axis,src) {                                                                                 \
+	long GET_COORDINATE_temp;                                                                                          \
+	float GET_COORDINATE_temp_f;                                                                                       \
+	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
+	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
+	if (GET_COORDINATE_temp_f>=0)                                                                                      \
+		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
+	else                                                                                                               \
+		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
+	(dst)=GET_COORDINATE_temp_f;                                                                                       \
+}
+#define GET_INT_COORDINATE(dst,axis,src) {                                                                             \
+	long GET_COORDINATE_temp;                                                                                          \
+	float GET_COORDINATE_temp_f;                                                                                       \
+	GET_INT_VALUE(GET_COORDINATE_temp,(src));                                                                          \
+	GET_COORDINATE_temp_f=float(GET_COORDINATE_temp)*float(this->virtual_size[(axis)])/float(this->base_size[(axis)]); \
+	if (GET_COORDINATE_temp_f>=0)                                                                                      \
+		GET_COORDINATE_temp_f=(float)floor(GET_COORDINATE_temp_f+.5f);                                                 \
+	else                                                                                                               \
+		GET_COORDINATE_temp_f=(float)ceil(GET_COORDINATE_temp_f-.5f);                                                  \
+	(dst)=(long)GET_COORDINATE_temp_f;                                                                                 \
+}
+#define GET_STR_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getWcsValue(stmt.parameters[(src)],(dst),0))
+#define GET_INT_OR_STR_VALUE(i,s,type,src) HANDLE_POSSIBLE_ERRORS(this->GET_INT_OR_STR_VALUE_helper((i),(s),(type),stmt.parameters[(src)]))
+#define GET_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getVar((dst),stmt.parameters[(src)],this->store))
+#define GET_INT_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getIntVar((dst),stmt.parameters[(src)],this->store))
+#define GET_STR_VARIABLE(dst,src) HANDLE_POSSIBLE_ERRORS(getStrVar((dst),stmt.parameters[(src)],this->store))
+#define GET_LABEL(dst,src){                              \
+	std::wstring &GET_LABEL_temp=stmt.parameters[(src)]; \
+	if (GET_LABEL_temp[0]=='*')                          \
+		(dst)=GET_LABEL_temp;                            \
+	else{                                                \
+		GET_STR_VALUE((dst),(src));                      \
+	}                                                    \
+}
+
 #if NONS_SYS_WINDOWS
 #include <windows.h>
 HWND mainWindow=0;
@@ -1033,7 +1071,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			sizeof(pairs)/sizeof(*pairs),
 			pairs,
 			&stop,
-			CLOptions.verbosity>=255,
+			CLOptions.verbosity>=VERBOSITY_RESERVED,
 			&exception_string[0],
 			exception_string.size(),
 			fp
@@ -1232,7 +1270,7 @@ void NONS_ScriptInterpreter::handleKeys(SDL_Event &event){
 	}
 }
 
-void print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstring &commandName,const std::vector<std::wstring> &parameters,ulong mode){
+void NONS_ScriptInterpreter::print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstring &commandName,const std::vector<std::wstring> &parameters,ulong mode){
 	if (mode<2){
 		ro <<"{\n";
 		ro.indent(1);
@@ -1244,11 +1282,21 @@ void print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstri
 			ro.indent(1);
 			for (ulong a=0;;a++){
 				ro <<"["<<parameters[a]<<"]";
+				NONS_Expression::Value *val=this->store->evaluate(parameters[a],0);
+				if (!val->is_err()){
+					ro <<" (";
+					if (val->is_int())
+						ro <<val->integer;
+					else
+						ro <<"\""<<val->string<<"\"";
+					ro <<")";
+				}
 				if (a==parameters.size()-1){
 					ro <<"\n";
 					break;
 				}
 				ro <<",\n";
+				delete val;
 			}
 			ro.indent(-1);
 			ro <<")\n";
@@ -1293,9 +1341,9 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 		return 0;
 	stmt->parse(this->script);
 	ulong current_line=stmt->lineOfOrigin->lineNumber;
-	if (CLOptions.verbosity>=1 && CLOptions.verbosity<255)
+	if (CLOptions.verbosity>=VERBOSITY_LOG_LINE_NUMBERS && CLOptions.verbosity<VERBOSITY_RESERVED)
 		o_stderr <<"Interpreting line "<<current_line<<"\n";
-	if (CLOptions.verbosity>=4 && CLOptions.verbosity<255 && stmt->type==StatementType::COMMAND)
+	if (CLOptions.verbosity>=VERBOSITY_LOG_EVERYTHING && CLOptions.verbosity<VERBOSITY_RESERVED && stmt->type==StatementType::COMMAND)
 		print_command(o_stderr,current_line,stmt->commandName,stmt->parameters,0);
 	this->saveGame->textX=this->screen->output->x;
 	this->saveGame->textY=this->screen->output->y;
@@ -1437,7 +1485,7 @@ ErrorCode NONS_ScriptInterpreter::interpretString(NONS_Statement &stmt,NONS_Scri
 	stmt.parse(this->script);
 	stmt.lineOfOrigin=line;
 	stmt.fileOffset=offset;
-	if (CLOptions.verbosity>=4 && CLOptions.verbosity<255 && stmt.type==StatementType::COMMAND){
+	if (CLOptions.verbosity>=VERBOSITY_LOG_EVERYTHING && CLOptions.verbosity<VERBOSITY_RESERVED && stmt.type==StatementType::COMMAND){
 		o_stderr <<"String: ";
 		print_command(o_stderr,0,stmt.commandName,stmt.parameters,0);
 	}
@@ -2572,6 +2620,7 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	NONS_ScreenSpace *scr=this->screen;
 	long color=0;
 	scr->hideTextWindow();
+	ErrorCode ret=NONS_NO_ERROR;
 	if (!stdStrCmpCI(stmt.parameters[0],L"white")){
 		scr->Background->setShade(NONS_Color::white);
 		scr->Background->Clear();
@@ -2584,10 +2633,14 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	}else{
 		std::wstring filename;
 		GET_STR_VALUE(filename,0);
+		if (!general_archive.exists(filename))
+			return NONS_FILE_NOT_FOUND;
 		if (scr->Background)
 			scr->Background->load(&filename);
 		else
 			scr->Background=new NONS_Layer(&filename);
+		if (!scr->Background->data)
+			ret=NONS_UNDEFINED_ERROR;
 		NONS_LongRect rect=NONS_LongRect(scr->screen->inRect);
 		scr->Background->position.x=(rect.w-scr->Background->clip_rect.w)/2;
 		scr->Background->position.y=(rect.h-scr->Background->clip_rect.h)/2;
@@ -2596,16 +2649,18 @@ ErrorCode NONS_ScriptInterpreter::command_bg(NONS_Statement &stmt){
 	CHECK_POINTER_AND_CALL(scr->rightChar,unload());
 	CHECK_POINTER_AND_CALL(scr->centerChar,unload());
 	long number,duration;
-	ErrorCode ret;
 	GET_INT_VALUE(number,1);
+	ErrorCode error;
 	if (stmt.parameters.size()>2){
 		std::wstring rule;
 		GET_INT_VALUE(duration,2);
 		if (stmt.parameters.size()>3)
 			GET_STR_VALUE(rule,3);
-		ret=scr->BlendNoCursor(number,duration,&rule);
+		error=scr->BlendNoCursor(number,duration,&rule);
 	}else
-		ret=scr->BlendNoCursor(number);
+		error=scr->BlendNoCursor(number);
+	if (ret==NONS_NO_ERROR)
+		ret=error;
 	return ret;
 }
 

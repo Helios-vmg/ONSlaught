@@ -192,7 +192,9 @@ public:
 	uchar *read_all(const std::wstring &name,size_t &bytes_read){
 		return (uchar *)NONS_File::read(name,bytes_read);
 	}
-	bool exists(const std::wstring &name){
+	bool exists(const std::wstring &path){
+		std::wstring name=path;
+		toforwardslash(name);
 		return NONS_File::file_exists(name);
 	}
 	std::wstring new_temp_name(){

@@ -114,7 +114,7 @@ public:
 class audio_stream{
 protected:
 	audio_sink *sink;
-	decoder *decoder;
+	decoder *dec;
 	bool good,
 		playing,
 		paused;

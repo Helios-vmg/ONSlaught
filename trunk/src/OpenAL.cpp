@@ -81,13 +81,13 @@ bool audio_sink::needs_more_data(){
 	alGetSourcei(this->source,AL_BUFFERS_PROCESSED,&finished);
 	alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
 	state=this->get_state();
-	return !(!finished && queued>=n && (state==AL_PLAYING || state==AL_PAUSED));
+	return !(!finished && (size_t)queued>=n && (state==AL_PLAYING || state==AL_PAUSED));
 }
 
 #include <iostream>
 
 void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth){
-	static double t=NONS_Clock::NONS_Clock().get();
+	static double t=NONS_Clock().get();
 	if (!*this)
 		return;
 	ALint queued,
@@ -202,16 +202,16 @@ decoder *initialize_decoder(const std::wstring &filename){
 audio_stream::audio_stream(const std::wstring &filename){
 	this->filename=filename;
 	tolower(this->filename);
-	this->decoder=initialize_decoder(filename);
-	if (this->decoder && !*this->decoder){
-		delete this->decoder;
-		this->decoder=0;
+	this->dec=initialize_decoder(filename);
+	if (this->dec && !*this->dec){
+		delete this->dec;
+		this->dec=0;
 	}
 	this->sink=0;
 	this->loop=0;
 	this->playing=0;
 	this->paused=0;
-	this->good=this->decoder;
+	this->good=this->dec;
 	this->volume=1.f;
 	this->general_volume=0;
 	this->muted=0;
@@ -220,7 +220,7 @@ audio_stream::audio_stream(const std::wstring &filename){
 
 audio_stream::~audio_stream(){
 	this->stop();
-	delete this->decoder;
+	delete this->dec;
 }
 
 void audio_stream::start(){
@@ -273,13 +273,13 @@ bool audio_stream::update(){
 	while (this->sink->needs_more_data()){
 		bool error;
 		audio_buffer *buffer;
-		buffer=this->decoder->get_buffer(error);
+		buffer=this->dec->get_buffer(error);
 		bool stop=0;
 		if (!buffer && !error){
 			if (this->loop){
-				this->decoder->loop();
+				this->dec->loop();
 				this->loop--;
-				buffer=this->decoder->get_buffer(error);
+				buffer=this->dec->get_buffer(error);
 				if (!buffer && !error)
 					stop=1;
 			}else

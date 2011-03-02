@@ -57,8 +57,9 @@ Levels:
 Level 0: No logging.
 Level 1: Log line numbers being interpreted.
 Level 2: Log file streams being closed and opened.
-Level 3: Log results and details for expressions.
-Level >4: Log all commands being executed and their parameters.
+Level 3: Log file open failures.
+Level 4: Log results and details for expressions.
+Level >5: Log all commands being executed and their parameters.
 Level 255: Reserved for engine debugging.
 
 

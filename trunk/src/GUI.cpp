@@ -55,7 +55,6 @@ NONS_Lookback::NONS_Lookback(NONS_StandardOutput *output,const NONS_Color &color
 	this->up=0;
 	this->down=0;
 	this->resetButtons();
-	memset(this->surfaces,0,sizeof(this->surfaces));
 }
 
 void NONS_Lookback::resetButtons(){

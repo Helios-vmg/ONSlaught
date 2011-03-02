@@ -31,6 +31,8 @@ extern "C"
 {
 #endif
 
+#include "common.h"
+
 #define LIBTIMIDITY_VERSION_MAJOR 0L
 #define LIBTIMIDITY_VERSION_MINOR 1L
 #define LIBTIMIDITY_PATCHLEVEL    0L
@@ -86,7 +88,6 @@ extern "C"
      * ======================
      */
 
-	typedef void *custom_FILE;
 	struct custom_stdio{
 		custom_FILE (*fopen)(const char *filename);
 		int (*fclose)(custom_FILE stream);

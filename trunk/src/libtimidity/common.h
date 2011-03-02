@@ -21,6 +21,9 @@
    common.h
 */
 
+#ifndef TIMIDITY_COMMON_H
+#define TIMIDITY_COMMON_H
+
 typedef struct {
     char *path;
     void *next;
@@ -33,3 +36,4 @@ extern custom_FILE open_file(char *name,struct custom_stdio *stdio);
 extern void add_to_pathlist(char *s);
 extern void *safe_malloc(size_t count);
 extern void free_pathlist(void);
+#endif

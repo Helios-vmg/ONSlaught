@@ -262,7 +262,7 @@ std::wstring cheap_input_stream::get_all_remaining(){
 bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpreter_state *state){
 	NONS_Macro::file *f=0;
 	{
-		cheap_input_stream stream=script;
+		cheap_input_stream stream(script);
 		macroParser_yydebug=1;
 		std::deque<wchar_t> secondary_queue;
 		if (!!macroParser_yyparse(stream,secondary_queue,f))
