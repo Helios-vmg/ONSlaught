@@ -51,8 +51,10 @@ struct NONS_CommandLineOptions{
 	std::wstring archiveDirectory;
 	std::wstring scriptPath;
 	ENCRYPTION::ENCRYPTION scriptEncryption;
+#ifndef NONS_NO_STDOUT
 	bool override_stdout;
 	bool reset_redirection_files;
+#endif
 	bool debugMode;
 	bool noconsole;
 	ushort virtualWidth,virtualHeight,

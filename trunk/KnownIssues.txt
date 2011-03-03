@@ -1,6 +1,3 @@
-* Linux
-    XMMS has been known to to clash with the sound library to the point that
-    only one of the two can be playing sound at a time.
 * Miscellanea
     Vertical centering produces incorrect results when the size of a page of
     text is greater than the size of the screen. This may be fixed in future

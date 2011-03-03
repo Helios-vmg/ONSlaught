@@ -53,8 +53,10 @@ extern std::ofstream textDumpFile;
 NONS_CommandLineOptions::NONS_CommandLineOptions(){
 	this->scriptencoding=ENCODING::AUTO;
 	this->scriptEncryption=ENCRYPTION::NONE;
+#ifndef NONS_NO_STDOUT
 	this->override_stdout=1;
 	this->reset_redirection_files=1;
+#endif
 	this->debugMode=0;
 	this->noconsole=0;
 	this->virtualWidth=DEFAULT_INPUT_WIDTH;
@@ -121,10 +123,11 @@ void usage(){
 		"  -debug\n"
 		"      Enable debug mode.\n"
 		"      See the documentation for more information.\n"
-#if NONS_SYS_WINDOWS
+#if NONS_SYS_WINDOWS && !defined NONS_NO_STDOUT
 		"  -no-console\n"
 		"      Hide the console.\n"
 #endif
+#ifndef NONS_NO_STDOUT
 		"  -redirect\n"
 		"      Redirect stdout and stderr to \"stdout.txt\" and \"stderr.txt\"\n"
 		"      correspondingly.\n"
@@ -137,6 +140,7 @@ void usage(){
 		"      Only used with \"-redirect\".\n"
 		"      Keeps the contents of stdout.txt, stderr.txt, and stdlog.txt when it\n"
 		"      opens them and puts the date and time as identification.\n"
+#endif
 		"  -stop-on-first-error\n"
 		"      Stops executing the script when the first error occurs. \"Unimplemented\n"
 		"      command\" (when the command will not be implemented) errors don't count.\n"
@@ -214,7 +218,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				usage();
 			case 1: //-script
 				if (a+1>=size){
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
 				if (arguments[++a]==L"auto"){
@@ -222,7 +226,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					break;
 				}
 				if (a+1>=size){
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a-1]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a-1]<<"\"\n";
 					break;
 				}
 				this->scriptPath=arguments[a];
@@ -230,7 +234,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				break;
 			case 2: //-encoding
 				if (a+1>=size){
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
 				if (arguments[++a]==L"auto"){
@@ -249,12 +253,12 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					this->scriptencoding=ENCODING::UTF8;
 					break;
 				}
-				std::cerr <<"Unrecognized encoding: \""<<arguments[a]<<"\""<<std::endl;
+				STD_CERR <<"Unrecognized encoding: \""<<arguments[a]<<"\"\n";
 				break;
 			case 3: //-music-format
 				{
 					if (a+1>=size){
-						std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+						STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 						break;
 					}
 					if (arguments[++a]==L"auto"){
@@ -268,12 +272,12 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					if (format>=0)
 						this->musicFormat=arguments[a];
 					else
-						std::cerr <<"Unrecognized music format: \""<<arguments[a]<<"\""<<std::endl;
+						STD_CERR <<"Unrecognized music format: \""<<arguments[a]<<"\"\n";
 				}
 				break;
 			case 4: //-music-directory
 				if (a+1>=size){
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
 				this->musicDirectory=arguments[++a];
@@ -287,10 +291,12 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				this->debugMode=1;
 				this->noconsole=0;
 				break;
+#ifndef NONS_NO_STDOUT
 			case 9: //-redirect
 				this->override_stdout=1;
 				this->debugMode=0;
 				break;
+#endif
 			case 11: //-implementation
 				this->listImplementation=1;
 			case 10: //--version
@@ -301,7 +307,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 			case 13: //-dump-text
 				{
 					if (a+1>=size){
-						std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+						STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 						break;
 					}
 					textDumpFile.open(UniToUTF8(arguments[++a]).c_str(),std::ios::app);
@@ -312,7 +318,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				break;
 			case 15: //-r
 				if (a+4>=size){
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
 				this->virtualWidth=(ushort)atoi(arguments[++a]);
@@ -322,7 +328,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				break;
 			case 16: //-verbosity
 				if (a+1>=size){
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
 				this->verbosity=(uchar)atoi(arguments[++a]);
@@ -332,7 +338,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				break;
 			case 21: //-save-directory
 				if (a+1>=size)
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 				else{
 					std::wstring copy=arguments[++a];
 					toforwardslash(copy);
@@ -341,18 +347,20 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 						this->savedir=copy;
 				}
 				break;
+#ifndef NONS_NO_STDOUT
 			case 22: //-!reset-out-files
 				this->reset_redirection_files=0;
 				break;
 			case 23: //-!redirect
 				this->override_stdout=0;
 				break;
+#endif
 			case 24: //-stop-on-first-error
 				this->stopOnFirstError=1;
 				break;
 			case 25: //-archive-directory
 				if (a+1>=size)
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 				else{
 					this->archiveDirectory=arguments[++a];
 					toforwardslash(this->archiveDirectory);
@@ -360,7 +368,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				break;
 			case 26: //-pp-output
 				if (a+1>=size)
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 				else{
 					this->outputPreprocessedFile=1;
 					this->preprocessedFile=arguments[++a];
@@ -375,7 +383,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				break;
 			case 29: //-play
 				if (a+1>=size)
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 				else{
 					this->play=arguments[++a];
 					toforwardslash(this->play);
@@ -383,7 +391,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 				break;
 			case 30: //-replace
 				if (a+1>=size)
-					std::cerr <<"Invalid argument syntax: \""<<arguments[a]<<"\""<<std::endl;
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 				else{
 					std::wstring str=arguments[++a];
 					if (str.size()%2)
@@ -399,7 +407,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 			case 12: //-no-console
 			case 17: //-sdebug
 			default:
-				std::cerr <<"Unrecognized command line option: \""<<arguments[a]<<"\""<<std::endl;
+				STD_CERR <<"Unrecognized command line option: \""<<arguments[a]<<"\"\n";
 		}
 	}
 }

@@ -2471,7 +2471,7 @@ void NONS_SurfaceManager::DiskCache::add(std::wstring src,const NONS_ConstSurfac
 	map_t::iterator i=this->cache_list.find(src);
 	std::wstring dst;
 	if (i==this->cache_list.end()){
-		dst=L"__ONSlaught_cache_"+itoaw(this->state++)+L".raw";
+		dst=get_temp_path()+L"__ONSlaught_cache_"+itoaw(this->state++)+L".raw";
 		this->cache_list[src]=dst;
 	}else
 		dst=i->second;

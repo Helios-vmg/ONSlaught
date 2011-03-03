@@ -65,7 +65,7 @@ void handle_SIGTERM(int){
 }
 
 void handle_SIGINT(int){
-	std::cout <<"Forcefully terminating.\n";
+	STD_COUT <<"Forcefully terminating.\n";
 }
 
 volatile bool stopEventHandling=0;
@@ -323,12 +323,14 @@ void initialize(int argc,char **argv){
 
 	general_archive.init();
 
+#ifndef NONS_NO_STDOUT
 	if (CLOptions.override_stdout){
 		o_stdout.redirect();
 		o_stderr.redirect();
 		o_stdout <<get_version_string();
-		std::cout <<"Redirecting.\n";
+		STD_COUT <<"Redirecting.\n";
 	}
+#endif
 
 	threadManager.setCPUcount();
 #ifdef USE_THREAD_MANAGER
@@ -344,7 +346,7 @@ void initialize(int argc,char **argv){
 }
 
 void print_version_string(){
-	std::cout <<get_version_string();
+	STD_COUT <<get_version_string();
 }
 
 void uninitialize(){
@@ -359,6 +361,11 @@ extern double over_time_sum;
 #endif
 
 int main(int argc,char **argv){
+#ifdef NONS_NO_STDOUT
+	//Have at least one reference to std::cout, or some functions are liable to
+	//crash after main() has returned.
+	std::ostream &cout=std::cout;
+#endif
 	print_version_string();
 	initialize(argc,argv);
 	{
@@ -377,7 +384,7 @@ int main(int argc,char **argv){
 	}
 #ifdef BENCHMARK_ALPHA_BLENDING
 	if (over_time_sum!=0)
-		std::cout <<"Alpha blending speed: "<<double(over_pixel_count)/over_time_sum/1000.0<<" kpx/ms.\n";
+		STD_COUT <<"Alpha blending speed: "<<double(over_pixel_count)/over_time_sum/1000.0<<" kpx/ms.\n";
 #endif
 	uninitialize();
 	return 0;

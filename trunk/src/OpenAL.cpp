@@ -97,7 +97,6 @@ void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels
 	alGetSourcei(this->source,AL_BUFFERS_QUEUED,&queued);
 	state=this->get_state();
 	assert(state!=AL_PAUSED);
-	//std::cout <<"["<<NONS_Clock::NONS_Clock().get()-t<<"] - "<<std::string(queued,'X')<<std::endl;
 	bool call_play=(finished==queued || state!=AL_PLAYING);
 	std::vector<ALuint> temp(queued);
 	ALuint new_buffer;
@@ -145,11 +144,8 @@ audio_buffer::audio_buffer(const void *buffer,size_t length,ulong freq,ulong cha
 	this->bit_depth=bit_depth;
 }
 
-#define HANDLE_TYPE_WITH_TYPE(s,t) if (ends_with(this->filename,(std::wstring)s))\
-	this->decoder=new t(general_archive.open(this->filename))
-
 template <typename T>
-decoder *new_decoder(const std::wstring &filename){
+static decoder *new_decoder(const std::wstring &filename,bool prioritize_filesystem){
 	return new T(general_archive.open(filename));
 }
 
@@ -175,10 +171,10 @@ UNI (MikMod),
 XM (FastTracker 2) 
 */
 
-decoder *initialize_decoder(const std::wstring &filename){
+decoder *initialize_decoder(const std::wstring &filename,bool prioritize_filesystem){
 	struct pair{
 		std::wstring ext;
-		decoder *(*f)(const std::wstring &);
+		decoder *(*f)(const std::wstring &,bool);
 	};
 	static pair array[]={
 		{L".ogg",new_decoder<ogg_decoder>},
@@ -195,14 +191,20 @@ decoder *initialize_decoder(const std::wstring &filename){
 	const size_t n=sizeof(array)/sizeof(*array);
 	for (size_t a=0;a<n;a++)
 		if (ends_with(filename,array[a].ext))
-			return array[a].f(filename);
+			return array[a].f(filename,prioritize_filesystem);
 	return 0;
 }
 
-audio_stream::audio_stream(const std::wstring &filename){
-	this->filename=filename;
-	tolower(this->filename);
-	this->dec=initialize_decoder(filename);
+audio_stream::audio_stream(const std::wstring &filename,bool prioritize_filesystem){
+	std::wstring temp=filename;
+	if (ends_with(tolowerCopy(filename),(std::wstring)L".wav")){
+		size_t n=temp.size()-3;
+		temp.resize(n+4);
+		static const wchar_t *flac=L"flac";
+		std::copy(flac,flac+4,&temp[n]);
+	}
+	this->filename=temp;
+	this->dec=initialize_decoder(filename,prioritize_filesystem);
 	if (this->dec && !*this->dec){
 		delete this->dec;
 		this->dec=0;

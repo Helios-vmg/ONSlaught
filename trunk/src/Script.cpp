@@ -521,7 +521,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 			if (obuffer.size())
 				cache.write(&obuffer[0],obuffer.size());
 			t1=clock.get();
-			std::cout <<"Script converted in "<<t1-t0<<" ms."<<std::endl;
+			STD_COUT <<"Script converted in "<<t1-t0<<" ms.\n";
 		}
 	}else
 		this->cache_filename=scriptname;
@@ -630,7 +630,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 	hash.Result(this->hash);
 	save_directory=getSaveLocation(this->hash);
 	t1=clock.get();
-	std::cout <<"Script data loaded in "<<t1-t0<<" ms."<<std::endl;
+	STD_COUT <<"Script data loaded in "<<t1-t0<<" ms.\n";
 	return NONS_NO_ERROR;
 }
 #endif

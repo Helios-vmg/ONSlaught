@@ -32,28 +32,6 @@
 #include "CommandLineOptions.h"
 #include <cassert>
 
-#if 0
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-const int rmask=0xFF000000;
-const int gmask=0x00FF0000;
-const int bmask=0x0000FF00;
-const int amask=0x000000FF;
-const int rshift=24;
-const int gshift=16;
-const int bshift=8;
-const int ashift=0;
-#else
-const int rmask=0x000000FF;
-const int gmask=0x0000FF00;
-const int bmask=0x00FF0000;
-const int amask=0xFF000000;
-const int rshift=0;
-const int gshift=8;
-const int bshift=16;
-const int ashift=24;
-#endif
-#endif
-
 NONS_Layer::NONS_Layer(const NONS_LongRect &size,const NONS_Color &rgba)
 		:data((ulong)size.w,(ulong)size.h),defaultShade(rgba){
 	this->data.fill(rgba);
@@ -141,7 +119,7 @@ bool NONS_Layer::load(const std::wstring *string){
 		ulong t0=clock.get();
 		NONS_LongRect rect=this->getUpdateRect(0,1);
 		ulong t1=clock.get();
-		std::cout <<"completed in "<<t1-t0<<" msec."<<std::endl;
+		STD_COUT <<"completed in "<<t1-t0<<" msec."<<std::endl;
 	}*/
 	return 1;
 }

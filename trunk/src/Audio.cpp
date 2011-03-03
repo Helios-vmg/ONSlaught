@@ -111,7 +111,7 @@ ErrorCode NONS_Audio::play_music(const std::wstring &filename,long times){
 	audio_stream *stream=this->get_channel(channel);
 	if (stream)
 		this->dev->remove(stream);
-	stream=new audio_stream(temp);
+	stream=new audio_stream(temp,1);
 	if (!*stream){
 		delete stream;
 		return NONS_UNDEFINED_ERROR;

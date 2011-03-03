@@ -136,21 +136,30 @@ public:
 
 struct NONS_RedirectedOutput{
 	std::ofstream *file;
+#ifndef NONS_NO_STDOUT
 	std::ostream &cout;
+#endif
 #if NONS_SYS_WINDOWS
 	VirtualConsole *vc;
 #endif
 	ulong indentation;
 	bool addIndentationNext;
+#ifndef NONS_NO_STDOUT
 	NONS_RedirectedOutput(std::ostream &a);
+#else
+	NONS_RedirectedOutput(std::ofstream *a);
+#endif
 	~NONS_RedirectedOutput();
 	NONS_RedirectedOutput &operator<<(ulong);
 	NONS_RedirectedOutput &operator<<(long);
 	NONS_RedirectedOutput &operator<<(wchar_t);
+	NONS_RedirectedOutput &operator<<(double);
 	NONS_RedirectedOutput &operator<<(const char *);
 	NONS_RedirectedOutput &operator<<(const std::string &);
 	NONS_RedirectedOutput &operator<<(const std::wstring &);
+#ifndef NONS_NO_STDOUT
 	void redirect();
+#endif
 	void indent(long);
 private:
 	void write_to_stream(const std::stringstream &str);
@@ -176,6 +185,8 @@ public:
 	virtual bool exists(const std::wstring &name)=0;
 };
 
+std::wstring get_temp_path();
+
 class NONS_FileSystem:public NONS_DataSource{
 	NONS_Mutex mutex;
 	ulong temp_id;
@@ -197,12 +208,7 @@ public:
 		toforwardslash(name);
 		return NONS_File::file_exists(name);
 	}
-	std::wstring new_temp_name(){
-		this->mutex.lock();
-		ulong id=this->temp_id++;
-		this->mutex.unlock();
-		return L"__ONSlaught_temp_"+itoaw(id)+L".tmp";
-	}
+	std::wstring new_temp_name();
 };
 
 class NONS_MemoryFS:public NONS_DataSource{

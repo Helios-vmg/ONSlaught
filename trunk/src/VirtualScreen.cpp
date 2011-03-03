@@ -80,7 +80,7 @@ void asyncEffectThread(NONS_VirtualScreen *vs){
 SDL_Surface *allocate_screen(ulong w,ulong h,bool fullscreen){
 	SDL_Surface *r=SDL_SetVideoMode(w,h,32,SDL_DOUBLEBUF|(fullscreen?SDL_FULLSCREEN:0));
 	if (!r){
-		std::cerr <<"FATAL ERROR: Could not allocate screen!\n"
+		STD_CERR <<"FATAL ERROR: Could not allocate screen!\n"
 			"Did you forget to install libx11-dev before building?\n"
 			"Terminating.\n";
 		exit(0);
@@ -437,32 +437,32 @@ void NONS_VirtualScreen::changeState(bool switchAsyncState,bool switchFilterStat
 }
 
 void NONS_VirtualScreen::printCurrentState(){
-	std::cout <<"Processing pipeline: ";
+	STD_COUT <<"Processing pipeline: ";
 	for (ulong a=0;a<3;a++){
-		std::cout <<a;
+		STD_COUT <<a;
 		ulong pointsTo=a;
 		for (ulong b=a+1;b<4 && pointsTo==a;b++)
 			if (this->screens[a]==this->screens[b])
 				pointsTo=b;
 		if (pointsTo!=a){
-			std::cout <<"->";
+			STD_COUT <<"->";
 			a=pointsTo-1;
 			continue;
 		}
-		std::cout <<"*-(";
+		STD_COUT <<"*-(";
 		if (a<1 && this->usingFeature[OVERALL_FILTER]){
 			a=this->post_filter-1;
-			std::cout <<"filter";
+			STD_COUT <<"filter";
 		}else if (a<2 && this->usingFeature[INTERPOLATION]){
 			a=this->post_inter-1;
-			std::cout <<"interpolation";
+			STD_COUT <<"interpolation";
 		}else if (a<3 && this->usingFeature[ASYNC_EFFECT]){
 			a=REAL-1;
-			std::cout <<"async effect";
+			STD_COUT <<"async effect";
 		}
-		std::cout <<")->";
+		STD_COUT <<")->";
 	}
-	std::cout <<3<<std::endl;
+	STD_COUT <<"3\n";
 }
 
 #define RED_MONOCHROME(x) ((x)*3/10)

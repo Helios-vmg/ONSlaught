@@ -137,7 +137,7 @@ public:
 	int loop;
 	bool cleanup;
 	audio_device::list_t::iterator iterator;
-	audio_stream(const std::wstring &filename);
+	audio_stream(const std::wstring &filename,bool prioritize_filesystem=0);
 	virtual ~audio_stream();
 	operator bool(){ return this->good; }
 	void start();

@@ -405,7 +405,7 @@ void NONS_GFX::effectCrossfade(const NONS_ConstSurface &src,const NONS_ConstSurf
 	}
 #ifdef BENCHMARK_EFFECTS
 	double speed=steps*1000.0/this->duration;
-	std::cout <<"effectCrossfade(): "<<speed<<" steps per second."<<std::endl;
+	STD_COUT <<"effectCrossfade(): "<<speed<<" steps per second.\n";
 #endif
 	effect_epilogue();
 }
@@ -699,7 +699,7 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 	}
 #ifdef BENCHMARK_EFFECTS
 	double speed=steps*1000.0/this->duration;
-	std::cout <<"effectSoftMask(): "<<speed<<" steps per second."<<std::endl;
+	STD_COUT <<"effectSoftMask(): "<<speed<<" steps per second.\n";
 #endif
 	effect_epilogue();
 }

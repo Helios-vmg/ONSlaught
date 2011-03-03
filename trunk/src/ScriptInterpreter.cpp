@@ -236,7 +236,7 @@ NONS_ScreenSpace *init_screen(NONS_FontCache &fc){
 		screen->Background->Clear();
 		screen->BlendNoCursor(1);
 	}
-	std::cout <<"Screen initialized."<<std::endl;
+	STD_COUT <<"Screen initialized.\n";
 	return screen;
 }
 
@@ -628,7 +628,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->allowedCommandList.insert(L"getini");
 	ulong total=this->totalCommands(),
 		implemented=this->implementedCommands();
-	std::cout <<"ONSlaught script interpreter v"<<float(implemented*100/total)/100.0f<<std::endl;
+	STD_COUT <<"ONSlaught script interpreter v"<<float(implemented*100/total)/100.0f<<"\n";
 	if (CLOptions.listImplementation)
 		this->listImplementation();
 }
@@ -780,7 +780,9 @@ void NONS_ScriptInterpreter::listImplementation(){
 		else
 			implemented.push_back(i->first);
 	}
+#ifndef NONS_NO_STDOUT
 	o_stdout.redirect();
+#endif
 	o_stdout <<"Implemented commands:\n";
 	o_stdout.indent(1);
 	for (ulong a=0;a<implemented.size();a++)
@@ -1143,13 +1145,13 @@ const wchar_t *image_formats[]={
 const wchar_t *sound_formats[]={
 	L"ogg",
 	L"mp3",
+	L"flac",
 	L"mid",
 	L"it",
 	L"xm",
 	L"s3m",
 	L"mod",
 	L"aiff",
-	L"flac",
 	L"669",
 	L"med",
 	L"voc",
@@ -1428,7 +1430,7 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 					if (CHECK_FLAG(stmt->error,NONS_NO_ERROR_FLAG)){
 #if defined _DEBUG && defined STOP_AT_LINE && STOP_AT_LINE>0
 						if (break_at_this_line)
-							std::cout <<"TRIGGERED!"<<std::endl;
+							STD_COUT <<"TRIGGERED!\n";
 #endif
 						error=(this->*function)(*stmt);
 					}else

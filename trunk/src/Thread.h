@@ -45,7 +45,7 @@ typedef void (*NONS_ThreadedFunctionPointer)(void *);
 
 #if NONS_SYS_WINDOWS
 typedef HANDLE NONS_Thread_internal;
-#define NONS_Thread_DECLARE_THREAD_FUNCTION(name) DWORD __stdcall name(void *p)
+#define NONS_Thread_DECLARE_THREAD_FUNCTION(name) unsigned long __stdcall name(void *p)
 #elif NONS_SYS_UNIX
 typedef pthread_t NONS_Thread_internal;
 #define NONS_Thread_DECLARE_THREAD_FUNCTION(name) void *name(void *p)

@@ -94,9 +94,7 @@ NONS_LogStrings::~NONS_LogStrings(){
 }
 
 void NONS_LogStrings::writeOut(){
-	std::stringstream stream;
-	stream <<this->log.size();
-	std::string buf(stream.str());
+	std::string buf=itoac(this->log.size());
 	buf.append("\x0ANONS\x0A");
 	ulong startEncryption=buf.size();
 	for (logSet_t::iterator i=this->log.begin();i!=this->log.end();i++){

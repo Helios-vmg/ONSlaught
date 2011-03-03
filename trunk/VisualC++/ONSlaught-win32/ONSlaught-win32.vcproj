@@ -42,7 +42,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../../include"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DEBUG_SCREEN_MUTEX;BUILD_ONSLAUGHT"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DEBUG_SCREEN_MUTEX;BUILD_ONSLAUGHT;FLAC__NO_DLL"
 				MinimalRebuild="true"
 				ExceptionHandling="0"
 				BasicRuntimeChecks="3"
@@ -63,7 +63,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libmikmod.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib SDL_mixer.lib SDLmain.lib smpeg.lib timidity.lib zlib.lib"
+				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib zlib.lib OpenAL32.lib libFLAC_static.lib libmpg123.lib libmikmod.lib"
 				OutputFile="$(OutDir)/ONSlaught_d.exe"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="../../lib-win32"
@@ -123,7 +123,7 @@
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="0"
 				AdditionalIncludeDirectories="../../include"
-				PreprocessorDefinitions="WIN32;NDEBUG;NONS_SVN;BUILD_ONSLAUGHT"
+				PreprocessorDefinitions="WIN32;NDEBUG;NONS_SVN;BUILD_ONSLAUGHT;FLAC__NO_DLL"
 				StringPooling="true"
 				ExceptionHandling="0"
 				RuntimeLibrary="0"
@@ -145,7 +145,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libmikmod.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib SDL_mixer.lib SDLmain.lib smpeg.lib timidity.lib zlib.lib"
+				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib zlib.lib OpenAL32.lib libFLAC_static.lib libmpg123.lib libmikmod.lib SDLmain"
 				OutputFile="$(OutDir)/ONSlaught.exe"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="../../lib-win32"

@@ -42,9 +42,18 @@
 #include <fcntl.h>
 #endif
 
+#define STDOUT_FILENAME "stdout.txt"
+#define STDERR_FILENAME "stderr.txt"
+#define STDLOG_FILENAME "stdlog.txt"
+
 NONS_InputObserver InputObserver;
+#ifndef NONS_NO_STDOUT
 NONS_RedirectedOutput o_stdout(std::cout);
 NONS_RedirectedOutput o_stderr(std::cerr);
+#else
+NONS_RedirectedOutput o_stdout(new std::ofstream(STDOUT_FILENAME));
+NONS_RedirectedOutput o_stderr(new std::ofstream(STDERR_FILENAME));
+#endif
 NONS_FileSystem filesystem;
 NONS_MemoryFS memoryFS;
 
@@ -560,9 +569,13 @@ void VirtualConsole::put(const char *str,size_t size){
 }
 #endif
 
+#ifndef NONS_NO_STDOUT
 NONS_RedirectedOutput::NONS_RedirectedOutput(std::ostream &a)
-		:cout(a){
-	this->file=0;
+		:cout(a),file(0){
+#else
+NONS_RedirectedOutput::NONS_RedirectedOutput(std::ofstream *a)
+		:file(a){
+#endif
 	this->indentation=0;
 	this->addIndentationNext=1;
 #if NONS_SYS_WINDOWS
@@ -585,10 +598,14 @@ void NONS_RedirectedOutput::write_to_stream(const std::stringstream &str){
 		this->vc->put(str.str());
 	else
 #endif
+#ifndef NONS_NO_STDOUT
 		if (CLOptions.override_stdout && this->file)
-			(*this->file) <<str.str();
+#endif
+			*this->file <<str.str();
+#ifndef NONS_NO_STDOUT
 		else
 			this->cout <<str.str();
+#endif
 }
 
 NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(ulong a){
@@ -603,6 +620,10 @@ NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(wchar_t a){
 	std::wstring s;
 	s.push_back(a);
 	return *this <<UniToUTF8(s);
+}
+
+NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(double a){
+	return *this <<itoac(a);
 }
 
 NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(const char *a){
@@ -630,18 +651,19 @@ NONS_RedirectedOutput &NONS_RedirectedOutput::operator<<(const std::wstring &a){
 	return *this <<UniToUTF8(a);
 }
 
+#ifndef NONS_NO_STDOUT
 void NONS_RedirectedOutput::redirect(){
 	if (this->file)
 		delete this->file;
 	const char *str;
 	ulong color=7;
 	if (this->cout==std::cout)
-		str="stdout.txt";
+		str=STDOUT_FILENAME;
 	else if (this->cout==std::cerr){
-		str="stderr.txt";
+		str=STDERR_FILENAME;
 		color=12;
 	}else
-		str="stdlog.txt";
+		str=STDLOG_FILENAME;
 #if NONS_SYS_WINDOWS
 	if (CLOptions.verbosity>=VERBOSITY_RESERVED){
 		this->vc=new VirtualConsole(str,color);
@@ -666,6 +688,7 @@ void NONS_RedirectedOutput::redirect(){
 			"Session "<<getTimeString<char>()<<"\n"
 			"--------------------------------------------------------------------------------"<<std::endl;
 }
+#endif
 
 void NONS_RedirectedOutput::indent(long a){
 	if (!a)
@@ -708,6 +731,29 @@ NONS_DataStream *NONS_FileSystem::open(const std::wstring &path,bool keep_in_mem
 	}
 	return NONS_DataSource::open(p,normalize_path(p->get_name()));
 
+}
+
+std::wstring get_temp_path(){
+	static std::wstring path;
+	if (path.size())
+		return path;
+#if NONS_SYS_WINDOWS
+	path.assign(GetTempPath(0,0),0);
+	GetTempPath(path.size(),&path[0]);
+	path[path.size()-1]='/';
+#elif NONS_SYS_UNIX
+	path=L"/tmp/";
+#else
+	path=L"./";
+#endif
+	return path;
+}
+
+std::wstring NONS_FileSystem::new_temp_name(){
+	this->mutex.lock();
+	ulong id=this->temp_id++;
+	this->mutex.unlock();
+	return get_temp_path()+L"__ONSlaught_temp_"+itoaw(id)+L".tmp";
 }
 
 bool NONS_DataSource::close(NONS_DataStream *p){
