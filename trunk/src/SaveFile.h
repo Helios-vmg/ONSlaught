@@ -50,6 +50,7 @@ struct printingPage;
 
 struct pipelineElement;
 
+#if 0
 struct NONS_SaveFile{
 	char format;
 	ushort version;
@@ -164,6 +165,7 @@ struct NONS_SaveFile{
 	void load(std::wstring filename);
 	bool save(std::wstring filename);
 };
+#endif
 
 extern std::wstring save_directory;
 extern std::wstring config_directory;

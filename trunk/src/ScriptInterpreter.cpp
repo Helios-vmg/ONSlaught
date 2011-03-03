@@ -184,6 +184,41 @@ NONS_StackElement::~NONS_StackElement(){
 		delete buttons;
 }
 
+TiXmlElement *NONS_StackElement::save(NONS_Script *script,NONS_VariableStore *store){
+	TiXmlElement *stack_frame=new TiXmlElement("stack_frame");
+	stack_frame->SetAttribute("type",(int)this->type);
+	NONS_ScriptBlock *block=script->blockFromLine(this->returnTo.line);
+	stack_frame->SetAttribute("label",UniToUTF8(block->name));
+	stack_frame->SetAttribute("lines_below",this->returnTo.line-block->first_line);
+	stack_frame->SetAttribute("substatement",this->returnTo.statement);
+	stack_frame->SetAttribute("textgosub_level",this->textgosubLevel);
+	switch (this->type){
+		case StackFrameType::SUBROUTINE_CALL:
+			stack_frame->SetAttribute("leftovers",UniToUTF8(this->interpretAtReturn.toString()));
+			break;
+		case StackFrameType::FOR_NEST:
+			for (variables_map_T::iterator i2=store->variables.begin();i2!=store->variables.end();++i2){
+				if (i2->second->intValue==this->var){
+					stack_frame->SetAttribute("variable",(int)i2->first);
+					break;
+				}
+			}
+			stack_frame->SetAttribute("to",(int)this->to);
+			stack_frame->SetAttribute("step",(int)this->step);
+			break;
+		/*case StackFrameType::TEXTGOSUB_CALL:
+			break;*/
+		case StackFrameType::USERCMD_CALL:
+			stack_frame->SetAttribute("leftovers",UniToUTF8(this->interpretAtReturn.toString()));
+			for (size_t a=0;a<this->parameters.size();a++){
+				TiXmlNode *parameter=stack_frame->LinkEndChild(new TiXmlElement("parameter"));
+				parameter->SetValue(UniToUTF8(this->parameters[a]));
+			}
+			break;
+	}
+	return stack_frame;
+}
+
 ConfigFile settings;
 
 ErrorCode init_script(NONS_Script *&script,const std::wstring &filename,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
@@ -245,7 +280,6 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->pageCursor=0;
 	this->menu=0;
 	this->imageButtons=0;
-	this->saveGame=0;
 	this->screen=0;
 	this->audio=0;
 	this->script=0;
@@ -678,9 +712,6 @@ void NONS_ScriptInterpreter::init(){
 			}
 		}
 		this->thread=new NONS_ScriptThread(this->script);
-		this->saveGame=new NONS_SaveFile;
-		this->saveGame->format='N';
-		memcpy(this->saveGame->hash,this->script->hash,sizeof(unsigned)*5);
 	}
 	{
 		labellog.init(L"NScrllog.dat",L"nonsllog.dat");
@@ -748,7 +779,6 @@ void NONS_ScriptInterpreter::uninit(){
 	this->selectVoiceMouseOver.clear();
 	this->clickStr.clear();
 	delete this->imageButtons;
-	delete this->saveGame;
 	delete this->thread;
 	delete this->audio;
 
@@ -1347,10 +1377,10 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 		o_stderr <<"Interpreting line "<<current_line<<"\n";
 	if (CLOptions.verbosity>=VERBOSITY_LOG_EVERYTHING && CLOptions.verbosity<VERBOSITY_RESERVED && stmt->type==StatementType::COMMAND)
 		print_command(o_stderr,current_line,stmt->commandName,stmt->parameters,0);
-	this->saveGame->textX=this->screen->output->x;
-	this->saveGame->textY=this->screen->output->y;
-	this->saveGame->italic=this->screen->output->get_italic();
-	this->saveGame->bold=this->screen->output->get_bold();
+	this->stored_state.textX=this->screen->output->x;
+	this->stored_state.textY=this->screen->output->y;
+	this->stored_state.italic=this->screen->output->get_italic();
+	this->stored_state.bold=this->screen->output->get_bold();
 #if defined _DEBUG && defined STOP_AT_LINE && STOP_AT_LINE>0
 	//Reserved for debugging:
 	bool break_at_this_line=0;
@@ -1359,7 +1389,6 @@ bool NONS_ScriptInterpreter::interpretNextLine(){
 #endif
 	switch (stmt->type){
 		case StatementType::BLOCK:
-			this->saveGame->currentLabel=stmt->commandName;
 			labellog.addString(stmt->commandName);
 			if (!stdStrCmpCI(stmt->commandName,L"define"))
 				this->interpreter_mode=DEFINE_MODE;
@@ -1961,6 +1990,7 @@ bool NONS_ScriptInterpreter::gosub_label(const std::wstring &label){
 }
 
 ErrorCode NONS_ScriptInterpreter::load(int file){
+#if 0
 	NONS_SaveFile save;
 	save.load(save_directory+L"save"+itoaw(file)+L".dat");
 	if (save.error!=NONS_NO_ERROR)
@@ -2190,82 +2220,50 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	}
 	if (this->loadgosub.size())
 		this->gosub_label(this->loadgosub);
+#endif
 	return NONS_NO_ERROR;
+}
+
+TiXmlElement *NONS_ScriptInterpreter::save_control(){
+	TiXmlElement *control=new TiXmlElement("control");
+	TiXmlElement *stack=(TiXmlElement *)control->LinkEndChild(new TiXmlElement("stack"));
+	for (std::vector<NONS_StackElement *>::iterator i=this->callStack.begin();i!=this->callStack.end();i++)
+		stack->LinkEndChild((*i)->save(this->script,this->store));
+	const NONS_ScriptBlock *block=this->thread->currentBlock;
+	control->SetAttribute("label",block->name);
+	NONS_Statement *stmt=this->thread->getCurrentStatement();
+	control->SetAttribute("lines_below",stmt->lineOfOrigin->lineNumber-block->first_line);
+	control->SetAttribute("substatement",stmt->statementNo);
+	control->SetAttribute("loadgosub",this->loadgosub);
+	return control;
 }
 
 bool NONS_ScriptInterpreter::save(int file){
 	if (this->insideTextgosub())
 		return 0;
-	for (ulong a=0;a<this->saveGame->stack.size();a++)
-		delete this->saveGame->stack[a];
-	this->saveGame->stack.clear();
-	for (variables_map_T::iterator i=this->saveGame->variables.begin();i!=this->saveGame->variables.end();i++)
-		delete i->second;
-	this->saveGame->variables.clear();
-	for (arrays_map_T::iterator i=this->saveGame->arrays.begin();i!=this->saveGame->arrays.end();i++)
-		delete i->second;
-	this->saveGame->arrays.clear();
-	this->saveGame->logPages.clear();
-	for (ulong a=0;a<this->saveGame->sprites.size();a++)
-		if (this->saveGame->sprites[a])
-			delete this->saveGame->sprites[a];
-	this->saveGame->sprites.clear();
-	for (ulong a=0;a<this->saveGame->channels.size();a++)
-		if (this->saveGame->channels[a])
-			delete this->saveGame->channels[a];
-	this->saveGame->channels.clear();
-	//stack
+	std::string output;
 	{
-		for (std::vector<NONS_StackElement *>::iterator i=this->callStack.begin();i!=this->callStack.end();i++){
-			NONS_SaveFile::stackEl *el=new NONS_SaveFile::stackEl();
-			NONS_StackElement *el0=*i;
-			el->type=el0->type;
-			NONS_ScriptBlock *block=this->script->blockFromLine(el0->returnTo.line);
-			el->label=block->name;
-			el->linesBelow=el0->returnTo.line-block->first_line;
-			el->statementNo=el0->returnTo.statement;
-			el->textgosubLevel=el0->textgosubLevel;
-			switch (el->type){
-				case StackFrameType::SUBROUTINE_CALL:
-					el->leftovers=el0->interpretAtReturn.toString();
-					break;
-				case StackFrameType::FOR_NEST:
-					el->variable=0;
-					for (variables_map_T::iterator i2=this->store->variables.begin();i2!=this->store->variables.end() && !el->variable;++i2)
-						if (i2->second->intValue==el0->var)
-							el->variable=i2->first;
-					el->to=el0->to;
-					el->step=el0->step;
-					break;
-				/*case StackFrameType::TEXTGOSUB_CALL:
-					break;*/
-				case StackFrameType::USERCMD_CALL:
-					el->leftovers=el0->interpretAtReturn.toString();
-					el->parameters=el0->parameters;
-					break;
-			}
-			this->saveGame->stack.push_back(el);
-		}
+		TiXmlDocument doc("");
+		//TODO: Save script hash.
+		doc.LinkEndChild(this->save_control());
+		doc.LinkEndChild(this->store->save_locals());
+		doc.LinkEndChild(this->screen->save(this->stored_state));
 		{
-			const NONS_ScriptBlock *block=this->thread->currentBlock;
-			this->saveGame->currentLabel=block->name;
-			NONS_Statement *stmt=this->thread->getCurrentStatement();
-			this->saveGame->linesBelow=stmt->lineOfOrigin->lineNumber-block->first_line;
-			this->saveGame->statementNo=stmt->statementNo;
+			TiXmlElement *other=new TiXmlElement("other");
+			other->SetAttribute("hide_window_during_effect",this->hideTextDuringEffect);
+			other->SetAttribute("lol","Hello,\nWorld!");
+			doc.LinkEndChild(other);
 		}
-		this->saveGame->loadgosub=this->loadgosub;
+		//doc.Print(0,0,&output);
+		output <<doc;
+		//doc.str
 	}
-	//variables
-	{
-		variables_map_T *varStack=&this->store->variables;
-		for (variables_map_T::iterator i=varStack->begin();i!=varStack->end() && i->first<200;i++)
-			if (!VARIABLE_HAS_NO_DATA(i->second))
-				this->saveGame->variables[i->first]=new NONS_Variable(*i->second);;
-		for (arrays_map_T::iterator i=this->store->arrays.begin();
-				i!=this->store->arrays.end();i++){
-			this->saveGame->arrays[i->first]=new NONS_VariableMember(*(i->second));
-		}
-	}
+	size_t compressed_size;
+	uchar *compressed_buffer=compressBuffer_BZ2((uchar *)&output[0],output.size(),compressed_size);
+	NONS_File::write(L"0.xml.bz2",compressed_buffer,compressed_size);
+	delete[] compressed_buffer;
+
+#if 0
 	//screen
 	{
 		//window
@@ -2399,6 +2397,9 @@ bool NONS_ScriptInterpreter::save(int file){
 	this->store->saveData();
 	NONS_Surface::filelog_writeout();
 	return ret;
+#else
+	return 0;
+#endif
 }
 
 ErrorCode NONS_ScriptInterpreter::command___userCommandCall__(NONS_Statement &stmt){
@@ -4594,14 +4595,11 @@ ErrorCode NONS_ScriptInterpreter::command_play(NONS_Statement &stmt){
 		std::wstring temp=L"track";
 		temp+=itoaw(track,2);
 		error=this->audio->play_music(temp,this->mp3_loop?-1:0);
-		if (error==NONS_NO_ERROR)
-			this->saveGame->musicTrack=track;
-		else
-			this->saveGame->musicTrack=-1;
+		this->stored_state.music_track=(error==NONS_NO_ERROR)?track:-1;
 	}else if ((error=this->audio->play_music(name,this->mp3_loop?-1:0))==NONS_NO_ERROR)
-		this->saveGame->music=name;
+		this->stored_state.music=name;
 	else
-		this->saveGame->music.clear();
+		this->stored_state.music.clear();
 	return error;
 }
 

@@ -30,6 +30,7 @@
 #include "ScreenSpace.h"
 #include "IOFunctions.h"
 #include "CommandLineOptions.h"
+#include "ScriptInterpreter.h"
 #include <cassert>
 
 NONS_Layer::NONS_Layer(const NONS_LongRect &size,const NONS_Color &rgba)
@@ -690,6 +691,23 @@ bool NONS_StandardOutput::NewLine(){
 	return 0;
 }
 
+TiXmlElement *NONS_StandardOutput::save(const interpreter_stored_state &state,const char *override_name){
+	TiXmlElement *output=new TiXmlElement(override_name?override_name:"window");
+	output->LinkEndChild(this->shadeLayer->clip_rect.save("window_rect"));
+	output->LinkEndChild(NONS_LongRect(this->x0,this->y0,this->w,this->h).save("frame_rect"));
+	output->LinkEndChild(this->shadeLayer->defaultShade.save("window_shade"));
+	output->LinkEndChild(this->transition->save("transition_effect"));
+	{
+		TiXmlElement *temp=new TiXmlElement("font");
+		output->LinkEndChild(temp);
+		temp->SetAttribute("size",this->foregroundLayer->fontCache->get_size());
+		temp->LinkEndChild(this->foregroundLayer->fontCache->get_color().save());
+		temp->SetAttribute("bold",state.bold);
+		temp->SetAttribute("italic",state.italic);
+	}
+	return output;
+}
+
 NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,CLOptions.realWidth,CLOptions.realHeight);
 	NONS_LongRect size(0,0,CLOptions.virtualWidth,CLOptions.virtualHeight);
@@ -1105,4 +1123,10 @@ void NONS_ScreenSpace::addBar(long barNo,ulong current_value,long x,long y,ulong
 
 void NONS_ScreenSpace::clearBars(){
 	this->bars.clear();
+}
+
+TiXmlElement *NONS_ScreenSpace::save(const interpreter_stored_state &state){
+	TiXmlElement *screen=new TiXmlElement("screen");
+	screen->LinkEndChild(this->output->save(state));
+	return screen;
 }

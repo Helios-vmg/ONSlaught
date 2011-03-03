@@ -273,6 +273,7 @@ NONS_VariableMember *readArray(void *buffer,ulong &offset){
 	return var;
 }
 
+#if 0
 void NONS_SaveFile::load(std::wstring filename){
 	size_t l;
 	uchar *buffer=NONS_File::read(filename.c_str(),l);
@@ -876,3 +877,4 @@ bool NONS_SaveFile::save(std::wstring filename){
 	return ret;
 	//return !writefile(filename,(char *)buffer.c_str(),buffer.size());
 }
+#endif

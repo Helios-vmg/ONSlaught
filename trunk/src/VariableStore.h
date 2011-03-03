@@ -34,6 +34,7 @@
 #include "ErrorCodes.h"
 #include "FileLog.h"
 #include "ExpressionParser.tab.hpp"
+#include "tinyxml/tinyxml.h"
 #include <vector>
 #include <map>
 #include <set>
@@ -163,6 +164,7 @@ public:
 	void div(long a);
 	void mod(long a);
 	void setlimits(long lower,long upper);
+	TiXmlElement *save(int index);
 private:
 	void fixint();
 };
@@ -174,6 +176,7 @@ struct NONS_Variable{
 	NONS_Variable(const NONS_Variable &b);
 	NONS_Variable &operator=(const NONS_Variable &b);
 	~NONS_Variable();
+	TiXmlElement *save(int index);
 };
 
 #define VARIABLE_HAS_NO_DATA(x) (!(x) || !(x)->intValue->getInt() && !(x)->wcsValue->getWcs().size())
@@ -197,6 +200,7 @@ struct NONS_VariableStore{
 	//Destroys all variables and arrays. Use with care!
 	void reset();
 	void saveData();
+	TiXmlElement *save_locals();
 	/*
 	exp: (IN) The expression to be evaluated.
 	invert_terms: (IN) Pass 1 if the expression comes from command_notif and

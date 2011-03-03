@@ -37,6 +37,7 @@
 #include "VirtualScreen.h"
 #include "GFX.h"
 #include "Image.h"
+#include "tinyxml/tinyxml.h"
 #include <map>
 #include <vector>
 
@@ -83,6 +84,8 @@ struct NONS_Layer{
 		return (ulong)r;
 	}
 };
+
+struct interpreter_stored_state;
 
 struct NONS_StandardOutput{
 	//Current distance (px) from the upper left corner of the cursor to the left edge of the screen.
@@ -133,6 +136,7 @@ struct NONS_StandardOutput{
 	void set_bold(bool);
 	bool get_bold(){ return this->foregroundLayer->fontCache->get_bold(); }
 	void set_size(ulong);
+	TiXmlElement *save(const interpreter_stored_state &state,const char *override_name=0);
 private:
 	int predictLineLength(std::wstring *arr,long start,int width);
 	int predictTextHeight(std::wstring *arr);
@@ -203,5 +207,7 @@ struct NONS_ScreenSpace{
 
 	void addBar(long barNo,ulong current_value,long x,long y,ulong w,ulong h,ulong total_value,const NONS_Color &color);
 	void clearBars();
+
+	TiXmlElement *save(const interpreter_stored_state &state);
 };
 #endif

@@ -747,6 +747,8 @@ struct surfaceData{
 	bool alpha;
 };
 
+class TiXmlElement;
+
 template <typename T>
 struct NONS_BasicRect{
 	T x,y,w,h;
@@ -793,6 +795,7 @@ struct NONS_BasicRect{
 	bool point_is_inside(const NONS_BasicRect<T> &b){
 		return (b.x>=this->x && b.y>=this->y && b.x<this->x+this->w && b.y<this->y+this->h);
 	}
+	TiXmlElement *save(const char *override_name=0);
 };
 typedef NONS_BasicRect<float> NONS_Rect;
 typedef NONS_BasicRect<long> NONS_LongRect;
@@ -856,4 +859,7 @@ void saturate_value(T &dst,const T &min,const T &max){
 	else if (dst>max)
 		dst=max;
 }
+
+class TiXmlNode;
+TiXmlNode *find_xml_node(TiXmlNode *node,const std::wstring &name);
 #endif

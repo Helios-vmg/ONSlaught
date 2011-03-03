@@ -301,7 +301,7 @@ Note: Using || inside a legacy notif has undefined behavior. Refer to the origin
 An array is a finite set of integers.<p/>
 Arrays are allocated in a table and identified by an integer.<p/>
 To declare an array, use the dim command.<p/>
-E.g. <font face="monospace"><b>dim</b> ?8[5] ; create a one-dimensional array at poisition 8 i nthe table with elements [0..5].</font><p/>
+E.g. <font face="monospace"><b>dim</b> ?8[5] ; create a one-dimensional array at position 8 in the table with elements [0..5].</font><p/>
 Arrays can have any number of dimensions, but keep in mind that each element in the array uses memory.<br/>
 E.g. <font face="monospace">dim ?3[5][5]</font>, <font face="monospace">dim ?74[1][2][5][3]</font><p/>
 Arrays can be used with the ?[] syntax:<br/>
@@ -309,7 +309,7 @@ Arrays can be used with the ?[] syntax:<br/>
 <b>mov</b> %var,?array[3]<br/>
 <b>mov</b> %var2,?array[%var*?array[%var]]<p/>
 </font>
-As you can see, the value in [] is an expression itself, and arrays can appear inside expressions. This allows expressions of arbitrary complexity. See <a href="#1.7">section 1.7</a> for more information.<p/>
+As you can see, the value in [] is an expression itself, and arrays can appear inside expressions. This allows for expressions of arbitrary complexity. See <a href="#1.7">section 1.7</a> for more information.<p/>
 
 <h1><a name="2">2. Unimplemented Commands</a></h1>
 <font face="monospace" color="#ff0000">linepage</font><br/>

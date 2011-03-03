@@ -32,6 +32,7 @@
 #include "ThreadManager.h"
 #include "IOFunctions.h"
 #include "enums.h"
+#include "tinyxml/tinyxml.h"
 #include <bzlib.h>
 
 #include <cassert>
@@ -627,4 +628,20 @@ void NONS_tolower(wchar_t *param){
 void NONS_tolower(char *param){
 	for (;*param;param++)
 		*param=NONS_tolower(*param);
+}
+
+template <typename T>
+TiXmlElement *NONS_BasicRect<T>::save(const char *override_name){
+	TiXmlElement *rect=new TiXmlElement(override_name?override_name:"rect");
+	rect->SetAttribute("x",itoac(this->x));
+	rect->SetAttribute("y",itoac(this->y));
+	rect->SetAttribute("w",itoac(this->w));
+	rect->SetAttribute("h",itoac(this->h));
+	return rect;
+}
+template TiXmlElement *NONS_BasicRect<long>::save(const char *override_name);
+
+TiXmlNode *find_xml_node(TiXmlNode *node,const std::wstring &name){
+	//TODO: Implement me.
+	return 0;
 }

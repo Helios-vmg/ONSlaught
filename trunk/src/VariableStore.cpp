@@ -789,6 +789,40 @@ void NONS_VariableMember::setlimits(long lower,long upper){
 	this->fixint();
 }
 
+TiXmlElement *NONS_VariableMember::save(int index){
+	assert(this->type==INTEGER_ARRAY);
+	struct frame{
+		NONS_VariableMember *_this;
+		TiXmlElement *element;
+		size_t i;
+	};
+	std::vector<frame> stack;
+	frame current={
+		this,
+		new TiXmlElement("array"),
+		0
+	};
+	current.element->SetAttribute("no",index);
+	while (1){
+		if (current._this->type==INTEGER)
+			current.element->SetAttribute("int",current._this->intValue);
+		else if (current.i<current._this->dimensionSize){
+			stack.push_back(current);
+			current._this=current._this->dimension[current.i];
+			current.i=0;
+			current.element=new TiXmlElement(current._this->type==INTEGER_ARRAY?"array":"variable");
+			continue;
+		}
+		if (!stack.size())
+			break;
+		stack.back().element->LinkEndChild(current.element);
+		current=stack.back();
+		stack.pop_back();
+		current.i++;
+	}
+	return current.element;
+}
+
 NONS_Variable::NONS_Variable(){
 	this->intValue=new NONS_VariableMember(INTEGER);
 	this->wcsValue=new NONS_VariableMember(STRING);
@@ -810,6 +844,16 @@ NONS_Variable &NONS_Variable::operator=(const NONS_Variable &b){
 NONS_Variable::~NONS_Variable(){
 	delete this->intValue;
 	delete this->wcsValue;
+}
+
+TiXmlElement *NONS_Variable::save(int index){
+	TiXmlElement *variable=new TiXmlElement("variable");
+	variable->SetAttribute("no",index);
+	if (this->intValue->getInt())
+		variable->SetAttribute("int",this->intValue->getInt());
+	if (this->wcsValue->getWcs().size())
+		variable->SetAttribute("str",this->wcsValue->getWcs());
+	return variable;
 }
 
 NONS_LabelLog labellog;
@@ -943,6 +987,17 @@ void NONS_VariableStore::saveData(){
 	std::wstring dir=save_directory+L"global.sav";
 	NONS_File::write(dir.c_str(),writebuffer,l);
 	delete[] writebuffer;
+}
+
+TiXmlElement *NONS_VariableStore::save_locals(){
+	TiXmlElement *locals=new TiXmlElement("locals");
+	variables_map_T &varStack=this->variables;
+	for (variables_map_T::iterator i=this->variables.begin();i!=this->variables.end() && i->first<200;++i)
+		if (!VARIABLE_HAS_NO_DATA(i->second))
+			locals->LinkEndChild(i->second->save((int)i->first));
+	for (arrays_map_T::iterator i=this->arrays.begin();i!=this->arrays.end();i++)
+		locals->LinkEndChild(i->second->save((int)i->first));
+	return locals;
 }
 
 NONS_Expression::Value *NONS_VariableStore::evaluate(const std::wstring &exp,bool invert_terms){

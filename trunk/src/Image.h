@@ -31,6 +31,7 @@
 #define NONS_Surface_H
 #include "Common.h"
 #include "Functions.h"
+#include "tinyxml/tinyxml.h"
 #include <cmath>
 
 #define OVERLOAD_RELATIONAL_OPERATORS(macro)\
@@ -121,6 +122,20 @@ struct NONS_Color{
 			this->rgba[2];
 		return r;
 	}
+	Uint32 to_rgba() const{
+		Uint32 r=
+			(this->rgba[0]<<24)|
+			(this->rgba[1]<<16)|
+			(this->rgba[2]<<8)|
+			this->rgba[3];
+		return r;
+	}
+	void from_rgba(Uint32 a){
+		this->rgba[0]=(a&0xFF000000)>>24;
+		this->rgba[1]=(a&0xFF0000)>>16;
+		this->rgba[2]=(a&0xFF00)>>8;
+		this->rgba[3]=a&0xFF;
+	}
 	Uint32 to_native(uchar *format) const{
 		Uint8 r[]={
 			this->rgba[format[0]],
@@ -143,6 +158,11 @@ struct NONS_Color{
 		r.rgba[1]=Uint8(double(r.rgba[1])*factor);
 		r.rgba[2]=Uint8(double(r.rgba[2])*factor);
 		return r;
+	}
+	TiXmlElement *save(const char *override_name=0) const{
+		TiXmlElement *color=new TiXmlElement(override_name?override_name:"color");
+		color->SetAttribute("rgba",itoac(this->to_rgba()));
+		return color;
 	}
 	static NONS_Color white,
 		black,

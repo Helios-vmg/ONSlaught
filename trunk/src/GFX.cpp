@@ -751,6 +751,18 @@ void NONS_GFX::effectMosaicOut(const NONS_ConstSurface &src,const NONS_ConstSurf
 	effect_epilogue();
 }
 
+TiXmlElement *NONS_GFX::save(const char *override_name){
+	TiXmlElement *effect=new TiXmlElement(override_name?override_name:"effect");
+	effect->SetAttribute("effect_no",this->effect);
+	effect->SetAttribute("type",(int)this->type);
+	effect->LinkEndChild(this->color.save());
+	effect->SetAttribute("duration",this->duration);
+	if (this->rule.size())
+		effect->SetAttribute("rule",this->rule);
+	effect->SetAttribute("type",(int)this->type);
+	return effect;
+}
+
 NONS_GFXstore::NONS_GFXstore(){
 	NONS_GFX *temp[]={
 		new NONS_GFX(),
