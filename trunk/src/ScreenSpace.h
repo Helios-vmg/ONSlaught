@@ -76,6 +76,12 @@ struct NONS_Layer{
 			this->animation.animation_time_offset<this->animation.frame_ends.back()*
 			(this->animation.frame_ends.size()==1?this->animation.animation_length:1);
 	}
+	ulong get_frame() const{
+		long r=this->animation.getCurrentAnimationFrame();
+		if (r<0)
+			r=0;
+		return (ulong)r;
+	}
 };
 
 struct NONS_StandardOutput{

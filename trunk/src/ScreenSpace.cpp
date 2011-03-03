@@ -49,6 +49,11 @@ NONS_Layer::NONS_Layer(const NONS_Surface &img,const NONS_Color &rgba)
 	this->useDataAsDefaultShade=0;
 	this->alpha=0xFF;
 	this->clip_rect=this->data.clip_rect();
+	NONS_SurfaceProperties sp;
+	img.get_properties(sp);
+	this->animation.animation_length=sp.frames;
+	if (this->animation.animation_length>1)
+		this->animation.frame_ends.push_back(1);
 }
 
 NONS_Layer::NONS_Layer(const std::wstring *string){
@@ -797,10 +802,7 @@ void blend_optimized(const NONS_Layer *p,const NONS_LongRect &refresh_area,NONS_
 		dst.x=p->position.x;
 	if (dst.y<p->position.y)
 		dst.y=p->position.y;
-	long frame=p->animation.getCurrentAnimationFrame();
-	if (frame<0)
-		frame=0;
-	(screenBuffer.*function)(p->data,(ulong)frame,&dst,&src);
+	(screenBuffer.*function)(p->data,p->get_frame(),&dst,&src);
 }
 
 void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
@@ -865,8 +867,9 @@ void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 ErrorCode NONS_ScreenSpace::BlendAll(ulong effect){
 	this->BlendNoCursor(0);
 	if (this->cursor && this->cursor->data)
-		this->screenBuffer.over(
+		this->screenBuffer.over_frame(
 			this->cursor->data,
+			this->cursor->get_frame(),
 			&this->cursor->position,
 			&this->cursor->clip_rect
 		);
@@ -919,19 +922,19 @@ ErrorCode NONS_ScreenSpace::BlendNoText(ulong effect){
 		for (ulong a=this->layerStack.size()-1;a>this->sprite_priority;a--){
 			NONS_Layer *l=this->layerStack[a];
 			if (l && l->visible && l->data)
-				this->screenBuffer.over_with_alpha(l->data,&l->position,&l->clip_rect,l->alpha);
+				this->screenBuffer.over_frame_with_alpha(l->data,l->get_frame(),&l->position,&l->clip_rect,l->alpha);
 		}
 	}
 	for (ulong a=0;a<this->charactersBlendOrder.size();a++){
 		NONS_Layer *l=*this->characters[charactersBlendOrder[a]];
 		if (l && l->data)
-			this->screenBuffer.over_with_alpha(l->data,&l->position,&l->clip_rect,l->alpha);
+			this->screenBuffer.over_frame_with_alpha(l->data,l->get_frame(),&l->position,&l->clip_rect,l->alpha);
 	}
 	if (this->blendSprites){
 		for (long a=this->sprite_priority;a>=0;a--){
 			NONS_Layer *l=this->layerStack[a];
 			if (l && l->visible && l->data)
-				this->screenBuffer.over_with_alpha(l->data,&l->position,&l->clip_rect,l->alpha);
+				this->screenBuffer.over_frame_with_alpha(l->data,l->get_frame(),&l->position,&l->clip_rect,l->alpha);
 		}
 	}
 	for (ulong a=0;a<this->filterPipeline.size();a++){

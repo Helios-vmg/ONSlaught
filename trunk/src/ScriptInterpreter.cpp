@@ -4099,7 +4099,9 @@ NONS_Layer *text_to_surface(
 		fc->set_color(NONS_Color::black);
 		NONS_Surface surface(str,*fc,limit,0,0);
 		NONS_LongRect size=surface.clip_rect();
-		final.assign(size.w+1,(size.h+1)*colors.size());
+		size.w++;
+		size.h++;
+		final.assign(size.w,size.h*colors.size());
 		{
 			NONS_LongRect dst_rect=size;
 			dst_rect.x=1;
