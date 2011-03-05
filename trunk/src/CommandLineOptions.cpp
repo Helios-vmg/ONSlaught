@@ -230,7 +230,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					break;
 				}
 				this->scriptPath=arguments[a];
-				this->scriptEncryption=(ENCRYPTION::ENCRYPTION)atoi(arguments[++a]);
+				this->scriptEncryption=(ENCRYPTION::ENCRYPTION)atol(arguments[++a]);
 				break;
 			case 2: //-encoding
 				if (a+1>=size){
@@ -321,17 +321,17 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
-				this->virtualWidth=(ushort)atoi(arguments[++a]);
-				this->virtualHeight=(ushort)atoi(arguments[++a]);
-				this->realWidth=(ushort)atoi(arguments[++a]);
-				this->realHeight=(ushort)atoi(arguments[++a]);
+				this->virtualWidth=(ushort)atol(arguments[++a]);
+				this->virtualHeight=(ushort)atol(arguments[++a]);
+				this->realWidth=(ushort)atol(arguments[++a]);
+				this->realHeight=(ushort)atol(arguments[++a]);
 				break;
 			case 16: //-verbosity
 				if (a+1>=size){
 					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
-				this->verbosity=(uchar)atoi(arguments[++a]);
+				this->verbosity=(uchar)atol(arguments[++a]);
 				break;
 			case 18: //-s
 				this->no_sound=1;

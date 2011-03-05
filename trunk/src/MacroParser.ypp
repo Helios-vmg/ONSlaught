@@ -234,7 +234,7 @@ int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,std::deque<wcha
 					value.push_back(second_queue.front());
 					second_queue.pop_front();
 				}
-				yylval->integer=atoi(value);
+				yylval->integer=atol(value);
 				return INTEGER;
 			}
 			if (c=='\"'){

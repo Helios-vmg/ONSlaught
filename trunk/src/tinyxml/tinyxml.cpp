@@ -682,6 +682,11 @@ int TiXmlElement::QueryDoubleAttribute( const char* name, double* dval ) const
 }
 
 
+std::wstring TiXmlElement::QueryWStringAttribute( const char* name) const{
+	return UniFromUTF8(this->QueryStringAttribute(name));
+}
+
+
 #ifdef TIXML_USE_STL
 int TiXmlElement::QueryDoubleAttribute( const std::string& name, double* dval ) const
 {
@@ -802,6 +807,57 @@ void TiXmlElement::Print( FILE* cfile, int depth ) const
 			fprintf( cfile, "    " );
 		}
 		fprintf( cfile, "</%s>", value.c_str() );
+	}
+}
+
+void TiXmlElement::Print( std::string &string, int depth ) const
+{
+	string.append(depth*4,' ');
+
+	string.push_back('<');
+	string.append(value);
+
+	const TiXmlAttribute* attrib;
+	for ( attrib = attributeSet.First(); attrib; attrib = attrib->Next() )
+	{
+		string.push_back(' ');
+		attrib->Print( string, depth );
+	}
+
+	// There are 3 different formatting approaches:
+	// 1) An element without children is printed as a <foo /> node
+	// 2) An element with only a text child is printed as <foo> text </foo>
+	// 3) An element with children is printed on multiple lines.
+	TiXmlNode* node;
+	if ( !firstChild )
+	{
+		string.append("/>");
+	}
+	else if ( firstChild == lastChild && firstChild->ToText() )
+	{
+		string.push_back('>');
+		firstChild->Print( string, depth + 1 );
+		string.append("</");
+		string.append(value);
+		string.push_back('>');
+	}
+	else
+	{
+		string.push_back('>');
+
+		for ( node = firstChild; node; node=node->NextSibling() )
+		{
+			if ( !node->ToText() )
+			{
+				string.push_back('\n');
+			}
+			node->Print( string, depth+1 );
+		}
+		string.push_back('\n');
+		string.append(depth*4,' ');
+		string.append("</");
+		string.append(value);
+		string.push_back('>');
 	}
 }
 
@@ -1108,6 +1164,16 @@ void TiXmlDocument::Print( FILE* cfile, int depth ) const
 }
 
 
+void TiXmlDocument::Print( std::string &string, int depth ) const
+{
+	for ( const TiXmlNode* node=FirstChild(); node; node=node->NextSibling() )
+	{
+		node->Print( string, depth );
+		string.push_back('\n');
+	}
+}
+
+
 bool TiXmlDocument::Accept( TiXmlVisitor* visitor ) const
 {
 	if ( visitor->VisitEnter( *this ) )
@@ -1259,6 +1325,15 @@ void TiXmlComment::Print( FILE* cfile, int depth ) const
 }
 
 
+void TiXmlComment::Print( std::string &string, int depth ) const
+{
+	string.append(depth*4,' ');
+	string.append("<!--");
+	string.append(value);
+	string.append("-->");
+}
+
+
 void TiXmlComment::CopyTo( TiXmlComment* target ) const
 {
 	TiXmlNode::CopyTo( target );
@@ -1300,6 +1375,24 @@ void TiXmlText::Print( FILE* cfile, int depth ) const
 		TIXML_STRING buffer;
 		EncodeString( value, &buffer );
 		fprintf( cfile, "%s", buffer.c_str() );
+	}
+}
+
+void TiXmlText::Print( std::string &string, int depth ) const
+{
+	if ( cdata )
+	{
+		string.push_back('\n');
+		string.append(depth*4,' ');
+		string.append("<![CDATA[");
+		string.append(value);
+		string.append("]]>\n");
+	}
+	else
+	{
+		TIXML_STRING buffer;
+		EncodeString( value, &buffer );
+		string.append(buffer);
 	}
 }
 
@@ -1423,6 +1516,15 @@ void TiXmlUnknown::Print( FILE* cfile, int depth ) const
 	for ( int i=0; i<depth; i++ )
 		fprintf( cfile, "    " );
 	fprintf( cfile, "<%s>", value.c_str() );
+}
+
+
+void TiXmlUnknown::Print( std::string &string, int depth ) const
+{
+	string.append(depth*4,' ');
+	string.push_back('<');
+	string.append(value);
+	string.push_back('>');
 }
 
 
@@ -1730,7 +1832,7 @@ bool TiXmlPrinter::VisitEnter( const TiXmlElement& element, const TiXmlAttribute
 
 	if ( !element.FirstChild() ) 
 	{
-		buffer += " />";
+		buffer += "/>";
 		DoLineBreak();
 	}
 	else 

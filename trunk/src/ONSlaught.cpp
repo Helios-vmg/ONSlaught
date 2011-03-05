@@ -360,41 +360,12 @@ extern Uint64 over_pixel_count;
 extern double over_time_sum;
 #endif
 
-#include "tinyxml/tinyxml.h"
-
-void normalize_line_endings(std::string &s){
-	char *p=&s[0];
-	size_t write=0;
-	for (size_t read=0,n=s.size();read<n;read++,write++){
-		if (p[read]==13){
-			if (read+1<n && p[read+1]==10)
-				read++;
-			else{
-				p[write]=10;
-				continue;
-			}
-		}
-		p[write]=p[read];
-	}
-	s.resize(write);
-}
-
 int main(int argc,char **argv){
 #ifdef NONS_NO_STDOUT
 	//Have at least one reference to std::cout, or some functions are liable to
 	//crash after main() has returned.
 	std::ostream &cout=std::cout;
 #endif
-	/*{
-		size_t n;
-		uchar *data=NONS_File::read((std::wstring)L"0.xml",n);
-		TiXmlDocument doc("0.xml");
-		std::string s((char *)data,n);
-		delete[] data;
-		normalize_line_endings(s);
-		doc.Parse(s.c_str());
-		return 0;
-	}*/
 	print_version_string();
 	initialize(argc,argv);
 	{

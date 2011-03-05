@@ -50,11 +50,15 @@ struct channel_listing{
 	std::map<int,channel> sounds;
 };
 
+struct interpreter_stored_state;
+
 class NONS_Audio{
 	static const int initial_channel_counter=1<<20;
 
 	audio_device *dev;
+public:
 	typedef std::map<int,audio_stream *> chan_t;
+private:
 	chan_t channels;
 	bool uninitialized,
 		notmute;
@@ -69,6 +73,9 @@ class NONS_Audio{
 
 	audio_stream *get_channel(int channel);
 	int set_volume(float &,int);
+	TiXmlElement *save_channels();
+	void load_channel(TiXmlElement *);
+	void load_channels(TiXmlElement *);
 public:
 	static const long max_valid_channel=(long)initial_channel_counter-1;
 	static const int music_channel=-1;
@@ -107,6 +114,8 @@ public:
 		if (stream)
 			this->dev->remove(stream);
 	}
+	TiXmlElement *save();
+	void load(TiXmlElement *);
 };
 
 class NONS_ScopedAudioStream{

@@ -647,8 +647,6 @@ NONS_Script::~NONS_Script(){
 NONS_ScriptBlock *NONS_Script::blockFromLabel(std::wstring name){
 	if (name[0]=='*')
 		name=name.substr(1);
-	else
-		name=name;
 	trim_string(name);
 	size_t off;
 	if (!this->blocksByName.size() || !binary_search<NONS_ScriptBlock *,std::wstring>(

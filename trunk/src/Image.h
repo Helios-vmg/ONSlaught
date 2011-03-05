@@ -164,6 +164,9 @@ struct NONS_Color{
 		color->SetAttribute("rgba",itoac(this->to_rgba()));
 		return color;
 	}
+	NONS_Color(TiXmlElement *color){
+		this->from_rgba(ato<Uint32>(color->QueryStringAttribute("rgba")));
+	}
 	static NONS_Color white,
 		black,
 		black_transparent,

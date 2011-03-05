@@ -157,6 +157,39 @@ void NONS_Layer::useBaseline(int y){
 	this->position.y=y-this->clip_rect.h+1;
 }
 
+TiXmlElement *NONS_Layer::save(const char *override_name){
+	TiXmlElement *layer=new TiXmlElement(override_name?override_name:"layer");
+	layer->SetAttribute("string",this->animation.getString());
+	layer->LinkEndChild(this->defaultShade.save("default_shade"));
+	layer->LinkEndChild(this->clip_rect.save("clip_rect"));
+	layer->LinkEndChild(this->position.save("position"));
+	layer->SetAttribute("visible",this->visible);
+	layer->SetAttribute("alpha",this->alpha);
+	layer->SetAttribute("data_as_def_shade",this->useDataAsDefaultShade);
+	return layer;
+}
+
+NONS_Layer::NONS_Layer(TiXmlElement *parent,const char *name){
+	TiXmlElement *layer;
+	if (!name || *name)
+		layer=parent->FirstChildElement(name?name:"layer");
+	else
+		layer=parent;
+	std::wstring string=layer->QueryWStringAttribute("string");
+	this->defaultShade=NONS_Color(layer->FirstChildElement("default_shade"));
+	this->clip_rect=NONS_LongRect(layer->FirstChildElement("clip_rect"));
+	this->position=NONS_LongRect(layer->FirstChildElement("position"));
+	this->visible=layer->QueryIntAttribute("visible");
+	this->alpha=layer->QueryIntAttribute("alpha");
+	if (!string.size()){
+		this->setShade(this->defaultShade);
+		this->Clear();
+	}else
+		this->load(&string);
+	this->useDataAsDefaultShade=layer->QueryIntAttribute("data_as_def_shade");
+	this->fontCache=0;
+}
+
 std::ofstream textDumpFile;
 
 NONS_StandardOutput::NONS_StandardOutput(NONS_Layer *fgLayer,NONS_Layer *shadowLayer,NONS_Layer *shadeLayer){
@@ -509,11 +542,11 @@ void NONS_StandardOutput::ephemeralOut(const std::wstring &str,const NONS_Surfac
 				if (tagname==L"x"){
 					std::wstring tagvalue=tag_value(str,a);
 					if (tagvalue.size())
-						lastStart=x=atoi(tagvalue);
+						lastStart=x=atol(tagvalue);
 				}else if (tagname==L"y"){
 					std::wstring tagvalue=tag_value(str,a);
 					if (tagvalue.size())
-						y=atoi(tagvalue);
+						y=atol(tagvalue);
 				}else if (tagname==L"italic"){
 					cache.set_italic(1);
 					if (shadow)
@@ -698,14 +731,85 @@ TiXmlElement *NONS_StandardOutput::save(const interpreter_stored_state &state,co
 	output->LinkEndChild(this->shadeLayer->defaultShade.save("window_shade"));
 	output->LinkEndChild(this->transition->save("transition_effect"));
 	{
-		TiXmlElement *temp=new TiXmlElement("font");
-		output->LinkEndChild(temp);
-		temp->SetAttribute("size",this->foregroundLayer->fontCache->get_size());
-		temp->LinkEndChild(this->foregroundLayer->fontCache->get_color().save());
-		temp->SetAttribute("bold",state.bold);
-		temp->SetAttribute("italic",state.italic);
+		TiXmlElement *font=new TiXmlElement("font");
+		output->LinkEndChild(font);
+		font->SetAttribute("size",this->foregroundLayer->fontCache->get_size());
+		font->LinkEndChild(this->foregroundLayer->fontCache->get_color().save());
+		font->SetAttribute("bold",state.bold);
+		font->SetAttribute("italic",state.italic);
+		font->SetAttribute("spacing",this->foregroundLayer->fontCache->spacing);
+		font->SetAttribute("line_skip",this->foregroundLayer->fontCache->line_skip);
 	}
+	output->SetAttribute("text_speed",this->display_speed);
+	output->SetAttribute("shadow",(int)!!this->shadeLayer);
+	output->SetAttribute("shadow_x",(int)!!this->shadowPosX);
+	output->SetAttribute("shadow_y",(int)!!this->shadowPosY);
+	{
+		TiXmlElement *log=new TiXmlElement("log");
+		output->LinkEndChild(log);
+		for (ulong a=0;a<this->log.size();a++){
+			TiXmlElement *page=new TiXmlElement("page");
+			log->LinkEndChild(page);
+			page->SetAttribute("data",this->log[a]);
+		}
+		log->SetAttribute("current_buffer",this->currentBuffer);
+	}
+	output->SetAttribute("indentation",this->indentationLevel);
+	output->SetAttribute("text_position_x",state.textX);
+	output->SetAttribute("text_position_y",state.textY);
+	output->SetAttribute("visible",this->visible);
+	output->SetAttribute("text_visible",this->text_visible);
+	output->SetAttribute("extra_advance",this->extraAdvance);
+	output->SetAttribute("center_x",itoac(this->horizontalCenterPolicy));
+	output->SetAttribute("center_y",itoac(this->verticalCenterPolicy));
+	output->SetAttribute("max_log_pages",this->maxLogPages);
 	return output;
+}
+
+NONS_StandardOutput::NONS_StandardOutput(TiXmlElement *parent,NONS_FontCache &fc,const char *name){
+	TiXmlElement *output=parent->FirstChildElement(name?name:"window");
+	TiXmlElement *font=output->FirstChildElement("font");
+	TiXmlElement *log=output->FirstChildElement("log");
+	NONS_LongRect window(output->FirstChildElement("window_rect"));
+	NONS_LongRect frame(output->FirstChildElement("frame_rect"));
+	this->shadeLayer=new NONS_Layer(window,NONS_Color(output->FirstChildElement("window_shade")));
+	this->transition=new NONS_GFX(output,"transition_effect");
+	fc.set_size(font->QueryIntAttribute("size"));
+	fc.spacing=font->QueryIntAttribute("spacing");
+	fc.line_skip=font->QueryIntAttribute("line_skip");
+	this->foregroundLayer=new NONS_Layer(window,NONS_Color::black);
+	this->foregroundLayer->MakeTextLayer(fc,NONS_Color(font->FirstChildElement("color")));
+	if (font->QueryIntAttribute("shadow")){
+		this->shadowLayer=new NONS_Layer(window,NONS_Color::black);
+		this->shadowLayer->MakeTextLayer(fc,NONS_Color::black);
+	}else
+		this->shadowLayer=0;
+	this->set_bold(font->QueryIntAttribute("bold"));
+	this->set_italic(font->QueryIntAttribute("italic"));
+	this->x0=frame.x;
+	this->y0=frame.y;
+	this->w=frame.w;
+	this->h=frame.h;
+	this->display_speed=output->QueryIntAttribute("text_speed");
+	this->shadowPosX=output->QueryIntAttribute("shadow_x");
+	this->shadowPosY=output->QueryIntAttribute("shadow_y");
+	this->log.reserve(50);
+	for (TiXmlElement *i=log->FirstChildElement();i;i=i->NextSiblingElement())
+		this->log.push_back(i->QueryWStringAttribute("data"));
+	this->currentBuffer=log->QueryWStringAttribute("current_buffer");
+	this->indentationLevel=output->QueryIntAttribute("indentation");
+	this->x=output->QueryIntAttribute("text_position_x");
+	this->y=output->QueryIntAttribute("text_position_y");
+
+	this->visible=output->QueryIntAttribute("visible");
+	this->text_visible=output->QueryIntAttribute("text_visible");
+	this->extraAdvance=output->QueryIntAttribute("extra_advance");
+	this->horizontalCenterPolicy=output->QueryFloatAttribute("center_x");
+	this->verticalCenterPolicy=output->QueryFloatAttribute("center_y");
+	this->maxLogPages=output->QueryIntAttribute("max_log_pages");
+
+	this->printingStarted=0;
+	this->lastStart=-1;
 }
 
 NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
@@ -1125,8 +1229,114 @@ void NONS_ScreenSpace::clearBars(){
 	this->bars.clear();
 }
 
+TiXmlElement *NONS_ScreenSpace::save_characters(){
+	TiXmlElement *characters=new TiXmlElement("characters");
+	characters->SetAttribute("baseline",this->char_baseline);
+	for (int a=0;a<3;a++){
+		NONS_Layer *p=*this->characters[this->charactersBlendOrder[a]];
+		TiXmlElement *character=
+			(!*this->characters[a] || !(*this->characters[a])->data)?
+			new TiXmlElement("character"):
+			(*this->characters[a])->save("character");
+		characters->LinkEndChild(character);
+		character->SetAttribute("no",this->charactersBlendOrder[a]);
+	}
+	return characters;
+}
+
+void NONS_ScreenSpace::load_characters(TiXmlElement *parent){
+	TiXmlElement *characters=parent->FirstChildElement("characters");
+	this->char_baseline=characters->QueryIntAttribute("baseline");
+	for (int a=0;a<3;a++){
+		delete *this->characters[a];
+		*this->characters[a]=0;
+	}
+	this->charactersBlendOrder.clear();
+	for (TiXmlElement *i=characters->FirstChildElement();i;i=i->NextSiblingElement()){
+		NONS_Layer *new_character;
+		if (i->FirstAttribute()->NameTStr()=="no")
+			new_character=0;
+		else
+			new_character=new NONS_Layer(i,"");
+		int order=i->QueryIntAttribute("no");
+		this->charactersBlendOrder.push_back(order);
+		*this->characters[order]=new_character;
+	}
+}
+
+TiXmlElement *NONS_ScreenSpace::save_sprites(){
+	TiXmlElement *sprites=new TiXmlElement("sprites");
+	for (size_t a=0;a<this->layerStack.size();a++){
+		NONS_Layer *layer=this->layerStack[a];
+		if (!layer || !layer->data)
+			continue;
+		TiXmlElement *sprite=layer->save();
+		sprites->LinkEndChild(sprite);
+		sprite->SetAttribute("no",a);
+	}
+	sprites->SetAttribute("blend",this->blendSprites);
+	sprites->SetAttribute("priority",this->sprite_priority);
+	return sprites;
+}
+
+void NONS_ScreenSpace::load_sprites(TiXmlElement *parent){
+	TiXmlElement *sprites=parent->FirstChildElement("sprites");
+	for (size_t a=0;a<this->layerStack.size();a++){
+		delete this->layerStack[a];
+		this->layerStack[a]=0;
+	}
+	for (TiXmlElement *i=sprites->FirstChildElement();i;i=i->NextSiblingElement())
+		this->layerStack[i->QueryIntAttribute("no")]=new NONS_Layer(i,"");
+	this->blendSprites=sprites->QueryIntAttribute("blend");
+	this->sprite_priority=sprites->QueryIntAttribute("priority");
+}
+
+TiXmlElement *NONS_ScreenSpace::save_filters(){
+	TiXmlElement *filters=new TiXmlElement("filters");
+	filters->SetAttribute("monochrome_first",this->apply_monochrome_first);
+	{
+		TiXmlElement *pipeline=new TiXmlElement("pipeline_A");
+		filters->LinkEndChild(pipeline);
+		for (size_t a=0;a<this->filterPipeline.size();a++)
+			pipeline->LinkEndChild(this->filterPipeline[a].save());
+	}
+	filters->LinkEndChild(this->screen->save_async_fx());
+	filters->LinkEndChild(this->screen->save_filter_pipeline("pipeline_B"));
+	return filters;
+}
+
+void NONS_ScreenSpace::load_filters(TiXmlElement *grandfather){
+	TiXmlElement *screen=grandfather->FirstChildElement("screen");
+	TiXmlElement *filters=screen->FirstChildElement("filters");
+	this->apply_monochrome_first=filters->QueryIntAttribute("monochrome_first");
+	this->filterPipeline.clear();
+	for (TiXmlElement *i=filters->FirstChildElement("pipeline_A")->FirstChildElement();i;i=i->NextSiblingElement())
+		this->filterPipeline.push_back(i);
+}
+
 TiXmlElement *NONS_ScreenSpace::save(const interpreter_stored_state &state){
 	TiXmlElement *screen=new TiXmlElement("screen");
 	screen->LinkEndChild(this->output->save(state));
+	if (this->Background)
+		screen->LinkEndChild(this->Background->save("background"));
+	screen->LinkEndChild(this->save_characters());
+	screen->LinkEndChild(this->save_sprites());
+	screen->LinkEndChild(this->save_filters());
 	return screen;
+}
+
+void NONS_ScreenSpace::load(TiXmlElement *parent,NONS_FontCache &fc){
+	TiXmlElement *screen=parent->FirstChildElement("screen");
+	delete this->output;
+	this->output=new NONS_StandardOutput(screen,fc);
+	delete this->Background;
+	this->Background=(!screen->FirstChildElement("background"))?0:new NONS_Layer(screen,"background");
+	this->load_characters(screen);
+	this->load_sprites(screen);
+}
+
+void NONS_ScreenSpace::load_async_effect(TiXmlElement *grandfather){
+	TiXmlElement *screen=grandfather->FirstChildElement("screen");
+	TiXmlElement *filters=screen->FirstChildElement("filters");
+	this->screen->load_async_fx(filters,"pipeline_B");
 }

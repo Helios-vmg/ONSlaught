@@ -75,6 +75,8 @@
 /* Copy the first part of user declarations.  */
 
 
+/* Line 189 of yacc.c  */
+#line 80 "MacroParser.tab.cpp"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -96,6 +98,8 @@
 
 /* "%code requires" blocks.  */
 
+/* Line 209 of yacc.c  */
+#line 41 "MacroParser.ypp"
 
 #include <string>
 #include <sstream>
@@ -105,6 +109,8 @@
 
 
 
+/* Line 209 of yacc.c  */
+#line 114 "MacroParser.tab.cpp"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -131,6 +137,8 @@
 typedef union YYSTYPE
 {
 
+/* Line 214 of yacc.c  */
+#line 67 "MacroParser.ypp"
 
 	std::wstring *str;
 	ulong integer;
@@ -142,6 +150,8 @@ typedef union YYSTYPE
 
 
 
+/* Line 214 of yacc.c  */
+#line 155 "MacroParser.tab.cpp"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -150,6 +160,8 @@ typedef union YYSTYPE
 
 /* "%code provides" blocks.  */
 
+/* Line 261 of yacc.c  */
+#line 48 "MacroParser.ypp"
 
 	int macroParser_yyparse(
 		cheap_input_stream &stream,
@@ -171,10 +183,14 @@ typedef union YYSTYPE
 
 
 
+/* Line 261 of yacc.c  */
+#line 188 "MacroParser.tab.cpp"
 
 /* Copy the second part of user declarations.  */
 
 
+/* Line 264 of yacc.c  */
+#line 194 "MacroParser.tab.cpp"
 
 #ifdef short
 # undef short
@@ -1105,87 +1121,135 @@ yydestruct (yymsg, yytype, yyvaluep, stream, token_queue, file)
     {
       case 10: /* "TEXT" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->str);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1132 "MacroParser.tab.cpp"
 	break;
       case 11: /* "IDENTIFIER" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->str);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1143 "MacroParser.tab.cpp"
 	break;
       case 12: /* "STRING" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->str);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1154 "MacroParser.tab.cpp"
 	break;
       case 18: /* "file" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->file);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1165 "MacroParser.tab.cpp"
 	break;
       case 19: /* "file_element" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->file_element);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1176 "MacroParser.tab.cpp"
 	break;
       case 20: /* "text" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->text);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1187 "MacroParser.tab.cpp"
 	break;
       case 21: /* "common_call_header" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->call);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1198 "MacroParser.tab.cpp"
 	break;
       case 22: /* "call" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->call);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1209 "MacroParser.tab.cpp"
 	break;
       case 23: /* "long_call" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->call);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1220 "MacroParser.tab.cpp"
 	break;
       case 24: /* "parameter_list" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->params);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1231 "MacroParser.tab.cpp"
 	break;
       case 25: /* "non_empty_parameter_list" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->params);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1242 "MacroParser.tab.cpp"
 	break;
       case 26: /* "long_parameter_list" */
 
+/* Line 1009 of yacc.c  */
+#line 85 "MacroParser.ypp"
 	{
 	delete (yyvaluep->params);
 };
 
+/* Line 1009 of yacc.c  */
+#line 1253 "MacroParser.tab.cpp"
 	break;
 
       default:
@@ -1490,6 +1554,8 @@ yyreduce:
     {
         case 2:
 
+/* Line 1464 of yacc.c  */
+#line 92 "MacroParser.ypp"
     {
 		file=(yyvsp[(1) - (1)].file);
 		YYACCEPT;
@@ -1498,6 +1564,8 @@ yyreduce:
 
   case 3:
 
+/* Line 1464 of yacc.c  */
+#line 96 "MacroParser.ypp"
     {
 		YYABORT;
 	;}
@@ -1505,6 +1573,8 @@ yyreduce:
 
   case 4:
 
+/* Line 1464 of yacc.c  */
+#line 101 "MacroParser.ypp"
     {
 		(yyval.file)=new NONS_Macro::file;
 	;}
@@ -1512,6 +1582,8 @@ yyreduce:
 
   case 5:
 
+/* Line 1464 of yacc.c  */
+#line 104 "MacroParser.ypp"
     {
 		(yyval.file)=(yyvsp[(1) - (2)].file);
 		(yyval.file)->list.push_back((yyvsp[(2) - (2)].file_element));
@@ -1520,6 +1592,8 @@ yyreduce:
 
   case 6:
 
+/* Line 1464 of yacc.c  */
+#line 110 "MacroParser.ypp"
     {
 		(yyval.file_element)=(yyvsp[(1) - (1)].text);
 	;}
@@ -1527,6 +1601,8 @@ yyreduce:
 
   case 7:
 
+/* Line 1464 of yacc.c  */
+#line 113 "MacroParser.ypp"
     {
 		(yyval.file_element)=(yyvsp[(1) - (1)].call);
 	;}
@@ -1534,6 +1610,8 @@ yyreduce:
 
   case 8:
 
+/* Line 1464 of yacc.c  */
+#line 116 "MacroParser.ypp"
     {
 		(yyval.file_element)=(yyvsp[(1) - (1)].call);
 	;}
@@ -1541,6 +1619,8 @@ yyreduce:
 
   case 9:
 
+/* Line 1464 of yacc.c  */
+#line 121 "MacroParser.ypp"
     {
 		(yyval.text)=new NONS_Macro::text(*(yyvsp[(1) - (1)].str));
 		delete (yyvsp[(1) - (1)].str);
@@ -1549,6 +1629,8 @@ yyreduce:
 
   case 10:
 
+/* Line 1464 of yacc.c  */
+#line 125 "MacroParser.ypp"
     {
 		(yyval.text)=(yyvsp[(1) - (2)].text);
 		(yyval.text)->str.append(*(yyvsp[(2) - (2)].str));
@@ -1558,6 +1640,8 @@ yyreduce:
 
   case 11:
 
+/* Line 1464 of yacc.c  */
+#line 132 "MacroParser.ypp"
     {
 		(yyval.call)=new NONS_Macro::call(*(yyvsp[(2) - (2)].str));
 		delete (yyvsp[(2) - (2)].str);
@@ -1566,6 +1650,8 @@ yyreduce:
 
   case 12:
 
+/* Line 1464 of yacc.c  */
+#line 136 "MacroParser.ypp"
     {
 		(yyval.call)=new NONS_Macro::call(*(yyvsp[(3) - (3)].str),(yyvsp[(2) - (3)].integer));
 		delete (yyvsp[(3) - (3)].str);
@@ -1574,6 +1660,8 @@ yyreduce:
 
   case 13:
 
+/* Line 1464 of yacc.c  */
+#line 142 "MacroParser.ypp"
     {
 		(yyval.call)=(yyvsp[(1) - (4)].call);
 		(yyval.call)->parameters=*(yyvsp[(3) - (4)].params);
@@ -1583,6 +1671,8 @@ yyreduce:
 
   case 14:
 
+/* Line 1464 of yacc.c  */
+#line 149 "MacroParser.ypp"
     {
 		append(((yyval.call)=(yyvsp[(1) - (6)].call))->parameters,*(yyvsp[(5) - (6)].params));
 		delete (yyvsp[(5) - (6)].params);
@@ -1591,6 +1681,8 @@ yyreduce:
 
   case 15:
 
+/* Line 1464 of yacc.c  */
+#line 155 "MacroParser.ypp"
     {
 		(yyval.params)=new std::vector<std::wstring>;
 	;}
@@ -1598,6 +1690,8 @@ yyreduce:
 
   case 16:
 
+/* Line 1464 of yacc.c  */
+#line 158 "MacroParser.ypp"
     {
 		(yyval.params)=(yyvsp[(1) - (1)].params);
 	;}
@@ -1605,6 +1699,8 @@ yyreduce:
 
   case 17:
 
+/* Line 1464 of yacc.c  */
+#line 163 "MacroParser.ypp"
     {
 		(yyval.params)=new std::vector<std::wstring>;
 		(yyval.params)->push_back(*(yyvsp[(1) - (1)].str));
@@ -1614,6 +1710,8 @@ yyreduce:
 
   case 18:
 
+/* Line 1464 of yacc.c  */
+#line 168 "MacroParser.ypp"
     {
 		(yyval.params)=(yyvsp[(1) - (3)].params);
 		(yyval.params)->push_back(*(yyvsp[(3) - (3)].str));
@@ -1623,6 +1721,8 @@ yyreduce:
 
   case 19:
 
+/* Line 1464 of yacc.c  */
+#line 175 "MacroParser.ypp"
     {
 		(yyval.params)=new std::vector<std::wstring>;
 		(yyval.params)->push_back((yyvsp[(1) - (1)].text)->to_string());
@@ -1632,6 +1732,8 @@ yyreduce:
 
   case 20:
 
+/* Line 1464 of yacc.c  */
+#line 180 "MacroParser.ypp"
     {
 		(yyval.params)=(yyvsp[(1) - (3)].params);
 		(yyval.params)->push_back((yyvsp[(3) - (3)].text)->to_string());
@@ -1641,6 +1743,8 @@ yyreduce:
 
 
 
+/* Line 1464 of yacc.c  */
+#line 1748 "MacroParser.tab.cpp"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -1851,6 +1955,8 @@ yyreturn:
 
 
 
+/* Line 1684 of yacc.c  */
+#line 186 "MacroParser.ypp"
 
 
 int identify_keyword(const std::wstring &s){
@@ -1902,7 +2008,7 @@ int macroParser_yylex(YYSTYPE *yylval,cheap_input_stream &stream,std::deque<wcha
 					value.push_back(second_queue.front());
 					second_queue.pop_front();
 				}
-				yylval->integer=atoi(value);
+				yylval->integer=atol(value);
 				return INTEGER;
 			}
 			if (c=='\"'){

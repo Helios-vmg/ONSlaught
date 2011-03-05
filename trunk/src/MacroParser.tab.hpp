@@ -33,6 +33,8 @@
 
 /* "%code requires" blocks.  */
 
+/* Line 1685 of yacc.c  */
+#line 41 "MacroParser.ypp"
 
 #include <string>
 #include <sstream>
@@ -42,6 +44,8 @@
 
 
 
+/* Line 1685 of yacc.c  */
+#line 49 "MacroParser.tab.hpp"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -68,6 +72,8 @@
 typedef union YYSTYPE
 {
 
+/* Line 1685 of yacc.c  */
+#line 67 "MacroParser.ypp"
 
 	std::wstring *str;
 	ulong integer;
@@ -79,6 +85,8 @@ typedef union YYSTYPE
 
 
 
+/* Line 1685 of yacc.c  */
+#line 90 "MacroParser.tab.hpp"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -90,6 +98,8 @@ typedef union YYSTYPE
 
 /* "%code provides" blocks.  */
 
+/* Line 1685 of yacc.c  */
+#line 48 "MacroParser.ypp"
 
 	int macroParser_yyparse(
 		cheap_input_stream &stream,
@@ -111,3 +121,5 @@ typedef union YYSTYPE
 
 
 
+/* Line 1685 of yacc.c  */
+#line 126 "MacroParser.tab.hpp"

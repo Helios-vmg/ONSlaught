@@ -325,7 +325,7 @@ expressionParser_yylex_000:
 			yylval->obj=makeValue(temp);
 			return STRING;
 		}
-		yylval->obj=makeValue(atoi(temp));
+		yylval->obj=makeValue(atol(temp));
 		return INTEGER;
 	}
 	if (c=='#'){

@@ -59,6 +59,7 @@ struct NONS_Layer{
 	NONS_Layer(const NONS_LongRect &size,const NONS_Color &rgba);
 	NONS_Layer(const NONS_Surface &img,const NONS_Color &rgba);
 	NONS_Layer(const std::wstring *string);
+	NONS_Layer(TiXmlElement *,const char *name=0);
 	~NONS_Layer();
 	void MakeTextLayer(NONS_FontCache &fc,const NONS_Color &foreground);
 	bool load(const std::wstring *string);
@@ -83,6 +84,7 @@ struct NONS_Layer{
 			r=0;
 		return (ulong)r;
 	}
+	TiXmlElement *save(const char *override_name=0);
 };
 
 struct interpreter_stored_state;
@@ -117,6 +119,7 @@ struct NONS_StandardOutput{
 
 	NONS_StandardOutput(NONS_Layer *fgLayer,NONS_Layer *shadowLayer,NONS_Layer *shadeLayer);
 	NONS_StandardOutput(NONS_FontCache &fc,const NONS_LongRect &size,const NONS_LongRect &frame,bool shadow=1);
+	NONS_StandardOutput(TiXmlElement *,NONS_FontCache &fc,const char *name=0);
 	void Clear(bool eraseBuffer=1);
 	~NONS_StandardOutput();
 	void setPosition(int x,int y);
@@ -209,5 +212,14 @@ struct NONS_ScreenSpace{
 	void clearBars();
 
 	TiXmlElement *save(const interpreter_stored_state &state);
+	void load(TiXmlElement *,NONS_FontCache &fc);
+	void load_async_effect(TiXmlElement *);
+	void load_filters(TiXmlElement *);
+private:
+	TiXmlElement *save_characters();
+	void load_characters(TiXmlElement *);
+	TiXmlElement *save_sprites();
+	void load_sprites(TiXmlElement *);
+	TiXmlElement *save_filters();
 };
 #endif

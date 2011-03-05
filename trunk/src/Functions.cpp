@@ -641,7 +641,10 @@ TiXmlElement *NONS_BasicRect<T>::save(const char *override_name){
 }
 template TiXmlElement *NONS_BasicRect<long>::save(const char *override_name);
 
-TiXmlNode *find_xml_node(TiXmlNode *node,const std::wstring &name){
-	//TODO: Implement me.
-	return 0;
+template <>
+NONS_BasicRect<long>::NONS_BasicRect(TiXmlElement *rect):sdl(0){
+	this->x=rect->QueryIntAttribute("x");
+	this->y=rect->QueryIntAttribute("y");
+	this->w=rect->QueryIntAttribute("w");
+	this->h=rect->QueryIntAttribute("h");
 }

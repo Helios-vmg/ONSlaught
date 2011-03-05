@@ -52,6 +52,22 @@ void pipelineElement::operator=(const pipelineElement &o){
 	this->ruleStr=o.ruleStr;
 }
 
+TiXmlElement *pipelineElement::save(const char *override_name){
+	TiXmlElement *effect=new TiXmlElement(override_name?override_name:"effect");
+	effect->SetAttribute("effect_no",this->effectNo);
+	effect->LinkEndChild(this->color.save());
+	effect->SetAttribute("rule",(this->rule)?this->ruleStr:L"");
+	return effect;
+}
+
+pipelineElement::pipelineElement(TiXmlElement *effect)
+		:color(effect->FirstChildElement("color")){
+	this->effectNo=effect->QueryIntAttribute("effect_no");
+	this->ruleStr=effect->QueryWStringAttribute("rule");
+	if (this->ruleStr.size())
+		this->rule=this->ruleStr;
+}
+
 void asyncEffectThread(NONS_VirtualScreen *vs){
 	ulong effectNo=vs->aeffect_no;
 	ulong freq=vs->aeffect_freq;
@@ -314,7 +330,7 @@ void NONS_VirtualScreen::initEffectList(){
 }
 
 ErrorCode NONS_VirtualScreen::callEffect(ulong effectNo,ulong frequency){
-	if (this->effects.size()<=effectNo)
+	if (effectNo>=this->effects.size())
 		return NONS_NO_EFFECT;
 	this->stopEffect();
 	{
@@ -463,6 +479,34 @@ void NONS_VirtualScreen::printCurrentState(){
 		STD_COUT <<")->";
 	}
 	STD_COUT <<"3\n";
+}
+
+TiXmlElement *NONS_VirtualScreen::save_async_fx(const char *override_name){
+	TiXmlElement *async_fx=new TiXmlElement("async_fx");
+	if (this->usingFeature[ASYNC_EFFECT]){
+		async_fx->SetAttribute("effect_no",this->aeffect_no);
+		async_fx->SetAttribute("frequency",this->aeffect_freq);
+	}
+	return async_fx;
+}
+
+void NONS_VirtualScreen::load_async_fx(TiXmlElement *parent,const char *name){
+	TiXmlElement *async_fx=parent->FirstChildElement(name?name:"async_fx");
+	this->callEffect(async_fx->QueryIntAttribute("effect_no"),async_fx->QueryIntAttribute("frequency"));
+}
+
+TiXmlElement *NONS_VirtualScreen::save_filter_pipeline(const char *override_name){
+	TiXmlElement *filter_pipeline=new TiXmlElement(override_name?override_name:"filter_pipeline");
+	for (size_t a=0;a<this->filterPipeline.size();a++)
+		filter_pipeline->LinkEndChild(this->filterPipeline[a].save());
+	return filter_pipeline;
+}
+
+void NONS_VirtualScreen::load_filter_pipeline(TiXmlElement *parent,const char *name){
+	TiXmlElement *filter_pipeline=parent->FirstChildElement(name?name:"filter_pipeline");
+	this->filterPipeline.clear();
+	for (TiXmlElement *i=filter_pipeline->FirstChildElement();i;i=i->NextSiblingElement())
+		this->filterPipeline.push_back(i);
 }
 
 #define RED_MONOCHROME(x) ((x)*3/10)

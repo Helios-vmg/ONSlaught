@@ -24,6 +24,9 @@
 #ifndef _SHA1_H_
 #define _SHA1_H_
 
+#include <vector>
+#include <string>
+
 class SHA1
 {
 
@@ -55,6 +58,11 @@ class SHA1
 		SHA1& operator<<(const unsigned char *message_array);
 		SHA1& operator<<(const char message_element);
 		SHA1& operator<<(const unsigned char message_element);
+		static std::string StringizeResult(unsigned result[5]);
+		std::string ToString();
+		std::vector<unsigned char> ToVector();
+		static std::string HashToString(const void *,size_t);
+		static std::vector<unsigned char> HashToVector(const void *,size_t);
 
 	private:
 

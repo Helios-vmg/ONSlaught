@@ -39,6 +39,7 @@
 
 
 #include "sha1.h"
+#include "Functions.h"
 
 /*	
  *	SHA1
@@ -586,4 +587,40 @@ void SHA1::PadMessage()
 unsigned SHA1::CircularShift(int bits, unsigned word)
 {
 	return ((word << bits) & 0xFFFFFFFF) | ((word & 0xFFFFFFFF) >> (32-bits));
+}
+
+std::string SHA1::StringizeResult(unsigned result[5]){
+	std::string hash;
+	hash.reserve(8*5);
+	for (ulong a=0;a<5;a++)
+		hash.append(itohexc(result[a],8));
+	return hash;
+}
+
+std::string SHA1::ToString(){
+	unsigned result[5];
+	this->Result(result);
+	return StringizeResult(result);
+}
+
+std::vector<unsigned char> SHA1::ToVector(){
+	std::vector<unsigned char> r;
+	r.reserve(4*5);
+	unsigned integers[5];
+	this->Result(integers);
+	for (ulong a=0;a<5;a++)
+		writeDWordBig(integers[a],r);
+	return r;
+}
+
+std::string SHA1::HashToString(const void *src,size_t n){
+	SHA1 hash;
+	hash.Input((const unsigned char *)src,n);
+	return hash.ToString();
+}
+
+std::vector<unsigned char> SHA1::HashToVector(const void *src,size_t n){
+	SHA1 hash;
+	hash.Input((const unsigned char *)src,n);
+	return hash.ToVector();
 }

@@ -67,6 +67,7 @@ struct NONS_GFX{
 
 	NONS_GFX(ulong effect=0,ulong duration=0,const std::wstring *rule=0);
 	NONS_GFX(const NONS_GFX &b);
+	NONS_GFX(TiXmlElement *,const char *name=0);
 	NONS_GFX &operator=(const NONS_GFX &b);
 	static ErrorCode callEffect(
 		ulong number,

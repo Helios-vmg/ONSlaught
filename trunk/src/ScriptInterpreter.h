@@ -99,6 +99,7 @@ struct NONS_StackElement{
 	NONS_StackElement(const std::vector<printingPage> &pages,wchar_t trigger,ulong level);
 	NONS_StackElement(NONS_StackElement *copy,const std::vector<std::wstring> &vector);
 	NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps,ulong level);
+	NONS_StackElement(TiXmlElement *,NONS_Script *script,NONS_VariableStore *store);
 	~NONS_StackElement();
 	TiXmlElement *save(NONS_Script *script,NONS_VariableStore *store);
 };
@@ -136,11 +137,11 @@ typedef commandListType allowedCommandListType;
 
 struct interpreter_stored_state{
 	int textX,
-		textY,
-		music_track;
+		textY/*,
+		music_track*/;
 	bool italic,
 		bold;
-	std::wstring music;
+	//std::wstring music;
 };
 
 class NONS_ScriptInterpreter{
@@ -159,6 +160,9 @@ class NONS_ScriptInterpreter{
 	void handle_wait_state(std::vector<printingPage> &pages,std::vector<printingPage>::iterator,ulong stop,wchar_t trigger,long add);
 	void print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstring &commandName,const std::vector<std::wstring> &parameters,ulong mode);
 	TiXmlElement *save_control();
+	void load_control(TiXmlElement *);
+	TiXmlElement *save_other();
+	void load_other(TiXmlElement *);
 
 	bool stop_interpreting;
 	commandMapType commandList;

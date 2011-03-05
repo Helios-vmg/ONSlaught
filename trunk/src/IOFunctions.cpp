@@ -519,6 +519,9 @@ VirtualConsole::VirtualConsole(const std::string &name,ulong color){
 	sa.nLength=sizeof(SECURITY_ATTRIBUTES);
 	sa.bInheritHandle=1;
 	sa.lpSecurityDescriptor=0;
+	this->near_end=0;
+	this->far_end=0;
+	this->process=0;
 	if (!CreatePipe(&this->far_end,&this->near_end,&sa,0)){
 		assert(this->near_end==INVALID_HANDLE_VALUE);
 		return;

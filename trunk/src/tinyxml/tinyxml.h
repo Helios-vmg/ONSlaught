@@ -22,7 +22,7 @@ must not be misrepresented as being the original software.
 distribution.
 */
 
-#include "config.h"
+#define TIXML_USE_STL
 
 #ifndef TINYXML_INCLUDED
 #define TINYXML_INCLUDED
@@ -214,6 +214,7 @@ public:
 		(For an unformatted stream, use the << operator.)
 	*/
 	virtual void Print( FILE* cfile, int depth ) const = 0;
+	virtual void Print( std::string &string, int depth ) const = 0;
 
 	/**	The world does not agree on whether white space should be kept or
 		not. In order to make everyone happy, these global, static functions
@@ -873,6 +874,9 @@ public:
 	virtual void Print( FILE* cfile, int depth ) const {
 		Print( cfile, depth, 0 );
 	}
+	virtual void Print( std::string &string, int depth ) const{
+		Print( 0, depth, &string );
+	}
 	void Print( FILE* cfile, int depth, TIXML_STRING* str ) const;
 
 	// [internal use]
@@ -986,6 +990,11 @@ public:
 		does not exist, then TIXML_NO_ATTRIBUTE is returned.
 	*/	
 	int QueryIntAttribute( const char* name, int* _value ) const;
+	int QueryIntAttribute( const char* name) const{
+		int temp;
+		this->QueryIntAttribute(name,&temp);
+		return temp;
+	}
 	/// QueryDoubleAttribute examines the attribute - see QueryIntAttribute().
 	int QueryDoubleAttribute( const char* name, double* _value ) const;
 	/// QueryFloatAttribute examines the attribute - see QueryIntAttribute().
@@ -996,6 +1005,11 @@ public:
 			*_value = (float)d;
 		}
 		return result;
+	}
+	float QueryFloatAttribute( const char* name ) const {
+		float temp;
+		this->QueryFloatAttribute(name,&temp);
+		return temp;
 	}
 
     #ifdef TIXML_USE_STL
@@ -1008,6 +1022,12 @@ public:
 		}
 		return TIXML_NO_ATTRIBUTE;
 	}
+	std::string QueryStringAttribute( const char* name) const {
+		std::string temp;
+		this->QueryStringAttribute(name,&temp);
+		return temp;
+	}
+	std::wstring QueryWStringAttribute( const char* name) const;
 
 	/** Template form of the attribute query which will try to read the
 		attribute into the specified type. Very easy, very powerful, but
@@ -1123,6 +1143,7 @@ public:
 	virtual TiXmlNode* Clone() const;
 	// Print the Element to a FILE stream.
 	virtual void Print( FILE* cfile, int depth ) const;
+	virtual void Print( std::string &string, int depth ) const;
 
 	/*	Attribtue parsing starts: next char past '<'
 						 returns: next char past '>'
@@ -1176,6 +1197,7 @@ public:
 	virtual TiXmlNode* Clone() const;
 	// Write this Comment to a FILE stream.
 	virtual void Print( FILE* cfile, int depth ) const;
+	virtual void Print( std::string &string, int depth ) const;
 
 	/*	Attribtue parsing starts: at the ! of the !--
 						 returns: next char past '>'
@@ -1237,6 +1259,7 @@ public:
 
 	// Write this text object to a FILE stream.
 	virtual void Print( FILE* cfile, int depth ) const;
+	virtual void Print( std::string &string, int depth ) const;
 
 	/// Queries whether this represents text using a CDATA section.
 	bool CDATA() const				{ return cdata; }
@@ -1318,6 +1341,9 @@ public:
 	virtual void Print( FILE* cfile, int depth ) const {
 		Print( cfile, depth, 0 );
 	}
+	virtual void Print( std::string &string, int depth ) const{
+		Print( 0, depth, &string );
+	}
 
 	virtual const char* Parse( const char* p, TiXmlParsingData* data, TiXmlEncoding encoding );
 
@@ -1363,6 +1389,7 @@ public:
 	virtual TiXmlNode* Clone() const;
 	// Print this Unknown to a FILE stream.
 	virtual void Print( FILE* cfile, int depth ) const;
+	virtual void Print( std::string &string, int depth ) const;
 
 	virtual const char* Parse( const char* p, TiXmlParsingData* data, TiXmlEncoding encoding );
 
@@ -1525,6 +1552,7 @@ public:
 
 	/// Print this Document to a FILE stream.
 	virtual void Print( FILE* cfile, int depth = 0 ) const;
+	virtual void Print( std::string &string, int depth ) const;
 	// [internal use]
 	void SetError( int err, const char* errorLocation, TiXmlParsingData* prevData, TiXmlEncoding encoding );
 

@@ -118,7 +118,7 @@ long ConfigFile::getInt(const std::wstring &index,ulong subindex){
 	long ret=0;
 	switch (getDataType(str)){
 		case 1:
-			ret=atoi(str);
+			ret=atol(str);
 			break;
 		case 2:
 			for (size_t a=0;a<str.size();a++){

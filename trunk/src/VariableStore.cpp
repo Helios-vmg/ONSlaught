@@ -102,7 +102,7 @@ namespace NONS_Expression{
 	NONS_Expression_DECLARE_OPERATOR(atoi){
 		CHECK_OPERANDS(1);
 		EXPECT_STRING(0);
-		Value *ret=new Value(::atoi(OPERAND(0)->string));
+		Value *ret=new Value(::atol(OPERAND(0)->string));
 		deleteTop(operands);
 		return ret;
 	}
@@ -602,8 +602,7 @@ const std::wstring NONS_VariableMember::null;
 NONS_VariableMember::NONS_VariableMember(yytokentype type){
 	this->intValue=0;
 	this->type=type;
-	this->_long_upper_limit=LONG_MAX;
-	this->_long_lower_limit=LONG_MIN;
+	this->set_default_limits();
 	this->constant=0;
 	this->dimension=0;
 	this->dimensionSize=0;
@@ -612,8 +611,7 @@ NONS_VariableMember::NONS_VariableMember(yytokentype type){
 NONS_VariableMember::NONS_VariableMember(long value){
 	this->intValue=value;
 	this->type=INTEGER;
-	this->_long_upper_limit=LONG_MAX;
-	this->_long_lower_limit=LONG_MIN;
+	this->set_default_limits();
 	this->constant=0;
 	this->dimension=0;
 	this->dimensionSize=0;
@@ -622,8 +620,7 @@ NONS_VariableMember::NONS_VariableMember(long value){
 NONS_VariableMember::NONS_VariableMember(const std::wstring &a){
 	this->intValue=0;
 	this->type=STRING;
-	this->_long_upper_limit=LONG_MAX;
-	this->_long_lower_limit=LONG_MIN;
+	this->set_default_limits();
 	this->constant=0;
 	this->dimension=0;
 	this->dimensionSize=0;
@@ -632,8 +629,7 @@ NONS_VariableMember::NONS_VariableMember(const std::wstring &a){
 
 NONS_VariableMember::NONS_VariableMember(std::vector<long> &sizes,size_t startAt){
 	this->intValue=0;
-	this->_long_upper_limit=LONG_MAX;
-	this->_long_lower_limit=LONG_MIN;
+	this->set_default_limits();
 	this->constant=0;
 	if (startAt<sizes.size()){
 		this->type=INTEGER_ARRAY;
@@ -720,7 +716,7 @@ void NONS_VariableMember::set(long a){
 void NONS_VariableMember::atoi(const std::wstring &a){
 	if (this->constant || this->type!=INTEGER)
 		return;
-	this->intValue=::atoi(a);
+	this->intValue=::atol(a);
 	this->fixint();
 }
 
@@ -823,6 +819,46 @@ TiXmlElement *NONS_VariableMember::save(int index){
 	return current.element;
 }
 
+NONS_VariableMember::NONS_VariableMember(TiXmlElement *array){
+	this->set_default_limits();
+	struct frame{
+		NONS_VariableMember *_this;
+		TiXmlElement *array,
+			*child;
+		std::vector<NONS_VariableMember *> v;
+	};
+	std::vector<frame> stack(1);
+	frame *current;
+	current=&stack.back();
+	current->child=0;
+	int i;
+	while (1){
+		if (current->array){
+			if (current->array->QueryIntAttribute("int",&i)==TIXML_SUCCESS){
+				do
+					current->v.push_back(new NONS_VariableMember(current->array->QueryIntAttribute("int")));
+				while (current->array=current->array->NextSiblingElement());
+			}else{
+				stack.resize(stack.size()+1);
+				frame *new_current=&stack.back();
+				new_current->_this=new NONS_VariableMember(INTEGER_ARRAY);
+				new_current->array=(current->child)?current->child->NextSiblingElement():current->array->FirstChildElement();
+				new_current->child=0;
+			}
+		}
+		NONS_VariableMember *temp=current->_this;
+		temp->dimensionSize=current->v.size();
+		temp->dimension=new NONS_VariableMember *[current->_this->dimensionSize];
+		memcpy(&(current->v)[0],temp->dimension,temp->dimensionSize);
+		if (stack.size()==1)
+			break;
+		stack.pop_back();
+		current=&stack.back();
+		current->v.push_back(temp);
+		current->array=current->array->NextSiblingElement();
+	}
+}
+
 NONS_Variable::NONS_Variable(){
 	this->intValue=new NONS_VariableMember(INTEGER);
 	this->wcsValue=new NONS_VariableMember(STRING);
@@ -856,10 +892,18 @@ TiXmlElement *NONS_Variable::save(int index){
 	return variable;
 }
 
-NONS_LabelLog labellog;
+NONS_Variable::NONS_Variable(TiXmlElement *variable){
+	int i;
+	this->intValue=(variable->QueryIntAttribute("int",&i)==TIXML_SUCCESS)
+		?new NONS_VariableMember(i)
+		:new NONS_VariableMember(INTEGER);
+	std::string s;
+	this->wcsValue=(variable->QueryStringAttribute("str",&s)==TIXML_SUCCESS)
+		?new NONS_VariableMember(UniFromUTF8(s))
+		:new NONS_VariableMember(INTEGER);
+}
 
-//const Sint32 NONS_VariableStore::indexLowerLimit=-1073741824;
-//const Sint32 NONS_VariableStore::indexUpperLimit=1073741823;
+NONS_LabelLog labellog;
 
 extern std::wstring save_directory;
 
@@ -992,12 +1036,38 @@ void NONS_VariableStore::saveData(){
 TiXmlElement *NONS_VariableStore::save_locals(){
 	TiXmlElement *locals=new TiXmlElement("locals");
 	variables_map_T &varStack=this->variables;
-	for (variables_map_T::iterator i=this->variables.begin();i!=this->variables.end() && i->first<200;++i)
-		if (!VARIABLE_HAS_NO_DATA(i->second))
-			locals->LinkEndChild(i->second->save((int)i->first));
-	for (arrays_map_T::iterator i=this->arrays.begin();i!=this->arrays.end();i++)
-		locals->LinkEndChild(i->second->save((int)i->first));
+	{
+		TiXmlElement *scalars=new TiXmlElement("scalars");
+		locals->LinkEndChild(scalars);
+		for (variables_map_T::iterator i=this->variables.begin();i!=this->variables.end() && i->first<200;++i)
+			if (!VARIABLE_HAS_NO_DATA(i->second))
+				scalars->LinkEndChild(i->second->save((int)i->first));
+	}
+	{
+		TiXmlElement *arrays=new TiXmlElement("arrays");
+		locals->LinkEndChild(arrays);
+		for (arrays_map_T::iterator i=this->arrays.begin();i!=this->arrays.end();i++)
+			arrays->LinkEndChild(i->second->save((int)i->first));
+	}
+
 	return locals;
+}
+
+void NONS_VariableStore::load_locals(TiXmlElement *parent){
+	TiXmlElement *locals=parent->FirstChildElement("locals");
+
+	for (variables_map_T::iterator i=this->variables.begin();i!=this->variables.end() && i->first<200;++i){
+		delete i->second;
+		i->second=0;
+	}
+	for (TiXmlElement *i=locals->FirstChildElement("scalars")->FirstChildElement();i;i=i->NextSiblingElement())
+		this->variables[i->QueryIntAttribute("no")]=new NONS_Variable(i);
+
+	for (arrays_map_T::iterator i=this->arrays.begin();i!=this->arrays.end();i++)
+		delete i->second;
+	this->arrays.clear();
+	for (TiXmlElement *i=locals->FirstChildElement("arrays")->FirstChildElement();i;i=i->NextSiblingElement())
+		this->arrays[i->QueryIntAttribute("no")]=new NONS_VariableMember(i);
 }
 
 NONS_Expression::Value *NONS_VariableStore::evaluate(const std::wstring &exp,bool invert_terms){

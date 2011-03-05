@@ -227,5 +227,7 @@ const char *errorMessages[]={
 	"Not enough parameters were passed to csel.",
 	//NONS_NOT_IN_TEXTGOSUB_CALL
 	"Not currently in textgosub call.",
+	//NONS_CORRUPTED_SAVEGAME
+	"Savegame file is corrupted.",
 	0
 };

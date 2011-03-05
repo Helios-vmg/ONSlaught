@@ -84,7 +84,9 @@ struct pipelineElement{
 	pipelineElement(){}
 	pipelineElement(ulong effectNo,const NONS_Color &color,const std::wstring &rule,bool loadRule);
 	pipelineElement(const pipelineElement &o){ *this=o; }
+	pipelineElement(TiXmlElement *);
 	void operator=(const pipelineElement &);
+	TiXmlElement *save(const char *override_name=0);
 };
 
 #define VIRTUAL 0
@@ -222,6 +224,10 @@ public:
 		NONS_MutexLocker ml(this->mutex);
 		return this->fullscreen;
 	}
+	TiXmlElement *save_async_fx(const char *override_name=0);
+	void load_async_fx(TiXmlElement *,const char *name=0);
+	TiXmlElement *save_filter_pipeline(const char *override_name=0);
+	void load_filter_pipeline(TiXmlElement *,const char *name=0);
 };
 
 FILTER_EFFECT_F(effectMonochrome);

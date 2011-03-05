@@ -53,7 +53,7 @@ public:
 		this->value=a;
 	}
 	long getIntValue(){
-		return atoi(this->value);
+		return atol(this->value);
 	}
 	const std::wstring &getStrValue(){
 		return this->value;

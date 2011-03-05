@@ -492,14 +492,14 @@ inline bool NONS_isidnchar(unsigned character){
 	return NONS_isid1char(character) || NONS_isdigit(character);
 }
 
-template <typename T>
-long atoi(const std::basic_string<T> &str){
+template <typename T2,typename T>
+T2 ato(const std::basic_string<T> &str){
 #if !NONS_SYS_PSP
 	std::basic_stringstream<T> stream(str);
-	long res;
+	T2 res;
 	return !(stream >>res)?0:res;
 #else
-	long res=0;
+	T2 res=0;
 	bool sign=0;
 	ulong a=0;
 	if (str[a]=='-'){
@@ -513,6 +513,9 @@ long atoi(const std::basic_string<T> &str){
 	return res;
 #endif
 }
+
+template <typename T> inline long atol(const std::basic_string<T> &str){ return ato<long>(str); }
+template <typename T> inline ulong atoul(const std::basic_string<T> &str){ return ato<ulong>(str); }
 
 template <typename T1,typename T2>
 int lexcmp(const T1 *a,const T2 *b){
@@ -755,6 +758,7 @@ struct NONS_BasicRect{
 	SDL_Rect *sdl;
 	NONS_BasicRect<T>(T x=0,T y=0,T w=0,T h=0):x(x),y(y),w(w),h(h),sdl(0){}
 	NONS_BasicRect<T>(const NONS_BasicRect<T> &s):x(s.x),y(s.y),w(s.w),h(s.h),sdl(0){}
+	NONS_BasicRect<T>(TiXmlElement *);
 	template <typename T2>
 	explicit NONS_BasicRect<T>(const T2 &s):x((T)s.x),y((T)s.y),w((T)s.w),h((T)s.h),sdl(0){}
 	~NONS_BasicRect(){ delete this->sdl; }

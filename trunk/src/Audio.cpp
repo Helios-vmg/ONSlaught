@@ -31,6 +31,7 @@
 #include "IOFunctions.h"
 #include "CommandLineOptions.h"
 #include "Archive.h"
+#include "ScriptInterpreter.h"
 #include <iostream>
 
 #define NONS_Audio_FOREACH() for (chan_t::iterator i=this->channels.begin(),e=this->channels.end();i!=e;++i)
@@ -326,4 +327,77 @@ asynchronous_audio_stream *NONS_Audio::new_video_stream(){
 	asynchronous_audio_stream *stream=new asynchronous_audio_stream();
 	this->dev->add(stream);
 	return stream;
+}
+
+TiXmlElement *save_channel(int no,const audio_stream &stream){
+	bool is_playing=stream.is_playing(),
+		loop=!!stream.loop;
+	if (!loop && is_playing)
+		return 0;
+	TiXmlElement *channel=new TiXmlElement("channel");
+	channel->SetAttribute("no",no);
+	channel->SetAttribute("path",stream.filename);
+	channel->SetAttribute("loop",loop);
+	channel->SetAttribute("volume",itoac(stream.get_volume()));
+	channel->SetAttribute("playing",is_playing);
+	return channel;
+}
+
+void NONS_Audio::load_channel(TiXmlElement *element){
+	int index=element->QueryIntAttribute("no");
+	audio_stream *stream=new audio_stream(element->QueryWStringAttribute("path"),index==NONS_Audio::music_channel);
+	if (!*stream){
+		delete stream;
+		return;
+	}
+	this->channels[index]=stream;
+	this->dev->add(stream);
+	stream->loop=(element->QueryIntAttribute("loop"))?-1:0;
+	stream->set_volume(element->QueryFloatAttribute("volume"));
+	stream->set_general_volume(this->mvol);
+	stream->mute(!this->notmute);
+	if (element->QueryIntAttribute("playing"))
+		stream->start();
+}
+
+TiXmlElement *NONS_Audio::save_channels(){
+	TiXmlElement *channels=new TiXmlElement("channels");
+	NONS_MutexLocker ml(this->mutex);
+	NONS_Audio_FOREACH(){
+		TiXmlElement *el=save_channel(i->first,*i->second);
+		if (!el)
+			continue;
+		channels->LinkEndChild(el);
+	}
+	return channels;
+}
+
+void NONS_Audio::load_channels(TiXmlElement *parent){
+	TiXmlElement *channels=parent->FirstChildElement("channels");
+	for (TiXmlElement *i=channels->FirstChildElement();i;i=i->NextSiblingElement())
+		this->load_channel(i);
+}
+
+TiXmlElement *NONS_Audio::save(){
+	TiXmlElement *audio=new TiXmlElement("audio");
+	if (this->uninitialized)
+		return audio;
+	audio->SetAttribute("music_volume",this->music_volume(-1));
+	audio->SetAttribute("sfx_volume",this->sound_volume(-1));
+	audio->LinkEndChild(this->save_channels());
+	return audio;
+}
+
+void NONS_Audio::load(TiXmlElement *parent){
+	if (this->uninitialized)
+		return;
+	TiXmlElement *audio=parent->FirstChildElement("audio");
+	this->music_volume(audio->QueryIntAttribute("music_volume"));
+	this->sound_volume(audio->QueryIntAttribute("sfx_volume"));
+	NONS_MutexLocker ml(this->mutex);
+	NONS_Audio_FOREACH(){
+		this->dev->remove(i->second);
+	}
+	this->channels.clear();
+	this->load_channels(audio);
 }

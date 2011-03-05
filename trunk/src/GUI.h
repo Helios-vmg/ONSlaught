@@ -473,8 +473,10 @@ struct NONS_Cursor{
 	NONS_ScreenSpace *screen;
 	NONS_Cursor(NONS_ScreenSpace *screen);
 	NONS_Cursor(const std::wstring &string,long x,long y,long absolute,NONS_ScreenSpace *screen);
+	NONS_Cursor(TiXmlElement *,NONS_ScreenSpace *screen,const char *name=0);
 	~NONS_Cursor();
 	int animate(NONS_Menu *menu,ulong expiration);
+	TiXmlElement *save(const char *override_name=0);
 private:
 	//0 if the caller should return, 1 if it should continue
 	bool callMenu(NONS_Menu *menu,NONS_EventQueue *queue);

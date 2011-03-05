@@ -137,6 +137,10 @@ class NONS_VariableMember{
 	long _long_upper_limit;
 	long _long_lower_limit;
 	const static std::wstring null;
+	void set_default_limits(){
+		this->_long_upper_limit=LONG_MAX;
+		this->_long_lower_limit=LONG_MIN;
+	}
 public:
 	NONS_VariableMember **dimension;
 	ulong dimensionSize;
@@ -146,6 +150,7 @@ public:
 	//Assumes: All dimensions have a non-negative size.
 	NONS_VariableMember(std::vector<long> &sizes,size_t startAt);
 	NONS_VariableMember(const NONS_VariableMember &b);
+	NONS_VariableMember(TiXmlElement *);
 	~NONS_VariableMember();
 	void makeConstant();
 	bool isConstant();
@@ -175,6 +180,7 @@ struct NONS_Variable{
 	NONS_Variable();
 	NONS_Variable(const NONS_Variable &b);
 	NONS_Variable &operator=(const NONS_Variable &b);
+	NONS_Variable(TiXmlElement *);
 	~NONS_Variable();
 	TiXmlElement *save(int index);
 };
@@ -201,6 +207,7 @@ struct NONS_VariableStore{
 	void reset();
 	void saveData();
 	TiXmlElement *save_locals();
+	void load_locals(TiXmlElement *);
 	/*
 	exp: (IN) The expression to be evaluated.
 	invert_terms: (IN) Pass 1 if the expression comes from command_notif and

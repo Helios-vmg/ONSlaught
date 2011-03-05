@@ -299,6 +299,16 @@ NONS_Cursor::NONS_Cursor(const std::wstring &str,long x,long y,long absolute,NON
 	this->data=new NONS_Layer(&str);
 }
 
+NONS_Cursor::NONS_Cursor(TiXmlElement *parent,NONS_ScreenSpace *screen,const char *name){
+	TiXmlElement *cursor=parent->FirstChildElement(name?name:0);
+	this->xpos=cursor->QueryIntAttribute("x");
+	this->ypos=cursor->QueryIntAttribute("y");
+	this->absolute=!!cursor->QueryIntAttribute("absolute");
+	this->screen=screen;
+	std::wstring str=cursor->QueryWStringAttribute("string");
+	this->data=new NONS_Layer(&str);
+}
+
 NONS_Cursor::~NONS_Cursor(){
 	if (this->data)
 		delete this->data;
@@ -390,6 +400,17 @@ animate_000:
 		this->screen->cursor=0;
 	}
 	return ret;
+}
+
+TiXmlElement *NONS_Cursor::save(const char *override_name){
+	if (!this->data)
+		return 0;
+	TiXmlElement *cursor=new TiXmlElement(override_name?override_name:"cursor");
+	cursor->SetAttribute("string",this->data->animation.getString());
+	cursor->SetAttribute("x",this->xpos);
+	cursor->SetAttribute("y",this->ypos);
+	cursor->SetAttribute("absolute",this->absolute);
+	return cursor;
 }
 
 bool NONS_Cursor::callMenu(NONS_Menu *menu,NONS_EventQueue *queue){
