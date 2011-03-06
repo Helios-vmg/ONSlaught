@@ -967,14 +967,15 @@ WINDOWS_VERSION::WINDOWS_VERSION getWindowsVersion(){
 			return WINDOWS_VERSION::ERR;
 		if (RegQueryValueEx(k,TEXT("CurrentVersion"),0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ)
 			return WINDOWS_VERSION::ERR;
-		std::string str(size,0);
+		std::wstring str(size/sizeof(wchar_t),0);
 		RegQueryValueEx(k,TEXT("CurrentVersion"),0,&type,(LPBYTE)&str[0],&size);
 		RegCloseKey(k);
+		str.resize(size/sizeof(wchar_t)-1);
 		if (str[0]=='5')
 			ret=WINDOWS_VERSION::VXP;
-		else if (str=="6.0")
+		else if (str==L"6.0")
 			ret=WINDOWS_VERSION::VVI;
-		else if (str=="6.1")
+		else if (str==L"6.1")
 			ret=WINDOWS_VERSION::VW7;
 		else
 			ret=WINDOWS_VERSION::ERR;

@@ -867,4 +867,22 @@ void saturate_value(T &dst,const T &min,const T &max){
 
 class TiXmlNode;
 TiXmlNode *find_xml_node(TiXmlNode *node,const std::wstring &name);
+
+template <typename T>
+void normalize_line_endings(std::basic_string<T> &s){
+	T *p=&s[0];
+	size_t write=0;
+	for (size_t read=0,n=s.size();read<n;read++,write++){
+		if (p[read]==13){
+			if (read+1<n && p[read+1]==10)
+				read++;
+			else{
+				p[write]=10;
+				continue;
+			}
+		}
+		p[write]=p[read];
+	}
+	s.resize(write);
+}
 #endif

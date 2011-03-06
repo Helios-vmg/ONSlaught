@@ -30,6 +30,7 @@ distribution.
 #endif
 
 #include "tinyxml.h"
+#include "../IOFunctions.h"
 
 FILE* TiXmlFOpen( const char* filename, const char* mode );
 
@@ -1092,6 +1093,21 @@ bool TiXmlDocument::LoadFile( FILE* file, TiXmlEncoding encoding )
 }
 
 
+bool TiXmlDocument::LoadFile( const std::wstring &filename ){
+	NONS_File file(filename,1);
+	if (!file)
+		return 0;
+	std::string data((size_t)file.filesize(),0);
+	size_t bytes_read;
+	if (!file.read(&data[0],data.size(),bytes_read,0))
+		return 0;
+	data.resize(bytes_read);
+	normalize_line_endings(data);
+	this->Parse(data.c_str());
+	return !this->Error();
+}
+
+
 bool TiXmlDocument::SaveFile( const char * filename ) const
 {
 	// The old c stuff lives on...
@@ -1120,6 +1136,16 @@ bool TiXmlDocument::SaveFile( FILE* fp ) const
 	}
 	Print( fp, 0 );
 	return (ferror(fp) == 0);
+}
+
+
+bool TiXmlDocument::SaveFile( const std::wstring& filename ) const{
+	NONS_File file(filename,0);
+	if (!file)
+		return 0;
+	std::string data;
+	this->Print(data,0);
+	return file.write(&data[0],data.size());
 }
 
 

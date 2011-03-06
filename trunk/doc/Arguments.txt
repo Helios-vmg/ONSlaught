@@ -183,3 +183,9 @@ characters.)
 -use-long-audio-buffers
 Allocates longer audio buffers. This fixes some problems with sound in older
 systems.
+
+
+-default-font <filename>
+Use <filename> as the main font. Defaults to "default.ttf".
+-console-font <filename>
+Use <filename> as the font for the debugging console. Defaults to "cour.ttf".

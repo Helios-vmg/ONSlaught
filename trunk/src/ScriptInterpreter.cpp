@@ -256,8 +256,6 @@ NONS_StackElement::NONS_StackElement(TiXmlElement *stack_frame,NONS_Script *scri
 	}
 }
 
-ConfigFile settings;
-
 ErrorCode init_script(NONS_Script *&script,const std::wstring &filename,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	script=new NONS_Script();
 	ErrorCode error_code=script->init(filename,encoding,encryption);
@@ -293,12 +291,6 @@ ErrorCode init_script(NONS_Script *&script,ENCODING::ENCODING encoding){
 			return NONS_NOT_IMPLEMENTED;
 	}
 	return NONS_SCRIPT_NOT_FOUND;
-}
-
-std::wstring getDefaultFontFilename(){
-	if (!settings.exists(L"default font"))
-		settings.assignWString(L"default font",L"default.ttf");
-	return settings.getWString(L"default font");
 }
 
 NONS_ScreenSpace *init_screen(NONS_FontCache &fc){
@@ -716,12 +708,33 @@ NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
 	}
 }
 
+extern TiXmlDocument settings;
+
+void NONS_ScriptInterpreter::load_speed_setting(){
+	this->current_speed_setting=1;
+	TiXmlElement *element=settings.FirstChildElement("settings");
+	if (!element)
+		return;
+	int speed;
+	if (!element->QueryIntAttribute("text_speed",&speed))
+		return;
+	saturate_value(speed,0,2);
+	this->current_speed_setting=(char)speed;
+}
+
+void NONS_ScriptInterpreter::save_speed_setting(){
+	TiXmlElement *element=settings.FirstChildElement("settings");
+	if (!element)
+		return;
+	element->SetAttribute("text_speed",(int)this->current_speed_setting);
+}
+
 void NONS_ScriptInterpreter::init(){
 	this->defaultfs=18;
 	this->base_size[0]=this->virtual_size[0]=CLOptions.virtualWidth;
 	this->base_size[1]=this->virtual_size[1]=CLOptions.virtualHeight;
 	if (!CLOptions.play.size()){
-		std::wstring fontfile=getDefaultFontFilename();
+		const std::wstring &fontfile=CLOptions.default_font;
 		if (!this->main_font)
 			this->main_font=init_font(fontfile);
 		if (!this->main_font || !this->main_font->good()){
@@ -769,10 +782,7 @@ void NONS_ScriptInterpreter::init(){
 	this->default_speed_med=0;
 	this->default_speed_fast=0;
 
-	if (settings.exists(L"textSpeedMode"))
-		this->current_speed_setting=(char)settings.getInt(L"textSpeedMode");
-	else
-		this->current_speed_setting=1;
+	this->load_speed_setting();
 
 	this->legacy_set_window=1;
 	this->arrowCursor=new NONS_Cursor(L":l/3,160,2;cursor0.bmp",0,0,0,this->screen);
@@ -820,8 +830,8 @@ void NONS_ScriptInterpreter::uninit(){
 	delete this->thread;
 	delete this->audio;
 
-	settings.assignInt(L"textSpeedMode",this->current_speed_setting);
-	settings.writeOut(config_directory+settings_filename);
+	this->save_speed_setting();
+	settings.SaveFile(config_directory+settings_filename);
 
 	this->textgosub.clear();
 	this->screenshot.unbind();
@@ -2109,23 +2119,6 @@ void encode_buffer(std::vector<uchar> &output,const std::string &input){
 	std::vector<uchar> serialized_hash=SHA1::HashToVector(compressed_buffer,compressed_size);
 	encrypt_buffer_with_buffer(output,compressed_buffer,compressed_size,serialized_hash);
 	delete[] compressed_buffer;
-}
-
-void normalize_line_endings(std::string &s){
-	char *p=&s[0];
-	size_t write=0;
-	for (size_t read=0,n=s.size();read<n;read++,write++){
-		if (p[read]==13){
-			if (read+1<n && p[read+1]==10)
-				read++;
-			else{
-				p[write]=10;
-				continue;
-			}
-		}
-		p[write]=p[read];
-	}
-	s.resize(write);
 }
 
 TiXmlElement *NONS_ScriptInterpreter::save_control(){

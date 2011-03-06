@@ -1061,8 +1061,6 @@ int NONS_Menu::callMenu(){
 	return this->call(this->commands[choice]);
 }
 
-std::wstring getDefaultFontFilename();
-
 void NONS_Menu::reset(){
 	delete this->buttons;
 	delete this->font_cache;
@@ -1770,17 +1768,9 @@ ulong getGlyphWidth(NONS_FontCache *cache){
 	return res;
 }
 
-extern ConfigFile settings;
-
-std::wstring getConsoleFontFilename(){
-	if (!settings.exists(L"console font"))
-		settings.assignWString(L"console font",L"cour.ttf");
-	return settings.getWString(L"console font");
-}
-
 void NONS_DebuggingConsole::init(){
 	if (!this->font){
-		std::wstring font=getConsoleFontFilename();
+		const std::wstring &font=CLOptions.console_font;
 		this->font=init_font(font);
 		if (!this->font){
 			o_stderr <<"The font \""<<font<<"\" could not be found. The debugging console will not be available.\n";

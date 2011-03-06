@@ -72,6 +72,8 @@ NONS_CommandLineOptions::NONS_CommandLineOptions(){
 	this->noThreads=0;
 	this->preprocessAndQuit=0;
 	this->use_long_audio_buffers=0;
+	this->default_font=L"default.ttf";
+	this->console_font=L"cour.ttf";
 }
 
 void usage(){
@@ -152,7 +154,7 @@ void usage(){
 		"      -pp-output.\n"
 		"  -disable-threading\n"
 		"      Disables threading for blit operations.\n"
-		"  -play [a] <filename>\n"
+		"  -play <filename>\n"
 		"      Play the file and quit. The file can be a graphics, audio or video file.\n"
 		"      This option can be used to test whether the engine can find and read the\n"
 		"      file.\n"
@@ -162,6 +164,10 @@ void usage(){
 		"  -use-long-audio-buffers\n"
 		"      Allocates longer audio buffers. This fixes some problems with sound in\n"
 		"      older systems.\n"
+		"-default-font <filename>\n"
+		"Use <filename> as the main font. Defaults to \"default.ttf\".\n"
+		"-console-font <filename>\n"
+		"Use <filename> as the font for the debugging console. Defaults to \"cour.ttf\".\n"
 	;
 	exit(0);
 }
@@ -202,6 +208,8 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 		L"-play",                   //29
 		L"-replace",                //30
 		L"-use-long-audio-buffers", //31
+		L"-default-font",           //32
+		L"-console-font",           //33
 		0
 	};
 
@@ -397,11 +405,23 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					if (str.size()%2)
 						str.resize(str.size()-1);
 					for (size_t b=0;b<str.size();b+=2)
-						CLOptions.replaceArray[str[b]]=str[b+1];
+						this->replaceArray[str[b]]=str[b+1];
 				}
 				break;
 			case 31: //-use-long-audio-buffers
 				this->use_long_audio_buffers=1;
+				break;
+			case 32: //-default-font
+			case 33: //-console-font
+				if (a+1>=size)
+					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
+				else{
+					std::wstring filename=arguments[++a];
+					if (option==32)
+						this->default_font=filename;
+					else
+						this->console_font=filename;
+				}
 				break;
 			case 7: //-image-cache-size
 			case 12: //-no-console

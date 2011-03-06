@@ -34,7 +34,6 @@
 #include "VirtualScreen.h"
 #include "Audio.h"
 #include "Archive.h"
-#include "ConfigFile.h"
 #include <SDL/SDL.h>
 #include <string>
 #include <set>

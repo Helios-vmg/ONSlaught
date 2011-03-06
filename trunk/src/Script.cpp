@@ -29,7 +29,6 @@
 
 #include "Script.h"
 #include "IOFunctions.h"
-#include "SaveFile.h"
 #include "sha1.h"
 #include "ScriptInterpreter.h"
 #include "ExpressionParser.tab.hpp"

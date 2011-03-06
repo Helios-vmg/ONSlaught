@@ -73,6 +73,8 @@ struct NONS_CommandLineOptions{
 	typedef std::map<wchar_t,wchar_t> replaceArray_t;
 	replaceArray_t replaceArray;
 	bool use_long_audio_buffers;
+	std::wstring default_font,
+		console_font;
 	NONS_CommandLineOptions();
 	~NONS_CommandLineOptions(){}
 	void parse(const std::vector<std::wstring> &arguments);

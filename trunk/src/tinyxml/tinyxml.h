@@ -1459,10 +1459,12 @@ public:
 	{
 		return LoadFile( filename.c_str(), encoding );
 	}
+	bool LoadFile( const std::wstring &filename );
 	bool SaveFile( const std::string& filename ) const		///< STL std::string version.
 	{
 		return SaveFile( filename.c_str() );
 	}
+	bool SaveFile( const std::wstring& filename ) const;
 	#endif
 
 	/** Parse the given null terminated block of xml data. Passing in an encoding to this

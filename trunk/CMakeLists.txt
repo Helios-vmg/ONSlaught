@@ -33,7 +33,6 @@ src/Archive.cpp
 src/Audio.cpp
 src/AudioFormats.cpp
 src/CommandLineOptions.cpp
-src/ConfigFile.cpp
 src/ErrorCodes.cpp
 src/ExpressionParser.tab.cpp
 src/FileLog.cpp
@@ -64,7 +63,6 @@ src/MacroParser.tab.cpp
 src/ONSlaught.cpp
 src/OpenAL.cpp
 src/Plugin/LibraryLoader.cpp
-src/SaveFile.cpp
 src/ScreenSpace.cpp
 src/Script.cpp
 src/ScriptInterpreter.cpp
@@ -72,6 +70,9 @@ src/sha1.cpp
 src/SJIS.table.cpp
 src/Thread.cpp
 src/ThreadManager.cpp
+src/tinyxml/tinyxml.cpp
+src/tinyxml/tinyxmlerror.cpp
+src/tinyxml/tinyxmlparser.cpp
 src/VariableStore.cpp
 src/VirtualScreen.cpp
 )

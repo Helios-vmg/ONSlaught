@@ -7,7 +7,7 @@ NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 -lSDL_image -lbz2 -lFLAC_s
 PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static-libgcc -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
 RC = windres
 RCFLAGS = -J rc -O coff
-INPUTS = objs/Archive.o objs/Audio.o objs/AudioFormats.o objs/CommandLineOptions.o objs/ConfigFile.o objs/ErrorCodes.o objs/ExpressionParser.tab.o objs/FileLog.o objs/Functions.o objs/GFX.o objs/GUI.o objs/Image.o objs/INIfile.o objs/INIParser.tab.o objs/IOFunctions.o objs/metadata.o objs/stream_decoder.o objs/stream_encoder.o objs/common.o objs/instrum.o objs/instrum_dls.o objs/mix.o objs/output.o objs/playmidi.o objs/readmidi.o objs/resample.o objs/stream.o objs/tables.o objs/timidity.o objs/LZMA.o objs/MacroParser.o objs/MacroParser.tab.o objs/ONSlaught.o objs/OpenAL.o objs/LibraryLoader.o objs/SaveFile.o objs/ScreenSpace.o objs/Script.o objs/ScriptInterpreter.o objs/sha1.o objs/SJIS.table.o objs/Thread.o objs/ThreadManager.o objs/VariableStore.o objs/VirtualScreen.o 
+INPUTS = objs/Archive.o objs/Audio.o objs/AudioFormats.o objs/CommandLineOptions.o objs/ErrorCodes.o objs/ExpressionParser.tab.o objs/FileLog.o objs/Functions.o objs/GFX.o objs/GUI.o objs/Image.o objs/INIfile.o objs/INIParser.tab.o objs/IOFunctions.o objs/metadata.o objs/stream_decoder.o objs/stream_encoder.o objs/common.o objs/instrum.o objs/instrum_dls.o objs/mix.o objs/output.o objs/playmidi.o objs/readmidi.o objs/resample.o objs/stream.o objs/tables.o objs/timidity.o objs/LZMA.o objs/MacroParser.o objs/MacroParser.tab.o objs/ONSlaught.o objs/OpenAL.o objs/LibraryLoader.o objs/ScreenSpace.o objs/Script.o objs/ScriptInterpreter.o objs/sha1.o objs/SJIS.table.o objs/Thread.o objs/ThreadManager.o objs/tinyxml.o objs/tinyxmlerror.o objs/tinyxmlparser.o objs/VariableStore.o objs/VirtualScreen.o 
 
 all: objs bin-win32/ONSlaught.exe bin-win32/plugin.dll
 
@@ -34,8 +34,6 @@ objs/Audio.o: src/Audio.cpp
 objs/AudioFormats.o: src/AudioFormats.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/CommandLineOptions.o: src/CommandLineOptions.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/ConfigFile.o: src/ConfigFile.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ErrorCodes.o: src/ErrorCodes.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
@@ -97,8 +95,6 @@ objs/OpenAL.o: src/OpenAL.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/LibraryLoader.o: src/Plugin/LibraryLoader.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
-objs/SaveFile.o: src/SaveFile.cpp
-	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ScreenSpace.o: src/ScreenSpace.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/Script.o: src/Script.cpp
@@ -112,6 +108,12 @@ objs/SJIS.table.o: src/SJIS.table.cpp
 objs/Thread.o: src/Thread.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/ThreadManager.o: src/ThreadManager.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/tinyxml.o: src/tinyxml/tinyxml.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/tinyxmlerror.o: src/tinyxml/tinyxmlerror.cpp
+	$(CXX) $(NONSCXXFLAGS) $< -o $@
+objs/tinyxmlparser.o: src/tinyxml/tinyxmlparser.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@
 objs/VariableStore.o: src/VariableStore.cpp
 	$(CXX) $(NONSCXXFLAGS) $< -o $@

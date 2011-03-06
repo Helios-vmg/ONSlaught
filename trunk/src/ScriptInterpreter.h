@@ -36,7 +36,6 @@
 #include "ScreenSpace.h"
 #include "Script.h"
 #include "INIfile.h"
-#include "SaveFile.h"
 #include "IOFunctions.h"
 #include "enums.h"
 #include "tinyxml/tinyxml.h"
@@ -161,6 +160,8 @@ class NONS_ScriptInterpreter{
 	void load_control(TiXmlElement *);
 	TiXmlElement *save_interpreter();
 	void load_interpreter(TiXmlElement *);
+	void load_speed_setting();
+	void save_speed_setting();
 
 	bool stop_interpreting;
 	commandMapType commandList;

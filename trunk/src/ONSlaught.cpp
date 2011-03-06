@@ -275,7 +275,7 @@ PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 #undef main
 #endif
 
-extern ConfigFile settings;
+TiXmlDocument settings;
 
 std::string get_version_string(){
 	std::stringstream stream;
@@ -291,6 +291,16 @@ std::string get_version_string(){
 		"Copyright (c) "ONSLAUGHT_COPYRIGHT_YEAR_STR", Helios (helios.vmg@gmail.com)\n"
 		"All rights reserved.\n\n\n";
 	return stream.str();
+}
+
+void initialize_config(const std::wstring &config){
+	if (!settings.LoadFile(config)){
+		if (NONS_File::file_exists(config))
+			//Using old config format or file is damaged. Delete.
+			NONS_File::delete_file(config);
+		//Initialize.
+		settings.LinkEndChild(new TiXmlElement("settings"));
+	}
 }
 
 void initialize(int argc,char **argv){
@@ -336,7 +346,7 @@ void initialize(int argc,char **argv){
 	threadManager.init(cpu_count);
 #endif
 
-	settings.init(config_directory+settings_filename,ENCODING::UTF8);
+	initialize_config(config_directory+settings_filename);
 	
 	SDL_WM_SetCaption("ONSlaught ("ONSLAUGHT_BUILD_VERSION_STR")",0);
 #if NONS_SYS_WINDOWS
@@ -350,6 +360,7 @@ void print_version_string(){
 
 void uninitialize(){
 	InputObserver.free_joysticks();
+	settings.SaveFile(config_directory+settings_filename);
 }
 
 void mainThread(void *);
