@@ -32,7 +32,6 @@ add_executable(ONSlaught
 src/Archive.cpp
 src/Audio.cpp
 src/AudioFormats.cpp
-src/CommandLineOptions.cpp
 src/ErrorCodes.cpp
 src/ExpressionParser.tab.cpp
 src/FileLog.cpp
@@ -62,6 +61,7 @@ src/MacroParser.cpp
 src/MacroParser.tab.cpp
 src/ONSlaught.cpp
 src/OpenAL.cpp
+src/Options.cpp
 src/Plugin/LibraryLoader.cpp
 src/ScreenSpace.cpp
 src/Script.cpp

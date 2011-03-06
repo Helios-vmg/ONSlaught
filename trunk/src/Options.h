@@ -88,14 +88,12 @@ void usage();
 class NONS_Settings{
 	TiXmlDocument doc;
 	std::wstring path;
-	static std::vector<const char *> forward_key_lookup;
-	static std::vector<std::pair<const char *,ulong> > reverse_key_lookup;
-	static void initialize_key_lookup();
 	void load_text_speed(TiXmlElement *settings);
 	void save_text_speed(TiXmlElement *settings);
 public:
-	NONS_Settings();
-	~NONS_Settings();
+	~NONS_Settings(){
+		this->save();
+	}
 	void init(const std::wstring &path);
 	void save();
 	template <typename T>

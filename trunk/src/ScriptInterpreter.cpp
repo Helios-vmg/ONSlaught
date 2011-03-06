@@ -708,25 +708,14 @@ NONS_ScriptInterpreter::~NONS_ScriptInterpreter(){
 	}
 }
 
-extern TiXmlDocument settings;
-
 void NONS_ScriptInterpreter::load_speed_setting(){
-	this->current_speed_setting=1;
-	TiXmlElement *element=settings.FirstChildElement("settings");
-	if (!element)
-		return;
-	int speed;
-	if (!element->QueryIntAttribute("text_speed",&speed))
-		return;
-	saturate_value(speed,0,2);
-	this->current_speed_setting=(char)speed;
+	this->current_speed_setting=char((settings.text_speed.set)?settings.text_speed.data:1);
+	saturate_value<char>(this->current_speed_setting,0,2);
 }
 
 void NONS_ScriptInterpreter::save_speed_setting(){
-	TiXmlElement *element=settings.FirstChildElement("settings");
-	if (!element)
-		return;
-	element->SetAttribute("text_speed",(int)this->current_speed_setting);
+	settings.text_speed.data=this->current_speed_setting;
+	settings.text_speed.set=1;
 }
 
 void NONS_ScriptInterpreter::init(){
@@ -831,7 +820,7 @@ void NONS_ScriptInterpreter::uninit(){
 	delete this->audio;
 
 	this->save_speed_setting();
-	settings.SaveFile(config_directory+settings_filename);
+	settings.save();
 
 	this->textgosub.clear();
 	this->screenshot.unbind();
