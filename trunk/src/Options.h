@@ -32,6 +32,7 @@
 
 #include "enums.h"
 #include "Common.h"
+#include "tinyxml/tinyxml.h"
 #include <string>
 #include <vector>
 #include <map>
@@ -83,4 +84,28 @@ struct NONS_CommandLineOptions{
 extern NONS_CommandLineOptions CLOptions;
 
 void usage();
+
+class NONS_Settings{
+	TiXmlDocument doc;
+	std::wstring path;
+	static std::vector<const char *> forward_key_lookup;
+	static std::vector<std::pair<const char *,ulong> > reverse_key_lookup;
+	static void initialize_key_lookup();
+	void load_text_speed(TiXmlElement *settings);
+	void save_text_speed(TiXmlElement *settings);
+public:
+	NONS_Settings();
+	~NONS_Settings();
+	void init(const std::wstring &path);
+	void save();
+	template <typename T>
+	struct setting{
+		bool set;
+		T data;
+		setting():set(0),data(){}
+	};
+	setting<int> text_speed;
+};
+
+extern NONS_Settings settings;
 #endif

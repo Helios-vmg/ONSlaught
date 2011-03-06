@@ -31,7 +31,7 @@
 #include "ScreenSpace.h"
 #include "ScriptInterpreter.h"
 #include "IOFunctions.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include <iostream>
 #include <cassert>
 #include <freetype/ftoutln.h>

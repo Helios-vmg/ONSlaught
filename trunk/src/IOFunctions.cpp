@@ -28,7 +28,7 @@
 */
 
 #include "IOFunctions.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include <SDL/SDL.h>
 #include <iostream>
 #include <ctime>

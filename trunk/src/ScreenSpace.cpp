@@ -29,7 +29,7 @@
 
 #include "ScreenSpace.h"
 #include "IOFunctions.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include "ScriptInterpreter.h"
 #include <cassert>
 #include <iostream>

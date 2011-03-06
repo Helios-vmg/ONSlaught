@@ -29,7 +29,7 @@
 
 #include "ScriptInterpreter.h"
 #include "IOFunctions.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include "Image.h"
 #include "Plugin/LibraryLoader.h"
 #include "version.h"

@@ -31,7 +31,7 @@
 #include "Functions.h"
 #include "IOFunctions.h"
 #include "ThreadManager.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include "Plugin/LibraryLoader.h"
 #include <iostream>
 #include <cmath>

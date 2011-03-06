@@ -28,7 +28,7 @@
 */
 
 #include "Archive.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include "MacroParser.tab.hpp"
 #include "../preprocessor.h"
 #include "Plugin/LibraryLoader.h"

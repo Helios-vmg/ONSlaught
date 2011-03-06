@@ -29,7 +29,7 @@
 
 #include "Audio.h"
 #include "IOFunctions.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include "Archive.h"
 #include "ScriptInterpreter.h"
 #include <iostream>

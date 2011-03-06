@@ -29,7 +29,7 @@
 
 #include "VariableStore.h"
 #include "IOFunctions.h"
-#include "CommandLineOptions.h"
+#include "Options.h"
 #include <cstdarg>
 #include <iostream>
 
