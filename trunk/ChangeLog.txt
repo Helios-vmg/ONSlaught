@@ -10,12 +10,15 @@ Important changes:
   * Moved macro interpreter to Python.
     TODO: Update documentation and add error handling.
   * Added joystick support.
+  * Discontinued support for savegames from previous versions.
 
 Minor changes:
   * Added -use-long-audio-buffers command line option to fix audio problems in
     slow systems.
   * Replaced SDL_mixer with OpenAL-based sound system.
   * Discontinued WAV support. Replaced with FLAC.
+  * Moved font configuration to command line.
+  * Replaced old config format with XML-based configuration.
 
 Bug fixes:
   * Plugged memory leak in various routines.
