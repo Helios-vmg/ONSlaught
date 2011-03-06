@@ -33,8 +33,6 @@
 #include "Common.h"
 #include "Binder.h"
 #include <vector>
-typedef void (*NONS_ThreadedFunctionPointer)(void *);
-
 #if NONS_SYS_UNIX
 #include <pthread.h>
 #include <semaphore.h>
@@ -42,6 +40,8 @@ typedef void (*NONS_ThreadedFunctionPointer)(void *);
 #include <SDL/SDL.h>
 #include <SDL/SDL_thread.h>
 #endif
+
+typedef void (*NONS_ThreadedFunctionPointer)(void *);
 
 #if NONS_SYS_WINDOWS
 typedef HANDLE NONS_Thread_internal;

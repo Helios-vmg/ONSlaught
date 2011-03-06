@@ -29,6 +29,13 @@
 
 #ifndef NONS_COMMON_H
 #define NONS_COMMON_H
+#include <cwchar>
+#include <climits>
+#if NONS_SYS_PSP
+#include <string>
+#include <sstream>
+#endif
+
 typedef unsigned long ulong;
 typedef unsigned short ushort;
 typedef unsigned char uchar;
@@ -88,7 +95,6 @@ typedef void *HANDLE;
 #pragma warning(disable:4996) //no "unsafe" functions
 #endif
 
-#include <cwchar>
 #ifndef WCHAR_MAX
 #error "WCHAR_MAX is not defined."
 #endif
@@ -96,7 +102,6 @@ typedef void *HANDLE;
 #error "Wide characters on this implementation are too narrow."
 #endif
 
-#include <climits>
 #if ULONG_MAX<0xFFFFFFFF
 #error "longs on this implementation are too small."
 #endif
@@ -111,8 +116,6 @@ extern NONS_DECLSPEC volatile bool forceSkip;
 #define CURRENTLYSKIPPING (ctrlIsPressed || forceSkip)
 
 #if NONS_SYS_PSP
-#include <string>
-#include <sstream>
 namespace std{
 typedef basic_string<wchar_t> wstring;
 typedef basic_stringstream<wchar_t> wstringstream;

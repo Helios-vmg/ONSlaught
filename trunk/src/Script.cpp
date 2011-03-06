@@ -33,6 +33,7 @@
 #include "sha1.h"
 #include "ScriptInterpreter.h"
 #include "ExpressionParser.tab.hpp"
+#include <iostream>
 
 //Returns then position of the ending quote, of npos if couldn't be found before
 //the end of the string or if there isn't a string beginning at 'start'.
@@ -467,8 +468,6 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 	return NONS_NO_ERROR;
 }
 #else
-#include <iostream>
-
 ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
 	if (encoding!=ENCODING::UTF8 || encryption!=ENCRYPTION::NONE){
 		this->cache_filename=CACHE_FILENAME;

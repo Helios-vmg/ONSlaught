@@ -821,6 +821,7 @@ TiXmlElement *NONS_VariableMember::save(int index){
 
 NONS_VariableMember::NONS_VariableMember(TiXmlElement *array){
 	this->set_default_limits();
+	this->type=INTEGER_ARRAY;
 	struct frame{
 		NONS_VariableMember *_this;
 		TiXmlElement *array,
@@ -830,26 +831,30 @@ NONS_VariableMember::NONS_VariableMember(TiXmlElement *array){
 	std::vector<frame> stack(1);
 	frame *current;
 	current=&stack.back();
+	current->_this=this;
+	current->array=array->FirstChildElement();
 	current->child=0;
-	int i;
 	while (1){
 		if (current->array){
-			if (current->array->QueryIntAttribute("int",&i)==TIXML_SUCCESS){
+			if (current->array->ValueStr()=="variable"){
 				do
 					current->v.push_back(new NONS_VariableMember(current->array->QueryIntAttribute("int")));
 				while (current->array=current->array->NextSiblingElement());
 			}else{
 				stack.resize(stack.size()+1);
 				frame *new_current=&stack.back();
+				current=new_current-1;
 				new_current->_this=new NONS_VariableMember(INTEGER_ARRAY);
 				new_current->array=(current->child)?current->child->NextSiblingElement():current->array->FirstChildElement();
 				new_current->child=0;
+				current=new_current;
+				continue;
 			}
 		}
 		NONS_VariableMember *temp=current->_this;
 		temp->dimensionSize=current->v.size();
 		temp->dimension=new NONS_VariableMember *[current->_this->dimensionSize];
-		memcpy(&(current->v)[0],temp->dimension,temp->dimensionSize);
+		memcpy(temp->dimension,&(current->v)[0],current->v.size()*sizeof(NONS_VariableMember *));
 		if (stack.size()==1)
 			break;
 		stack.pop_back();

@@ -306,4 +306,13 @@ public:
 	t get() const;
 	t get(double m) const{ return this->get()*m; }
 };
+
+std::vector<tm *> existing_files(const std::wstring &location=L"./");
+std::wstring getConfigLocation();
+std::wstring getSaveLocation(unsigned hash[5]);
+tm *getDate(const std::wstring &filename);
+
+extern std::wstring save_directory;
+extern std::wstring config_directory;
+extern const wchar_t *settings_filename;
 #endif

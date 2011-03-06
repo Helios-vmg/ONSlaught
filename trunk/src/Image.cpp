@@ -41,6 +41,7 @@
 #include <png.h>
 #include <list>
 #include <cmath>
+#include <csetjmp>
 
 NONS_Color NONS_Color::white            (0xFF,0xFF,0xFF);
 NONS_Color NONS_Color::black            (0x00,0x00,0x00);
@@ -1284,8 +1285,6 @@ void write_png(png_structp png,png_bytep data,png_size_t length){
 }
 
 void flush_png(png_structp){}
-
-#include <csetjmp>
 
 bool write_png_file(std::wstring filename,NONS_ConstSurface s,bool fill_alpha){
 	bool ret=0;

@@ -1694,7 +1694,11 @@ void NONS_FontCache::reset_style(ulong size,bool italic,bool bold,ulong outline_
 	this->set_outline_size(outline_size);
 }
 
+#define INDENTATION_CHARACTER 0x2003
+
 NONS_Glyph *NONS_FontCache::get_glyph(wchar_t c){
+	if (c=='\t')
+		c=INDENTATION_CHARACTER;
 	NONS_CommandLineOptions::replaceArray_t &array=CLOptions.replaceArray;
 	NONS_CommandLineOptions::replaceArray_t::iterator i=array.size()?array.find(c):array.end();
 	if (i!=array.end())

@@ -31,7 +31,6 @@
 #include <cstdlib>
 #include <csignal>
 #include <iostream>
-
 #include "Common.h"
 #include "ErrorCodes.h"
 #include "ScriptInterpreter.h"
@@ -39,9 +38,10 @@
 #include "ThreadManager.h"
 #include "CommandLineOptions.h"
 #include "version.h"
-
 #if NONS_SYS_WINDOWS
 #include <windows.h>
+#elif NONS_SYS_PSP
+#include <pspkernel.h>
 #endif
 
 void useArgumentsFile(const char *filename,std::vector<std::wstring> &argv){
@@ -268,7 +268,6 @@ void initialize_conversion_tables();
 extern uchar integer_division_lookup[0x10000];
 
 #if NONS_SYS_PSP
-#include <pspkernel.h>
 PSP_MODULE_INFO("ONSlaught", 0, 1, 1);
 #endif
 

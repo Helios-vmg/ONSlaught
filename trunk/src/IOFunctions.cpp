@@ -35,11 +35,18 @@
 #include <cassert>
 #include <cfloat>
 #if NONS_SYS_WINDOWS
+#ifndef UNICODE
+#define UNICODE
+#endif
 #include <windows.h>
 #elif NONS_SYS_UNIX
-#include <sys/types.h>
+#include <cerrno>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
 #endif
 
 #define STDOUT_FILENAME "stdout.txt"
@@ -914,10 +921,6 @@ NONS_Clock::~NONS_Clock(){
 }
 #endif
 
-#if NONS_SYS_UNIX
-#include <time.h>
-#endif
-
 NONS_Clock::t NONS_Clock::get() const{
 #if NONS_SYS_WINDOWS
 	const Uint64 *p=(const Uint64 *)this->data;
@@ -933,5 +936,205 @@ NONS_Clock::t NONS_Clock::get() const{
 	return NONS_Clock::t(ts.tv_sec)*1000.0+NONS_Clock::t(ts.tv_nsec)/1000000.0;
 #else
 	return SDL_GetTicks();
+#endif
+}
+
+#if NONS_SYS_WINDOWS
+DECLARE_ENUM(WINDOWS_VERSION)
+	ERR=0,
+	//9x kernel
+	V95=1,
+	V98=2,
+	VME=3,
+	//NT kernel
+	V2K=4,
+	VXP=5,
+	VVI=6,
+	VW7=7
+DECLARE_ENUM_CLOSE;
+
+WINDOWS_VERSION::WINDOWS_VERSION getWindowsVersion(){
+	//First try with the 9x kernel
+	HKEY k;
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,TEXT("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\0"),0,KEY_READ,&k)!=ERROR_SUCCESS)
+		return WINDOWS_VERSION::ERR;
+	DWORD type,size;
+	WINDOWS_VERSION::WINDOWS_VERSION ret;
+	if (RegQueryValueEx(k,TEXT("Version"),0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ){
+		//Not the 9x kernel
+		RegCloseKey(k);
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,TEXT("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"),0,KEY_READ,&k)!=ERROR_SUCCESS)
+			return WINDOWS_VERSION::ERR;
+		if (RegQueryValueEx(k,TEXT("CurrentVersion"),0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ)
+			return WINDOWS_VERSION::ERR;
+		std::string str(size,0);
+		RegQueryValueEx(k,TEXT("CurrentVersion"),0,&type,(LPBYTE)&str[0],&size);
+		RegCloseKey(k);
+		if (str[0]=='5')
+			ret=WINDOWS_VERSION::VXP;
+		else if (str=="6.0")
+			ret=WINDOWS_VERSION::VVI;
+		else if (str=="6.1")
+			ret=WINDOWS_VERSION::VW7;
+		else
+			ret=WINDOWS_VERSION::ERR;
+	}else{
+		std::string str(size,0);
+		RegQueryValueEx(k,TEXT("VersionNumber"),0,&type,(LPBYTE)&str[0],&size);
+		RegCloseKey(k);
+		switch (str[2]){
+			case '0':
+				ret=WINDOWS_VERSION::V95;
+				break;
+			case '1':
+				ret=WINDOWS_VERSION::V98;
+				break;
+			case '9':
+				ret=WINDOWS_VERSION::VME;
+				break;
+			default:
+				ret=WINDOWS_VERSION::ERR;
+		}
+	}
+	return ret;
+}
+#endif
+
+std::wstring save_directory;
+std::wstring config_directory;
+const wchar_t *settings_filename=L"settings.cfg";
+
+tm *getDate(const std::wstring &filename){
+	tm *res=new tm();
+#if NONS_SYS_WINDOWS
+	FILETIME time;
+	SYSTEMTIME time2;
+#ifdef UNICODE
+	HANDLE h=CreateFile(filename.c_str(),FILE_READ_DATA,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+#else
+	HANDLE h=CreateFile(UniToISO88591(filename).c_str(),FILE_READ_DATA,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+#endif
+	GetFileTime(h,0,0,&time);
+	CloseHandle(h);
+	FileTimeToSystemTime((const FILETIME *)&time,&time2);
+	SystemTimeToTzSpecificLocalTime(0,&time2,&time2);
+	res->tm_year=time2.wYear-1900;
+	res->tm_mon=time2.wMonth-1;
+	res->tm_mday=time2.wDay;
+	res->tm_hour=time2.wHour;
+	res->tm_min=time2.wMinute;
+	res->tm_sec=time2.wSecond;
+#elif NONS_SYS_UNIX
+	struct stat buf;
+	stat(UniToUTF8(filename).c_str(),&buf);
+	*res=*localtime(&(buf.st_mtime));
+#else
+	res->tm_year=2000;
+	res->tm_mon=0;
+	res->tm_mday=1;
+	res->tm_hour=0;
+	res->tm_min=0;
+	res->tm_sec=0;
+#endif
+	return res;
+}
+
+std::vector<tm *> existing_files(const std::wstring &location){
+	std::vector<tm *> res;
+	res.reserve(20);
+	std::wstring path=location;
+	toforwardslash(path);
+	if (path[path.size()-1]!='/')
+		path.push_back('/');
+	for (short a=1;a<21;a++){
+		std::wstring filename=path+L"save"+itoaw(a)+L".dat";
+		if (!NONS_File::file_exists(filename))
+			res.push_back(0);
+		else
+			res.push_back(getDate(filename));
+	}
+	return res;
+}
+
+std::wstring getConfigLocation(){
+#if NONS_SYS_WINDOWS
+	if (getWindowsVersion()<WINDOWS_VERSION::V2K)
+		return L"./";
+	HKEY k;
+	if (RegOpenKeyEx(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders",0,KEY_READ,&k)!=ERROR_SUCCESS)
+		return L"./";
+	DWORD type,size;
+	if (RegQueryValueEx(k,L"Personal",0,&type,0,&size)!=ERROR_SUCCESS || type!=REG_SZ){
+		RegCloseKey(k);
+		return L"./";
+	}
+	std::wstring path(size/sizeof(TCHAR),0);
+	RegQueryValueEx(k,L"Personal",0,&type,(LPBYTE)&path[0],&size);
+	RegCloseKey(k);
+	path.resize(wcslen(path.c_str()));
+	toforwardslash(path);
+	if (path[path.size()-1]!='/')
+		path.append(L"/.ONSlaught");
+	else
+		path.append(L".ONSlaught");
+	if (!CreateDirectory((LPCTSTR)path.c_str(),0) && GetLastError()!=ERROR_ALREADY_EXISTS){
+		return L"./";
+	}
+	path.push_back('/');
+	return path;
+#elif NONS_SYS_UNIX
+	passwd* pwd=getpwuid(getuid());
+	if (!pwd)
+		return L"./";
+	std::string res=pwd->pw_dir;
+	if (res[res.size()-1]!='/')
+		res.append("/.ONSlaught");
+	else
+		res.append(".ONSlaught");
+	if (mkdir(res.c_str(),~0) && errno!=EEXIST){
+		return L"./";
+	}
+	res.push_back('/');
+	return UniFromUTF8(res);
+#else
+	return L"./";
+#endif
+}
+
+std::wstring getSaveLocation(unsigned hash[5]){
+#if NONS_SYS_WINDOWS
+	if (getWindowsVersion()<WINDOWS_VERSION::V2K)
+		return L"./";
+#endif
+	std::wstring root=config_directory;
+#if NONS_SYS_WINDOWS
+#ifdef UNICODE
+	std::wstring path=root;
+#else
+	std::string path=UniToISO88591(root);
+#endif
+#elif NONS_SYS_UNIX
+	std::wstring path=root;
+#else
+	return root;
+#endif
+#if NONS_SYS_WINDOWS || NONS_SYS_UNIX
+	if (!CLOptions.savedir.size()){
+		path.append(itohexw(hash[0],8));
+		path.push_back(' ');
+		path.append(itohexw(hash[1],8));
+	}else
+		path.append(CLOptions.savedir);
+#endif
+#if NONS_SYS_WINDOWS
+	if (!CreateDirectory((LPCTSTR)path.c_str(),0) && GetLastError()!=ERROR_ALREADY_EXISTS)
+		return root;
+	path.push_back('/');
+	return path;
+#elif NONS_SYS_UNIX
+	if (mkdir(UniToUTF8(path).c_str(),~0) && errno!=EEXIST)
+		return root;
+	path.push_back('/');
+	return path;
 #endif
 }

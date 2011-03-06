@@ -29,6 +29,7 @@
 
 #include "OpenAL.h"
 #include "AudioFormats.h"
+#include <iostream>
 
 decoder::decoder(NONS_DataStream *stream):stream(stream),good(stream){}
 
@@ -83,8 +84,6 @@ bool audio_sink::needs_more_data(){
 	state=this->get_state();
 	return !(!finished && (size_t)queued>=n && (state==AL_PLAYING || state==AL_PAUSED));
 }
-
-#include <iostream>
 
 void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth){
 	static double t=NONS_Clock().get();

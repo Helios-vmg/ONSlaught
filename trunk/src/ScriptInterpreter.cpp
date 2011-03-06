@@ -36,6 +36,11 @@
 #include "sha1.h"
 #include <iomanip>
 #include <iostream>
+#if NONS_SYS_WINDOWS
+#include <windows.h>
+HWND mainWindow=0;
+#endif
+#include "../video_player.h"
 
 #define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
 #define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
@@ -74,11 +79,6 @@
 		GET_STR_VALUE((dst),(src));                      \
 	}                                                    \
 }
-
-#if NONS_SYS_WINDOWS
-#include <windows.h>
-HWND mainWindow=0;
-#endif
 
 NONS_DLLexport volatile bool ctrlIsPressed=0;
 NONS_DLLexport volatile bool forceSkip=0;
@@ -800,6 +800,7 @@ void NONS_ScriptInterpreter::init(){
 	this->screen->char_baseline=(long)this->screen->screen->inRect.h-1;
 	this->useWheel=0;
 	this->useEscapeSpace=0;
+	this->skip_save_on_load=0;
 }
 
 void NONS_ScriptInterpreter::uninit(){
@@ -944,8 +945,6 @@ std::wstring NONS_ScriptInterpreter::interpretFromConsole(const std::wstring &st
 void NONS_ScriptInterpreter::queue(NONS_ScriptLine *line){
 	this->commandQueue.push(line);
 }
-
-#include "../video_player.h"
 
 extern bool video_playback;
 
@@ -2043,36 +2042,9 @@ uchar scramble_bits(uchar byte){
 	return (even<<1)|(odd>>1);
 }
 
-void decrypt_buffer_with_buffer(std::vector<uchar> &output,std::vector<uchar> &hash,const std::vector<uchar> &input){
-	std::vector<uchar> program(20);
-	std::copy(input.begin(),input.begin()+program.size(),program.begin());
-	hash=program;
-	output.resize(input.size()-program.size());
-	for (size_t a=program.size();a<input.size();a++){
-		uchar byte;
-		byte=input[a];
-		for (size_t b=0;b<program.size();b++){
-			uchar op=program[program.size()-b-1];
-			bool xor    =op&1,
-				reverse =op&2,
-				scramble=op&4;
-			if (scramble)
-				byte=scramble_bits(byte);
-			if (reverse)
-				byte=reverse_bits(byte);
-			if (xor)
-				byte^=op;
-		}
-		output[a-program.size()]=byte;
-	}
-}
-
-void encrypt_buffer_with_buffer(std::vector<uchar> &output,const void *input,size_t n,const std::vector<uchar> &program){
-	output=program;
-	output.insert(output.end(),(const uchar *)input,(const uchar *)input+n);
-	for (size_t a=program.size();a<output.size();a++){
-		uchar byte;
-		byte=output[a];
+void generate_encryption_table(uchar table[256],const std::vector<uchar> &program){
+	for (int a=0;a<256;a++){
+		uchar byte=(uchar)a;
 		for (size_t b=0;b<program.size();b++){
 			uchar op=program[b];
 			bool xor    =op&1,
@@ -2085,8 +2057,35 @@ void encrypt_buffer_with_buffer(std::vector<uchar> &output,const void *input,siz
 			if (scramble)
 				byte=scramble_bits(byte);
 		}
-		output[a]=byte;
+		table[a]=byte;
 	}
+}
+
+void generate_decryption_table(uchar table[256],const std::vector<uchar> &program){
+	uchar temp[256];
+	generate_encryption_table(temp,program);
+	for (int a=0;a<256;a++)
+		table[temp[a]]=a;
+}
+
+void decrypt_buffer_with_buffer(std::vector<uchar> &output,std::vector<uchar> &hash,const std::vector<uchar> &input){
+	std::vector<uchar> program(20);
+	std::copy(input.begin(),input.begin()+program.size(),program.begin());
+	hash=program;
+	output.resize(input.size()-program.size());
+	uchar table[256];
+	generate_decryption_table(table,program);
+	for (size_t a=program.size();a<input.size();a++)
+		output[a-program.size()]=table[input[a]];
+}
+
+void encrypt_buffer_with_buffer(std::vector<uchar> &output,const void *input,size_t n,const std::vector<uchar> &program){
+	output=program;
+	output.insert(output.end(),(const uchar *)input,(const uchar *)input+n);
+	uchar table[256];
+	generate_encryption_table(table,program);
+	for (size_t a=program.size();a<output.size();a++)
+		output[a]=table[output[a]];
 }
 
 bool decode_buffer(std::vector<uchar> &output,const std::vector<uchar> &input){
@@ -2165,23 +2164,25 @@ void NONS_ScriptInterpreter::load_control(TiXmlElement *parent){
 	this->loadgosub=loadgosub;
 }
 
-TiXmlElement *NONS_ScriptInterpreter::save_other(){
-	TiXmlElement *other=new TiXmlElement("other");
-	other->SetAttribute("hide_window_during_effect",this->hideTextDuringEffect);
+TiXmlElement *NONS_ScriptInterpreter::save_interpreter(){
+	TiXmlElement *interpreter=new TiXmlElement("interpreter");
+	interpreter->SetAttribute("hide_window_during_effect",this->hideTextDuringEffect);
+	interpreter->SetAttribute("skip_save_on_load",this->skip_save_on_load);
 	if (this->arrowCursor)
-		other->LinkEndChild(this->arrowCursor->save("arror_cursor"));
+		interpreter->LinkEndChild(this->arrowCursor->save("arror_cursor"));
 	if (this->pageCursor)
-		other->LinkEndChild(this->pageCursor->save("page_cursor"));
-	return other;
+		interpreter->LinkEndChild(this->pageCursor->save("page_cursor"));
+	return interpreter;
 }
 
-void NONS_ScriptInterpreter::load_other(TiXmlElement *parent){
-	TiXmlElement *other=parent->FirstChildElement("other");
-	this->hideTextDuringEffect=other->QueryIntAttribute("hide_window_during_effect");
+void NONS_ScriptInterpreter::load_interpreter(TiXmlElement *parent){
+	TiXmlElement *interpreter=parent->FirstChildElement("interpreter");
+	this->hideTextDuringEffect=interpreter->QueryIntAttribute("hide_window_during_effect");
+	this->skip_save_on_load=interpreter->QueryIntAttribute("skip_save_on_load");
 	delete this->arrowCursor;
 	delete this->pageCursor;
-	this->arrowCursor=(other->FirstChildElement("arror_cursor"))?new NONS_Cursor(other,this->screen,"arror_cursor"):0;
-	this->pageCursor=(other->FirstChildElement("page_cursor"))?new NONS_Cursor(other,this->screen,"page_cursor"):0;
+	this->arrowCursor=(interpreter->FirstChildElement("arror_cursor"))?new NONS_Cursor(interpreter,this->screen,"arror_cursor"):0;
+	this->pageCursor=(interpreter->FirstChildElement("page_cursor"))?new NONS_Cursor(interpreter,this->screen,"page_cursor"):0;
 }
 
 inline std::wstring get_save_filename(int file){
@@ -2189,6 +2190,43 @@ inline std::wstring get_save_filename(int file){
 }
 inline std::wstring get_human_save_filename(int file){
 	return save_directory+L"save"+itoaw(file)+L".xml";
+}
+
+bool NONS_ScriptInterpreter::save(int file){
+	if (this->insideTextgosub())
+		return 0;
+	std::string xml,
+		human_xml;
+	{
+		TiXmlDocument doc("");
+		TiXmlElement *root=new TiXmlElement("savegame");
+		doc.LinkEndChild(root);
+		{
+			std::string hash;
+			for (ulong a=0;a<5;a++)
+				hash.append(itohexc(this->script->hash[a],8));
+			root->SetAttribute("hash",hash);
+		}
+		root->LinkEndChild(this->save_control());
+		root->LinkEndChild(this->store->save_locals());
+		root->LinkEndChild(this->screen->save(this->stored_state));
+		root->LinkEndChild(this->save_interpreter());
+		root->LinkEndChild(this->audio->save());
+		if (CLOptions.verbosity==VERBOSITY_RESERVED)
+			doc.Print(human_xml,0);
+		xml <<doc;
+	}
+	if (CLOptions.verbosity==VERBOSITY_RESERVED)
+		NONS_File::write(get_human_save_filename(file),&human_xml[0],human_xml.size());
+	std::vector<uchar> encoded_buffer,
+		decoded_buffer;
+	encode_buffer(encoded_buffer,xml);
+	NONS_File::write(get_save_filename(file),&encoded_buffer[0],encoded_buffer.size());
+
+	this->store->saveData();
+	NONS_Surface::filelog_writeout();
+
+	return 1;
 }
 
 ErrorCode NONS_ScriptInterpreter::load(int file){
@@ -2221,7 +2259,7 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 	this->load_control(savegame);
 	this->store->load_locals(savegame);
 	this->screen->load(savegame,*this->font_cache);
-	this->load_other(savegame);
+	this->load_interpreter(savegame);
 
 	//transition effect
 	this->screen->screen->stopEffect();
@@ -2234,52 +2272,19 @@ ErrorCode NONS_ScriptInterpreter::load(int file){
 		NONS_GFX::callEffect(10,1000,0,s,NONS_Surface::null,*this->screen->screen);
 	}
 	SDL_Delay(1500);
+	bool show_text=this->screen->output->visible;
+	this->screen->output->visible=0;
 	this->screen->load_filters(savegame);
 	this->screen->BlendNoCursor(10,1000,0);
 
 	this->screen->load_async_effect(savegame);
-	this->screen->showTextWindow();
+	//this->screen->output->visible=0;
+	if (show_text)
+		this->screen->showTextWindow();
 	this->audio->load(savegame);
 	if (this->loadgosub.size())
 		this->gosub_label(this->loadgosub);
 	return NONS_NO_ERROR;
-}
-
-bool NONS_ScriptInterpreter::save(int file){
-	if (this->insideTextgosub())
-		return 0;
-	std::string xml,
-		human_xml;
-	{
-		TiXmlDocument doc("");
-		TiXmlElement *root=new TiXmlElement("savegame");
-		doc.LinkEndChild(root);
-		{
-			std::string hash;
-			for (ulong a=0;a<5;a++)
-				hash.append(itohexc(this->script->hash[a],8));
-			root->SetAttribute("hash",hash);
-		}
-		root->LinkEndChild(this->save_control());
-		root->LinkEndChild(this->store->save_locals());
-		root->LinkEndChild(this->screen->save(this->stored_state));
-		root->LinkEndChild(this->save_other());
-		root->LinkEndChild(this->audio->save());
-		if (CLOptions.verbosity==VERBOSITY_RESERVED)
-			doc.Print(human_xml,0);
-		xml <<doc;
-	}
-	if (CLOptions.verbosity==VERBOSITY_RESERVED)
-		NONS_File::write(get_human_save_filename(file),&human_xml[0],human_xml.size());
-	std::vector<uchar> encoded_buffer,
-		decoded_buffer;
-	encode_buffer(encoded_buffer,xml);
-	NONS_File::write(get_save_filename(file),&encoded_buffer[0],encoded_buffer.size());
-
-	this->store->saveData();
-	NONS_Surface::filelog_writeout();
-
-	return 1;
 }
 
 ErrorCode NONS_ScriptInterpreter::command___userCommandCall__(NONS_Statement &stmt){
@@ -4680,12 +4685,19 @@ ErrorCode NONS_ScriptInterpreter::command_savefileexist(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_savegame(NONS_Statement &stmt){
+	if (this->skip_save_on_load){
+		this->skip_save_on_load=0;
+		return NONS_NO_ERROR;
+	}
 	MINIMUM_PARAMETERS(1);
 	long file;
 	GET_INT_VALUE(file,0);
 	if (file<1)
 		return NONS_INVALID_RUN_TIME_PARAMETER_VALUE;
-	return this->save(file)?NONS_NO_ERROR:NONS_UNDEFINED_ERROR;
+	this->skip_save_on_load=1;
+	bool r=this->save(file);
+	this->skip_save_on_load=0;
+	return r?NONS_NO_ERROR:NONS_UNDEFINED_ERROR;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_savename(NONS_Statement &stmt){

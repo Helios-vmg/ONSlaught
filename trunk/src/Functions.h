@@ -516,6 +516,7 @@ T2 ato(const std::basic_string<T> &str){
 
 template <typename T> inline long atol(const std::basic_string<T> &str){ return ato<long>(str); }
 template <typename T> inline ulong atoul(const std::basic_string<T> &str){ return ato<ulong>(str); }
+template <typename T> inline double atof(const std::basic_string<T> &str){ return ato<double>(str); }
 
 template <typename T1,typename T2>
 int lexcmp(const T1 *a,const T2 *b){

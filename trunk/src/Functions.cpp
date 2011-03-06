@@ -34,8 +34,10 @@
 #include "enums.h"
 #include "tinyxml/tinyxml.h"
 #include <bzlib.h>
-
 #include <cassert>
+#if NONS_SYS_WINDOWS
+#include <windows.h>
+#endif
 
 bool getbit(void *arr,ulong *byteoffset,uchar *bitoffset){
 	uchar *array=(uchar *)arr;
@@ -237,7 +239,6 @@ ErrorCode inPlaceDecryption(void *vbuffer,size_t length,ulong mode){
 }
 
 #if NONS_SYS_WINDOWS
-#include <windows.h>
 extern HWND mainWindow;
 
 BOOL CALLBACK findMainWindow_callback(HWND handle,LPARAM lparam){

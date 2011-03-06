@@ -32,6 +32,7 @@
 #include "CommandLineOptions.h"
 #include "ScriptInterpreter.h"
 #include <cassert>
+#include <iostream>
 
 NONS_Layer::NONS_Layer(const NONS_LongRect &size,const NONS_Color &rgba)
 		:data((ulong)size.w,(ulong)size.h),defaultShade(rgba){
@@ -99,8 +100,6 @@ void NONS_Layer::usePicAsDefaultShade(const NONS_Surface &s){
 	this->data=s;
 	this->useDataAsDefaultShade=1;
 }
-
-#include <iostream>
 
 bool NONS_Layer::load(const std::wstring *string){
 	if (!string){
@@ -336,9 +335,9 @@ void NONS_StandardOutput::set_italic(bool i){
 	if (this->shadowLayer)
 		this->shadowLayer->fontCache->set_italic(i);
 	if (i)
-		this->prebufferedText.append(L"<italic>");
+		this->prebufferedText.append(L"<i>");
 	else
-		this->prebufferedText.append(L"</italic>");
+		this->prebufferedText.append(L"<!i>");
 }
 
 void NONS_StandardOutput::set_bold(bool b){
@@ -346,9 +345,9 @@ void NONS_StandardOutput::set_bold(bool b){
 	if (this->shadowLayer)
 		this->shadowLayer->fontCache->set_bold(b);
 	if (b)
-		this->prebufferedText.append(L"<bold>");
+		this->prebufferedText.append(L"<b>");
 	else
-		this->prebufferedText.append(L"</bold>");
+		this->prebufferedText.append(L"<!b>");
 }
 
 void NONS_StandardOutput::set_size(ulong size){
@@ -547,19 +546,19 @@ void NONS_StandardOutput::ephemeralOut(const std::wstring &str,const NONS_Surfac
 					std::wstring tagvalue=tag_value(str,a);
 					if (tagvalue.size())
 						y=atol(tagvalue);
-				}else if (tagname==L"italic"){
+				}else if (tagname==L"i"){
 					cache.set_italic(1);
 					if (shadow)
 						shadow->set_italic(1);
-				}else if (tagname==L"/italic"){
+				}else if (tagname==L"!i"){
 					cache.set_italic(0);
 					if (shadow)
 						shadow->set_italic(0);
-				}else if (tagname==L"bold"){
+				}else if (tagname==L"b"){
 					cache.set_bold(1);
 					if (shadow)
 						shadow->set_bold(1);
-				}else if (tagname==L"/bold"){
+				}else if (tagname==L"!b"){
 					cache.set_bold(0);
 					if (shadow)
 						shadow->set_bold(0);
@@ -797,6 +796,7 @@ NONS_StandardOutput::NONS_StandardOutput(TiXmlElement *parent,NONS_FontCache &fc
 	for (TiXmlElement *i=log->FirstChildElement();i;i=i->NextSiblingElement())
 		this->log.push_back(i->QueryWStringAttribute("data"));
 	this->currentBuffer=log->QueryWStringAttribute("current_buffer");
+	this->ephemeralOut(this->currentBuffer,0,0,1,0);
 	this->indentationLevel=output->QueryIntAttribute("indentation");
 	this->x=output->QueryIntAttribute("text_position_x");
 	this->y=output->QueryIntAttribute("text_position_y");
@@ -1312,6 +1312,7 @@ void NONS_ScreenSpace::load_filters(TiXmlElement *grandfather){
 	this->filterPipeline.clear();
 	for (TiXmlElement *i=filters->FirstChildElement("pipeline_A")->FirstChildElement();i;i=i->NextSiblingElement())
 		this->filterPipeline.push_back(i);
+	this->screen->load_filter_pipeline(filters,"pipeline_B");
 }
 
 TiXmlElement *NONS_ScreenSpace::save(const interpreter_stored_state &state){
@@ -1338,5 +1339,5 @@ void NONS_ScreenSpace::load(TiXmlElement *parent,NONS_FontCache &fc){
 void NONS_ScreenSpace::load_async_effect(TiXmlElement *grandfather){
 	TiXmlElement *screen=grandfather->FirstChildElement("screen");
 	TiXmlElement *filters=screen->FirstChildElement("filters");
-	this->screen->load_async_fx(filters,"pipeline_B");
+	this->screen->load_async_fx(filters);
 }

@@ -31,7 +31,6 @@
 #include "../Functions.h"
 #include <string>
 #include <iostream>
-
 #if NONS_SYS_WINDOWS
 #include <windows.h>
 #elif NONS_SYS_UNIX

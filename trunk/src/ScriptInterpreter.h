@@ -137,11 +137,9 @@ typedef commandListType allowedCommandListType;
 
 struct interpreter_stored_state{
 	int textX,
-		textY/*,
-		music_track*/;
+		textY;
 	bool italic,
 		bold;
-	//std::wstring music;
 };
 
 class NONS_ScriptInterpreter{
@@ -161,8 +159,8 @@ class NONS_ScriptInterpreter{
 	void print_command(NONS_RedirectedOutput &ro,ulong current_line,const std::wstring &commandName,const std::vector<std::wstring> &parameters,ulong mode);
 	TiXmlElement *save_control();
 	void load_control(TiXmlElement *);
-	TiXmlElement *save_other();
-	void load_other(TiXmlElement *);
+	TiXmlElement *save_interpreter();
+	void load_interpreter(TiXmlElement *);
 
 	bool stop_interpreting;
 	commandMapType commandList;
@@ -221,6 +219,7 @@ class NONS_ScriptInterpreter{
 	std::vector<std::wstring> tags;
 	//Here, we keep state that's sensitive to modifications inside a command.
 	interpreter_stored_state stored_state;
+	bool skip_save_on_load;
 
 	ErrorCode command_caption(NONS_Statement &stmt);
 	ErrorCode command_alias(NONS_Statement &stmt);
