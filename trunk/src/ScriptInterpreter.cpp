@@ -2046,10 +2046,10 @@ void generate_encryption_table(uchar table[256],const std::vector<uchar> &progra
 		uchar byte=(uchar)a;
 		for (size_t b=0;b<program.size();b++){
 			uchar op=program[b];
-			bool xor    =op&1,
-				reverse =op&2,
-				scramble=op&4;
-			if (xor)
+			bool xor_bits=op&1,
+				reverse  =op&2,
+				scramble =op&4;
+			if (xor_bits)
 				byte^=op;
 			if (reverse)
 				byte=reverse_bits(byte);
@@ -2214,14 +2214,14 @@ bool NONS_ScriptInterpreter::save(int file){
 ErrorCode NONS_ScriptInterpreter::load(int file){
 	std::string xml;
 	{
-		NONS_File file(get_save_filename(file),1);
-		if (!file)
+		NONS_File ifile(get_save_filename(file),1);
+		if (!ifile)
 			return NONS_NO_SUCH_SAVEGAME;
-		std::vector<uchar> buffer((size_t)file.filesize()),
+		std::vector<uchar> buffer((size_t)ifile.filesize()),
 			decoded_buffer;
 		{
 			size_t bytes_read;
-			file.read(&buffer[0],buffer.size(),bytes_read,0);
+			ifile.read(&buffer[0],buffer.size(),bytes_read,0);
 		}
 		if (!decode_buffer(decoded_buffer,buffer))
 			return NONS_CORRUPTED_SAVEGAME;

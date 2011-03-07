@@ -785,15 +785,16 @@ void NONS_VariableMember::setlimits(long lower,long upper){
 	this->fixint();
 }
 
+struct NONS_VariableMember_save_frame{
+	NONS_VariableMember *_this;
+	TiXmlElement *element;
+	size_t i;
+};
+
 TiXmlElement *NONS_VariableMember::save(int index){
 	assert(this->type==INTEGER_ARRAY);
-	struct frame{
-		NONS_VariableMember *_this;
-		TiXmlElement *element;
-		size_t i;
-	};
-	std::vector<frame> stack;
-	frame current={
+	std::vector<NONS_VariableMember_save_frame> stack;
+	NONS_VariableMember_save_frame current={
 		this,
 		new TiXmlElement("array"),
 		0
@@ -819,17 +820,18 @@ TiXmlElement *NONS_VariableMember::save(int index){
 	return current.element;
 }
 
+struct NONS_VariableMember_ctor_frame{
+	NONS_VariableMember *_this;
+	TiXmlElement *array,
+		*child;
+	std::vector<NONS_VariableMember *> v;
+};
+
 NONS_VariableMember::NONS_VariableMember(TiXmlElement *array){
 	this->set_default_limits();
 	this->type=INTEGER_ARRAY;
-	struct frame{
-		NONS_VariableMember *_this;
-		TiXmlElement *array,
-			*child;
-		std::vector<NONS_VariableMember *> v;
-	};
-	std::vector<frame> stack(1);
-	frame *current;
+	std::vector<NONS_VariableMember_ctor_frame> stack(1);
+	NONS_VariableMember_ctor_frame *current;
 	current=&stack.back();
 	current->_this=this;
 	current->array=array->FirstChildElement();
@@ -842,7 +844,7 @@ NONS_VariableMember::NONS_VariableMember(TiXmlElement *array){
 				while (current->array=current->array->NextSiblingElement());
 			}else{
 				stack.resize(stack.size()+1);
-				frame *new_current=&stack.back();
+				NONS_VariableMember_ctor_frame *new_current=&stack.back();
 				current=new_current-1;
 				new_current->_this=new NONS_VariableMember(INTEGER_ARRAY);
 				new_current->array=(current->child)?current->child->NextSiblingElement():current->array->FirstChildElement();

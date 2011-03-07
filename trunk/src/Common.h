@@ -75,19 +75,19 @@ typedef void *HANDLE;
 #define NONS_COMPILER_VCPP
 #endif
 
-#ifdef _CONSOLE
+#else
+#define NONS_DECLSPEC
+#define NONS_DLLexport
+#define NONS_DLLimport
+#endif
+
+#if defined _CONSOLE || NONS_SYS_UNIX
 #define STD_COUT std::cout
 #define STD_CERR std::cerr
 #else
 #define NONS_NO_STDOUT
 #define STD_COUT o_stdout
 #define STD_CERR o_stderr
-#endif
-
-#else
-#define NONS_DECLSPEC
-#define NONS_DLLexport
-#define NONS_DLLimport
 #endif
 
 #ifdef NONS_COMPILER_VCPP
