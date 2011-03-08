@@ -468,6 +468,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 }
 #else
 ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING encoding,ENCRYPTION::ENCRYPTION encryption){
+	NONS_Clock clock;
 	if (encoding!=ENCODING::UTF8 || encryption!=ENCRYPTION::NONE){
 		this->cache_filename=CACHE_FILENAME;
 		std::vector<uchar> buffer;
@@ -497,7 +498,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 		}
 
 		{
-			ulong t0,t1;
+			NONS_Clock::t t0,t1;
 			t0=clock.get();
 			NONS_File cache(this->cache_filename,0);
 			ulong advance;
@@ -523,7 +524,7 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 		}
 	}else
 		this->cache_filename=scriptname;
-	ulong t0,t1;
+	NONS_Clock::t t0,t1;
 	t0=clock.get();
 	{
 		std::string buffer;
@@ -622,7 +623,10 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 	SHA1 hash;
 	for (ulong a=0;a<this->blocksByLine.size();a++){
 		std::wstring &b=this->blocksByLine[a]->name;
-		std::vector<char> temp2(b.begin(),b.end());
+		std::vector<char> temp2;
+		temp2.resize(b.size());
+		for (size_t c=0;c<b.size();c++)
+			temp2[c]=(char)b[c];
 		hash.Input(&temp2[0],temp2.size());
 	}
 	hash.Result(this->hash);
