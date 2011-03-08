@@ -455,7 +455,7 @@ void NONS_Settings::save(){
 }
 
 void NONS_Settings::load_text_speed(TiXmlElement *settings){
-	this->text_speed.set=settings->QueryIntAttribute("text_speed",&this->text_speed.data);
+	this->text_speed.set=!settings->QueryIntAttribute("text_speed",&this->text_speed.data);
 }
 
 void NONS_Settings::save_text_speed(TiXmlElement *settings){
