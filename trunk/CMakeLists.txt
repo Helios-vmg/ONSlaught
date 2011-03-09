@@ -57,8 +57,6 @@ src/libtimidity/stream.c
 src/libtimidity/tables.c
 src/libtimidity/timidity.c
 src/LZMA.c
-src/MacroParser.cpp
-src/MacroParser.tab.cpp
 src/ONSlaught.cpp
 src/OpenAL.cpp
 src/Options.cpp

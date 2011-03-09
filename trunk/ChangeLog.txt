@@ -7,9 +7,8 @@ Newly implemented commands:
   texec, textcolor, texthide, textshow
 
 Important changes:
-  * Moved macro interpreter to Python.
-    TODO: Update documentation and add error handling.
   * Added joystick support.
+  * Discontinued preprocessor support.
   * Discontinued support for savegames from previous versions.
 
 Minor changes:

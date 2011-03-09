@@ -18,6 +18,7 @@
 		<li/><a href="#1.6">Commands</a>
 		<li/><a href="#1.7">Expressions</a>
 		<li/><a href="#1.8">Arrays</a>
+		<li/><a href="#1.9">Printing</a>
 	</ol>
 	<li/><a href="#2">Inimplemented commands</a>
 	<li/><a href="#3">Changed behaviors</a>
@@ -311,6 +312,49 @@ Arrays can be used with the ?[] syntax:<br/>
 </font>
 As you can see, the value in [] is an expression itself, and arrays can appear inside expressions. This allows for expressions of arbitrary complexity. See <a href="#1.7">section 1.7</a> for more information.<p/>
 
+<h2><a name="1.9">1.9. Printing</a></h2>
+This being a VN engine, printing is an important part of the language.<br/>
+A "printing line" is a special type of command, because no explicit command name needs to appear in order for the line to be considered printing.<br/>
+Any line that begins with (spaces [U+0020] and tabs [U+0009] at the start of a line are ignored) any of the following characters is considered a printing line:<br/>
+<ul>
+	<li>` (U+0060, grave accent)</li>
+	<li>\ (U+005C)</li>
+	<li>@ (U+0040)</li>
+	<li>! (U+0021)</li>
+	<li># (U+0023)</li>
+	<li>% (U+0025)</li>
+	<li>$ (U+0024)</li>
+	<li>? (U+003F)</li>
+	<li>[ (U+005B)</li>
+	<li>Any ultra-ASCII character (U+0080 and above)
+</ul>
+
+<h3>1.9.1. Text tags</h3>
+A text tag is a short, predefined string that the engine looks for in printing lines and perform some specific function.<br/>
+The following text tags are supported:<br/>
+<ul>
+	<li>!d# - See the original documentation.</li>
+	<li>!w# - See the original documentation.</li>
+	<li>!s# - See the original documentation.</li>
+	<li>!sd - See the original documentation.</li>
+	<li>#xxxxxx - See the original documentation.</li>
+	<li>!nl - Is replaced by a newline character. Very useful when using centered text.</li>
+	<li>!b - Toggles bold style.</li>
+	<li>!i - Toggles italic style.</li>
+</ul>
+
+<h3>1.9.2. Inline expressions</h3>
+Some expressions can be embedded directly into a printing line, so long as they contain no spaces. For example:<p/>
+<font face="monospace">
+mov %a,10
+`a: %a<br/>
+<font color="#808080">;Output: a: 10</font><br/>
+`a+1: %a + 1<br/>
+<font color="#808080">;Output: a+1: 10 + 1</font><p/>
+</font>
+
+<font face="monospace">literal_print</font> is a richer and more regular interface for this kind of output.<p/>
+
 <h1><a name="2">2. Unimplemented Commands</a></h1>
 <font face="monospace" color="#ff0000">linepage</font><br/>
 Reason: Redundant functionality.<p/>
@@ -344,10 +388,9 @@ Reason: Related to kidokumode.<p/>
 
 <h1><a name="3">3. Changed Behaviors</a></h1>
 <font face="monospace" color="#ff0000">if</font><br/>
-Expression
-syntax has changed. See <a href="#1.7">section 1.7</a>.<br/>
+Expression syntax has changed. See <a href="#1.7">section 1.7</a>.<br/>
 Also see use_new_if in <a href="#4">section 4</a>.<br/>
-Special note: It's possible to use any command as the if body, including printing lines (<font face="monospace">`this is a printing line</font>). However, the parsing mechanism will fail if a printing line contains a ` in its body (<font face="monospace">`like this ->`<-</font>). For those cases, it's necessary to use a <font face="monospace">then</font> clause:<p/>
+Special note: It's possible to use any command as the if body, including printing lines (see <a href="#1.9">printing</a>). However, the parsing mechanism will fail if a printing line contains a ` in its body (<font face="monospace">`like this ->`<-</font>). For those cases, it's necessary to use a <font face="monospace">then</font> clause:<p/>
 <font face="monospace">
 <b>if</b> condition <b>then</b> `print `this<p/>
 </font>
@@ -483,7 +526,7 @@ c%pivot must be in the range [0;100]. If it's below the range, zero is assumed. 
 <font face="monospace" color="#ff0000">centerv c%pivot</font><br/>
 Works the same as centerh, but for vertical centering.<br/>
 The syntax is identical to centerh.<br/>
-In order to support this command, a new escape sequence was added: &quot;!nl&quot;. It is replaced by a newline during the printing process.<br/>
+In order to support this command, a new text tag was added: &quot;!nl&quot;. It is replaced by a newline during the printing process.<br/>
 It is important when using centerv that all printing commands end with a \:<p/>
 <font face="monospace">
 `Sample vertically!nlcentered text.\ <font color="#808080">;&lt;-- Ok.</font><br/>

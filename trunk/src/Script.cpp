@@ -81,7 +81,7 @@ NONS_Statement::NONS_Statement(const std::wstring &string,NONS_ScriptLine *line,
 	this->type=StatementType::EMPTY;
 	this->error=NONS_NO_ERROR;
 	if (string.size()){
-		if (multicomparison(string[0],";*`\\@!#~%$?[") || string[0]>0x7F){
+		if (multicomparison(string[0],";*~`\\@!#%$?[") || string[0]>0x7F){
 			switch (string[0]){
 				case ';':
 					this->type=StatementType::COMMENT;
@@ -316,10 +316,6 @@ NONS_Script::NONS_Script(){
 	memset(this->hash,0,sizeof(unsigned)*5);
 }
 
-#ifdef NONS_PREPROCESSOR
-bool preprocess(std::wstring &dst,const std::wstring &script);
-#endif
-
 extern std::wstring save_directory;
 
 #ifndef NONS_LOW_MEMORY_ENVIRONMENT
@@ -365,13 +361,6 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 				break;
 		}
 	}
-#ifdef NONS_PREPROCESSOR
-	{
-		std::wstring preprocessed;
-		if (preprocess(preprocessed,wtemp))
-			wtemp=preprocessed;
-	}
-#endif
 	this->scriptSize=wtemp.size();
 	wchar_t *buffer=&wtemp[0];
 	ulong currentLine=1,
