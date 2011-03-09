@@ -316,7 +316,9 @@ NONS_Script::NONS_Script(){
 	memset(this->hash,0,sizeof(unsigned)*5);
 }
 
+#ifdef NONS_PREPROCESSOR
 bool preprocess(std::wstring &dst,const std::wstring &script);
+#endif
 
 extern std::wstring save_directory;
 
@@ -363,11 +365,13 @@ ErrorCode NONS_Script::init(const std::wstring &scriptname,ENCODING::ENCODING en
 				break;
 		}
 	}
+#ifdef NONS_PREPROCESSOR
 	{
 		std::wstring preprocessed;
 		if (preprocess(preprocessed,wtemp))
 			wtemp=preprocessed;
 	}
+#endif
 	this->scriptSize=wtemp.size();
 	wchar_t *buffer=&wtemp[0];
 	ulong currentLine=1,

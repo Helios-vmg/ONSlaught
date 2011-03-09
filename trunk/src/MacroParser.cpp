@@ -27,37 +27,29 @@
 * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifdef NONS_PREPROCESSOR
+
 #include "Archive.h"
 #include "Options.h"
-#include "MacroParser.tab.hpp"
-#include "../preprocessor.h"
-#include "Plugin/LibraryLoader.h"
+#include "MacroParser.tab.cpp"
+#include "Preprocessor.h"
 #include <cassert>
 
-bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpreter_state *state);
+bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpreter_state &state);
 
 namespace NONS_Macro{
 class interpreter_state{
+	NONS_Preprocessor *pp;
 	std::queue<std::wstring> queue;
-	NONS_LibraryLoader lib;
+	bool good;
 public:
-	enum Error{
-		SUCCESS=0,
-		LIBRARY_NOT_FOUND,
-		INVALID_LIBRARY,
-		UNDEFINED_ERROR
-	} e;
-	PP_init_f PP_init;
-	PP_get_error_string_f PP_get_error_string;
-	PP_free_error_string_f PP_free_error_string;
-	PP_destroy_f PP_destroy;
-	PP_preprocess_f PP_preprocess;
-	PP_done_f PP_done;
-	PP_instance *instance;
 	ulong calls;
 	std::queue<call *> delayed_calls;
 	interpreter_state(const char *script);
-	~interpreter_state();
+	~interpreter_state(){
+		delete this->pp;
+	}
+	operator bool(){ return this->good; }
 	void push(const std::wstring &s){
 		this->queue.push(s);
 	}
@@ -68,45 +60,20 @@ public:
 		this->queue.pop();
 		return temp;
 	}
+	NONS_Preprocessor &get_pp(){ return *this->pp; }
 };
 
-interpreter_state::interpreter_state(const char *script):lib("preprocessor",0){
-	this->PP_init=0;
-	this->PP_destroy=0;
-	this->PP_get_error_string=0;
-	this->PP_free_error_string=0;
-	this->PP_preprocess=0;
-	this->PP_done=0;
-	if (this->lib.error==NONS_LibraryLoader::LIBRARY_NOT_FOUND){
-		this->e=LIBRARY_NOT_FOUND;
+interpreter_state::interpreter_state(const char *script){
+	this->good=0;
+	std::string error;
+	this->pp=new NONS_Preprocessor(script,error);
+	if (!*this->pp){
+		o_stderr <<error;
+		delete this->pp;
+		this->pp=0;
 		return;
 	}
-#define IS_GET_FUNCTION(x)                                        \
-	this->x=(x##_f)this->lib.getFunction(#x);                     \
-	if (this->lib.error==NONS_LibraryLoader::FUNCTION_NOT_FOUND){ \
-		this->e=INVALID_LIBRARY;                                  \
-		return;                                                   \
-	}
-	IS_GET_FUNCTION(PP_init);
-	IS_GET_FUNCTION(PP_destroy);
-	IS_GET_FUNCTION(PP_get_error_string);
-	IS_GET_FUNCTION(PP_free_error_string);
-	IS_GET_FUNCTION(PP_preprocess);
-	IS_GET_FUNCTION(PP_done);
-	void *error_data;
-	this->instance=this->PP_init(script,&error_data);
-	if (!this->instance){
-		o_stderr <<this->PP_get_error_string(error_data);
-		this->PP_free_error_string(error_data);
-		this->e=UNDEFINED_ERROR;
-		return;
-	}
-	this->e=SUCCESS;
-}
-
-interpreter_state::~interpreter_state(){
-	if (this->PP_destroy)
-		this->PP_destroy(this->instance);
+	this->good=1;
 }
 
 std::wstring unindent(const std::wstring &str){
@@ -148,31 +115,18 @@ std::wstring call::to_string(interpreter_state *is){
 		return L"";
 	}
 	is->calls++;
-	PP_parameters p;
 	std::wstring pop_signal;
 	pop_signal.push_back(0);
 	std::string function=UniToUTF8(this->identifier);
 	std::vector<std::string> parameters(this->parameters.size());
 	for (size_t a=0;a<parameters.size();a++)
 		parameters[a]=UniToUTF8((this->parameters[a]!=pop_signal)?unindent(this->parameters[a]):is->pop());
-	std::vector<const char *> cstring_parameters(parameters.size());
-	std::vector<size_t> sizes(parameters.size());
-	for (size_t a=0;a<parameters.size();a++){
-		cstring_parameters[a]=parameters[a].c_str();
-		sizes[a]=parameters[a].size();
-	}
-	p.function=function.c_str();
-	p.parameters=&cstring_parameters[0];
-	p.sizes=&sizes[0];
-	p.array_size=sizes.size();
-	PP_result result=is->PP_preprocess(is->instance,p);
-	std::wstring string_res=UniFromUTF8(std::string(result.string,result.string_length));
-	is->PP_done(is->instance,result);
-	if (!result.good){
-		o_stderr <<string_res<<"\n";
+	std::string string_res;
+	if (!is->get_pp().preprocess(string_res,function,parameters)){
+		o_stderr <<UniFromUTF8(string_res)<<"\n";
 		return L"";
 	}
-	return string_res;
+	return UniFromUTF8(string_res);
 }
 
 std::wstring text::to_string(interpreter_state *is){
@@ -259,7 +213,7 @@ std::wstring cheap_input_stream::get_all_remaining(){
 	return r;
 }
 
-bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpreter_state *state){
+bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpreter_state &state){
 	NONS_Macro::file *f=0;
 	{
 		cheap_input_stream stream(script);
@@ -269,7 +223,7 @@ bool preprocess(std::wstring &dst,const std::wstring &script,NONS_Macro::interpr
 			return 0;
 	}
 	for (size_t a=0;a<f->list.size();a++)
-		dst.append(f->list[a]->to_string(state));
+		dst.append(f->list[a]->to_string(&state));
 	delete f;
 	return 1;
 }
@@ -286,22 +240,14 @@ bool preprocess(std::wstring &dst,const std::wstring &script){
 		delete[] s;
 	}
 	NONS_Macro::interpreter_state is(python_script.c_str());
-	switch (is.e){
-		case NONS_Macro::interpreter_state::SUCCESS:
-			break;
-		case NONS_Macro::interpreter_state::INVALID_LIBRARY:
-			o_stderr <<"Invalid library.\n";
-		case NONS_Macro::interpreter_state::LIBRARY_NOT_FOUND:
-			o_stderr <<"Library not found.\n";
-		case NONS_Macro::interpreter_state::UNDEFINED_ERROR:
-			return 0;
-	}
-	r=preprocess(dst,script,&is);
+	if (!is)
+		return 0;
+	r=preprocess(dst,script,is);
 	if (r){
 		while (1){
 			std::wstring temp;
 			is.calls=0;
-			if (preprocess(temp,dst,&is) && is.calls){
+			if (preprocess(temp,dst,is) && is.calls){
 				dst=temp;
 				continue;
 			}
@@ -317,3 +263,5 @@ bool preprocess(std::wstring &dst,const std::wstring &script){
 		exit(0);
 	return r;
 }
+
+#endif

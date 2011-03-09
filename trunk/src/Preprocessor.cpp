@@ -24,21 +24,10 @@
 * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "../preprocessor.h"
-#include <vector>
-#include <sstream>
-#include <string>
+#ifdef NONS_PREPROCESSOR
 
-#ifdef _DEBUG
-#undef _DEBUG
-#define PP_DEBUG
-#endif
-#include <python.h>
-#include <frameobject.h>
-#ifdef PP_DEBUG
-#undef PP_DEBUG
-#define _DEBUG
-#endif
+#include "Preprocessor.h"
+#include <sstream>
 
 std::string PyUnicode_AsStdString(PyObject *o){
 	if (!o || !PyUnicode_Check(o))
@@ -97,77 +86,36 @@ std::string get_python_error(){
 	return dst;
 }
 
-struct PP_instance{
-	bool good;
-	std::vector<std::string *> strings;
-	PyObject *module;
-	PP_instance(const char *file,std::string &error_string){
-		this->good=0;
-		Py_Initialize();
-		this->module=0;
-		PyObject *compiled=Py_CompileString(file,"macros.txt",Py_file_input);
-		if (compiled){
-			this->module=PyImport_ExecCodeModule("macros",compiled);
-			Py_DECREF(compiled);
-			this->good=!!this->module;
-			if (this->good)
-				return;
-		}
-		error_string=get_python_error();
+NONS_Preprocessor::NONS_Preprocessor(const char *file,std::string &error_string){
+	this->good=0;
+	Py_Initialize();
+	this->module=0;
+	PyObject *compiled=Py_CompileString(file,"macros.txt",Py_file_input);
+	if (compiled){
+		this->module=PyImport_ExecCodeModule("macros",compiled);
+		Py_DECREF(compiled);
+		this->good=!!this->module;
+		if (this->good)
+			return;
 	}
-	~PP_instance(){
-		for (size_t a=0;a<this->strings.size();a++)
-			delete strings[a];
-		Py_XDECREF(this->module);
-		Py_Finalize();
-	}
-	size_t new_result_string(){
-		for (size_t a=0;a<this->strings.size();a++){
-			if (!this->strings[a]){
-				this->strings[a]=new std::string;
-				return a;
-			}
-		}
-		this->strings.push_back(new std::string);
-		return this->strings.size()-1;
-	}
-};
-
-extern "C" PP_DLLexport PP_instance *PP_init(const char *s,void **data){
-	std::string error;
-	PP_instance *r=new PP_instance(s,error);
-	if (!r->good){
-		delete r;
-		*data=new std::string(error);
-		return 0;
-	}
-	return r;
+	error_string=get_python_error();
 }
 
-extern "C" PP_DLLexport const char *PP_get_error_string(void *data){
-	return ((std::string *)data)->c_str();
+NONS_Preprocessor::~NONS_Preprocessor(){
+	Py_XDECREF(this->module);
+	Py_Finalize();
 }
 
-extern "C" PP_DLLexport void PP_free_error_string(void *data){
-	delete (std::string *)data;
-}
-
-extern "C" PP_DLLexport void PP_destroy(PP_instance *i){
-	delete i;
-}
-
-bool call_python(PP_instance *i,std::string &dst,const std::string &function_name,const std::vector<std::string> &parameters){
+bool NONS_Preprocessor::preprocess(std::string &dst,const std::string &function_name,const std::vector<std::string> &parameters){
 	bool ret=0;
-	PyObject *module=0,
-		*function=0,
+	PyObject *function=0,
 		*return_value=0,
 		*py_parameters=0;
-	if (!i->good){
-		dst="module doesn't contain the symbol";
-		goto call_python_end;
+	if (!*this){
+		dst="uninitialized internal object";
+		return 0;
 	}
-	module=i->module;
-	function=PyObject_GetAttrString(module,function_name.c_str());
+	function=PyObject_GetAttrString(this->module,function_name.c_str());
 	if (!function){
 		dst="module doesn't contain the symbol";
 		goto call_python_end;
@@ -203,22 +151,4 @@ call_python_end:
 	Py_XDECREF(function);
 	return ret;
 }
-
-extern "C" PP_DLLexport PP_result PP_preprocess(PP_instance *i,PP_parameters p){
-	std::vector<std::string> parameters(p.array_size);
-	for (size_t a=0;a<p.array_size;a++)
-		parameters[a].assign(p.parameters[a],p.sizes[a]);
-	PP_result r;
-	std::string *dst=i->strings[r.index=i->new_result_string()];
-	r.good=call_python(i,*dst,p.function,parameters);
-	r.string=dst->c_str();
-	r.string_length=dst->size();
-	return r;
-}
-
-extern "C" PP_DLLexport void PP_done(PP_instance *i,PP_result r){
-	if (!i || r.index>=i->strings.size() || !i->strings[r.index])
-		return;
-	delete i->strings[r.index];
-	i->strings[r.index]=0;
-}
+#endif

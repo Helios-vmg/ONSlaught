@@ -1,19 +1,19 @@
 ﻿<html>
 <head>
-&nbsp;&nbsp;&nbsp;&nbsp;<meta http-equiv="content-type" content="text/html; charset=utf-8">
-&nbsp;&nbsp;&nbsp;&nbsp;<title>ONSlaught: How to use macros to generate code</title>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8">
+	<title>ONSlaught: How to use macros to generate code</title>
 </head>
 <body lang="en-us" dir="ltr">
 <p style="margin-bottom: 0in; background: transparent"><i>The purpose of this document is to explain what macros are, their purpose, and how to use them. It is assumed that the reader has at least a minimum understanding of computer programming in any language.</i></p>
 <font size=4 style="font-size: 15pt">
 <ol start=0>
-&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#1">Introduction</a>
-&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#2">Basics</a>
-&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#3">Macro parameters</a>
-&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#4">if</a>
-&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#5">while</a>
-&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#6">for</a>
-&nbsp;&nbsp;&nbsp;&nbsp;<li/><a href="#7">Macro calls</a>
+	<li/><a href="#1">Introduction</a>
+	<li/><a href="#2">Basics</a>
+	<li/><a href="#3">Macro parameters</a>
+	<li/><a href="#4">if</a>
+	<li/><a href="#5">while</a>
+	<li/><a href="#6">for</a>
+	<li/><a href="#7">Macro calls</a>
 </ol>
 </font>
 <h1><a name="1"/>1. Introduction</h1>
@@ -26,7 +26,7 @@ for (int a = 0; a &lt; 10 ; a++)<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;array[a] = 10;<p/>
 </font>
 
-This is a short example, but notice how the number 10 already appears three times. If the size of the array ever changed, replacing all those 10's could introduce bugs by not replacing all the occurrences, or by replacing an unrelated 10.<br/>
+This is a short example, but notice how the number 10 already appears three times. If the size of the array ever changed, replacing all those 10's could introduce bugs by not replacing all the occurrences, or by replacing an unrelated instance of 10.<br/>
 With macros, the same snippet looks like this:<p/>
 
 <font face="monospace">
@@ -42,9 +42,13 @@ The advantage of this is evident. The size is in a single place, so by changing 
 ONSlaught's macro system is a bit more powerful than C's, but it's also harder to master. If you already know how to use C macros, this should be easy, though.<p/>
 
 <h1><a name="2"/>2. Basics</h1>
-I'll start by explaining how to enable macro processing.<p/>
+<h2>Enabling macro processing</h2>
+First off, prebuilt binaries aren't built with macro support by default. To enable it, you have to compile from source. Regardless of platform, you'll need Python 3.1.x to proceed.<br/>
+The following paragraphs assume Python was installed to c:\Python31 under Windows.<p/>
+<h3>Compiling with macros: VC++</h3>
+Add an environment variable
 
-By default, macro processing is turned off. This is because the script could have made a "macro call" when it was not intended.<br/>
+By default, macro processing is turned off. This is because the script could have made a "macro call" when it was not intended, and because searching for macro calls can be time consuming.<br/>
 To turn on macro processing, simply put a file named &quot;<font face="monospace">macros.txt</font>&quot; in the same directory as the script. Here is where you'll write all macros used by the script. The file should be in UTF-8. If the file has syntax errors or duplicate symbols, it will be ignored and macro processing will remain off.<p/>
 
 First, the simplest macro. It doesn't do anything:<p/>
