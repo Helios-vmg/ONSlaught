@@ -106,7 +106,7 @@ public:
 	audio_device();
 	~audio_device();
 	operator bool(){ return this->good; }
-	void update();
+	void update(std::vector<audio_stream *> &removed_streams);
 	void add(audio_stream *);
 	void remove(audio_stream *);
 };

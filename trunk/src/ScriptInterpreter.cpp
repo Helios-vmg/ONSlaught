@@ -4059,7 +4059,8 @@ ErrorCode NONS_ScriptInterpreter::command_lookbackcolor(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_lookbackflush(NONS_Statement &stmt){
-	this->screen->output->log.clear();
+	if (!CLOptions.never_clear_log)
+		this->screen->output->log.clear();
 	return NONS_NO_ERROR;
 }
 

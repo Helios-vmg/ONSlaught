@@ -662,7 +662,7 @@ void NONS_StandardOutput::Clear(bool eraseBuffer){
 			}
 			if (this->maxLogPages){
 				this->log.push_back(this->currentBuffer);
-				if (this->maxLogPages>0 && this->log.size()>(ulong)this->maxLogPages)
+				if (this->maxLogPages>0 && this->log.size()>(ulong)this->maxLogPages && !CLOptions.never_clear_log)
 					this->log.erase(this->log.begin());
 			}
 			this->currentBuffer.clear();
@@ -1150,8 +1150,13 @@ void NONS_ScreenSpace::resetParameters(const NONS_LongRect &window,const NONS_Lo
 		temp=this->output->transition;
 	else
 		temp=new NONS_GFX(*this->output->transition);
+	std::vector<std::wstring> temp_vector;
+	if (CLOptions.never_clear_log)
+		temp_vector=this->output->log;
 	delete this->output;
 	this->output=new NONS_StandardOutput(fc,window,frame,shadow);
+	if (CLOptions.never_clear_log)
+		this->output->log=temp_vector;
 	delete this->output->transition;
 	this->output->transition=temp;
 	this->lookback->reset(this->output);

@@ -74,7 +74,16 @@ void NONS_Audio::update_thread(){
 	while (!this->stop_thread){
 		{
 			NONS_MutexLocker ml(this->mutex);
-			this->dev->update();
+			std::vector<audio_stream *> removed_streams;
+			this->dev->update(removed_streams);
+			for (size_t a=0;a<removed_streams.size();a++){
+				NONS_Audio_FOREACH(){
+					if (i->second==removed_streams[a]){
+						this->channels.erase(i);
+						break;
+					}
+				}
+			}
 		}
 		SDL_Delay(10);
 	}
@@ -192,6 +201,7 @@ ErrorCode NONS_Audio::unload_sound_from_channel(int channel){
 	if (!stream)
 		return NONS_NO_SOUND_EFFECT_LOADED;
 	this->dev->remove(stream);
+	this->channels.erase(channel);
 	return NONS_NO_ERROR;
 }
 
@@ -354,7 +364,7 @@ void NONS_Audio::load_channel(TiXmlElement *element){
 	this->dev->add(stream);
 	stream->loop=(element->QueryIntAttribute("loop"))?-1:0;
 	stream->set_volume(element->QueryFloatAttribute("volume"));
-	stream->set_general_volume(this->mvol);
+	stream->set_general_volume((index==this->music_channel)?this->mvol:this->svol);
 	stream->mute(!this->notmute);
 	if (element->QueryIntAttribute("playing"))
 		stream->start();

@@ -76,6 +76,7 @@ NONS_CommandLineOptions::NONS_CommandLineOptions(){
 	this->use_long_audio_buffers=0;
 	this->default_font=L"default.ttf";
 	this->console_font=L"cour.ttf";
+	this->never_clear_log=0;
 }
 
 void usage(){
@@ -169,7 +170,7 @@ void usage(){
 		"  -default-font <filename>\n"
 		"      Use <filename> as the main font. Defaults to \"default.ttf\".\n"
 		"  -console-font <filename>\n"
-		"      Use <filename> as the font for the debugging console. Defaults to
+		"      Use <filename> as the font for the debugging console. Defaults to"
 		"      \"cour.ttf\".\n"
 	;
 	exit(0);
@@ -213,6 +214,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 		L"-use-long-audio-buffers", //31
 		L"-default-font",           //32
 		L"-console-font",           //33
+		L"-never-clear-log",        //34
 		0
 	};
 
@@ -425,6 +427,9 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					else
 						this->console_font=filename;
 				}
+				break;
+			case 34: //-never-clear-log
+				this->never_clear_log=1;
 				break;
 			case 7: //-image-cache-size
 			case 12: //-no-console
