@@ -56,13 +56,8 @@ const double pi=3.1415926535897932384626433832795;
 		return possible_error;\
 }
 #define CHECK_FLAG(flag,pattern) (((flag)&(pattern))==(pattern))
-#ifdef USE_ACCURATE_MULTIPLICATION
-//Accurate version:
-#define INTEGER_MULTIPLICATION(a,b) (((a)*(b))/255)
-#else
-//Fast version:
-#define INTEGER_MULTIPLICATION(a,b) (((a)*(b))>>8)
-#endif
+#define ACCURATE_INTEGER_MULTIPLICATION(a,b) (((a)*(b))/255)
+#define FAST_INTEGER_MULTIPLICATION(a,b) (((a)*(b))>>8)
 #define CHECK_POINTER_AND_CALL(p,c) if (p) (p)->c
 
 //string functions

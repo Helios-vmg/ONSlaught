@@ -27,7 +27,6 @@
 * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define USE_ACCURATE_MULTIPLICATION
 #include "Functions.h"
 #include "ThreadManager.h"
 #include "IOFunctions.h"

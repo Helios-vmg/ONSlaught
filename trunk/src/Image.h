@@ -52,11 +52,21 @@
 template <typename T>
 struct NONS_SurfaceProperties_basic{
 	T *pixels;
+	//width and height
 	ulong w,h,
+	//size in bytes of a single scanline, including padding if it applies
 		pitch,
+	//size in bytes of the entire surface
 		byte_count,
+	//size in pixels of the entire surface; equivalent to w*h
 		pixel_count,
+	//frame count
 		frames;
+	//If (uchar *)p points to the start of a pixel,
+	//p[offset[0]] is the red channel
+	//p[offset[1]] is the green channel
+	//p[offset[2]] is the blue channel
+	//p[offset[3]] is the alpha channel
 	uchar offsets[4];
 	template <typename T2>
 	operator NONS_SurfaceProperties_basic<T2>() const{
@@ -279,6 +289,9 @@ public:
 class NONS_Surface;
 typedef std::map<std::pair<ulong,ulong>,NONS_LongRect> optim_t;
 
+//Reference-counted, thread-safe class that abstracts common image operations.
+//Note: all surfaces use 32-bit RGBA pixels. The pixels are ordered in a
+//left-to-right, top-to-bottom fashion.
 class NONS_DECLSPEC NONS_ConstSurface{
 protected:
 	NONS_Surface_Private *data;
@@ -304,6 +317,12 @@ public:
 	void get_properties(NONS_ConstSurfaceProperties &sp) const;
 	//Returns a copy of the surface's rectangle.
 	NONS_LongRect clip_rect() const{ return this->default_box(0); }
+	void save_bitmap(const std::wstring &filename,bool fill_alpha=0,bool threaded=1) const;
+	void get_optimized_updates(optim_t &dst) const;
+
+	//The following are pure functions; they don't have side effects (as far as
+	//the calling object is concerned).
+
 	//Returns an object that points to a deep copy of this object's surface.
 	//The new surface has the same size and pixel data as the original.
 	NONS_Surface clone() const;
@@ -317,8 +336,6 @@ public:
 	NONS_Surface rotate(double alpha) const;
 	//Copies the surface while applying a linear transformation to it.
 	NONS_Surface transform(const NONS_Matrix &m,bool fast=0) const;
-	void save_bitmap(const std::wstring &filename,bool fill_alpha=0,bool threaded=1) const;
-	void get_optimized_updates(optim_t &dst) const;
 };
 
 class NONS_FontCache;
@@ -326,21 +343,28 @@ struct NONS_StandardOutput;
 
 NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache &cache,const NONS_LongRect &limit);
 
+//Midifiable version of NONS_ConstSurface. While NONS_ConstSurface references a
+//read-only surface, NONS_Surface references a writable surface.
 class NONS_DECLSPEC NONS_Surface:public NONS_ConstSurface{
 	typedef void (*interpolation_f)(NONS_SurfaceProperties,NONS_Rect,NONS_SurfaceProperties,NONS_Rect,double,double);
 	NONS_Surface(int){}
 public:
 	static const NONS_Surface null;
+	//By default, create a reference to nothing.
 	NONS_Surface(){}
 	NONS_Surface(const NONS_Surface &a):NONS_ConstSurface(){
 		this->data=0;
 		*this=a;
 	}
+	//Create a surface from a NONS_CrippledSurface. See below.
 	NONS_Surface(const NONS_CrippledSurface &original);
+	//Create a surface from a width and height.
 	NONS_Surface(ulong w,ulong h){
 		this->data=0;
 		this->assign(w,h);
 	}
+	//Create a surface from an existing file. The function will use the virtual
+	//file system.
 	NONS_Surface(const std::wstring &a){
 		this->data=0;
 		*this=a;
@@ -361,19 +385,41 @@ public:
 	);
 	void assign(ulong w,ulong h);
 	NONS_Surface &operator=(const std::wstring &name);
+	void get_properties(NONS_SurfaceProperties &sp) const;
+
+	//Alpha-blend src over this surface
+	//src_rect: reading from src will begin at (src_rect->x,src_rect->y), and at
+	//          most src_rect->w*src_rect->h pixels will be read.
+	//dst_rect: writing to dst will begin at (dst_rect->x,dst_rect->y).
+	//          Members w and h are ignored.
+	//alpha: src is blended with this opacity (255=opaque, 0=invisible [blending
+	//       is skipped])
+	//frame: this frame from src is blended onto dst. If frame is too large, its
+	//       value is saturated.
 	void over(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
 	void over_with_alpha(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255);
 	void over_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
 	void over_frame_with_alpha(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0,long alpha=255);
+
+	//Same as over(), but using the multiply operation. The parameters have the same meanings.
 	void multiply(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
 	void multiply_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
+
+	//Similar to over, but using direct pixel copy, instead of alpha blending.
+	//Prefer this if you're sure you don't need alpha blending, as it's much
+	//faster.
 	void copy_pixels(const NONS_ConstSurface &src,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
 	void copy_pixels_frame(const NONS_ConstSurface &src,ulong frame,const NONS_LongRect *dst_rect=0,const NONS_LongRect *src_rect=0);
-	void get_properties(NONS_SurfaceProperties &sp) const;
+
+	//Set all pixels on the surface to color.
 	void fill(const NONS_Color &color);
+	//Set the pixels in area to color.
 	void fill(const NONS_LongRect area,const NONS_Color &color);
 	//Same as fill(), but doesn't touch the alpha channel.
 	void color(NONS_Color color);
+
+	//If the object points to the screen, this updates it and locks access to it
+	//while it's doing it.
 	void update(ulong x=0,ulong y=0,ulong w=0,ulong h=0) const;
 
 #define NONS_Surface_DECLARE_RELATIONAL_OP(type,op) bool operator op(const type &b) const;
@@ -397,10 +443,17 @@ public:
 		double y                                                  \
 	)
 	NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(,interpolation);
+	//These functions were designed for speed, not ease of use, and thus
+	//they're rather complicated. Unless you're really hurting for speed,
+	//consider using NONS_ConstSurface::scale(), which gives good quality in
+	//general or NONS_ConstSurface::transform(), which is slightly faster.
+	//Otherwise, see NONS_VirtualScreen::updateScreen() for an example.
 	NONS_Surface_DECLARE_INTERPOLATION_F(NN_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation);
 	NONS_Surface_DECLARE_INTERPOLATION_F(bilinear_interpolation2);
 	typedef void (NONS_Surface::*public_interpolation_f)(NONS_Surface,NONS_Rect,NONS_Rect,double,double);
+
+	//Do not use:
 
 	void divide_into_cells(ulong amount);
 
@@ -416,6 +469,13 @@ public:
 	static void set_base_scale(double x,double y);
 };
 
+//Class that implements a weak reference of sorts.
+//While a surface is pointed to by a NONS_CrippledSurface, it won't be freed
+//by the surface manager, but also it can't be read or written. Only a VERY
+//limited amount of information can be obtained from it, such as its
+//dimensions. In order to use it, the get_surface() method has to be called.
+//This method performs a mutex lock if necessary. This guarantees that one,
+//and ONLY ONE thread can possibly access the screen at any given time.
 class NONS_CrippledSurface{
 	NONS_Surface_Private *data;
 	friend class NONS_Surface;

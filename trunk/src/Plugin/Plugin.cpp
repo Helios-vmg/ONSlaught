@@ -33,6 +33,15 @@
 #include <iostream>
 #include <vector>
 
+#ifndef READ_LINKING_WARNING
+#error WARNING! PLEASE READ BELOW!
+//This file uses dynamic C++ linkage to interface with the engine. DO NOT LINK WITH A PREBUILT
+//ENGINE. Dynamically linking C++ executables (including programs and dynamically linked libraries)
+//built by different compilers or even by different versions of the same compiler is not safe. To
+//built the plugin, build the engine from source and then, using the same compiler, build the
+//plugin.
+#endif
+
 #ifdef EFFECT_INITIALIZE_DELAYS
 #undef EFFECT_INITIALIZE_DELAYS
 #endif
@@ -43,100 +52,88 @@
 		lastT=NONS_Clock::MAX,                                        \
 		start=clock.get()
 
-//TODO: Update comments.
 /*
-	Available functions:
-		void manualBlit(SDL_Surface *src, SDL_Rect *srcRect, SDL_Surface *dst, SDL_Rect *dstRect, manualBlitAlpha_t alpha=255);
-			Parameters:
-				src: The source surface.
-				srcRect: The rectangle from src that will be blitted onto dst. If zero is passed, the
-					reactangle is taken to be the entire surface.
-				dst: The destination surface.
-				dstRect: The top-left coordinate at which the source rectangle will be blitted.
-					SDL_Rect::w and SDL_Rect::h are ignored. For the width and height, the width and
-					height of srcRect are used.	If zero is passed, the coordinate is taken to be 0,0.
-				alpha: An overall alpha that is applied to the source before blitting it. The source
-					is not modified.
-			Returns:
-				Nothing.
-			Description:
-				Blits a surface onto another. If the source has alpha or abs(alpha)<255, alpha
-				blending is applied. For alpha blending, the source is understood as being on top of
-				the destination. If alpha<0, the resulting pixel is color-inverted.
-				The function uses threading internally, so it shouldn't be called from #01, #02, or
-				#03.
+Available data:
+ulong cpu_count;
+	The number of physical cores in the system. When threading is disabled, this is always 1.
+bool ctrlIsPressed;
+	Whether the user is holding down CTRL. Also becomes true if the user pressed period or
+	selected a menu option to skip.
+bool forceSkip;
+	Whether a function has asynchronously requested termination.
+NONS_ThreadManager threadManager;
+	See below.
+NONS_Mutex screenMutex;
+	Used to lock accesses to the screen, to prevent race conditions. See transitionExample()
+	for an example on how to use it.
 
-	Available classes (the members that can't be used are not listed):
-		class NONS_Mutex{
-		public:
-			NONS_Mutex();
-			~NONS_Mutex();
-			void lock();
-			void unlock();
-		};
-			Wrapper for system-specific mutexes. Supports Windows and UNIX (any UNIX-like with pthreads).
+Available functions:
+bool effect_standard_check(NONS_LongRect &dst,const NONS_ConstSurface &s,NONS_VirtualScreen &d);
+	Performs some checks common to all transition effects.
+	dst receives the area of d that will be affected.
+	s is the source surface.
+	d is the destination screen.
+void effect_epilogue();
+	Performs cleanup operations common to all transition effects.
 
-		class NONS_ThreadManager{
-		public:
-			ulong call(ulong onThread,NONS_ThreadedFunctionPointer f,void *p);
-				Call using thread #onThread a function 'f' passing a structure 'p'.
-				onThread should be >=0 and <cpu_count.
-				NONS_ThreadedFunctionPointer is defined as:
-					typedef void (*NONS_ThreadedFunctionPointer)(void *);
-				The function is of course non-locking.
-			void wait(ulong index);
-				Lock the current thread until the managed thread #index returns from its function. If
-				the isn't in a function already, the call does nothing.
-			void waitAll();
-				Calls NONS_ThreadManager::wait() for every thread.
-		};
-			Manages persistent threads. Supports Windows and UNIX (any UNIX-like with pthreads).
+Available classes:
+class NONS_ConstSurface;
+	See src/Image.h.
+class NONS_Surface:NONS_ConstSurface;
+	See src/Image.h.
+class NONS_Clock;
+	Declared in src/IOFunctions.h
+	Wrapper for high-precision clock. Under Windows, the precision matches the CPU's frequency. The
+	precision is of 0.001 s or worse for other systems.
+class NONS_Mutex;
+	Declared in src/IOFunctions.h
+	Wrapper for recursive mutexes.
 
-		struct NONS_VirtualScreen{
-			static const size_t screens_s=4;
-			SDL_Surface *screens[screens_s];
-				Surfaces used by the screen under different conditions.
-				screens[screens_s-1] is always the real screen.
-				User functions should not write to anything other than screens[VIRTUAL].
-			bool fullscreen;
-				True if we're currently in fullscreen mode.
+class NONS_ThreadManager{
+	Declared in src/ThreadManager.h
+	Manages a custom-implemented thread pool. It contains n-1 threads, where n is the number of
+	available CPU cores (the last instance is executed on the main thread). When a thread isn't
+	being used, it consumes no CPU time.
+public:
+	template <typename T>
+	ulong call(ulong onThread,T *o);
+	ulong call(ulong onThread,NONS_ThreadedFunctionPointer f,void *p);
+		Call a function on thread #onThread. Non-blocking.
+		onThread should be >=0 and <cpu_count-1.
+		The first version is designed to take either a binder * or a member_binder * as its first
+		parameter. It can be used to call both global and member functions. There are many examples
+		on how to use member and member_binder and other facilities defined in src/Binder.h all
+		around the engine.
+		The second version is a more typical setup. The second parameter must be a pointer to a
+		global function that returns nothing and takes a void * as its only parameter, and the
+		third parameter a possibly null pointer to user data.
+		NONS_ThreadedFunctionPointer is defined as:
+			typedef void (*NONS_ThreadedFunctionPointer)(void *);
+		On most cases, the first version is easier to use.
+	void wait(ulong index);
+		Lock the caller thread until the managed thread #index returns from its function. If the
+		thread isn't in a function already, the call does nothing.
+	void waitAll();
+		Calls wait() for every thread. You'll most commonly use this, rather than wait().
+};
+	
+Utility class that guarantees that each mutex lock is paired with an unlock. It's heavily
+recommended to use this class, rather than making the un/locks yourself.
+class NONS_MutexLocker{
+	NONS_Mutex &mutex;
+public:
+	NONS_MutexLocker(NONS_Mutex &m):mutex(m){
+		this->mutex.lock();
+	}
+	~NONS_MutexLocker(){
+		this->mutex.unlock();
+	}
+};
 
-			void blitToScreen(SDL_Surface *src,SDL_Rect *srcrect,SDL_Rect *dstrect);
-				Equivalent to
-					manualBlit(src,srcrect,screen->screens[VIRTUAL],dstrect);
-			void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
-				Refreshes a rectangle of the screen.
-				'fast' is used when interpolation is being used. It's better not to use it.
-			void updateWholeScreen(bool fast=0);
-			void updateWithoutLock(bool fast=0);
-				Same as updateWholeScreen(), but doesn't lock screenMutex. Should not be used if
-				screenMutex is unlocked.
-		};
-
-		class NONS_MutexLocker{
-			NONS_Mutex &mutex;
-		public:
-			NONS_MutexLocker(NONS_Mutex &m):mutex(m){
-				this->mutex.lock();
-			}
-			~NONS_MutexLocker(){
-				this->mutex.unlock();
-			}
-		};
-	Available data:
-		ulong cpu_count;
-			The number of physical cores in the system. When threading is disabled, this is always 1.
-		bool ctrlIsPressed;
-			Whether the user is holding down CTRL. Also becomes true if the user pressed period or
-			selected a menu option to skip.
-		bool forceSkip;
-			Whether a function has asynchronously requested termination.
-		NONS_ThreadManager threadManager;
-			Allows the program to recycle the same threads, avoiding creating new ones and reducing
-			the overall threading overhead.
-		NONS_Mutex screenMutex;
-			Used to lock accesses to the screen, to prevent race conditions. See transitionExample()
-			for an example on how to use it.
+class NONS_VirtualScreen;
+	Declared in src/VirtualScreen.h
+	Unless told to by an example, you shouldn't use any of the functions declared by this class
+	directly.
 */
 
 //Declare new functions here.
@@ -190,17 +187,17 @@ extern "C" PLUGIN_DLLexport void *getFunctionPointers(void *param){
 /*
 Asynchronous effect initialization function (#01):
 
-	Signature:
-		void *asyncExample_init(ulong effectNo)
-	Parameters:
-		effectNo: The effect number.
-	Returns:
-		A generic pointer that can be used by the matching effect function and will be freed by the
-		matching uninitializer function.
-	Description: 
-		Can be used to initialize state used by #03. If it's not necessary, it can be left undefined
-		and pass a zero to asyncFXfunctionSet::asyncFXfunctionSet()'s first parameter. The engine
-		will not call it in that case.
+Signature:
+	void *asyncExample_init(ulong effectNo)
+Parameters:
+	effectNo: The effect number.
+Returns:
+	A generic pointer that can be used by the matching effect function and will be freed by the
+	matching uninitializer function.
+Description: 
+	Can be used to initialize state used by #03. If it's not necessary, it can be left undefined
+	and pass a zero to asyncFXfunctionSet::asyncFXfunctionSet()'s first parameter. The engine
+	will not call it in that case.
 */
 ASYNC_EFFECT_INIT_F(asyncExample_init){
 	return new ulong(0);
@@ -209,17 +206,17 @@ ASYNC_EFFECT_INIT_F(asyncExample_init){
 /*
 Asynchronous effect uninitialization function (#02):
 
-	Signature:
-		void *asyncExample_uninit(ulong effectNo, void *userData)
-	Parameters:
-		effectNo: The effect number.
-		userData: The generic pointer that was returned by #01.
-	Returns:
-		Nothing.
-	Description:
-		Can be used to free state allocated by #01. If it's not necessary, it can be left undefined
-		and pass a zero to asyncFXfunctionSet::asyncFXfunctionSet()'s third parameter. The engine
-		will not call it in that case.
+Signature:
+	void *asyncExample_uninit(ulong effectNo, void *userData)
+Parameters:
+	effectNo: The effect number.
+	userData: The generic pointer that was returned by #01.
+Returns:
+	Nothing.
+Description:
+	Can be used to free state allocated by #01. If it's not necessary, it can be left undefined and
+	pass a zero to asyncFXfunctionSet::asyncFXfunctionSet()'s third parameter. The engine will not
+	call it in that case.
 */
 ASYNC_EFFECT_UNINIT_F(asyncExample_uninit){
 	delete (ulong *)userData;
@@ -228,35 +225,31 @@ ASYNC_EFFECT_UNINIT_F(asyncExample_uninit){
 /*
 Asynchronous effect function (#03):
 
-	Signature:
-		bool asyncExample(ulong effectNo, surfaceData srcData, surfaceData dstData, void *userData)
-	Parameters:
-		effectNo: The effect number.
-		srcData: Information about the source surface:
-			uchar *pixels;		Pointer to the start of the pixel information
-			uchar Roffset,		Offset of the red channel from the start of a pixel, in bytes
-				Goffset,		Offset of the greed channel
-				Boffset,		Offset of the blue channel
-				Aoffset;		Offset of the alpha channel
-								Note: The destination surface is guaranteed to ignore the alpha channel
-			ulong advance,		The size of each pixel in bytes
-				pitch,			The size of each row in bytes
-				w,				The width of the surface in pixels
-				h;				The height of the surface
-			bool alpha;			Does the surface has an alpha channel?
-		dstData: Information about the destination surface.
-		userData: The generic pointer that was returned by #01.
-	Returns:
-		A bool indicating whether the screen should be refreshed afterwards.
-	Description:
-		The function is called n times per second (n being the second parameter for asynceffect in
-		the script) to apply an effect. That means that, on average, the function shouldn't take
-		longer than 1000/n milliseconds to finish, so performance is a priority. To give a general
-		idea, this example function takes ~11 ms on a Core 2 Duo @ 1.68 GHz.
-		This function should not use threading, since it's already running on its own thread.
-		Adding more threading wouldn't improve the performance, specially in single core systems.
-		Unless the engine was compiled with threading disabled, manualBlit() uses threads, so it
-		shouldn't be called from here, either.
+Signature:
+	bool asyncExample(
+		ulong effectNo,
+		const NONS_ConstSurface &src,
+		const NONS_Surface &dst,
+		void *userData
+	)
+Parameters:
+	effectNo: The effect number.
+	src: The source surface.
+	dst: The destination surface.
+	userData: The generic pointer that was returned by #01.
+Returns:
+	Whether the engine should refresh the screen after the function returns.
+Description:
+	The function is called n times per second (n being the second parameter for async_effect in the
+	script) to apply an effect. That means that, on average, the function shouldn't take longer
+	than 1000/n milliseconds to finish, so performance is a priority. To give a general	idea, this
+	example function takes ~11 ms on a Core 2 Duo @ 1.68 GHz.
+	This function should not use threading, since it's already running on its own thread. Adding
+	more threading wouldn't improve the performance, specially in single core systems. Unless the
+	engine was compiled with threading disabled, NONS_Surface::over() and all of its variants use
+	threads, so they shouldn't be called from here, either.
+	This particular example makes the engine update the screen each time it's called, but that's not a
+	requirement. Refresh the screen as little as possible.
 */
 ASYNC_EFFECT_F(asyncExample){
 	NONS_ConstSurfaceProperties ssp;
@@ -293,45 +286,40 @@ ASYNC_EFFECT_F(asyncExample){
 /*
 Filter effect function (#04):
 
-	Signature:
-		void filterExample(
-			ulong effectNo,
-			SDL_Color color,
-			SDL_Surface *src,
-			SDL_Surface *rule,
-			SDL_Surface *dst,
-			ulong x,
-			ulong y,
-			ulong w,
-			ulong h
-		)
-	Parameters:
-		effectNo: The effect number.
-		color: A color value. If this isn't used, it can be ignored. The color is obtained from the
-			second parameter provided for effects (e.g. the fourth parameter for the command effect).
-		src: The source surface.
-		rule: A "rule" surface that can be used for some effect. E.g. the rule could be an image that
-		      will be alpha-blended into the image.
-		      The rule is obtained from the third parameter provided for effects (e.g. the fourth
-		      parameter for the command effect). If the rule cannot be found as a file, an invalid
-		      pointer (zero) will be passed as this parameter. So if this parameter is needed, that
-		      should be checked.
-		dst: The destination surface.
-		x: The coordinate of the left side of the rectangle that needs to be filtered.
-		y: The coordinate of the top side of the rectangle that needs to be filtered.
-		w: The width of the rectangle that needs to be filtered.
-		h: The height of the rectangle that needs to be filtered.
-	Returns:
-		Nothing.
-	Description:
-		The function is used to apply a filter to a surface. For example, the engine internally uses
-		this very interface to implement the function behind the command nega. In fact, this example
-		function performs the exact same effect.
-		Depending on what commands were used in the script, src and dst may actually always point to
-		the same surface. However, this shouldn't be relied on.
-		The function is always called from the main thread, so it's allowed to use threading
-		functions to speed up its execution. However, the function is, to my knowledge, never
-		called from performance-critical sections.
+Signature:
+	void filterExample(
+		ulong effectNo,
+		NONS_Color color,
+		const NONS_ConstSurface &src,
+		const NONS_ConstSurface &rule,
+		const NONS_Surface &dst,
+		NONS_LongRect area
+	)
+Parameters:
+	effectNo: The effect number.
+	color: A color value. If this isn't used, it can be ignored. The color is obtained from the
+	       second parameter provided for effects (e.g. the fourth parameter for the command
+	       effect).
+	src: The source surface.
+	rule: A "rule" surface that can be used for some effect. E.g. the rule could be an image that
+	      will be alpha-blended into the image.
+	      The rule is obtained from the third parameter provided for effects (e.g. the fourth
+	      parameter for the command effect). If the rule cannot be found as a file, a null surface
+	      will be passed (if (!rule) src is null). So if this parameter is needed, that should be
+	      checked.
+	dst: The destination surface.
+	area: The area on dst than needs to be filtered.
+Returns:
+	Nothing.
+Description:
+	The function is used to apply a filter to a surface. For example, the engine internally uses
+	this very interface to implement the function behind the command nega. In fact, this example
+	function performs the exact same effect.
+	Depending on what commands were used in the script, src and dst may actually always point to
+	the same surface. However, this shouldn't be relied on.
+	The function is always called from the main thread, so it's allowed to use threading functions.
+	such as NONS_Image::over(), to speed up its execution. However, the function is never called
+	from performance-critical sections.
 */
 FILTER_EFFECT_F(filterExample){
 	//Obtain information about the surfaces.
@@ -365,44 +353,54 @@ FILTER_EFFECT_F(filterExample){
 /*
 Transition effect function (#05):
 
-	Signature:
-		void transitionExample(
-			ulong effectNo,
-			ulong duration,
-			SDL_Surface *src,
-			SDL_Surface *rule,
-			NONS_VirtualScreen *dst
-		)
-	Parameters:
-		effectNo: The effect number.
-		duration: The function shouldn't take longer to complete than this many milliseconds.
-		src: The source surface.
-		rule: The "rule" surface. See #04 for details.
-		dst: The destination virtual screen.
-	Returns:
-		Nothing.
-	Description:
-		This is the only effect that doesn't write directly to an SDL_Surface. This is because
-		a transition effect is expected to update the screen several times before completing.
-		Transition effects are also allowed to use threading functions, which may be important
-		for more complex and expensive effects.
+Signature:
+	void transitionExample(
+		ulong effectNo,
+		ulong duration,
+		const NONS_ConstSurface &src,
+		const NONS_ConstSurface &rule,
+		NONS_VirtualScreen &dst
+	)
+Parameters:
+	effectNo: The effect number.
+	duration: The function shouldn't take longer to complete than this many milliseconds.
+	src: The source surface.
+	rule: The "rule" surface. See #04 for details.
+	dst: The destination virtual screen.
+Returns:
+	Nothing.
+Description:
+	This is the only effect that doesn't write directly to an SDL_Surface. This is because
+	a transition effect is expected to update the screen several times before completing.
+	Transition effects are also allowed to use threading functions, which may be important
+	for more complex and expensive effects.
 */
 TRANSIC_EFFECT_F(transitionExample){
 	NONS_LongRect src_rect;
-	effect_standard_check(src_rect,src,dst);
+	//Perform common checks.
+	if (!effect_standard_check(src_rect,src,dst))
+		return;
+	//We'll only need to update a small rectangle each iteration.
 	NONS_LongRect rect(0,0,1,src_rect.h);
 	long w=src_rect.w;
+	//Initialize objects used for timing iteration delays.
 	EFFECT_INITIALIZE_DELAYS(w);
 	for (long a=0;a<w;a++){
+		//Advance counters and perform checks to skip iterations.
 		EFFECT_ITERATION_PROLOGUE(a<w-1,rect.w++;);
 		{
+			//Get screen object. If necessary, this locks mutexes to prevent race
+			//conditions.
 			NONS_Surface screen=dst.get_screen();
 			screen.copy_pixels(src,&rect,&rect);
 		}
+		//We could also call dst.updateWholeScreen(), but the would update unnecessary pixels.
 		dst.updateScreen(rect.x,rect.y,rect.w,rect.h);
 		rect.x+=rect.w;
 		rect.w=1;
+		//Conditionally delay execution.
 		EFFECT_ITERATION_EPILOGUE;
 	}
+	//Perform cleanup.
 	effect_epilogue();
 }

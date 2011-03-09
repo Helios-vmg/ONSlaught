@@ -179,9 +179,11 @@ public:
 	NONS_VirtualScreen(ulong w,ulong h);
 	NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh);
 	~NONS_VirtualScreen();
-	NONS_DECLSPEC void blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect);
+	void blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect);
 	NONS_DECLSPEC void updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast=0);
-	NONS_DECLSPEC void updateWholeScreen(bool fast=0);
+	void updateWholeScreen(bool fast=0){
+		this->updateScreen(0,0,(ulong)this->inRect.w,(ulong)this->inRect.h,fast);
+	}
 	NONS_Surface get_screen(){ return this->screens[VIRTUAL]; }
 	NONS_Surface get_preasync_surface(){ return this->screens[PRE_ASYNC]; }
 	NONS_Surface get_real_screen(){ return this->screens[REAL]; }
@@ -212,7 +214,6 @@ public:
 	float convertH(T h){
 		return floor((float)h*this->y_multiplier+.5f);
 	}
-	NONS_DECLSPEC void updateWithoutLock(const NONS_Surface &s,bool fast=0);
 	std::wstring takeScreenshot(const std::wstring &filename=L"");
 	void initEffectList();
 	ErrorCode callEffect(ulong effectNo,ulong frequency);

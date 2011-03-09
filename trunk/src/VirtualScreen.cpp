@@ -194,11 +194,11 @@ NONS_VirtualScreen::~NONS_VirtualScreen(){
 	this->applyFilter(0,NONS_Color::black,L"");
 }
 
-NONS_DLLexport void NONS_VirtualScreen::blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect){
+void NONS_VirtualScreen::blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect){
 	this->get_screen().over(src,dstrect,srcrect);
 }
 
-void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast){
+NONS_DECLSPEC void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast){
 	if (this->usingFeature[OVERALL_FILTER]){
 		NONS_Surface src=this->screens[VIRTUAL],
 			dst=this->screens[this->post_filter];
@@ -234,22 +234,11 @@ void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulong h,bool fast)
 				this->x_multiplier,
 				this->y_multiplier
 			);
-			//dst.save_bitmap(generate_filename<wchar_t>());
 		}
 		if (!this->usingFeature[ASYNC_EFFECT])
-			//SDL_UpdateRect(this->screens[REAL],d.x,d.y,d.w,d.h);
 			NONS_Surface(this->screens[REAL]).update((ulong)d.x,(ulong)d.y,(ulong)d.w,(ulong)d.h);
 	}else if (!this->usingFeature[ASYNC_EFFECT])
-		//SDL_UpdateRect(this->screens[REAL],x,y,w,h);
 		NONS_Surface(this->screens[REAL]).update(x,y,w,h);
-}
-
-NONS_DLLexport void NONS_VirtualScreen::updateWholeScreen(bool fast){
-	this->updateWithoutLock(this->get_real_screen(),fast);
-}
-
-NONS_DLLexport void NONS_VirtualScreen::updateWithoutLock(const NONS_Surface &s,bool fast){
-	this->updateScreen(0,0,(ulong)this->inRect.w,(ulong)this->inRect.h,fast);
 }
 
 bool NONS_VirtualScreen::toggleFullscreen(uchar mode){
@@ -269,9 +258,8 @@ bool NONS_VirtualScreen::toggleFullscreen(uchar mode){
 		if (!this->usingFeature[OVERALL_FILTER])
 			this->screens[VIRTUAL]=this->screens[REAL];
 		screen.copy_pixels(tempCopy);
-	}/*else if (this->usingFeature[INTERPOLATION])
-		this->screens[REAL]->clip_rect=this->outRect;*/
-	this->updateWithoutLock(screen);
+	}
+	this->updateWholeScreen();
 	return this->fullscreen;
 }
 
@@ -288,8 +276,7 @@ SDL_Surface *NONS_VirtualScreen::toggleFullscreenFromVideo(const NONS_Surface &s
 	if (tempCopy){
 		if (!this->usingFeature[OVERALL_FILTER])
 			this->screens[VIRTUAL]=this->screens[REAL];
-	}/*else if (this->usingFeature[INTERPOLATION])
-		this->screens[REAL]->clip_rect=this->outRect;*/
+	}
 	return screen.get_SDL_screen();
 }
 
