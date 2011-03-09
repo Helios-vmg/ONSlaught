@@ -632,7 +632,7 @@ int NONS_StandardOutput::predictTextHeight(std::wstring *arr){
 		if (char0==10 || char0==13)
 			lines++;
 	}
-	if ((*arr)[arr->size()-1]==13 || (*arr)[arr->size()-1]==10)
+	if (!arr->size() || (*arr)[arr->size()-1]==13 || (*arr)[arr->size()-1]==10)
 		lines--;
 	return this->foregroundLayer->fontCache->line_skip*lines;
 }

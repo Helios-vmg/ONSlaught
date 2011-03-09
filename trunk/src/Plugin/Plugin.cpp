@@ -138,6 +138,7 @@ class NONS_VirtualScreen;
 
 //Declare new functions here.
 FILTER_EFFECT_F(filterExample);
+FILTER_EFFECT_F(filterExample2);
 TRANSIC_EFFECT_F(transitionExample);
 ASYNC_EFFECT_F(asyncExample);
 ASYNC_EFFECT_INIT_F(asyncExample_init);
@@ -157,6 +158,7 @@ void *getFilterEffectFunctions(){
 	if (!ret.size()){
 		//Add new functions here.
 		ret.push_back(filterExample);
+		ret.push_back(filterExample2);
 	}
 	return &ret;
 }
@@ -345,6 +347,37 @@ FILTER_EFFECT_F(filterExample){
 			dsp.pixels+=4;
 		}
 		//Move pointers to the next row, relative from the start of the current row.
+		ssp.pixels=pos00+ssp.pitch;
+		dsp.pixels=pos10+dsp.pitch;
+	}
+}
+
+inline uchar posterize(ulong c,ulong levels){
+	ulong divide=(256/levels);
+	ulong v=c/divide*divide*255/(0xFF^divide);
+	saturate_value<ulong>(v,0,255);
+	return (uchar)v;
+}
+
+FILTER_EFFECT_F(filterExample2){
+	NONS_ConstSurfaceProperties ssp;
+	NONS_SurfaceProperties dsp;
+	src.get_properties(ssp);
+	dst.get_properties(dsp);
+	ssp.pixels+=area.x*4+area.y*ssp.pitch;
+	dsp.pixels+=area.x*4+area.y*dsp.pitch;
+	for (long y=0;y<area.h;y++){
+		const uchar *pos00=ssp.pixels;
+		uchar *pos10=dsp.pixels;
+		for (long x=0;x<area.w;x++){
+			const ulong levels=8;
+			dsp.pixels[dsp.offsets[0]]=posterize(ssp.pixels[ssp.offsets[0]],levels);
+			dsp.pixels[dsp.offsets[1]]=posterize(ssp.pixels[ssp.offsets[1]],levels);
+			dsp.pixels[dsp.offsets[2]]=posterize(ssp.pixels[ssp.offsets[2]],levels);
+			dsp.pixels[dsp.offsets[3]]=ssp.pixels[ssp.offsets[3]];
+			ssp.pixels+=4;
+			dsp.pixels+=4;
+		}
 		ssp.pixels=pos00+ssp.pitch;
 		dsp.pixels=pos10+dsp.pitch;
 	}

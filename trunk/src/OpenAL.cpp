@@ -337,8 +337,9 @@ int audio_stream::needs_update(){
 				this->notify.back()->set();
 				this->notify.pop_back();
 			}
+			return 1;
 		}
-		return 1;
+		return 0;
 	}
 	if (this->paused || !*this)
 		return 0;
