@@ -166,10 +166,11 @@ void usage(){
 		"  -use-long-audio-buffers\n"
 		"      Allocates longer audio buffers. This fixes some problems with sound in\n"
 		"      older systems.\n"
-		"-default-font <filename>\n"
-		"Use <filename> as the main font. Defaults to \"default.ttf\".\n"
-		"-console-font <filename>\n"
-		"Use <filename> as the font for the debugging console. Defaults to \"cour.ttf\".\n"
+		"  -default-font <filename>\n"
+		"      Use <filename> as the main font. Defaults to \"default.ttf\".\n"
+		"  -console-font <filename>\n"
+		"      Use <filename> as the font for the debugging console. Defaults to
+		"      \"cour.ttf\".\n"
 	;
 	exit(0);
 }
