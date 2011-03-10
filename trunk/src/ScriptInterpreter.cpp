@@ -2771,31 +2771,30 @@ ErrorCode NONS_ScriptInterpreter::command_chvol(NONS_Statement &stmt){
 
 ErrorCode NONS_ScriptInterpreter::command_cl(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(2);
-	switch (NONS_tolower(stmt.parameters[0][0])){
-		case 'l':
-			if (this->hideTextDuringEffect)
-				this->screen->hideTextWindow();
-			this->screen->leftChar->unload();
-			break;
-		case 'r':
-			if (this->hideTextDuringEffect)
-				this->screen->hideTextWindow();
-			this->screen->rightChar->unload();
-			break;
-		case 'c':
-			if (this->hideTextDuringEffect)
-				this->screen->hideTextWindow();
-			this->screen->centerChar->unload();
-			break;
-		case 'a':
-			if (this->hideTextDuringEffect)
-				this->screen->hideTextWindow();
-			this->screen->leftChar->unload();
-			this->screen->rightChar->unload();
-			this->screen->centerChar->unload();
-			break;
-		default:
-			return NONS_INVALID_PARAMETER;
+	{
+		std::vector<NONS_Layer *> unload;
+		switch (NONS_tolower(stmt.parameters[0][0])){
+			case 'l':
+				unload.push_back(this->screen->leftChar);
+				break;
+			case 'r':
+				unload.push_back(this->screen->rightChar);
+				break;
+			case 'c':
+				unload.push_back(this->screen->centerChar);
+				break;
+			case 'a':
+				unload.push_back(this->screen->leftChar);
+				unload.push_back(this->screen->rightChar);
+				unload.push_back(this->screen->centerChar);
+				break;
+			default:
+				return NONS_INVALID_PARAMETER;
+		}
+		if (this->hideTextDuringEffect)
+			this->screen->hideTextWindow();
+		for (size_t a=0;a<unload.size();a++)
+			CHECK_POINTER_AND_CALL(unload[a],unload());
 	}
 	long number,duration;
 	ErrorCode ret;
