@@ -1605,8 +1605,8 @@ void put_glyph(const NONS_Surface &dst,int x,int y,uchar alpha,uchar *src,const 
 				pixel+sp.offsets[2],
 				pixel+sp.offsets[3]
 			};
-			src_rgba[3]=(alpha==0xFF)?*src:ACCURATE_INTEGER_MULTIPLICATION(*src,alpha);
-			ulong bottom_alpha=*dst_rgba[3]=~(uchar)ACCURATE_INTEGER_MULTIPLICATION(src_rgba[3]^0xFF,*dst_rgba[3]^0xFF);
+			src_rgba[3]=(alpha==0xFF)?*src:FAST_INTEGER_MULTIPLICATION(*src,alpha);
+			ulong bottom_alpha=*dst_rgba[3]=~(uchar)FAST_INTEGER_MULTIPLICATION(src_rgba[3]^0xFF,*dst_rgba[3]^0xFF);
 			ulong composite=integer_division_lookup[src_rgba[3]+(bottom_alpha<<8)];
 			if (composite){
 #define put_glyph_APPLY_ALPHA(x) *dst_rgba[x]=(uchar)APPLY_ALPHA(src_rgba[x],*dst_rgba[x],composite)

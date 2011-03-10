@@ -1199,13 +1199,9 @@ static const wchar_t *formats[]={
 	0
 };
 
-void NONS_GeneralArchive::init(){
-	std::wstring path;
-	if (CLOptions.archiveDirectory.size())
-		path=CLOptions.archiveDirectory+L"/";
-	else
-		path=L"./";
-	const wchar_t *base=L"arc";
+NONS_GeneralArchive::NONS_GeneralArchive(){
+	static const wchar_t *path=L"./",
+		*base=L"arc";
 	this->archives.push_back(&filesystem);
 	for (ulong a=ULONG_MAX;;a++){
 		std::wstring full_name;
@@ -1228,7 +1224,8 @@ void NONS_GeneralArchive::init(){
 			if (!found)
 				break;
 		}else{
-			full_name=path+L"arc.sar";
+			full_name=path;
+			full_name.append(L"arc.sar");
 			if (!NONS_File::file_exists(full_name) && !NONS_File::file_exists(toupperCopy(full_name)))
 				continue;
 			format=0;
@@ -1298,9 +1295,18 @@ uchar *NONS_GeneralArchive::getFileBuffer(const std::wstring &filepath,size_t &b
 	return res;
 }
 
-NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path,bool keep_in_memory){
+NONS_DataStream *NONS_GeneralArchive::open(const std::wstring &path,ulong flags){
+	bool keep_in_memory=CHECK_FLAG(flags,KEEP_IN_MEMORY),
+		filesystem_first=CHECK_FLAG(flags,FILESYSTEM_FIRST);
 	NONS_MutexLocker ml(this->mutex);
-	for (size_t a=0;a<this->archives.size();a++){
+	size_t n=this->archives.size();
+	if (filesystem_first){
+		NONS_DataStream *stream=this->archives.back()->open(path,keep_in_memory);
+		if (stream)
+			return stream;
+		n--;
+	}
+	for (size_t a=0;a<n;a++){
 		NONS_DataStream *stream=this->archives[a]->open(path,keep_in_memory);
 		if (stream)
 			return stream;

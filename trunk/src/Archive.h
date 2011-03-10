@@ -165,19 +165,22 @@ public:
 	                    EOCDR64_signature=0x06064b50;
 };
 
+#define KEEP_IN_MEMORY (1<<0)
+#define FILESYSTEM_FIRST (1<<1)
+
 class NONS_GeneralArchive{
 	NONS_Mutex mutex;
 	std::vector<NONS_DataSource *> archives;
 	bool addArchive_private(const std::wstring &path,int format=-1);
 public:
+	NONS_GeneralArchive();
 	~NONS_GeneralArchive();
-	void init();
 	uchar *getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem=1);
 	//Same as above, but doesn't try the file system
 	uchar *getFileBufferWithoutFS(const std::wstring &filepath,size_t &buffersize){
 		return this->getFileBuffer(filepath,buffersize,0);
 	}
-	NONS_DataStream *open(const std::wstring &path,bool keep_in_memory=0);
+	NONS_DataStream *open(const std::wstring &path,ulong flags=0);
 	bool close(NONS_DataStream *stream);
 	bool exists(const std::wstring &filepath);
 	bool addArchive(const std::wstring &path){

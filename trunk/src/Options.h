@@ -49,7 +49,6 @@ struct NONS_CommandLineOptions{
 	ENCODING::ENCODING scriptencoding;
 	std::wstring musicFormat;
 	std::wstring musicDirectory;
-	std::wstring archiveDirectory;
 	std::wstring scriptPath;
 	ENCRYPTION::ENCRYPTION scriptEncryption;
 #ifndef NONS_NO_STDOUT

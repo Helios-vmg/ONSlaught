@@ -145,7 +145,7 @@ audio_buffer::audio_buffer(const void *buffer,size_t length,ulong freq,ulong cha
 
 template <typename T>
 static decoder *new_decoder(const std::wstring &filename,bool prioritize_filesystem){
-	return new T(general_archive.open(filename));
+	return new T(general_archive.open(filename,prioritize_filesystem?FILESYSTEM_FIRST:0));
 }
 
 /*

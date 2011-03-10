@@ -44,15 +44,14 @@
 #include <pspkernel.h>
 #endif
 
-void useArgumentsFile(const char *filename,std::vector<std::wstring> &argv){
-	std::ifstream file(filename);
-	if (!file)
+void useArgumentsFile(const wchar_t *filename,std::vector<std::wstring> &argv){
+	NONS_DataStream *stream=general_archive.open(filename,FILESYSTEM_FIRST);
+	if (!stream)
 		return;
 	std::string str;
-	std::getline(file,str);
-	std::wstring copy=UniFromUTF8(str);
-	std::vector<std::wstring> vec=getParameterList(copy,0);
-	argv.insert(argv.end(),vec.begin(),vec.end());
+	stream->read_all(str);
+	general_archive.close(stream);
+	append(argv,getParameterList(UniFromUTF8(str),0));
 }
 
 void enditall(bool stop_thread){
@@ -308,7 +307,7 @@ void initialize(int argc,char **argv){
 	config_directory=getConfigLocation();
 
 	std::vector<std::wstring> cmdl_arg=getArgumentsVector(argv);
-	useArgumentsFile("arguments.txt",cmdl_arg);
+	useArgumentsFile(L"arguments.txt",cmdl_arg);
 	CLOptions.parse(cmdl_arg);
 
 	SDL_Init(SDL_INIT_EVERYTHING&~SDL_INIT_AUDIO);
@@ -317,8 +316,6 @@ void initialize(int argc,char **argv){
 	SDL_EnableKeyRepeat(250,20);
 
 	InputObserver.setup_joysticks();
-
-	general_archive.init();
 
 #ifndef NONS_NO_STDOUT
 	if (CLOptions.override_stdout){

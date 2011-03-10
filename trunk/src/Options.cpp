@@ -95,9 +95,6 @@ void usage(){
 		"  -save-directory <directory name>\n"
 		"      Override automatic save game directory selection.\n"
 		"      See the documentation for more information.\n"
-		"  -archive-directory <directory>\n"
-		"      Set where to look for archive files.\n"
-		"      Default is \".\"\n"
 		"  -f\n"
 		"      Start in fullscreen.\n"
 		"  -r <virtual width> <virtual height> <real width> <real height>\n"
@@ -205,7 +202,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 		L"-!reset-out-files",       //22
 		L"-!redirect",              //23
 		L"-stop-on-first-error",    //24
-		L"-archive-directory",      //25
+		L"",                        //25
 		L"-pp-output",              //26
 		L"-disable-threading",      //27
 		L"-pp-then-quit",           //28
@@ -371,14 +368,6 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 			case 24: //-stop-on-first-error
 				this->stopOnFirstError=1;
 				break;
-			case 25: //-archive-directory
-				if (a+1>=size)
-					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
-				else{
-					this->archiveDirectory=arguments[++a];
-					toforwardslash(this->archiveDirectory);
-				}
-				break;
 			case 26: //-pp-output
 				if (a+1>=size)
 					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
@@ -434,6 +423,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 			case 7: //-image-cache-size
 			case 12: //-no-console
 			case 17: //-sdebug
+			case 25: //-archive-directory
 			default:
 				STD_CERR <<"Unrecognized command line option: \""<<arguments[a]<<"\"\n";
 		}

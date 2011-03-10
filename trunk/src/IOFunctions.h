@@ -249,7 +249,8 @@ public:
 	virtual Uint64 seek(Sint64 offset,int direction);
 	Uint64 stdio_seek(Sint64 offset,int direction);
 	void reset(){ this->seek(0,1); }
-	void read_all(std::vector<uchar> &dst){
+	template <typename T>
+	void read_all(T &dst){
 		this->reset();
 		size_t size=(size_t)this->size;
 		dst.resize(size);

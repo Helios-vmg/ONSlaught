@@ -103,27 +103,32 @@ ErrorCode NONS_Audio::play_music(const std::wstring &filename,long times){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	const int channel=NONS_Audio::music_channel;
-	std::wstring temp;
+	std::wstring found_path;
+	bool found=0;
 	if (!this->music_format.size()){
-		ulong a=0;
-		while (1){
-			if (!sound_formats[a])
-				break;
-			temp=this->music_dir+L"/"+filename+L"."+sound_formats[a];
-			if (general_archive.exists(temp))
-				break;
-			a++;
+		for (ulong a=0;!found && sound_formats[a];a++){
+			found_path=this->music_dir+L"/"+filename+L"."+sound_formats[a];
+			if (filesystem.exists(found_path))
+				found=1;
+		}
+		for (ulong a=0;!found && sound_formats[a];a++){
+			found_path=this->music_dir+L"/"+filename+L"."+sound_formats[a];
+			if (general_archive.exists(found_path))
+				found=1;
 		}
 	}else
-		temp=this->music_dir+L"/"+filename+L"."+this->music_format;
-	if (!general_archive.exists(temp) && !general_archive.exists(temp=filename))
-		return NONS_FILE_NOT_FOUND;
+		found_path=this->music_dir+L"/"+filename+L"."+this->music_format;
+	if (!found){
+		found_path=filename;
+		if (!filesystem.exists(found_path) && !general_archive.exists(found_path=filename))
+			return NONS_FILE_NOT_FOUND;
+	}
 
 	NONS_MutexLocker ml(this->mutex);
 	audio_stream *stream=this->get_channel(channel);
 	if (stream)
 		this->dev->remove(stream);
-	stream=new audio_stream(temp,1);
+	stream=new audio_stream(found_path,1);
 	if (!*stream){
 		delete stream;
 		return NONS_UNDEFINED_ERROR;

@@ -565,7 +565,7 @@ NONS_DataStream *midi_static_data::get_file(const char *path){
 		i->second->reset();
 		return i->second;
 	}
-	NONS_DataStream *stream=general_archive.open(temp,1);
+	NONS_DataStream *stream=general_archive.open(temp,KEEP_IN_MEMORY);
 	if (!stream)
 		return 0;
 	return this->cached_files[temp]=stream;

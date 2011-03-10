@@ -1881,9 +1881,9 @@ void over_blend_threaded(
 			pos0+=4;
 			pos1+=4;
 
-			rgba0[3]=ACCURATE_INTEGER_MULTIPLICATION(rgba0[3],alpha);
+			rgba0[3]=FAST_INTEGER_MULTIPLICATION(rgba0[3],alpha);
 			ulong bottom_alpha=
-				*rgba1[3]=~(uchar)ACCURATE_INTEGER_MULTIPLICATION(rgba0[3]^0xFF,*rgba1[3]^0xFF);
+				*rgba1[3]=~(uchar)FAST_INTEGER_MULTIPLICATION(rgba0[3]^0xFF,*rgba1[3]^0xFF);
 			ulong composite=integer_division_lookup[rgba0[3]+(bottom_alpha<<8)];
 			if (!composite)
 				continue;
@@ -2012,9 +2012,9 @@ void multiply_blend_threaded(
 			MULTIPLY_SETUP_PIXEL(0);
 			MULTIPLY_SETUP_PIXEL(1);
 			MULTIPLY_SETUP_PIXEL(2);
-			*rgba1[0]=(uchar)ACCURATE_INTEGER_MULTIPLICATION(rgba0[0],*rgba1[0]);
-			*rgba1[1]=(uchar)ACCURATE_INTEGER_MULTIPLICATION(rgba0[1],*rgba1[1]);
-			*rgba1[2]=(uchar)ACCURATE_INTEGER_MULTIPLICATION(rgba0[2],*rgba1[2]);
+			*rgba1[0]=(uchar)FAST_INTEGER_MULTIPLICATION(rgba0[0],*rgba1[0]);
+			*rgba1[1]=(uchar)FAST_INTEGER_MULTIPLICATION(rgba0[1],*rgba1[1]);
+			*rgba1[2]=(uchar)FAST_INTEGER_MULTIPLICATION(rgba0[2],*rgba1[2]);
 			pos0+=4;
 			pos1+=4;
 		}
