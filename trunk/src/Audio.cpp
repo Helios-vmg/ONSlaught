@@ -50,7 +50,7 @@ NONS_Audio::NONS_Audio(const std::wstring &musicDir){
 		return;
 	}
 	this->uninitialized=0;
-	this->notmute=1;
+	this->notmute=(!settings.mute.set)?1:!settings.mute.data;
 	if (!musicDir.size())
 		this->music_dir=L"./CD";
 	else
@@ -68,6 +68,8 @@ NONS_Audio::~NONS_Audio(){
 	this->stop_thread=1;
 	this->thread.join();
 	delete this->dev;
+	settings.mute.data=!this->notmute;
+	settings.mute.set=1;
 }
 
 void NONS_Audio::update_thread(){

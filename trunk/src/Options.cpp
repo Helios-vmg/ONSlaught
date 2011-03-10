@@ -453,10 +453,13 @@ void NONS_Settings::init(const std::wstring &path){
 	if (!settings)
 		this->doc.LinkEndChild(settings=new TiXmlElement("settings"));
 	this->load_text_speed(settings);
+	this->load_mute(settings);
 }
 
 void NONS_Settings::save(){
-	this->save_text_speed(this->doc.FirstChildElement("settings"));
+	TiXmlElement *settings=this->doc.FirstChildElement("settings");
+	this->save_text_speed(settings);
+	this->save_mute(settings);
 	this->doc.SaveFile(this->path);
 }
 
@@ -465,6 +468,17 @@ void NONS_Settings::load_text_speed(TiXmlElement *settings){
 }
 
 void NONS_Settings::save_text_speed(TiXmlElement *settings){
-	if (text_speed.set)
+	if (this->text_speed.set)
 		settings->SetAttribute("text_speed",this->text_speed.data);
+}
+
+void NONS_Settings::load_mute(TiXmlElement *settings){
+	int mute;
+	this->mute.set=!settings->QueryIntAttribute("mute",&mute);
+	this->mute.data=mute;
+}
+
+void NONS_Settings::save_mute(TiXmlElement *settings){
+	if (this->mute.set)
+		settings->SetAttribute("mute",(int)this->mute.data);
 }
