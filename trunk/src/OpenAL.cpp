@@ -47,6 +47,12 @@ audio_sink::audio_sink(){
 audio_sink::~audio_sink(){
 	if (!*this)
 		return;
+	alSourceStop(this->source);
+	ALint finished;
+	alGetSourcei(this->source,AL_BUFFERS_PROCESSED,&finished);
+	ALuint buffers[this->n];
+	alSourceUnqueueBuffers(this->source,finished,buffers);
+	alDeleteBuffers(finished,buffers);
 	alDeleteSources(1,&this->source);
 }
 
