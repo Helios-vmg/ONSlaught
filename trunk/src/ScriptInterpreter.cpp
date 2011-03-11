@@ -2908,12 +2908,12 @@ ErrorCode NONS_ScriptInterpreter::command_cselgoto(NONS_Statement &stmt){
 	std::wstring label=frame->jumps[label_index];
 	if (!this->script->blockFromLabel(label))
 		return NONS_NO_SUCH_BLOCK;
-	while (this->callStack.back()!=frame){
+	bool break_loop;
+	do{
+		break_loop=this->callStack.back()==frame;
 		delete this->callStack.back();
 		this->callStack.pop_back();
-	}
-	delete this->callStack.back();
-	this->callStack.pop_back();
+	}while (!break_loop);
 	this->goto_label(label);
 	return NONS_NO_ERROR;
 }
@@ -4584,8 +4584,10 @@ ErrorCode NONS_ScriptInterpreter::command_return(NONS_Statement &stmt){
 	ErrorCode ret=NONS_NO_ERROR_BUT_BREAK;
 	for (ulong a=0;a<line.statements.size();a++){
 		ErrorCode error=this->interpretString(*line.statements[a],stmt.lineOfOrigin,stmt.fileOffset);
-		if (error==NONS_END)
-			return NONS_END;
+		if (error==NONS_END){
+			ret=NONS_END;
+			break;
+		}
 		if (error==NONS_GOSUB)
 			this->callStack.back()->interpretAtReturn=NONS_ScriptLine(line,a+1);
 		if (!CHECK_FLAG(error,NONS_NO_ERROR_FLAG)){
@@ -4595,6 +4597,7 @@ ErrorCode NONS_ScriptInterpreter::command_return(NONS_Statement &stmt){
 		if (CHECK_FLAG(error,NONS_BREAK_WORTHY_ERROR))
 			break;
 	}
+	delete popped;
 	return ret;
 }
 
