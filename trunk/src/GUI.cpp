@@ -776,7 +776,7 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 					case SDLK_PAUSE:
 						if (console){
 							console->enter(this->screen);
-							if (!queue.emptify())
+							if (queue.emptify())
 								return INT_MIN;
 						}
 						break;
@@ -953,7 +953,7 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 							case SDLK_PAUSE:
 								if (console){
 									console->enter(this->screen);
-									if (!queue.emptify())
+									if (queue.emptify())
 										return INT_MIN;
 								}
 								break;

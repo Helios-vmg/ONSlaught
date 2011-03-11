@@ -33,6 +33,8 @@ Bug fixes:
   * Fixed graphical bug in savegame loading mechanism.
   * Fixed bug in BZ2 de/compression routine.
   * Fixed bug in debugging console that caused crash at exit.
+  * Fixed improper calls to internal function that were causing undue exit when
+    leaving the debugging console.
 
 
 20100714
