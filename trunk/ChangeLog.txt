@@ -20,7 +20,7 @@ Minor changes:
   * Replaced old config format with XML-based configuration.
 
 Bug fixes:
-  * Plugged memory leak in various routines.
+  * Plugged memory leaks in various routines.
   * Fixed minor bugs in video playback code.
   * Added missing \t escape sequence to expression parser.
   * Fixed stack overflow in video player.
