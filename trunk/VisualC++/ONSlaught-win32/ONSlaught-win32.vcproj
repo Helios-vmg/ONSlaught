@@ -145,7 +145,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib zlib.lib OpenAL32.lib libFLAC_static.lib libmpg123.lib libmikmod.lib SDLmain"
+				AdditionalDependencies="freetype.lib jpeg.lib libbz2.lib libogg.lib libpng.lib libtiff.lib libvorbis.lib libvorbisfile.lib SDL.lib SDL_image.lib zlib.lib OpenAL32.lib libFLAC_static.lib libmpg123.lib libmikmod.lib SDLmain.lib"
 				OutputFile="$(OutDir)/ONSlaught.exe"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="../../lib-win32"

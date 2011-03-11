@@ -23,22 +23,24 @@ CXX = g++
 NONSCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 ifdef([SVN],[-DNONS_SVN ])-DBUILD_ONSLAUGHT -w -g0 -O3 -Iinclude -Iinclude/mpg123 -Iinclude/mpg123/mingw -c
 NONSCFLAGS = $(NONSCXXFLAGS)
 PLUGINCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 ifdef([SVN],[-DNONS_SVN ])-DBUILD_PLUGIN -w -g0 -O3 -Iinclude
-NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 LIBS -mwindows -Wl,--out-implib=bin-win32/libONSlaught.a
-PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static-libgcc -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
+NONSLDFLAGS = -Llib-win32 -static -static-libgcc -static-libstdc++ -s -lmingw32 LIBS -mwindows -Wl,--out-implib=bin-win32/libONSlaught.a
+PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static -static-libgcc -static-libstdc++ -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
 RC = windres
 RCFLAGS = -J rc -O coff
 INPUTS = syscmd([cat sources.lst | gawk '{ strings[0]; match($0,"(.*)/(.*)\\.(.*)",strings); printf("objs/%s.o ",strings[2]); }'])
 
-all: objs bin-win32/ONSlaught.exe bin-win32/plugin.dll
+all: bin-win32/ONSlaught.exe
 
 clean:
 	rm -rf objs
 
+plugin: bin-win32/plugin.dll
+
 objs:
 	(mkdir -p bin-win32 || mkdir -p objs) && mkdir -p objs
 
-bin-win32/ONSlaught.exe: $(INPUTS) objs/onslaught.res
-	$(CXX) $^ $(NONSLDFLAGS) -o bin-win32/ONSlaught.exe
+bin-win32/ONSlaught.exe: objs $(INPUTS) objs/onslaught.res
+	$(CXX) $(INPUTS) objs/onslaught.res $(NONSLDFLAGS) -o bin-win32/ONSlaught.exe
 
 bin-win32/plugin.dll: bin-win32/libONSlaught.a
 	$(CXX) $(PLUGINCXXFLAGS) src/Plugin/Plugin.cpp $(PLUGINLDFLAGS) -o bin-win32/plugin.dll

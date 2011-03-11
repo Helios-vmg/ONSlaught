@@ -3,22 +3,24 @@ CXX = g++
 NONSCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 -DNONS_SVN -DBUILD_ONSLAUGHT -w -g0 -O3 -Iinclude -Iinclude/mpg123 -Iinclude/mpg123/mingw -c
 NONSCFLAGS = $(NONSCXXFLAGS)
 PLUGINCXXFLAGS = -DWIN32 -DUNICODE -DWINVER=0x0500 -DNONS_SVN -DBUILD_PLUGIN -w -g0 -O3 -Iinclude
-NONSLDFLAGS = -Llib-win32 -static-libgcc -s -lmingw32 -lSDL_image -lbz2 -lFLAC_static -lfreetype -ljpeg -lmikmod -lmpg123 -lpng -lOpenAL32 -lSDL -lSDLmain -ltiff -ltimidity -lvorbisfile -lvorbis -logg -lz  -mwindows -Wl,--out-implib=bin-win32/libONSlaught.a
-PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static-libgcc -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
+NONSLDFLAGS = -Llib-win32 -static -static-libgcc -static-libstdc++ -s -lmingw32 -lSDL_image -lbz2 -lFLAC_static -lfreetype -ljpeg -lmikmod -lmpg123 -lpng -lOpenAL32 -lSDL -lSDLmain -ltiff -ltimidity -lvorbisfile -lvorbis -logg -lz  -mwindows -Wl,--out-implib=bin-win32/libONSlaught.a
+PLUGINLDFLAGS = -Llib-win32 -Lbin-win32 -static -static-libgcc -static-libstdc++ -s -lSDL -lONSlaught -mwindows -shared -Wl,--dll
 RC = windres
 RCFLAGS = -J rc -O coff
 INPUTS = objs/Archive.o objs/Audio.o objs/AudioFormats.o objs/ErrorCodes.o objs/ExpressionParser.tab.o objs/FileLog.o objs/Functions.o objs/GFX.o objs/GUI.o objs/Image.o objs/INIfile.o objs/INIParser.tab.o objs/IOFunctions.o objs/metadata.o objs/stream_decoder.o objs/stream_encoder.o objs/common.o objs/instrum.o objs/instrum_dls.o objs/mix.o objs/output.o objs/playmidi.o objs/readmidi.o objs/resample.o objs/stream.o objs/tables.o objs/timidity.o objs/LZMA.o objs/ONSlaught.o objs/OpenAL.o objs/Options.o objs/LibraryLoader.o objs/ScreenSpace.o objs/Script.o objs/ScriptInterpreter.o objs/sha1.o objs/SJIS.table.o objs/Thread.o objs/ThreadManager.o objs/tinyxml.o objs/tinyxmlerror.o objs/tinyxmlparser.o objs/VariableStore.o objs/VirtualScreen.o 
 
-all: objs bin-win32/ONSlaught.exe bin-win32/plugin.dll
+all: bin-win32/ONSlaught.exe
 
 clean:
 	rm -rf objs
 
+plugin: bin-win32/plugin.dll
+
 objs:
 	(mkdir -p bin-win32 || mkdir -p objs) && mkdir -p objs
 
-bin-win32/ONSlaught.exe: $(INPUTS) objs/onslaught.res
-	$(CXX) $^ $(NONSLDFLAGS) -o bin-win32/ONSlaught.exe
+bin-win32/ONSlaught.exe: objs $(INPUTS) objs/onslaught.res
+	$(CXX) $(INPUTS) objs/onslaught.res $(NONSLDFLAGS) -o bin-win32/ONSlaught.exe
 
 bin-win32/plugin.dll: bin-win32/libONSlaught.a
 	$(CXX) $(PLUGINCXXFLAGS) src/Plugin/Plugin.cpp $(PLUGINLDFLAGS) -o bin-win32/plugin.dll

@@ -75,8 +75,8 @@ src/VariableStore.cpp
 src/VirtualScreen.cpp
 )
 
-add_library(plugin SHARED
-	src/Plugin/Plugin.cpp
-)
+#add_library(plugin SHARED
+#	src/Plugin/Plugin.cpp
+#)
 
 target_link_libraries(ONSlaught ${LIBS})

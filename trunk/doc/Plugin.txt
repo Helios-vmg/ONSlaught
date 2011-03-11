@@ -12,13 +12,15 @@ The commands nega and monocro apply filter effects on the screen contents below 
 Asynchronous effects are new to ONSlaught. They are applied on the entire screen (including the text window) several times per second. A perfect example would be a static effect that gives the screen a sort of TV screen look. To call asynchronous effects, use the command async_effect.
 
 The entire API is explained in detail in src/Plugin/Plugin.cpp, so I won't repeat myself here. Instead, I'll explain how to compile and use the plug-in.
+Before starting, note that there's an #error directive in src/Plugin/Plugin.cpp that explains a very important point. Make sure you read it.
 
 Windows:
 Compiling with Visual C++:
 With VC++, it's pretty simple. Compiling the engine generates a .lib file (the name depends on the build configuration). To compile the plug-in, merely compile first the engine and then the plug-in. I believe CTRL+Shift+B is the default binding to build the solution. Building the solution builds everything in the correct order.
 
 Compiling with MSYS:
-MSYS by default builds both the engine and the plug-in.
+MSYS by default builds only the engine. To also build the plug-in, use
+make -f Makefile.MSYS plugin
 
 Running:
 Now the plug-in is built either with VC++ or MingW. There's either a plugin_d.dll or a plugin.dll, depending on whether you built with debug information or not. An executable built with debug information will only use plugin_d.dll, and one built without debug information will only use plugin.dll. This is important. An executable built for debug should not be linked dynamically with a DLL built for release, so don't rename the DLLs. Also don't mix executables built with one compiler with DLLs built with another. It won't work.
@@ -26,7 +28,11 @@ Windows looks for usable DLLs using the PATH environment variable, but first loo
 
 Unices:
 Compiling with GCC:
-This process is much more simple. Just compiling the engine as normal (see INSTALL.txt) also builds the plug-in.
+Uncomment
+add_library(plugin SHARED
+	src/Plugin/Plugin.cpp
+)
+in CMakeFiles.txt, then compile as normal (see INSTALL.txt or README-fulldep.txt, whichever applies).
 
 Running:
 Running, however, is a different story. UNIX has a slightly more complex system for looking for shared objects. I'm not entirely sure how it works, but I do know that the system will look for them considering, among other things, the LD_LIBRARY_PATH environment variable. The method I'll describe below uses this environment variable. If you've built the engine using the fulldep package, I've already done all this bureaucracy for you.
