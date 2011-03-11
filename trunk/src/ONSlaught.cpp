@@ -365,8 +365,11 @@ int main(int argc,char **argv){
 	{
 		NONS_ScriptInterpreter interpreter;
 		gScriptInterpreter=&interpreter;
-		if (CLOptions.debugMode)
-			console.init();
+		NONS_DebuggingConsole debug_console;
+		if (CLOptions.debugMode){
+			debug_console.init();
+			console=&debug_console;
+		}
 
 		NONS_Thread thread(mainThread);
 		SDL_Event event;

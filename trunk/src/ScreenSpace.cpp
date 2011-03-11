@@ -657,7 +657,7 @@ void NONS_StandardOutput::Clear(bool eraseBuffer){
 		}
 		if (this->currentBuffer.size()>0){
 			if (textDumpFile.is_open()){
-				textDumpFile <<UniToUTF8(this->currentBuffer)<<std::endl;
+				textDumpFile <<UniToUTF8(remove_tags(this->currentBuffer))<<std::endl;
 				textDumpFile.flush();
 			}
 			if (this->maxLogPages){

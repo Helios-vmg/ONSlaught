@@ -31,7 +31,8 @@ Bug fixes:
   * Fixed possible bug in NONS_FontCache::get_glyph().
   * Fixed null dereference in NONS_ScriptInterpreter::load().
   * Fixed graphical bug in savegame loading mechanism.
-  * Fixed bug in BZ2 decompression routine.
+  * Fixed bug in BZ2 de/compression routine.
+  * Fixed bug in debugging console that caused crash at exit.
 
 
 20100714

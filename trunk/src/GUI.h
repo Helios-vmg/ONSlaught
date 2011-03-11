@@ -523,5 +523,5 @@ public:
 	void output(const std::wstring &str,NONS_ScreenSpace *dst);
 };
 
-extern NONS_DebuggingConsole console;
+extern NONS_DebuggingConsole *console;
 #endif

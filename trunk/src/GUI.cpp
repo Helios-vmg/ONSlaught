@@ -37,7 +37,7 @@
 #include <freetype/ftoutln.h>
 #include <freetype/ftstroke.h>
 
-NONS_DebuggingConsole console;
+NONS_DebuggingConsole *console=0;
 
 template <typename T>
 inline T FT_FLOOR(T x){
@@ -339,10 +339,12 @@ int NONS_Cursor::animate(NONS_Menu *menu,ulong expiration){
 						goto animate_000;
 					case SDL_KEYDOWN:
 						if (event.key.keysym.sym==SDLK_PAUSE){
-							console.enter(this->screen);
-							if (queue.emptify()){
-								ret=-1;
-								goto animate_000;
+							if (console){
+								console->enter(this->screen);
+								if (queue.emptify()){
+									ret=-1;
+									goto animate_000;
+								}
 							}
 							break;
 						}
@@ -772,9 +774,11 @@ int NONS_ButtonLayer::getUserInput(int x,int y,bool override_placement){
 							return mouseOver->first;
 						break;
 					case SDLK_PAUSE:
-						console.enter(this->screen);
-						if (!queue.emptify())
-							return INT_MIN;
+						if (console){
+							console->enter(this->screen);
+							if (!queue.emptify())
+								return INT_MIN;
+						}
 						break;
 					default:
 						break;
@@ -947,9 +951,11 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 						SDLKey key=event.key.keysym.sym;
 						switch (key){
 							case SDLK_PAUSE:
-								console.enter(this->screen);
-								if (!queue.emptify())
-									return INT_MIN;
+								if (console){
+									console->enter(this->screen);
+									if (!queue.emptify())
+										return INT_MIN;
+								}
 								break;
 							case SDLK_UP:
 							case SDLK_DOWN:

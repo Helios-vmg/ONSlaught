@@ -167,7 +167,7 @@ void usage(){
 		"  -default-font <filename>\n"
 		"      Use <filename> as the main font. Defaults to \"default.ttf\".\n"
 		"  -console-font <filename>\n"
-		"      Use <filename> as the font for the debugging console. Defaults to"
+		"      Use <filename> as the font for the debugging console. Defaults to\n"
 		"      \"cour.ttf\".\n"
 	;
 	exit(0);
