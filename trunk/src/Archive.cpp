@@ -466,7 +466,7 @@ uchar *compress_memory_to_new_memory(size_t &dst_l,void *src,size_t src_l){
 	for (ulong a=0;a<dtus.final_size;){
 		size_t b=temp.front().size();
 		if (b)
-			memcpy(ret,&(temp.front())[0],b);
+			memcpy(ret+a,&(temp.front())[0],b);
 		a+=b;
 		temp.pop_front();
 	}
