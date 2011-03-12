@@ -880,4 +880,20 @@ void normalize_line_endings(std::basic_string<T> &s){
 	}
 	s.resize(write);
 }
+
+template <typename T>
+size_t find_last_not_of_id(const std::basic_string<T> &str,size_t pos=std::basic_string<T>::npos){
+	if (!str.size())
+		return str.npos;
+	if (pos==str.npos || pos>=str.size())
+		pos=str.size()-1;
+	const T *p=&str[0];
+	while (1){
+		if (!NONS_isidnchar(p[pos]))
+			break;
+		if (!pos--)
+			return str.npos;
+	}
+	return pos;
+}
 #endif

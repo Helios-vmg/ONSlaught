@@ -952,6 +952,7 @@ void NONS_ScreenSpace::BlendOptimized(std::vector<NONS_LongRect> &rects){
 			maxy=y1;
 	}
 	NONS_LongRect refresh_area(minx,miny,maxx-minx,maxy-miny);
+	refresh_area=refresh_area.intersect(NONS_LongRect(this->screen->inRect));
 	if (!(refresh_area.w*refresh_area.h))
 		return;
 	this->screenBuffer.fill(refresh_area,NONS_Color::black_transparent);

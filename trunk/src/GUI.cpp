@@ -1878,7 +1878,7 @@ void NONS_DebuggingConsole::autocomplete(std::vector<std::wstring> &dst,const st
 	std::wstring first,
 		second,
 		third=line.substr(cursor);
-	ulong cutoff=line.find_last_of(WCS_WHITESPACE,cursor);
+	ulong cutoff=find_last_not_of_id(line,cursor);
 	if (cutoff==line.npos)
 		cutoff=0;
 	else
