@@ -2210,6 +2210,7 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 
 INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 	ulong advance_x=ulong(65536.0/x_multiplier);
+	const long half_unit=1<<15;
 
 	NONS_LongRect lsrc_rect,
 		ldst_rect;
@@ -2218,17 +2219,36 @@ INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 
 	long Y=long(fsrc_rect.y*65536.f);
 	uchar *dst_pix=dst.pixels+ldst_rect.y*dst.pitch+ldst_rect.x*4;
-	for (long y=ldst_rect.y;y<ldst_rect.h;y++){
-		const uchar *src_pix=src.pixels+src.pitch*(Y>>16);
-		long X=long(fsrc_rect.x*65536.f);
-		uchar *dst_pix0=dst_pix;
-		for (long x=ldst_rect.x;x<ldst_rect.w;x++){
-			*(Uint32 *)dst_pix=*(const Uint32 *)(src_pix+(X>>16)*4);
-			X+=advance_x;
-			dst_pix+=4;
+	if (dst.same_format(src)){
+		for (long y=ldst_rect.y;y<ldst_rect.h;y++){
+			const uchar *src_pix=src.pixels+src.pitch*((Y+half_unit)>>16);
+			long X=long(fsrc_rect.x*65536.f);
+			uchar *dst_pix0=dst_pix;
+			for (long x=ldst_rect.x;x<ldst_rect.w;x++){
+				*(Uint32 *)dst_pix=*(const Uint32 *)(src_pix+(((X+half_unit)>>14)&~3));
+				X+=advance_x;
+				dst_pix+=4;
+			}
+			dst_pix=dst_pix0+dst.pitch;
+			Y+=advance_x;
 		}
-		dst_pix=dst_pix0+dst.pitch;
-		Y+=advance_x;
+	}else{
+		for (long y=ldst_rect.y;y<ldst_rect.h;y++){
+			const uchar *src_pix=src.pixels+src.pitch*((Y+half_unit)>>16);
+			long X=long(fsrc_rect.x*65536.f);
+			uchar *dst_pix0=dst_pix;
+			for (long x=ldst_rect.x;x<ldst_rect.w;x++){
+				const uchar *px=src_pix+(((X+half_unit)>>14)&~3);
+				dst_pix[dst.offsets[0]]=px[src.offsets[0]];
+				dst_pix[dst.offsets[1]]=px[src.offsets[1]];
+				dst_pix[dst.offsets[2]]=px[src.offsets[2]];
+				dst_pix[dst.offsets[3]]=px[src.offsets[3]];
+				X+=advance_x;
+				dst_pix+=4;
+			}
+			dst_pix=dst_pix0+dst.pitch;
+			Y+=advance_x;
+		}
 	}
 }
 
@@ -2237,6 +2257,13 @@ INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 NONS_Surface_DEFINE_INTERPOLATION_F(NN_interpolation,NN_interpolation_threaded)
 NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation,bilinear_interpolation_threaded)
 NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation2,bilinear_interpolation2_threaded)
+
+template <typename T>
+T get_integer_part(T x){
+	T r;
+	modf(x,&r);
+	return r;
+}
 
 NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 	const NONS_Rect &sr=src_rect,
@@ -2262,14 +2289,14 @@ NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 	for (ulong a=0;a<cpu_count;a++){
 		interpolation_parameters &p=parameters[a];
 		p=parameters.front();
-		p.pt3=sr;
-		p.pt3.y+=a*division[0];
-		p.pt3.h=division[0];
 		p.pt1=dr;
-		p.pt1.y+=a*division[1];
-		p.pt1.h=division[1];
-		total[0]+=division[0];
-		total[1]+=division[1];
+		p.pt1.y+=a*long(division[1]);
+		p.pt1.h=get_integer_part(division[1]);
+		p.pt3=sr;
+		p.pt3.y=p.pt1.y/float(y);
+		p.pt3.h=p.pt1.h/float(y);
+		total[0]+=p.pt3.h;
+		total[1]+=p.pt1.h;
 		p.pt2=ssp;
 		p.pt0=dsp;
 		p.pt4=x;
