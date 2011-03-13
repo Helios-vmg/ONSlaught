@@ -829,7 +829,7 @@ void NONS_ButtonLayer::react_to_updown(map_t::iterator &mouseOver,SDLKey key,con
 	NONS_LongRect rect=button->get_dimensions();
 	rect.x=rect.x+rect.w/2;
 	rect.y=rect.y+rect.h/2;
-	SDL_WarpMouse((Uint16)rect.x,(Uint16)rect.y);
+	SDL_WarpMouse((Uint16)this->screen->screen->convertX((float)rect.x),(Uint16)this->screen->screen->convertY((float)rect.y));
 }
 
 bool NONS_ButtonLayer::react_to_click(map_t::iterator &mouseOver,const NONS_ConstSurface &screenCopy){

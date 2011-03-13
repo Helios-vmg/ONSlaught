@@ -61,7 +61,7 @@ typedef unsigned char uchar;
 
 EXTERN_C_BLOCK_O
 #ifndef BUILD_SVG
-#define SVG_DECLARE_FUNCTION(return,name,parameters) typedef SVG_DECLSPEC return (*name##_f)parameters;\
+#define SVG_DECLARE_FUNCTION(return,name,parameters) typedef return (*name##_f)parameters;\
 SVG_DECLSPEC return name parameters
 #else
 #define SVG_DECLARE_FUNCTION(return,name,parameters) typedef return(*name##_f)parameters;

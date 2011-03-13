@@ -192,11 +192,11 @@ public:
 	SDL_Surface *toggleFullscreenFromVideo(const NONS_Surface &s);
 	template <typename T>
 	float convertX(T x){
-		return (float)this->convertW(x)+this->outRect.x;
+		return this->convertW(x)+this->outRect.x;
 	}
 	template <typename T>
 	float convertY(T y){
-		return (float)this->convertH(y)+this->outRect.y;
+		return this->convertH(y)+this->outRect.y;
 	}
 	template <typename T>
 	float unconvertX(T x){
@@ -208,11 +208,19 @@ public:
 	}
 	template <typename T>
 	float convertW(T w){
-		return floor((float)w*this->x_multiplier+.5f);
+		return (float)w*this->x_multiplier;
 	}
 	template <typename T>
 	float convertH(T h){
-		return floor((float)h*this->y_multiplier+.5f);
+		return (float)h*this->y_multiplier;
+	}
+	template <typename T>
+	float unconvertW(T w){
+		return (float)w/this->x_multiplier;
+	}
+	template <typename T>
+	float unconvertH(T h){
+		return (float)h/this->y_multiplier;
 	}
 	std::wstring takeScreenshot(const std::wstring &filename=L"");
 	void initEffectList();
@@ -229,6 +237,7 @@ public:
 	void load_async_fx(TiXmlElement *,const char *name=0);
 	TiXmlElement *save_filter_pipeline(const char *override_name=0);
 	void load_filter_pipeline(TiXmlElement *,const char *name=0);
+	const NONS_Rect &get_outRect(){ return this->outRect; }
 };
 
 FILTER_EFFECT_F(effectMonochrome);

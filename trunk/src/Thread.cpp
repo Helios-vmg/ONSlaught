@@ -92,8 +92,16 @@ void NONS_Event::wait(){
 NONS_Thread::~NONS_Thread(){
 	if (!this->called)
 		return;
-	if (this->join_at_destruct)
+	if (this->join_at_destruct){
 		this->join();
+		this->free();
+	}
+}
+
+void NONS_Thread::free(){
+#if NONS_SYS_WINDOWS
+	CloseHandle(this->thread);
+#endif
 }
 
 void NONS_Thread::call(NONS_ThreadedFunctionPointer function,void *data,bool give_highest_priority){
@@ -144,10 +152,8 @@ void NONS_Thread::join(){
 void NONS_Thread::unbind(){
 	if (!this->join_at_destruct)
 		return;
-	this->join_at_destruct=1;
-#if NONS_SYS_WINDOWS
-	CloseHandle(this->thread);
-#endif
+	this->join_at_destruct=0;
+	this->free();
 }
 
 NONS_Thread_DECLARE_THREAD_FUNCTION(NONS_Thread::runningThread){

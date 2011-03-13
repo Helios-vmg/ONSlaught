@@ -1366,11 +1366,30 @@ bool write_png_file(std::wstring filename,NONS_ConstSurface s,bool fill_alpha){
 	return ret;
 }
 
+class thread_holder{
+	std::list<NONS_Thread *> threads;
+	NONS_Mutex mutex;
+public:
+	~thread_holder(){
+		while (this->threads.size()){
+			NONS_Thread *t=this->threads.front();
+			this->threads.pop_front();
+			t->join();
+			delete t;
+		}
+	}
+	template <typename T>
+	void call(T *o){
+		NONS_MutexLocker ml(this->mutex);
+		this->threads.push_back(new NONS_Thread(o));
+	}
+} holder;
+
 void NONS_ConstSurface::save_bitmap(const std::wstring &filename,bool fill_alpha,bool threaded) const{
 	if (!*this)
 		return;
 	if (threaded)
-		NONS_Thread(bind(write_png_file,filename,this->clone(),fill_alpha)).unbind();
+		holder.call(bind(write_png_file,filename,this->clone(),fill_alpha));
 	else
 		write_png_file(filename,*this,fill_alpha);
 }
@@ -2210,6 +2229,7 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 
 INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 	ulong advance_x=ulong(65536.0/x_multiplier);
+	ulong advance_y=ulong(65536.0/y_multiplier);
 	const long half_unit=1<<15;
 
 	NONS_LongRect lsrc_rect,
@@ -2230,7 +2250,7 @@ INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 				dst_pix+=4;
 			}
 			dst_pix=dst_pix0+dst.pitch;
-			Y+=advance_x;
+			Y+=advance_y;
 		}
 	}else{
 		for (long y=ldst_rect.y;y<ldst_rect.h;y++){
@@ -2247,7 +2267,7 @@ INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
 				dst_pix+=4;
 			}
 			dst_pix=dst_pix0+dst.pitch;
-			Y+=advance_x;
+			Y+=advance_y;
 		}
 	}
 }
@@ -2260,14 +2280,16 @@ NONS_Surface_DEFINE_INTERPOLATION_F(bilinear_interpolation2,bilinear_interpolati
 
 template <typename T>
 T get_integer_part(T x){
-	T r;
-	modf(x,&r);
-	return r;
+	double r=x;
+	modf(r,&r);
+	return (T)r;
 }
 
 NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
-	const NONS_Rect &sr=src_rect,
-		&dr=dst_rect;
+	NONS_Rect sr=src_rect,
+		dr=dst_rect;
+	sr=sr.intersect(NONS_Rect(src.clip_rect()));
+	dr=dr.intersect(NONS_Rect(this->clip_rect()));
 	if (this->data->cow)
 		*this=this->clone();
 	NONS_SurfaceProperties ssp,
@@ -2293,7 +2315,7 @@ NONS_Surface_DECLARE_INTERPOLATION_F_INTERNAL(NONS_Surface::,interpolation){
 		p.pt1.y+=a*long(division[1]);
 		p.pt1.h=get_integer_part(division[1]);
 		p.pt3=sr;
-		p.pt3.y=p.pt1.y/float(y);
+		p.pt3.y+=total[0];
 		p.pt3.h=p.pt1.h/float(y);
 		total[0]+=p.pt3.h;
 		total[1]+=p.pt1.h;

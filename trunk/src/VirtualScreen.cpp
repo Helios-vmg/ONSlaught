@@ -210,12 +210,17 @@ NONS_DECLSPEC void NONS_VirtualScreen::updateScreen(ulong x,ulong y,ulong w,ulon
 		}
 	}
 	if (this->usingFeature[INTERPOLATION]){
-		NONS_Rect s((float)x,(float)y,(float)w,(float)h),
-			d(
-				this->convertX(x),
-				this->convertY(y),
-				this->convertW(w),
-				this->convertH(h)
+		NONS_Rect d(
+				floor(this->convertX(x)+.5f),
+				floor(this->convertY(y)+.5f),
+				floor(this->convertW(w)+.5f),
+				floor(this->convertH(h)+.5f)
+			),
+			s(
+				this->unconvertX(d.x),
+				this->unconvertY(d.y),
+				this->unconvertW(d.w),
+				this->unconvertH(d.h)
 			);
 		if (d.x+d.w>this->outRect.w+this->outRect.x)
 			d.w=(long)this->outRect.w-d.x+(long)this->outRect.x;

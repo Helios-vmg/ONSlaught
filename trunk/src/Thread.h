@@ -60,6 +60,7 @@ class NONS_Thread{
 	static NONS_Thread_DECLARE_THREAD_FUNCTION(runningThread);
 	bool called,
 		join_at_destruct;
+	void free();
 public:
 	NONS_Thread():called(0),join_at_destruct(1){}
 	NONS_Thread(NONS_ThreadedFunctionPointer function,bool give_highest_priority=0):called(0),join_at_destruct(1){
