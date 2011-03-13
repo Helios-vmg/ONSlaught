@@ -379,7 +379,6 @@ bool NONS_StandardOutput::print(ulong start,ulong end,NONS_VirtualScreen *dst,ul
 		x0=this->x;
 	y0=this->y;
 	int lineSkip=this->foregroundLayer->fontCache->line_skip;
-	int fontLineSkip=this->foregroundLayer->fontCache->font_line_skip;
 	NONS_Clock clock;
 	NONS_Clock::t t0,t1;
 	if (this->resumePrinting)
@@ -1239,7 +1238,6 @@ TiXmlElement *NONS_ScreenSpace::save_characters(){
 	TiXmlElement *characters=new TiXmlElement("characters");
 	characters->SetAttribute("baseline",this->char_baseline);
 	for (int a=0;a<3;a++){
-		NONS_Layer *p=*this->characters[this->charactersBlendOrder[a]];
 		TiXmlElement *character=
 			(!*this->characters[a] || !(*this->characters[a])->data)?
 			new TiXmlElement("character"):

@@ -130,10 +130,8 @@ inline int16_t fix_24bit_sample(FLAC__int32 v){
 }
 
 inline int16_t fix_32bit_sample(FLAC__int32 v){
-	FLAC__int32 v2=v+0x80;
-	if (v2<v)
-		v2|=~v2;
-	return (v+0x80)>>8;
+	const FLAC__int32 max_i32=0xFFFFFFFF;
+	return ((max_i32-0x80<v)?max_i32:v+0x80)>>8;
 }
 
 flac_decoder::flac_decoder(NONS_DataStream *stream):decoder(stream),buffer(0){
@@ -427,7 +425,9 @@ bool mod_static_data::perform_initialization(){
 	md_mixfreq=44100;
 	md_volume=100;
 	MikMod_RegisterAllLoaders();
-	if (MikMod_Init(""))
+	//Shut GCC up:
+	char s[]="";
+	if (MikMod_Init(s))
 		return 0;
 	return 1;
 }

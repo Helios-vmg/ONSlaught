@@ -1007,7 +1007,7 @@ public:
 		return result;
 	}
 	float QueryFloatAttribute( const char* name ) const {
-		float temp;
+		float temp=0;
 		this->QueryFloatAttribute(name,&temp);
 		return temp;
 	}

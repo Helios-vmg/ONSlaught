@@ -50,8 +50,8 @@ public:
 	void(*freeExtraData)(void *);
 	bool is_dir,
 		skip;
-	TreeNode():is_dir(0),skip(0),extraData(0),freeExtraData(0){}
-	TreeNode(const std::wstring &s):is_dir(0),name(s),skip(0),extraData(0),freeExtraData(0){}
+	TreeNode():extraData(0),freeExtraData(0),is_dir(0),skip(0){}
+	TreeNode(const std::wstring &s):name(s),extraData(0),freeExtraData(0),is_dir(0),skip(0){}
 	~TreeNode();
 	void clear(){ this->branches.clear(); }
 	TreeNode *get_branch(const std::wstring &path,bool create);
@@ -129,8 +129,8 @@ struct ZIPdata{
 		crc32(0),
 		compressed(0),
 		uncompressed(0),
-		disk(0),
-		data_offset(0){}
+		data_offset(0),
+		disk(0){}
 };
 
 class ZIParchive:public Archive{

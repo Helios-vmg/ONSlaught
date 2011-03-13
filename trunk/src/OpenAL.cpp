@@ -92,7 +92,6 @@ bool audio_sink::needs_more_data(){
 }
 
 void audio_sink::push(const void *buffer,size_t length,ulong freq,ulong channels,ulong bit_depth){
-	static double t=NONS_Clock().get();
 	if (!*this)
 		return;
 	ALint queued,

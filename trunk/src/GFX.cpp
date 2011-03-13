@@ -557,7 +557,6 @@ void NONS_GFX::effectHardMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 	std::vector<function_parameters> parameters(cpu_count);
 	//prepare for threading
 	ulong division=ulong(float(src_rect.h)/float(cpu_count));
-	ulong total=0;
 	src0.get_properties(parameters[0].pt0);
 	mask_copy.get_properties(parameters[0].pt1);
 	parameters.front().f=effectHardMask_threaded;
@@ -643,7 +642,6 @@ void NONS_GFX::effectSoftMask(const NONS_ConstSurface &src0,const NONS_ConstSurf
 	NONS_SurfaceProperties screen_sp;
 	//prepare for threading
 	ulong division=ulong(float(src_rect.h)/float(cpu_count));
-	ulong total=0;
 	src0.get_properties(parameters[0].pt0);
 	mask_copy.get_properties(parameters[0].pt1);
 	parameters.front().pt0.h=division;

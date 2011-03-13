@@ -374,8 +374,16 @@ int main(int argc,char **argv){
 		NONS_Thread thread(mainThread);
 		SDL_Event event;
 		while (!stopEventHandling){
-			while (SDL_PollEvent(&event) && !stopEventHandling)
+			while (!stopEventHandling){
+				{
+#if NONS_SYS_UNIX
+					NONS_MutexLocker ml(caption_mutex);
+#endif
+					if (!SDL_PollEvent(&event))
+						break;
+				}
 				handleInputEvent(event);
+			}
 			SDL_Delay(10);
 		}
 	}

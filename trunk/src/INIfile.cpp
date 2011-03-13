@@ -106,6 +106,8 @@ void INIfile::readFile(std::vector<uchar> &buffer,ENCODING::ENCODING encoding){
 			break;
 		case ENCODING::UTF8:
 			buffer2=UniFromUTF8(buffer);
+		//Shut GCC up.
+		default:;
 	}
 	std::wstringstream stream;
 	stream <<'\0'<<buffer2;

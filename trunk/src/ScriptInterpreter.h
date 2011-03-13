@@ -453,4 +453,7 @@ public:
 };
 
 extern NONS_ScriptInterpreter *gScriptInterpreter;
+#if NONS_SYS_LINUX
+extern NONS_Mutex caption_mutex;
+#endif
 #endif

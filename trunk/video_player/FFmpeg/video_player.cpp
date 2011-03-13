@@ -441,7 +441,7 @@ AudioOutput::AudioOutput(ulong channels,ulong frequency){
 AudioOutput::~AudioOutput(){
 	this->stop_thread=1;
 	this->thread.join();
-	delete this->buffer;
+	delete[] this->buffer;
 }
 
 thread_safe_queue<audioBuffer> *AudioOutput::startThread(video_player *vp){

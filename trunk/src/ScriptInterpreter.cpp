@@ -42,6 +42,10 @@ HWND mainWindow=0;
 #endif
 #include "../video_player.h"
 
+#if NONS_SYS_LINUX
+NONS_Mutex caption_mutex;
+#endif
+
 #define MINIMUM_PARAMETERS(min) if (stmt.parameters.size()<(min)) return NONS_INSUFFICIENT_PARAMETERS
 #define GET_INT_VALUE(dst,src) HANDLE_POSSIBLE_ERRORS(this->store->getIntValue(stmt.parameters[(src)],(dst),0))
 #define GET_COORDINATE(dst,axis,src) {                                                                                 \
@@ -175,7 +179,7 @@ NONS_StackElement::NONS_StackElement(NONS_StackElement *copy,const std::vector<s
 }
 
 NONS_StackElement::NONS_StackElement(const std::vector<std::wstring> &strings,const std::vector<std::wstring> &jumps,ulong level)
-		:strings(strings),jumps(jumps),type(StackFrameType::CSEL_CALL),buttons(0){
+		:type(StackFrameType::CSEL_CALL),strings(strings),jumps(jumps),buttons(0){
 	this->textgosubLevel=level;
 	this->textgosubTriggeredBy=0;
 }
@@ -217,6 +221,8 @@ TiXmlElement *NONS_StackElement::save(NONS_Script *script,NONS_VariableStore *st
 				parameter->SetAttribute("string",this->parameters[a]);
 			}
 			break;
+		//Shut GCC up.
+		default:;
 	}
 	return stack_frame;
 }
@@ -253,6 +259,8 @@ NONS_StackElement::NONS_StackElement(TiXmlElement *stack_frame,NONS_Script *scri
 			}
 			for (TiXmlElement *i=stack_frame->FirstChildElement();i;i=i->NextSiblingElement())
 				this->parameters.push_back(i->QueryWStringAttribute("string"));
+		//Shut GCC up.
+		default:;
 	}
 }
 
@@ -1037,16 +1045,25 @@ struct ff_file{
 };
 
 bool video_write(const void *src,ulong length,ulong channels,ulong frequency,void *user_data){
+	video_playback_params *vpp=(video_playback_params *)user_data;
+	if (!vpp->stream)
+		return 1;
 	audio_buffer buffer(src,length,frequency,channels,16);
-	return ((video_playback_params *)user_data)->stream->asynchronous_buffer_push(&buffer);
+	return vpp->stream->asynchronous_buffer_push(&buffer);
 }
 
 double video_get_time_offset(void *user_data){
-	return ((video_playback_params *)user_data)->stream->get_time_offset();
+	video_playback_params *vpp=(video_playback_params *)user_data;
+	if (!vpp->stream)
+		return 0;
+	return vpp->stream->get_time_offset();
 }
 
 void video_wait(void *user_data){
-	while (((video_playback_params *)user_data)->stream->is_sink_playing())
+	video_playback_params *vpp=(video_playback_params *)user_data;
+	if (!vpp->stream)
+		return;
+	while (vpp->stream->is_sink_playing())
 		SDL_Delay(10);
 }
 
@@ -1060,6 +1077,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 				return NONS_LIBRARY_NOT_FOUND;           \
 			case NONS_LibraryLoader::FUNCTION_NOT_FOUND: \
 				return NONS_FUNCTION_NOT_FOUND;          \
+			default:;                                    \
 		}                                                \
 	}
 	play_video_TRY_GET_FUNCTION(
@@ -1108,7 +1126,7 @@ ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool s
 			toggle_fullscreen=0,
 			take_screenshot=0;
 		asynchronous_audio_stream *stream=this->audio->new_video_stream();
-		stream->start();
+		CHECK_POINTER_AND_CALL(stream,start());
 		video_playback_params playback_params={
 			this->screen->screen,
 			screen,
@@ -2694,12 +2712,18 @@ ErrorCode NONS_ScriptInterpreter::command_btnwait(NONS_Statement &stmt){
 }
 
 ErrorCode NONS_ScriptInterpreter::command_caption(NONS_Statement &stmt){
-	if (!stmt.parameters.size())
+	if (!stmt.parameters.size()){
+#if NONS_SYS_UNIX
+		NONS_MutexLocker ml(caption_mutex);
+#endif
 		SDL_WM_SetCaption("",0);
-	else{
+	}else{
 		std::wstring temp;
 		GET_STR_VALUE(temp,0);
 #if !NONS_SYS_WINDOWS
+#if NONS_SYS_UNIX
+		NONS_MutexLocker ml(caption_mutex);
+#endif
 		SDL_WM_SetCaption(UniToUTF8(temp).c_str(),0);
 #else
 		SetWindowText(mainWindow,temp.c_str());
@@ -3125,7 +3149,6 @@ ErrorCode NONS_ScriptInterpreter::command_drawsp(NONS_Statement &stmt){
 	NONS_LongRect dstRect((long)x,(long)y,0,0);
 
 
-	bool freeSrc=0;
 	if (functionVersion>1){
 		NONS_Surface temp(srcRect.w,srcRect.h);
 		temp.over(src,0,&srcRect);
@@ -3410,6 +3433,8 @@ ErrorCode NONS_ScriptInterpreter::command_getini(NONS_Statement &stmt){
 		case STRING:
 			dst->set(val->getStrValue());
 			break;
+		//Shut GCC up.
+		default:;
 	}
 	return NONS_NO_ERROR;
 }

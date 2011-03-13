@@ -243,7 +243,7 @@ protected:
 		size;
 public:
 	std::wstring original_path;
-	NONS_DataStream(NONS_DataSource &ds,const std::wstring &name):source(&ds),offset(0),name(name){}
+	NONS_DataStream(NONS_DataSource &ds,const std::wstring &name):source(&ds),name(name),offset(0){}
 	virtual ~NONS_DataStream(){}
 	virtual bool read(void *dst,size_t &bytes_read,size_t count)=0;
 	virtual Uint64 seek(Sint64 offset,int direction);

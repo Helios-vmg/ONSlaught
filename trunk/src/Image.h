@@ -107,6 +107,11 @@ void over_blend(
 class NONS_CrippledSurface;
 struct NONS_Surface_Private;
 
+union pixel{
+	Uint8 array[4];
+	Uint32 i32;
+};
+
 struct NONS_Color{
 	Uint8 rgba[4];
 	NONS_Color(Uint8 r,Uint8 g,Uint8 b,Uint8 a=0xFF){
@@ -147,13 +152,12 @@ struct NONS_Color{
 		this->rgba[3]=a&0xFF;
 	}
 	Uint32 to_native(uchar *format) const{
-		Uint8 r[]={
-			this->rgba[format[0]],
-			this->rgba[format[1]],
-			this->rgba[format[2]],
-			this->rgba[format[3]]
-		};
-		return *(Uint32 *)r;
+		pixel r;
+		r.array[0]=this->rgba[format[0]];
+		r.array[1]=this->rgba[format[1]];
+		r.array[2]=this->rgba[format[2]];
+		r.array[3]=this->rgba[format[3]];
+		return r.i32;
 	}
 	bool operator==(const NONS_Color &b) const{
 		uchar f[]={0,1,2,3};

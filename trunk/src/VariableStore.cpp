@@ -1042,7 +1042,6 @@ void NONS_VariableStore::saveData(){
 
 TiXmlElement *NONS_VariableStore::save_locals(){
 	TiXmlElement *locals=new TiXmlElement("locals");
-	variables_map_T &varStack=this->variables;
 	{
 		TiXmlElement *scalars=new TiXmlElement("scalars");
 		locals->LinkEndChild(scalars);

@@ -997,7 +997,7 @@ int NONS_ButtonLayer::getUserInput(ulong expiration){
 }
 
 NONS_Menu::NONS_Menu(NONS_ScriptInterpreter *interpreter)
-		:on(0xFF,0xFF,0xFF),off(0xAA,0xAA,0xAA){
+		:off(0xAA,0xAA,0xAA),on(0xFF,0xFF,0xFF){
 	this->interpreter=interpreter;
 	this->nofile=this->off;
 	this->shadow=1;
@@ -1012,7 +1012,7 @@ NONS_Menu::NONS_Menu(NONS_ScriptInterpreter *interpreter)
 }
 
 NONS_Menu::NONS_Menu(std::vector<std::wstring> *options,NONS_ScriptInterpreter *interpreter)
-		:on(0xFF,0xFF,0xFF),off(0xA9,0xA9,0xA9){
+		:off(0xA9,0xA9,0xA9),on(0xFF,0xFF,0xFF){
 	this->interpreter=interpreter;
 	for (ulong a=0;a<options->size();a++){
 		this->strings.push_back((*options)[a++]);
@@ -1814,7 +1814,6 @@ void NONS_DebuggingConsole::enter(NONS_ScreenSpace *dst){
 		std::sort(this->autocompleteVector.begin(),this->autocompleteVector.end());
 	}
 	dst->screen->updateWholeScreen();
-	bool ret=1;
 	std::wstring inputLine=this->partial;
 	while (this->input(inputLine,dst)){
 		if (!stdStrCmpCI(inputLine,L"quit")){

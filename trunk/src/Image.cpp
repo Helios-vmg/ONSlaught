@@ -185,6 +185,8 @@ long NONS_AnimationInfo::advanceAnimation(ulong msecs){
 	if (updated>=0)
 		return updated;
 	switch (this->loop_type){
+		case NO_CYCLE:
+			break;
 		case SAWTOOTH_WAVE_CYCLE:
 			this->animation_time_offset%=this->frame_ends.back();
 			break;
@@ -299,7 +301,7 @@ public:
 		friend class NONS_SurfaceManager;
 	public:
 		index_t():_good(0){}
-		index_t(const surfaces_t::iterator &i):_good(1),i(i),p(0){}
+		index_t(const surfaces_t::iterator &i):_good(1),p(0),i(i){}
 		index_t(Surface *p):_good(!!p),p(p){}
 		const Surface &operator*() const{ return (this->p)?*this->p:**this->i; }
 		const Surface *operator->() const{ return (this->p)?this->p:*this->i; }
@@ -837,12 +839,12 @@ void mirror_1D(
 		src2+=(((y_advance>0)?y:(h-1-y))*w*4)+(((x_advance>0)?0:(w-1))*4);
 		dst2+=y*w*4;
 		for (ulong x=0;x<w;x++){
-			uchar p[4];
-			p[dst_offsets[0]]=src2[src_offsets[0]];
-			p[dst_offsets[1]]=src2[src_offsets[1]];
-			p[dst_offsets[2]]=src2[src_offsets[2]];
-			p[dst_offsets[3]]=src2[src_offsets[3]];
-			*(Uint32 *)dst2=*(Uint32 *)p;
+			pixel p;
+			p.array[dst_offsets[0]]=src2[src_offsets[0]];
+			p.array[dst_offsets[1]]=src2[src_offsets[1]];
+			p.array[dst_offsets[2]]=src2[src_offsets[2]];
+			p.array[dst_offsets[3]]=src2[src_offsets[3]];
+			*(Uint32 *)dst2=p.i32;
 			src2+=x_advance*4;
 			dst2+=4;
 		}
@@ -989,10 +991,10 @@ void get_final_size(const NONS_ConstSurfaceProperties &src,const NONS_Matrix &m,
 	h=ulong(floor(maxy-miny+.5));
 }
 
-#define TRANSFORM_SET_CHANNEL(i)                                                               \
-	m1=((pixel[0][src_sp.offsets[i]]*ifraction_x+pixel[1][src_sp.offsets[i]]*fraction_x)>>16); \
-	m2=((pixel[2][src_sp.offsets[i]]*ifraction_x+pixel[3][src_sp.offsets[i]]*fraction_x)>>16); \
-	rgba[dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
+#define TRANSFORM_SET_CHANNEL(i)                                                                 \
+	m1=((pixels[0][src_sp.offsets[i]]*ifraction_x+pixels[1][src_sp.offsets[i]]*fraction_x)>>16); \
+	m2=((pixels[2][src_sp.offsets[i]]*ifraction_x+pixels[3][src_sp.offsets[i]]*fraction_x)>>16); \
+	rgba.array[dst_sp.offsets[i]]=uchar((m1*ifraction_y+m2*fraction_y)>>16)
 
 void transform_threaded(bool fast,NONS_Matrix matrix,ulong y0,ulong h,ulong correct_x,ulong correct_y,NONS_SurfaceProperties dst_sp,NONS_ConstSurfaceProperties src_sp){
 	long long_matrix[4];
@@ -1014,12 +1016,12 @@ void transform_threaded(bool fast,NONS_Matrix matrix,ulong y0,ulong h,ulong corr
 					src_y0+=long_matrix[2];
 					if (!(src_x<0 || src_y<0 || (ulong)src_x>=src_sp.w || (ulong)src_y>=src_sp.h)){
 						const uchar *src_pixel=src_sp.pixels+src_x*4+src_y*src_sp.pitch;
-						uchar p[4];
-						p[dst_sp.offsets[0]]=src_pixel[src_sp.offsets[0]];
-						p[dst_sp.offsets[1]]=src_pixel[src_sp.offsets[1]];
-						p[dst_sp.offsets[2]]=src_pixel[src_sp.offsets[2]];
-						p[dst_sp.offsets[3]]=src_pixel[src_sp.offsets[3]];
-						*dst_pixel=*(Uint32 *)p;
+						pixel p;
+						p.array[dst_sp.offsets[0]]=src_pixel[src_sp.offsets[0]];
+						p.array[dst_sp.offsets[1]]=src_pixel[src_sp.offsets[1]];
+						p.array[dst_sp.offsets[2]]=src_pixel[src_sp.offsets[2]];
+						p.array[dst_sp.offsets[3]]=src_pixel[src_sp.offsets[3]];
+						*dst_pixel=p.i32;
 						dst_pixel++;
 						pixels_were_copied=1;
 						continue;
@@ -1033,27 +1035,27 @@ void transform_threaded(bool fast,NONS_Matrix matrix,ulong y0,ulong h,ulong corr
 					src_y0+=long_matrix[2];
 					if (temp_x0>-0x10000 && temp_x0<long(src_sp.w<<16) && temp_y0>-0x10000 && temp_y0<long(src_sp.h<<16)){
 						const uchar *sp=(const uchar *)(src_sp.pixels+src_y*src_sp.pitch+src_x*4);
-						const uchar *pixel[4]={
+						const uchar *pixels[4]={
 							sp,
 							sp+4,
 							sp+src_sp.pitch,
 							sp+src_sp.pitch+4,
 						};
 						if (src_x<0){
-							pixel[0]=empty_pixels;
-							pixel[2]=empty_pixels;
+							pixels[0]=empty_pixels;
+							pixels[2]=empty_pixels;
 						}
 						if (src_y<0){
-							pixel[0]=empty_pixels;
-							pixel[1]=empty_pixels;
+							pixels[0]=empty_pixels;
+							pixels[1]=empty_pixels;
 						}
 						if (src_x>=(long)src_sp.w-1){
-							pixel[1]=empty_pixels;
-							pixel[3]=empty_pixels;
+							pixels[1]=empty_pixels;
+							pixels[3]=empty_pixels;
 						}
 						if (src_y>=(long)src_sp.h-1){
-							pixel[2]=empty_pixels;
-							pixel[3]=empty_pixels;
+							pixels[2]=empty_pixels;
+							pixels[3]=empty_pixels;
 						}
 
 						long fraction_x,
@@ -1064,13 +1066,13 @@ void transform_threaded(bool fast,NONS_Matrix matrix,ulong y0,ulong h,ulong corr
 						fraction_y=GET_FRACTION(temp_y0);
 						ifraction_x=unit-fraction_x;
 						ifraction_y=unit-fraction_y;
-						uchar rgba[4];
+						pixel rgba;
 						long m1,m2;
 						TRANSFORM_SET_CHANNEL(0);
 						TRANSFORM_SET_CHANNEL(1);
 						TRANSFORM_SET_CHANNEL(2);
 						TRANSFORM_SET_CHANNEL(3);
-						*dst_pixel++=*(Uint32 *)rgba;
+						*dst_pixel++=rgba.i32;
 						pixels_were_copied=1;
 						continue;
 					}
@@ -1111,7 +1113,6 @@ NONS_SurfaceManager::index_t NONS_SurfaceManager::transform(const index_t &src,c
 	ulong correct_x=src_sp.w,
 		correct_y=src_sp.h;
 	get_corrected(correct_x,correct_y,m);
-	const uchar empty_pixels[4]={0};
 
 #ifndef USE_THREAD_MANAGER
 	std::vector<NONS_Thread> threads(cpu_count);
@@ -1490,7 +1491,6 @@ NONS_LongRect GetBoundingBox(const std::wstring &str,NONS_FontCache &cache,const
 			continue;
 		}else if (outline<0)
 			outline=(int)g->real_outline_size;
-		wchar_t character=g->get_codepoint();
 		NONS_LongRect r=g->get_put_bounding_box(x0,y0);
 		int advance=g->get_advance();
 
@@ -2090,8 +2090,7 @@ void set_rects(NONS_LongRect &lsrc_rect,NONS_LongRect &ldst_rect,const NONS_Rect
 
 INTERPOLATION_SIGNATURE(bilinear_interpolation_threaded){
 	const ulong unit=1<<16;
-	ulong advance_x=ulong(65536.0/x_multiplier),
-		advance_y=ulong(65536.0/y_multiplier);
+	ulong advance_x=ulong(65536.0/x_multiplier);
 	NONS_LongRect lsrc_rect,
 		ldst_rect;
 
@@ -2210,9 +2209,7 @@ INTERPOLATION_SIGNATURE(bilinear_interpolation2_threaded){
 //------------------------------------------------------------------------------
 
 INTERPOLATION_SIGNATURE(NN_interpolation_threaded){
-	const ulong unit=1<<16;
-	ulong advance_x=ulong(65536.0/x_multiplier),
-		advance_y=ulong(65536.0/y_multiplier);
+	ulong advance_x=ulong(65536.0/x_multiplier);
 
 	NONS_LongRect lsrc_rect,
 		ldst_rect;

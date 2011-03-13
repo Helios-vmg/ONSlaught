@@ -1465,6 +1465,8 @@ uchar *NONS_nsaArchiveSource::read_all(TreeNode *node,size_t &bytes_read){
 				case NSAdata::COMPRESSION_SPB:
 					ret=decode_SPB(compressed,data.compressed,data.uncompressed);
 					break;
+				//Shut GCC up:
+				default:;
 			}
 			delete[] compressed;
 		}
