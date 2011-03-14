@@ -111,6 +111,7 @@ public:
 	void get_channel_listing(channel_listing &cl);
 	asynchronous_audio_stream *new_video_stream();
 	void delete_video_stream(asynchronous_audio_stream *stream){
+		NONS_MutexLocker ml(this->mutex);
 		if (stream)
 			this->dev->remove(stream);
 	}

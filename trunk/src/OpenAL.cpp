@@ -236,7 +236,10 @@ void audio_stream::start(){
 		this->sink=0;
 	}else{
 		this->playing=1;
-		this->paused=0;
+		if (!this->paused)
+			this->dec->loop();
+		else
+			this->paused=0;
 		this->set_internal_volume();
 	}
 }
@@ -334,10 +337,8 @@ void audio_stream::mute(int mode){
 }
 
 int audio_stream::needs_update(){
-	if (!this->sink)
-		return 0;
 	if (!this->playing){
-		if (this->sink->get_state()==AL_STOPPED){
+		if (!this->sink || this->sink->get_state()==AL_STOPPED){
 			while (this->notify.size()){
 				this->notify.back()->set();
 				this->notify.pop_back();
@@ -414,6 +415,7 @@ void audio_device::remove(audio_stream *stream){
 
 asynchronous_audio_stream::asynchronous_audio_stream():audio_stream(L""){
 	this->good=1;
+	this->cleanup=1;
 }
 
 bool asynchronous_audio_stream::update(){

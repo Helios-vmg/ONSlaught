@@ -184,9 +184,9 @@ ErrorCode NONS_Audio::load_sound_on_a_channel(const std::wstring &filename,int &
 		return NONS_NO_ERROR;
 	if (!general_archive.exists(filename))
 		return NONS_FILE_NOT_FOUND;
+	NONS_MutexLocker ml(this->mutex);
 	if (!use_channel_as_input)
 		channel=this->channel_counter++;
-	NONS_MutexLocker ml(this->mutex);
 	audio_stream *stream=this->get_channel(channel);
 	if (stream)
 		this->dev->remove(stream);
@@ -342,7 +342,10 @@ asynchronous_audio_stream *NONS_Audio::new_video_stream(){
 		return 0;
 	NONS_MutexLocker ml(this->mutex);
 	asynchronous_audio_stream *stream=new asynchronous_audio_stream();
+	stream->start();
+	stream->mute(!this->notmute);
 	this->dev->add(stream);
+	this->channels[this->channel_counter++]=stream;
 	return stream;
 }
 
