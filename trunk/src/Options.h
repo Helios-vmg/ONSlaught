@@ -57,6 +57,7 @@ struct NONS_CommandLineOptions{
 #endif
 	bool debugMode;
 	bool noconsole;
+	bool resolution_set;
 	ushort virtualWidth,virtualHeight,
 		realWidth,realHeight;
 	bool startFullscreen;
@@ -92,6 +93,10 @@ class NONS_Settings{
 	void save_text_speed(TiXmlElement *settings);
 	void load_mute(TiXmlElement *settings);
 	void save_mute(TiXmlElement *settings);
+	void load_fullscreen(TiXmlElement *settings);
+	void save_fullscreen(TiXmlElement *settings);
+	void load_resolution(TiXmlElement *settings);
+	void save_resolution(TiXmlElement *settings);
 public:
 	~NONS_Settings(){
 		this->save();
@@ -106,6 +111,11 @@ public:
 	};
 	setting<int> text_speed;
 	setting<bool> mute;
+	setting<bool> fullscreen;
+	struct dimension{
+		int w,h;
+	};
+	setting<dimension> resolution;
 };
 
 extern NONS_Settings settings;

@@ -811,8 +811,25 @@ NONS_StandardOutput::NONS_StandardOutput(TiXmlElement *parent,NONS_FontCache &fc
 	this->lastStart=-1;
 }
 
+void NONS_ScreenSpace::alloc_screen(){
+	int w,h;
+	if (settings.resolution.set){
+		w=settings.resolution.data.w;
+		h=settings.resolution.data.h;
+	}else{
+		w=CLOptions.realWidth;
+		h=CLOptions.realHeight;
+		if (CLOptions.resolution_set){
+			settings.resolution.set=1;
+			settings.resolution.data.w=w;
+			settings.resolution.data.h=h;
+		}
+	}
+	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,w,h);
+}
+
 NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
-	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,CLOptions.realWidth,CLOptions.realHeight);
+	this->alloc_screen();
 	NONS_LongRect size(0,0,CLOptions.virtualWidth,CLOptions.virtualHeight);
 	if (!CLOptions.play.size()){
 		this->output=new NONS_StandardOutput(
@@ -854,7 +871,7 @@ NONS_ScreenSpace::NONS_ScreenSpace(int framesize,NONS_FontCache &fc){
 }
 
 NONS_ScreenSpace::NONS_ScreenSpace(const NONS_LongRect &window,const NONS_LongRect &frame,NONS_FontCache &fc,bool shadow){
-	this->screen=new NONS_VirtualScreen(CLOptions.virtualWidth,CLOptions.virtualHeight,CLOptions.realWidth,CLOptions.realHeight);
+	this->alloc_screen();
 	if (!CLOptions.play.size()){
 		this->output=new NONS_StandardOutput(fc,window,frame);
 		this->output->visible=0;

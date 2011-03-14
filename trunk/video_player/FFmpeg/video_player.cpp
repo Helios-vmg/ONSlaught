@@ -918,9 +918,9 @@ bool video_player::play_video(
 		pd.buf_size=fp.read(fp.data,pd.buf,1<<12);
 		aif=av_probe_input_format(&pd,1);
 	}
-	
+
 	fp.seek(fp.data,0,0);
-	if (av_open_input_stream(&avfc,&bioc,input,aif,0)!=0){
+	if (!aif || av_open_input_stream(&avfc,&bioc,input,aif,0)!=0){
 		exception_string="Unrecognized file format.";
 		return 0;
 	}

@@ -216,6 +216,8 @@ struct NONS_ScreenSpace{
 	void load_async_effect(TiXmlElement *);
 	void load_filters(TiXmlElement *);
 private:
+	void alloc_screen();
+
 	TiXmlElement *save_characters();
 	void load_characters(TiXmlElement *);
 	TiXmlElement *save_sprites();

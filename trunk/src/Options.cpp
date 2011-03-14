@@ -61,6 +61,7 @@ NONS_CommandLineOptions::NONS_CommandLineOptions(){
 #endif
 	this->debugMode=0;
 	this->noconsole=0;
+	this->resolution_set=0;
 	this->virtualWidth=DEFAULT_INPUT_WIDTH;
 	this->virtualHeight=DEFAULT_INPUT_HEIGHT;
 	this->realWidth=DEFAULT_OUTPUT_WIDTH;
@@ -331,6 +332,7 @@ void NONS_CommandLineOptions::parse(const std::vector<std::wstring> &arguments){
 					STD_CERR <<"Invalid argument syntax: \""<<arguments[a]<<"\"\n";
 					break;
 				}
+				this->resolution_set=1;
 				this->virtualWidth=(ushort)atol(arguments[++a]);
 				this->virtualHeight=(ushort)atol(arguments[++a]);
 				this->realWidth=(ushort)atol(arguments[++a]);
@@ -444,12 +446,16 @@ void NONS_Settings::init(const std::wstring &path){
 		this->doc.LinkEndChild(settings=new TiXmlElement("settings"));
 	this->load_text_speed(settings);
 	this->load_mute(settings);
+	this->load_fullscreen(settings);
+	this->load_resolution(settings);
 }
 
 void NONS_Settings::save(){
 	TiXmlElement *settings=this->doc.FirstChildElement("settings");
 	this->save_text_speed(settings);
 	this->save_mute(settings);
+	this->save_fullscreen(settings);
+	this->save_resolution(settings);
 	this->doc.SaveFile(this->path);
 }
 
@@ -471,4 +477,38 @@ void NONS_Settings::load_mute(TiXmlElement *settings){
 void NONS_Settings::save_mute(TiXmlElement *settings){
 	if (this->mute.set)
 		settings->SetAttribute("mute",(int)this->mute.data);
+}
+
+void NONS_Settings::load_fullscreen(TiXmlElement *settings){
+	int fullscreen;
+	this->fullscreen.set=!settings->QueryIntAttribute("fullscreen",&fullscreen);
+	this->fullscreen.data=fullscreen;
+}
+
+void NONS_Settings::save_fullscreen(TiXmlElement *settings){
+	if (this->fullscreen.set)
+		settings->SetAttribute("fullscreen",(int)this->fullscreen.data);
+}
+
+void NONS_Settings::load_resolution(TiXmlElement *settings){
+	TiXmlElement *resolution=settings->FirstChildElement("resolution");
+	if (!resolution)
+		return;
+	int w,h;
+	if (this->resolution.set=(!resolution->QueryIntAttribute("w",&w) && !resolution->QueryIntAttribute("h",&h))){
+		this->resolution.data.w=w;
+		this->resolution.data.h=h;
+	}
+}
+
+void NONS_Settings::save_resolution(TiXmlElement *settings){
+	if (!this->resolution.set)
+		return;
+	TiXmlElement *resolution=settings->FirstChildElement("resolution");
+	if (!resolution){
+		resolution=new TiXmlElement("resolution");
+		settings->LinkEndChild(resolution);
+	}
+	resolution->SetAttribute("w",this->resolution.data.w);
+	resolution->SetAttribute("h",this->resolution.data.h);
 }

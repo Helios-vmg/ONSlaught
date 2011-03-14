@@ -996,6 +996,7 @@ struct video_playback_params{
 	NONS_VirtualScreen *vs;
 	NONS_Surface screen;
 	asynchronous_audio_stream *stream;
+	NONS_Clock::t start_time;
 };
 
 SDL_Surface *playback_fullscreen_callback(volatile SDL_Surface *screen,void *user_data){
@@ -1054,8 +1055,14 @@ bool video_write(const void *src,ulong length,ulong channels,ulong frequency,voi
 
 double video_get_time_offset(void *user_data){
 	video_playback_params *vpp=(video_playback_params *)user_data;
-	if (!vpp->stream)
-		return 0;
+	if (!vpp->stream){
+		static NONS_Clock clock;
+		if (!vpp->start_time){
+			vpp->start_time=clock.get();
+			return 0;
+		}
+		return clock.get()-vpp->start_time;
+	}
 	return vpp->stream->get_time_offset();
 }
 

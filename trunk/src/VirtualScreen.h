@@ -96,32 +96,6 @@ struct pipelineElement{
 #define INTERPOLATION 1
 #define ASYNC_EFFECT 2
 
-#if defined DEBUG_SCREEN_MUTEX && 0
-class DEBUG_SCREEN_MUTEX_SDL_Surface{
-	SDL_Surface *data;
-	bool check_mutex;
-public:
-	DEBUG_SCREEN_MUTEX_SDL_Surface():data(0),check_mutex(0){}
-	SDL_Surface *operator=(SDL_Surface *p){ return this->data=p; }
-	void force_mutex_check(){ this->check_mutex=1; }
-	operator SDL_Surface *() const{
-		if (this->check_mutex && !screenMutex.is_locked())
-			throw std::string("screenMutex is unlocked.");
-		return this->data;
-	}
-	operator SDL_Surface *&(){
-		if (this->check_mutex && !screenMutex.is_locked())
-			throw std::string("screenMutex is unlocked.");
-		return this->data;
-	}
-	SDL_Surface *operator->() const{
-		if (this->check_mutex && !screenMutex.is_locked())
-			throw std::string("screenMutex is unlocked.");
-		return this->data;
-	}
-};
-#endif
-
 /*
 Surface processing pipeline:
 
@@ -146,14 +120,11 @@ x -(y)-> z = x is processed by y onto z
 class NONS_VirtualScreen{
 	static const size_t screens_s=4;
 	static const size_t usingFeature_s=screens_s-1;
-#ifndef DEBUG_SCREEN_MUTEX
 	NONS_CrippledSurface screens[screens_s];
-#else
-	DEBUG_SCREEN_MUTEX_SDL_Surface screens[screens_s];
-#endif
 	NONS_Mutex mutex;
 	NONS_Rect outRect;
 	bool fullscreen;
+	void init_fullscreen();
 public:
 	ulong post_filter,
 		pre_inter,

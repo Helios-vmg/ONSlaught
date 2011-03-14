@@ -104,10 +104,15 @@ SDL_Surface *allocate_screen(ulong w,ulong h,bool fullscreen){
 	return r;
 }
 
+void NONS_VirtualScreen::init_fullscreen(){
+	this->fullscreen=(CLOptions.startFullscreen || settings.fullscreen.set && settings.fullscreen.data);
+}
+
 NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
 	std::fill(this->usingFeature,this->usingFeature+usingFeature_s,(bool)0);
+	this->init_fullscreen();
 	this->screens[VIRTUAL]=
-		this->screens[REAL]=NONS_Surface::assign_screen(allocate_screen(w,h,CLOptions.startFullscreen));
+		this->screens[REAL]=NONS_Surface::assign_screen(allocate_screen(w,h,this->fullscreen));
 	this->x_multiplier=0x100;
 	this->y_multiplier=0x100;
 	this->x_divisor=this->x_multiplier;
@@ -115,20 +120,17 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong w,ulong h){
 	this->outRect=
 		this->inRect=this->screens[REAL].get_dimensions<float>();
 	this->normalInterpolation=0;
-	this->fullscreen=CLOptions.startFullscreen;
 	this->killAsyncEffect=0;
 	this->initEffectList();
 	memset(this->usingFeature,0,this->usingFeature_s*sizeof(bool));
 	this->printCurrentState();
-#ifdef DEBUG_SCREEN_MUTEX
-	this->screens[VIRTUAL].force_mutex_check();
-#endif
 }
 
 NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
 	std::fill(this->usingFeature,this->usingFeature+usingFeature_s,(bool)0);
+	this->init_fullscreen();
 	this->screens[VIRTUAL]=
-		this->screens[REAL]=NONS_Surface::assign_screen(allocate_screen(ow,oh,CLOptions.startFullscreen));
+		this->screens[REAL]=NONS_Surface::assign_screen(allocate_screen(ow,oh,this->fullscreen));
 	if (iw==ow && ih==oh){
 		this->x_multiplier=1.f;
 		this->y_multiplier=1.f;
@@ -177,21 +179,17 @@ NONS_VirtualScreen::NONS_VirtualScreen(ulong iw,ulong ih,ulong ow,ulong oh){
 		}
 		this->x_divisor=1.f/this->x_multiplier;
 		this->y_divisor=1.f/this->y_multiplier;
-		//this->normalInterpolation=&nearestNeighborInterpolation;
-		//this->screens[REAL]->clip_rect=this->outRect.to_SDL_Rect();
 	}
-	this->fullscreen=CLOptions.startFullscreen;
 	this->killAsyncEffect=0;
 	this->initEffectList();
 	this->printCurrentState();
-#ifdef DEBUG_SCREEN_MUTEX
-	this->screens[VIRTUAL].force_mutex_check();
-#endif
 }
 
 NONS_VirtualScreen::~NONS_VirtualScreen(){
 	this->stopEffect();
 	this->applyFilter(0,NONS_Color::black,L"");
+	settings.fullscreen.data=this->fullscreen;
+	settings.fullscreen.set=1;
 }
 
 void NONS_VirtualScreen::blitToScreen(NONS_Surface &src,NONS_LongRect *srcrect,NONS_LongRect *dstrect){

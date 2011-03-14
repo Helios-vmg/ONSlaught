@@ -1,4 +1,4 @@
-(Updated: 2009-12-08)
+(Updated: 2011-03-14)
 
 ONSlaught - An ONScripter clone with Unicode support.
 
@@ -28,7 +28,7 @@ to maintain its own branch of the code, and to enhance it in ways best
 suited to the use we make of it.
 <<The excerpt ends here.>>
 
-However, ONScripter has one MAJOR flaw: It does not support Unicode. Like
+However, ONScripter has one major flaw: It does not support Unicode. Like
 ONScripter's maintainer said, each language community needs to keep its own
 version of the engine. There's ONScripter-En, ONScripter-Ru, ONScripter-zh, etc.
 Each of these versions modifies the original engine in such a way that they're
@@ -44,17 +44,29 @@ same time maintaining a simple design, and code as portable as possible.
 
 REQUIREMENTS (compilation)
 
+Development versions of the following libraries are required to compile (if
+you're not running a POSIX-based system or this file appears in the "fulldep"
+distribution, ignore this list):
 SDL,
-SDL_image (should have been compiled at least with jpeg and png support),
-SDL_mixer (ogg support heavily recommended),
-FreeType 2,
-bz2lib,
+SDL_image,
+libbz2,
+freetype,
+libFLAC,
+libvorbisfile,
+libvorbis,
+libogg,
+libjpeg,
+libpng,
+libtiff,
+libmikmod,
+libopenal,
+libmpg123,
 zlib.
 
 
 ABOUT MIDI
 
-MIDI is based on TiMidity, a software-based synthesizer. TiMidity needs sound
+MIDI playback is based on libtimidity, a software-based synthesizer. libtimidity needs sound
 fonts in order to render files. I have a configuration ready to be used at
 https://sourceforge.net/projects/onslaught-vn/files/Timidity%20config/timidity-config.7z/download
 The directory needs to be in the same directory as the game data in order to
