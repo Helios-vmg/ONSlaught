@@ -1,4 +1,4 @@
-????????
+20110315
 Newly implemented commands:
   bar, barclear, btndown, chvol, csel, cselbtn, cselgoto, dwaveplay,
   dwaveplayloop, dwavestop, getcselnum, getcselstr, getmousepos, getsevol,
