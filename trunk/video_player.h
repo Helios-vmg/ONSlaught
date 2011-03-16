@@ -66,7 +66,7 @@ typedef SDL_Surface *(*playback_cb)(volatile SDL_Surface *,void *);
 typedef struct{
 	bool (*write)(const void *src,ulong length,ulong channels,ulong frequency,void *);
 	double (*get_time_offset)(void *);
-	void (*wait)(void *);
+	void (*wait)(void *,bool);
 } audio_f;
 #endif
 

@@ -1,3 +1,7 @@
+20110316
+Last minute bug fixes.
+
+
 20110315
 Newly implemented commands:
   bar, barclear, btndown, chvol, csel, cselbtn, cselgoto, dwaveplay,

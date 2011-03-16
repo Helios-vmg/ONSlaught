@@ -1066,11 +1066,15 @@ double video_get_time_offset(void *user_data){
 	return vpp->stream->get_time_offset();
 }
 
-void video_wait(void *user_data){
+void video_wait(void *user_data,bool immediate){
 	video_playback_params *vpp=(video_playback_params *)user_data;
 	if (!vpp->stream)
 		return;
-	vpp->stream->stop();
+	if (immediate)
+		vpp->stream->stop();
+	else
+		while (vpp->stream->is_sink_playing())
+			SDL_Delay(10);
 }
 
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){

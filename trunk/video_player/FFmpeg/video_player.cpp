@@ -319,7 +319,7 @@ public:
 	~AudioOutput();
 	thread_safe_queue<audioBuffer> *startThread(video_player *vp);
 	void stopThread(bool join);
-	void wait_until_stop(video_player *vp);
+	void wait_until_stop(video_player *vp,bool immediate);
 };
 
 class CompleteVideoFrame{
@@ -522,8 +522,8 @@ bool AudioOutput::fill(int16_t *buffer,size_t size,thread_safe_queue<audioBuffer
 	return ret;
 }
 
-void AudioOutput::wait_until_stop(video_player *vp){
-	this->audio_output.wait(vp->user_data);
+void AudioOutput::wait_until_stop(video_player *vp,bool immediate){
+	this->audio_output.wait(vp->user_data,immediate);
 }
 
 CompleteVideoFrame::CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *videoStream,AVFrame *videoFrame,double pts,NONS_Mutex &mutex)
@@ -1028,7 +1028,7 @@ bool video_player::play_video(
 		video_decoder.join();
 		if (!useAudio)
 			output.stopThread(0);
-		output.wait_until_stop(this);
+		output.wait_until_stop(this,!!*stop);
 	}
 	return 1;
 }
