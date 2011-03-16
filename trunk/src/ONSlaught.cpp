@@ -306,6 +306,8 @@ void initialize(int argc,char **argv){
 
 	config_directory=getConfigLocation();
 
+	general_archive.init();
+
 	std::vector<std::wstring> cmdl_arg=getArgumentsVector(argv);
 	useArgumentsFile(L"arguments.txt",cmdl_arg);
 	CLOptions.parse(cmdl_arg);

@@ -173,8 +173,8 @@ class NONS_GeneralArchive{
 	std::vector<NONS_DataSource *> archives;
 	bool addArchive_private(const std::wstring &path,int format=-1);
 public:
-	NONS_GeneralArchive();
 	~NONS_GeneralArchive();
+	void init();
 	uchar *getFileBuffer(const std::wstring &filepath,size_t &buffersize,bool use_filesystem=1);
 	//Same as above, but doesn't try the file system
 	uchar *getFileBufferWithoutFS(const std::wstring &filepath,size_t &buffersize){

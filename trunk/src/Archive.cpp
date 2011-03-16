@@ -1199,7 +1199,7 @@ static const wchar_t *formats[]={
 	0
 };
 
-NONS_GeneralArchive::NONS_GeneralArchive(){
+void NONS_GeneralArchive::init(){
 	static const wchar_t *path=L"./",
 		*base=L"arc";
 	this->archives.push_back(&filesystem);
