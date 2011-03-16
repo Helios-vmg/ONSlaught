@@ -3779,12 +3779,15 @@ ErrorCode NONS_ScriptInterpreter::command_indent(NONS_Statement &stmt){
 
 ErrorCode NONS_ScriptInterpreter::command_intlimit(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(3);
-	NONS_VariableMember *dst;
-	GET_INT_VARIABLE(dst,0);
-	long lower,upper;
+	long var,lower,upper;
+	GET_INT_VALUE(var,0);
 	GET_INT_VALUE(lower,1);
 	GET_INT_VALUE(upper,2);
-	dst->setlimits(lower,upper);
+	ErrorCode error;
+	NONS_Variable *dst=this->store->retrieve(var,&error);
+	if (!dst)
+		return error;
+	dst->intValue->setlimits(lower,upper);
 	return NONS_NO_ERROR;
 }
 
