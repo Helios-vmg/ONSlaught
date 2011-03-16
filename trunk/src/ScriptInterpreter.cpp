@@ -1071,8 +1071,6 @@ void video_wait(void *user_data){
 	if (!vpp->stream)
 		return;
 	vpp->stream->stop();
-	while (vpp->stream->is_sink_playing())
-		SDL_Delay(10);
 }
 
 ErrorCode NONS_ScriptInterpreter::play_video(const std::wstring &filename,bool skippable){

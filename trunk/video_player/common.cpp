@@ -164,6 +164,6 @@ const char *seconds_to_time_format(double seconds){
 	char temp[10];
 	static char res[1000];
 	sprintf(temp,"%#.3f",seconds);
-	sprintf(res,"%02u:%02u:%02u%s",hours,minutes,seconds_int,temp+1);
+	sprintf(res,"%02u:%02u:%02u%s",(unsigned)hours,(unsigned)minutes,(unsigned)seconds_int,temp+1);
 	return res;
 }

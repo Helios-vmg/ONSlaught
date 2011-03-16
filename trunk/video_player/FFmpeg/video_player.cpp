@@ -39,6 +39,7 @@ extern "C"{
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
+#include <libavutil/opt.h>
 }
 #include <SDL/SDL_gfxPrimitives.h>
 
@@ -460,7 +461,6 @@ void AudioOutput::stopThread(bool join){
 void AudioOutput::running_thread(video_player *vp){
 	while (this->incoming_queue->is_empty());
 	vp->real_start_time=vp->start_time=SDL_GetTicks();
-	bool buffer_is_full=0;
 	while (!this->stop_thread){
 		SDL_Delay(10);
 		ulong now=SDL_GetTicks();
@@ -480,7 +480,6 @@ void AudioOutput::running_thread(video_player *vp){
 		this->incoming_queue->unlock();
 		vp->start_time=now-(ulong)this->audio_output.get_time_offset(vp->user_data);
 	}
-	this->wait_until_stop(vp);
 	delete this->incoming_queue;
 	this->incoming_queue=0;
 }
@@ -568,12 +567,25 @@ CompleteVideoFrame::CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *vi
 	pict.linesize[0]=this->overlay->pitches[0];
 	pict.linesize[1]=this->overlay->pitches[2];
 	pict.linesize[2]=this->overlay->pitches[1];
-	SwsContext *sc=sws_getContext(
+#if 1
+	SwsContext *sc;
+	sc=sws_alloc_context();
+	av_set_int(sc,"srcw",videoStream->codec->width);
+	av_set_int(sc,"srch",videoStream->codec->height);
+	av_set_int(sc,"src_format",videoStream->codec->pix_fmt);
+	av_set_int(sc,"dstw",this->overlay->w);
+	av_set_int(sc,"dsth",this->overlay->h);
+	av_set_int(sc,"dst_format",PIX_FMT_YUV420P);
+	av_set_int(sc,"sws_flags",SWS_FAST_BILINEAR); 
+	sws_init_context(sc,0,0);
+#else
+	sc=sws_getContext(
 		videoStream->codec->width,videoStream->codec->height,videoStream->codec->pix_fmt,
 		this->overlay->w,this->overlay->h,PIX_FMT_YUV420P,
 		SWS_FAST_BILINEAR,
 		0,0,0
 	);
+#endif
 	sws_scale(sc,videoFrame->data,videoFrame->linesize,0,videoStream->codec->height,pict.data,pict.linesize);
 	sws_freeContext(sc);
 //The UNIX build of FFmpeg already performs color correction.
@@ -687,8 +699,6 @@ double Packet::compute_time(AVStream *stream){
 }
 
 void video_player::video_display_thread(thread_safe_queue<CompleteVideoFrame *> *queue,AudioOutput *aoutput,void *user_data,cb_vector *callback_pairs){
-	SDL_Color white={0xFF,0xFF,0xFF,0xFF},
-		black={0,0,0,0xFF};
 	while (!stop_playback){
 		SDL_Delay(10);
 		double current_time=double(this->global_time)/1000.0;
@@ -905,9 +915,8 @@ bool video_player::play_video(
 	SDL_FillRect(screen,0,0);
 	SDL_UpdateRect(screen,0,0,0,0);
 
-	ByteIOContext bioc;
 	std::vector<uchar> io_buffer((1<<12)+FF_INPUT_BUFFER_PADDING_SIZE);
-	init_put_byte(&bioc,&io_buffer[0],io_buffer.size(),0,&fp,protocol::read,0,protocol::seek);
+	AVIOContext *avioc=avio_alloc_context(&io_buffer[0],io_buffer.size(),0,&fp,protocol::read,0,protocol::seek);
 
 	AVInputFormat *aif;
 	{
@@ -920,7 +929,7 @@ bool video_player::play_video(
 	}
 
 	fp.seek(fp.data,0,0);
-	if (!aif || av_open_input_stream(&avfc,&bioc,input,aif,0)!=0){
+	if (!aif || av_open_input_stream(&avfc,avioc,input,aif,0)!=0){
 		exception_string="Unrecognized file format.";
 		return 0;
 	}
@@ -930,7 +939,7 @@ bool video_player::play_video(
 		return 0;
 	}
 	if (debug_messages)
-		dump_format(avfc,0,input,0);
+		av_dump_format(avfc,0,input,0);
 
 	AVCodecContext *videoCC,
 		*audioCC=0;
@@ -972,7 +981,6 @@ bool video_player::play_video(
 	auto_codec_context acc_video(videoCC,video_codec>=0);
 	auto_codec_context acc_audio(audioCC,useAudio && audio_codec>=0);
 	if (video_codec<0 || useAudio && audio_codec<0){
-		int ret=0;
 		if (video_codec<0)
 			exception_string="Open video codec failed. ";
 		if (useAudio && audio_codec<0)
