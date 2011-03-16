@@ -600,7 +600,7 @@ NONS_ScriptInterpreter::NONS_ScriptInterpreter(bool initialize):stop_interpretin
 	this->commandList[L"tan"]=                     &NONS_ScriptInterpreter::command_add                  |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
 	this->commandList[L"tateyoko"]=                &NONS_ScriptInterpreter::command_unimplemented                        |ALLOW_IN_RUN;
 	this->commandList[L"texec"]=                   &NONS_ScriptInterpreter::command_texec                                |ALLOW_IN_RUN;
-	this->commandList[L"textbtnwait"]=             &NONS_ScriptInterpreter::command_undocumented                         |ALLOW_IN_RUN;
+	this->commandList[L"textbtnwait"]=             0                                                                     |ALLOW_IN_RUN;
 	this->commandList[L"textclear"]=               &NONS_ScriptInterpreter::command_textclear                            |ALLOW_IN_RUN;
 	this->commandList[L"textcolor"]=               &NONS_ScriptInterpreter::command_textcolor                            |ALLOW_IN_RUN;
 	this->commandList[L"textgosub"]=               &NONS_ScriptInterpreter::command_textgosub            |ALLOW_IN_DEFINE|ALLOW_IN_RUN;
@@ -4336,7 +4336,7 @@ ErrorCode NONS_ScriptInterpreter::command_mp3fadeout(NONS_Statement &stmt){
 			current_vol=0;
 		this->audio->music_volume((int)current_vol);
 	}
-	HANDLE_POSSIBLE_ERRORS(this->audio->stop_music());
+	this->audio->stop_music();
 	this->audio->music_volume((int)original_vol);
 	return NONS_NO_ERROR;
 }

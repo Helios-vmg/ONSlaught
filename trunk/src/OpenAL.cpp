@@ -200,14 +200,7 @@ decoder *initialize_decoder(const std::wstring &filename,bool prioritize_filesys
 }
 
 audio_stream::audio_stream(const std::wstring &filename,bool prioritize_filesystem){
-	std::wstring temp=filename;
-	if (ends_with(tolowerCopy(filename),(std::wstring)L".wav")){
-		size_t n=temp.size()-3;
-		temp.resize(n+4);
-		static const wchar_t *flac=L"flac";
-		std::copy(flac,flac+4,&temp[n]);
-	}
-	this->filename=temp;
+	this->filename=filename;
 	this->dec=initialize_decoder(filename,prioritize_filesystem);
 	if (this->dec && !*this->dec){
 		delete this->dec;

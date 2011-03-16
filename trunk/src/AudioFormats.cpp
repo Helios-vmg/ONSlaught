@@ -329,6 +329,7 @@ mp3_decoder::mp3_decoder(NONS_DataStream *stream):decoder(stream){
 	HANDLE_MPG123_ERRORS(mpg123_replace_reader(this->handle,mp3_read,mp3_seek),);
 	HANDLE_MPG123_ERRORS(mpg123_open_fd(this->handle,tracker.add(stream)),);
 	HANDLE_MPG123_ERRORS(mpg123_format_none(this->handle),);
+	HANDLE_MPG123_ERRORS(mpg123_format(this->handle,44100,MPG123_STEREO,MPG123_ENC_SIGNED_16),);
 	this->good=1;
 }
 

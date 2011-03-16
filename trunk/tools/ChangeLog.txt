@@ -1,3 +1,6 @@
+20110316
+    * Bug fixes.
+
 20100714
     * Added zip tool.
     * Added support for arbitrarily-sized files to archive tools.

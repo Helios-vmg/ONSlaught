@@ -97,30 +97,42 @@ audio_stream *NONS_Audio::get_channel(int channel){
 	return (i==this->channels.end())?0:i->second;
 }
 
+std::wstring wav2flac(const std::wstring &str){
+	std::wstring r=str;
+	if (ends_with(tolowerCopy(r),(std::wstring)L".wav")){
+		size_t n=r.size()-3;
+		r.resize(n+4);
+		static const wchar_t *flac=L"flac";
+		std::copy(flac,flac+4,&r[n]);
+	}
+	return r;
+}
+
 extern const wchar_t *sound_formats[];
 
 ErrorCode NONS_Audio::play_music(const std::wstring &filename,long times){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
 	const int channel=NONS_Audio::music_channel;
-	std::wstring found_path;
+	std::wstring found_path,
+		converted_filename=wav2flac(filename);
 	bool found=0;
 	if (!this->music_format.size()){
 		for (ulong a=0;!found && sound_formats[a];a++){
-			found_path=this->music_dir+L"/"+filename+L"."+sound_formats[a];
+			found_path=this->music_dir+L"/"+converted_filename+L"."+sound_formats[a];
 			if (filesystem.exists(found_path))
 				found=1;
 		}
 		for (ulong a=0;!found && sound_formats[a];a++){
-			found_path=this->music_dir+L"/"+filename+L"."+sound_formats[a];
+			found_path=this->music_dir+L"/"+converted_filename+L"."+sound_formats[a];
 			if (general_archive.exists(found_path))
 				found=1;
 		}
 	}else
-		found_path=this->music_dir+L"/"+filename+L"."+this->music_format;
+		found_path=this->music_dir+L"/"+converted_filename+L"."+this->music_format;
 	if (!found){
-		found_path=filename;
-		if (!filesystem.exists(found_path) && !general_archive.exists(found_path=filename))
+		found_path=converted_filename;
+		if (!filesystem.exists(found_path) && !general_archive.exists(found_path=converted_filename))
 			return NONS_FILE_NOT_FOUND;
 	}
 
@@ -167,8 +179,6 @@ ErrorCode NONS_Audio::pause_music(){
 ErrorCode NONS_Audio::play_sound(const std::wstring &filename,int channel,long times,bool automatic_cleanup){
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	if (!general_archive.exists(filename))
-		return NONS_FILE_NOT_FOUND;
 	ErrorCode e;
 	e=this->load_sound_on_a_channel(filename,channel,channel>=0);
 	if (!CHECK_FLAG(e,NONS_NO_ERROR_FLAG))
@@ -182,7 +192,8 @@ ErrorCode NONS_Audio::load_sound_on_a_channel(const std::wstring &filename,int &
 		channel=INT_MAX;
 	if (this->uninitialized)
 		return NONS_NO_ERROR;
-	if (!general_archive.exists(filename))
+	std::wstring converter_filename=wav2flac(filename);
+	if (!general_archive.exists(converter_filename))
 		return NONS_FILE_NOT_FOUND;
 	NONS_MutexLocker ml(this->mutex);
 	if (!use_channel_as_input)
@@ -190,7 +201,7 @@ ErrorCode NONS_Audio::load_sound_on_a_channel(const std::wstring &filename,int &
 	audio_stream *stream=this->get_channel(channel);
 	if (stream)
 		this->dev->remove(stream);
-	stream=new audio_stream(filename);
+	stream=new audio_stream(converter_filename);
 	if (!*stream){
 		delete stream;
 		return NONS_UNDEFINED_ERROR;
