@@ -89,6 +89,7 @@ public:
 class mp3_decoder:public decoder{
 	static mp3_static_data static_data;
 	mpg123_handle *handle;
+	bool has_played;
 public:
 	mp3_decoder(NONS_DataStream *stream);
 	~mp3_decoder();

@@ -567,8 +567,8 @@ CompleteVideoFrame::CompleteVideoFrame(volatile SDL_Surface *screen,AVStream *vi
 	pict.linesize[0]=this->overlay->pitches[0];
 	pict.linesize[1]=this->overlay->pitches[2];
 	pict.linesize[2]=this->overlay->pitches[1];
-#if 1
 	SwsContext *sc;
+#if 1
 	sc=sws_alloc_context();
 	av_set_int(sc,"srcw",videoStream->codec->width);
 	av_set_int(sc,"srch",videoStream->codec->height);
