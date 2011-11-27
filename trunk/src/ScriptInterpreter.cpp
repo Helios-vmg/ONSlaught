@@ -3246,7 +3246,10 @@ ErrorCode NONS_ScriptInterpreter::command_dwavestop(NONS_Statement &stmt){
 	GET_INT_VALUE(channel,0);
 	if (channel<0 || channel>NONS_Audio::max_valid_channel)
 		return NONS_INVALID_CHANNEL_INDEX;
-	return this->audio->stop_sound(channel);
+	ErrorCode error=this->audio->stop_sound(channel);
+	if (error==NONS_NO_SOUND_EFFECT_LOADED)
+		return NONS_NO_ERROR;
+	return error;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_effect(NONS_Statement &stmt){
@@ -4495,7 +4498,10 @@ ErrorCode NONS_ScriptInterpreter::command_play(NONS_Statement &stmt){
 ErrorCode NONS_ScriptInterpreter::command_playstop(NONS_Statement &stmt){
 	this->mp3_loop=0;
 	this->mp3_save=0;
-	return this->audio->stop_music();
+	ErrorCode error=this->audio->stop_music();
+	if (error==NONS_NO_MUSIC_LOADED)
+		return NONS_NO_ERROR;
+	return error;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_pretextgosub(NONS_Statement &stmt){
@@ -5607,7 +5613,10 @@ ErrorCode NONS_ScriptInterpreter::command_wave(NONS_Statement &stmt){
 
 ErrorCode NONS_ScriptInterpreter::command_wavestop(NONS_Statement &stmt){
 	this->wav_loop=0;
-	return this->audio->stop_sound(0);
+	ErrorCode error=this->audio->stop_sound(0);
+	if (error==NONS_NO_SOUND_EFFECT_LOADED)
+		return NONS_NO_ERROR;
+	return error;
 }
 
 ErrorCode NONS_ScriptInterpreter::command_windoweffect(NONS_Statement &stmt){
