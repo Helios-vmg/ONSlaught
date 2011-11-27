@@ -140,6 +140,7 @@ typedef Uint32 ErrorCode;
 #define NONS_NOT_ENOUGH_PARAMETERS_TO_CSEL			94
 #define NONS_NOT_IN_TEXTGOSUB_CALL					95
 #define NONS_CORRUPTED_SAVEGAME						96
+#define NONS_DUPLICATE_ARRAY_DEFINITION				97
 
 extern const char *errorMessages[];
 #endif

@@ -3020,8 +3020,8 @@ ErrorCode NONS_ScriptInterpreter::command_dim(NONS_Statement &stmt){
 	MINIMUM_PARAMETERS(1);
 	std::vector<long> indices;
 	HANDLE_POSSIBLE_ERRORS(this->store->array_declaration(indices,stmt.parameters[0]));
-	if (indices[0]>1)
-		return NONS_UNDEFINED_ARRAY;
+	if (this->store->getArray(indices[0]))
+		return NONS_DUPLICATE_ARRAY_DEFINITION;
 	for (size_t a=1;a<indices.size();a++)
 		if (indices[a]<0)
 			return NONS_NEGATIVE_INDEX_IN_ARRAY_DECLARATION;

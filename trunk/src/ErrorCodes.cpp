@@ -229,5 +229,7 @@ const char *errorMessages[]={
 	"Not currently in textgosub call.",
 	//NONS_CORRUPTED_SAVEGAME
 	"Savegame file is corrupted.",
+	//NONS_DUPLICATE_ARRAY_DEFINITION
+	"The array has already been defined.",
 	0
 };
