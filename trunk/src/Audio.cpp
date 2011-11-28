@@ -36,6 +36,8 @@
 
 #define NONS_Audio_FOREACH() for (chan_t::iterator i=this->channels.begin(),e=this->channels.end();i!=e;++i)
 
+const int NONS_Audio::music_channel;
+
 NONS_Audio::NONS_Audio(const std::wstring &musicDir){
 	this->notmute=0;
 	this->uninitialized=1;

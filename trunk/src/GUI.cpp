@@ -1378,6 +1378,7 @@ void NONS_FT_Stream_CloseFunc(FT_Stream s){}
 
 NONS_Font::NONS_Font(const std::wstring &filename){
 	this->error=1;
+	this->stream=0;
 	NONS_DataStream *stream=general_archive.open(filename);
 	if (!stream)
 		return;
