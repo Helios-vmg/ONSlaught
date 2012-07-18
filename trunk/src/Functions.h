@@ -60,6 +60,65 @@ const double pi=3.1415926535897932384626433832795;
 #define FAST_INTEGER_MULTIPLICATION(a,b) (((a)*(b))>>8)
 #define CHECK_POINTER_AND_CALL(p,c) if (p) (p)->c
 
+#define STR_WHITESPACE "\x09\x0A\x0B\x0C\x0D\x20\x85\xA0"
+#define WCS_WHITESPACE L"\x0009\x000A\x000B\x000C\x000D\x0020\x0085\x00A0\x1680\x180E\x2002\x2003\x2004\x2005\x2006\x2008\x2009\x200A\x200B\x200C\x200D\x205F\x3000"
+#define WCS_NON_NEWLINE_WHITESPACE L"\x0009\x000B\x000C\x0020\x0085\x00A0\x1680\x180E\x2002\x2003\x2004\x2005\x2006\x2008\x2009\x200A\x200B\x200C\x200D\x205F\x3000"
+
+#define BOM16B 0xFEFF
+#define BOM16BA 0xFE
+#define BOM16BB 0xFF
+#define BOM16L 0xFFFE
+#define BOM16LA BOM16BB
+#define BOM16LB BOM16BA
+#define BOM8A ((uchar)0xEF)
+#define BOM8B ((uchar)0xBB)
+#define BOM8C ((uchar)0xBF)
+#define NONS_BIG_ENDIAN 0
+#define NONS_LITTLE_ENDIAN 1
+#define UNDEFINED_ENDIANNESS 2
+
+bool iswhitespace(char character);
+bool iswhitespace(wchar_t character);
+bool iswhitespaceASCIIe(char character);
+bool isbreakspace(char character);
+bool isbreakspace(wchar_t character);
+bool isbreakspaceASCIIe(char character);
+void NONS_tolower(wchar_t *param);
+void NONS_tolower(char *param);
+
+inline bool NONS_isdigit(unsigned character){
+	return character>='0' && character<='9';
+}
+inline bool NONS_isupper(unsigned character){
+	return character>='A' && character<='Z';
+}
+inline bool NONS_islower(unsigned character){
+	return character>='a' && character<='z';
+}
+inline bool NONS_isalpha(unsigned character){
+	return NONS_isupper(character) || NONS_islower(character);
+}
+inline bool NONS_isalnum(unsigned character){
+	return NONS_isalpha(character) || NONS_isdigit(character);
+}
+inline unsigned NONS_toupper(unsigned character){
+	return NONS_islower(character)?UNICODE_TOUPPER(character):character;
+}
+inline unsigned NONS_tolower(unsigned character){
+	return NONS_isupper(character)?UNICODE_TOLOWER(character):character;
+}
+inline bool NONS_ishexa(unsigned character){
+	return NONS_isdigit(character) || NONS_toupper(character)>='A' && NONS_toupper(character)<='F';
+}
+//1 if the character matches the regex [A-Za-z_] (the first character in a C-style identifier)
+inline bool NONS_isid1char(unsigned character){
+	return NONS_isalpha(character) || character=='_';
+}
+//1 if the character matches the regex [A-Za-z_0-9] (the second and beyond character in a C-style identifier)
+inline bool NONS_isidnchar(unsigned character){
+	return NONS_isid1char(character) || NONS_isdigit(character);
+}
+
 //string functions
 template <typename T,typename T2>
 bool multicomparison(T character,const T2 *characters){
@@ -297,6 +356,22 @@ inline std::basic_string<T> string_replace(
 }
 
 
+template <typename T>
+void trim_string(std::basic_string<T> &str){
+	ulong first=0,
+		second,
+		size=str.size();
+	for (;first<size && iswhitespace(str[first]);first++);
+	if (first==size){
+		str.clear();
+		return;
+	}
+	second=size-1;
+	for (;second>first && iswhitespace(str[second]);second--);
+	second++;
+	str=str.substr(first,second-first);
+}
+
 #undef min
 //string parsing
 template <typename T>
@@ -437,56 +512,6 @@ void findMainWindow(const wchar_t *caption);
 #endif
 
 //Unicode functions:
-#define STR_WHITESPACE "\x09\x0A\x0B\x0C\x0D\x20\x85\xA0"
-#define WCS_WHITESPACE L"\x0009\x000A\x000B\x000C\x000D\x0020\x0085\x00A0\x1680\x180E\x2002\x2003\x2004\x2005\x2006\x2008\x2009\x200A\x200B\x200C\x200D\x205F\x3000"
-#define WCS_NON_NEWLINE_WHITESPACE L"\x0009\x000B\x000C\x0020\x0085\x00A0\x1680\x180E\x2002\x2003\x2004\x2005\x2006\x2008\x2009\x200A\x200B\x200C\x200D\x205F\x3000"
-
-#define BOM16B 0xFEFF
-#define BOM16BA 0xFE
-#define BOM16BB 0xFF
-#define BOM16L 0xFFFE
-#define BOM16LA BOM16BB
-#define BOM16LB BOM16BA
-#define BOM8A ((uchar)0xEF)
-#define BOM8B ((uchar)0xBB)
-#define BOM8C ((uchar)0xBF)
-#define NONS_BIG_ENDIAN 0
-#define NONS_LITTLE_ENDIAN 1
-#define UNDEFINED_ENDIANNESS 2
-
-inline bool NONS_isdigit(unsigned character){
-	return character>='0' && character<='9';
-}
-inline bool NONS_isupper(unsigned character){
-	return character>='A' && character<='Z';
-}
-inline bool NONS_islower(unsigned character){
-	return character>='a' && character<='z';
-}
-inline bool NONS_isalpha(unsigned character){
-	return NONS_isupper(character) || NONS_islower(character);
-}
-inline bool NONS_isalnum(unsigned character){
-	return NONS_isalpha(character) || NONS_isdigit(character);
-}
-inline unsigned NONS_toupper(unsigned character){
-	return NONS_islower(character)?UNICODE_TOUPPER(character):character;
-}
-inline unsigned NONS_tolower(unsigned character){
-	return NONS_isupper(character)?UNICODE_TOLOWER(character):character;
-}
-inline bool NONS_ishexa(unsigned character){
-	return NONS_isdigit(character) || NONS_toupper(character)>='A' && NONS_toupper(character)<='F';
-}
-//1 if the character matches the regex [A-Za-z_] (the first character in a C-style identifier)
-inline bool NONS_isid1char(unsigned character){
-	return NONS_isalpha(character) || character=='_';
-}
-//1 if the character matches the regex [A-Za-z_0-9] (the second and beyond character in a C-style identifier)
-inline bool NONS_isidnchar(unsigned character){
-	return NONS_isid1char(character) || NONS_isdigit(character);
-}
-
 template <typename T2,typename T>
 T2 ato(const std::basic_string<T> &str){
 #if !NONS_SYS_PSP
@@ -641,15 +666,6 @@ char checkNativeEndianness();
 bool isValidUTF8(const void *buffer,ulong size);
 bool isValidSJIS(const void *buffer,ulong size);
 
-bool iswhitespace(char character);
-bool iswhitespace(wchar_t character);
-bool iswhitespaceASCIIe(char character);
-bool isbreakspace(char character);
-bool isbreakspace(wchar_t character);
-bool isbreakspaceASCIIe(char character);
-void NONS_tolower(wchar_t *param);
-void NONS_tolower(char *param);
-
 template <typename T>
 struct stdStringCmpCI{
 	bool operator()(const std::basic_string<T> &s1,const std::basic_string<T> &s2) const{
@@ -692,22 +708,6 @@ bool firstcharsCI(const std::basic_string<T> &s1,size_t off,const T *s2){
 	if (s1.size()-off<l)
 		return 0;
 	return firstcharsCI(&s1[off],s2);
-}
-
-template <typename T>
-void trim_string(std::basic_string<T> &str){
-	ulong first=0,
-		second,
-		size=str.size();
-	for (;first<size && iswhitespace(str[first]);first++);
-	if (first==size){
-		str.clear();
-		return;
-	}
-	second=size-1;
-	for (;second>first && iswhitespace(str[second]);second--);
-	second++;
-	str=str.substr(first,second-first);
 }
 
 template <typename T>

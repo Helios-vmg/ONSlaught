@@ -53,7 +53,7 @@ struct channel_listing{
 struct interpreter_stored_state;
 
 class NONS_Audio{
-	static const int initial_channel_counter=1<<20;
+	static const int initial_channel_counter;
 
 	audio_device *dev;
 public:
@@ -77,8 +77,8 @@ private:
 	void load_channel(TiXmlElement *);
 	void load_channels(TiXmlElement *);
 public:
-	static const long max_valid_channel=(long)initial_channel_counter-1;
-	static const int music_channel=-1;
+	static const long max_valid_channel;
+	static const int music_channel;
 	std::wstring music_dir,
 		music_format;
 	NONS_Audio(const std::wstring &musicDir);
