@@ -229,9 +229,9 @@ void audio_stream::start(){
 		this->sink=0;
 	}else{
 		this->playing=1;
-		if (!this->paused)
+		if (!this->paused){
 			CHECK_POINTER_AND_CALL(this->dec,loop());
-		else
+		}else
 			this->paused=0;
 		this->set_internal_volume();
 	}

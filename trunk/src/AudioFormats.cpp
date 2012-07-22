@@ -389,12 +389,15 @@ BOOL openal_IsPresent(){
 	return 1;
 }
 
+static char drv_openal_str1[]="openal",
+	drv_openal_str2[]="OpenAL";
+
 MDRIVER drv_openal={
 	NULL,
-	"openal",
-	"OpenAL",
+	drv_openal_str1,
+	drv_openal_str2,
 	0,255,
-	"openal",
+	drv_openal_str1,
 
 	0,
 	openal_IsPresent,

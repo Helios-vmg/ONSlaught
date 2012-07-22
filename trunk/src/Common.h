@@ -56,16 +56,27 @@ typedef unsigned char uchar;
 #define NONS_SYS_PSP (defined PSP)
 #endif
 
+#ifdef __clang__
+#define NONS_COMPILER_CLANG
+#endif
+
 #if NONS_SYS_WINDOWS
 typedef void *HANDLE;
-#ifdef BUILD_ONSLAUGHT
+#if defined NONS_COMPILER_CLANG
+#define NONS_DECLSPEC
+#elif defined BUILD_ONSLAUGHT
 #define NONS_DECLSPEC __declspec(dllexport)
 #elif IMPORT_FROM_ONSLAUGHT
 #define NONS_DECLSPEC __declspec(dllimport)
 #else
 #define NONS_DECLSPEC
 #endif
+
+#ifdef NONS_COMPILER_CLANG
+#define NONS_DLLexport
+#else
 #define NONS_DLLexport __declspec(dllexport)
+#endif
 #define NONS_DLLimport __declspec(dllimport)
 
 #ifdef __MINGW__
