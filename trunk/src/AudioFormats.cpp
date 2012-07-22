@@ -539,10 +539,10 @@ custom_stdio init_stdio(){
 
 bool midi_static_data::perform_initialization(){
 	custom_stdio stdio=init_stdio();
-	if (mid_init(0,&stdio))
-		return 0;
 	if (!general_archive.addArchive(L"timidity.zip"))
 		general_archive.addArchive(L"timidity.oaf");
+	if (mid_init(0,&stdio))
+		return 0;
 	return 1;
 }
 
