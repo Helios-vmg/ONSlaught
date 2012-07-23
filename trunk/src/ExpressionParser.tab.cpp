@@ -2240,13 +2240,13 @@ yyreturn:
 #line 262 "ExpressionParser.ypp"
 
 
-#define DOUBLEOP(character,ret_value) if (c==(character)){\
-	stream->get();\
-	if (stream->peek()==(character)){\
-		stream->get();\
-		return (ret_value);\
-	}\
-	return (ret_value);\
+#define DOUBLEOP(character,ret_value) if (c==(character)){ \
+	stream->get();                                         \
+	if ((wchar_t)stream->peek()==(character)){             \
+		stream->get();                                     \
+		return (ret_value);                                \
+	}                                                      \
+	return (ret_value);                                    \
 }
 
 template <typename T>
@@ -2263,16 +2263,16 @@ int expressionParser_yylex(YYSTYPE *yylval,std::wstringstream *stream,NONS_Varia
 			return FOR;
 	}
 	int c;
-	while (!stream->eof() && iswhitespace(wchar_t(c=stream->peek())) && c<0x80)
+	while (!stream->eof() && iswhitespace(wchar_t(c=(wchar_t)stream->peek())) && c<0x80)
 		stream->get();
 	if (stream->eof())
 		return 0;
-	c=stream->peek();
+	c=(wchar_t)stream->peek();
 	if (ppd && ppd->mode==1){
 		if (multicomparison((wchar_t)c,L"\\@!#") || c>0x7F){
 			if (c=='!'){
 				stream->get();
-				c=stream->peek();
+				c=(wchar_t)stream->peek();
 				if (stream->eof())
 					stream->clear();
 				stream->putback('!');
@@ -2292,15 +2292,15 @@ int expressionParser_yylex(YYSTYPE *yylval,std::wstringstream *stream,NONS_Varia
 expressionParser_yylex_000:
 	if (NONS_isdigit(c)){
 		std::wstring temp;
-		while (NONS_isdigit(c=stream->peek()))
-			temp.push_back(stream->get());
+		while (NONS_isdigit(c=(wchar_t)stream->peek()))
+			temp.push_back((wchar_t)stream->get());
 		//Handles the case "\*[ \t]*[_A-Za-z0-9]*". This is the kind of thing
 		//that gives me omnicidal rages. Note: under no other circumstance does
 		//it make sense that an integer be followed immediately by an alphabetic
 		//character or an underscore.
 		if (NONS_isid1char(c)){
-			while (NONS_isidnchar(stream->peek()))
-				temp.push_back(stream->get());
+			while (NONS_isidnchar((wchar_t)stream->peek()))
+				temp.push_back((wchar_t)stream->get());
 			yylval->obj=makeValue(temp);
 			return STRING;
 		}
@@ -2310,8 +2310,8 @@ expressionParser_yylex_000:
 	if (c=='#'){
 		stream->get();
 		std::wstring temp;
-		while (NONS_ishexa(stream->peek()))
-			temp.push_back(stream->get());
+		while (NONS_ishexa((wchar_t)stream->peek()))
+			temp.push_back((wchar_t)stream->get());
 		if (temp.size()<6)
 			return ERROR;
 		long a=0;
@@ -2322,24 +2322,24 @@ expressionParser_yylex_000:
 	}
 	if (c=='\"' || c=='`' || NONS_tolower(c)=='e'){
 		yylval->position=stream->tellg();
-		c=stream->get();
+		c=(wchar_t)stream->get();
 		bool cont=0,
 			useEscapes=0;
 		if (NONS_tolower(c)=='e'){
-			if (stream->peek()!='\"'){
+			if ((wchar_t)stream->peek()!='\"'){
 				stream->putback(c);
 				cont=1;
 			}else{
-				c=stream->get();
+				c=(wchar_t)stream->get();
 				useEscapes=1;
 			}
 		}
 		if (!cont){
 			std::wstring temp;
 			while ((wchar_t)stream->peek()!=c && !stream->eof()){
-				wchar_t character=stream->get();
+				wchar_t character=(wchar_t)stream->get();
 				if (character=='\\' && useEscapes){
-					character=stream->get();
+					character=(wchar_t)stream->get();
 					switch (character){
 						case '\\':
 						case '\"':
@@ -2355,8 +2355,8 @@ expressionParser_yylex_000:
 						case 'x':
 							{
 								std::wstring temp2;
-								for (ulong a=0;NONS_ishexa(stream->peek()) && a<4;a++)
-									temp2.push_back(stream->get());
+								for (ulong a=0;NONS_ishexa((wchar_t)stream->peek()) && a<4;a++)
+									temp2.push_back((wchar_t)stream->get());
 								if (temp2.size()<4)
 									return ERROR;
 								wchar_t a=0;
@@ -2384,15 +2384,15 @@ expressionParser_yylex_000:
 	}
 	if (c=='*'){
 		std::vector<wchar_t> backup;
-		backup.push_back(stream->get());
+		backup.push_back((wchar_t)stream->get());
 		while (iswhitespace((wchar_t)stream->peek()))
 			stream->get();
 		std::wstring identifier;
-		c=stream->peek();
+		c=(wchar_t)stream->peek();
 		if (NONS_isidnchar(c)){
-			while (NONS_isidnchar(c=stream->peek())){
+			while (NONS_isidnchar(c=(wchar_t)stream->peek())){
 				identifier.push_back(c);
-				backup.push_back(stream->get());
+				backup.push_back((wchar_t)stream->get());
 			}
 			if (gScriptInterpreter->script->blockFromLabel(identifier)){
 				yylval->obj=makeValue(identifier);
@@ -2405,14 +2405,14 @@ expressionParser_yylex_000:
 			stream->putback(backup.back());
 			backup.pop_back();
 		}
-		c=stream->peek();
+		c=(wchar_t)stream->peek();
 	}
 	if (NONS_isid1char(c)){
 		std::wstring temp;
 		yylval->position=stream->tellg();
-		temp.push_back(stream->get());
-		while (NONS_isidnchar(stream->peek()))
-			temp.push_back(stream->get());
+		temp.push_back((wchar_t)stream->get());
+		while (NONS_isidnchar((wchar_t)stream->peek()))
+			temp.push_back((wchar_t)stream->get());
 		if (!stdStrCmpCI(temp,L"fchk"))
 			return FCHK;
 		if (!stdStrCmpCI(temp,L"lchk"))
@@ -2424,7 +2424,7 @@ expressionParser_yylex_000:
 		if (!stdStrCmpCI(temp,L"_atoi"))
 			return ATOI;
 		if (!stdStrCmpCI(temp,L"then")){
-			while (iswhitespace(wchar_t(c=stream->peek())) && c<0x80)
+			while (iswhitespace(wchar_t(c=(wchar_t)stream->peek())) && c<0x80)
 				stream->get();
 			yylval->position=stream->tellg();
 			return IF_THEN;
@@ -2450,7 +2450,7 @@ expressionParser_yylex_000:
 	DOUBLEOP('|',OR)
 	if (c=='!'){
 		stream->get();
-		if (stream->peek()=='='){
+		if ((wchar_t)stream->peek()=='='){
 			stream->get();
 			return NEQ;
 		}
@@ -2458,11 +2458,11 @@ expressionParser_yylex_000:
 	}
 	if (c=='<'){
 		stream->get();
-		if (stream->peek()=='='){
+		if ((wchar_t)stream->peek()=='='){
 			stream->get();
 			return LOWEREQ;
 		}
-		if (stream->peek()=='>'){
+		if ((wchar_t)stream->peek()=='>'){
 			stream->get();
 			return NEQ;
 		}
@@ -2470,7 +2470,7 @@ expressionParser_yylex_000:
 	}
 	if (c=='>'){
 		stream->get();
-		if (stream->peek()=='='){
+		if ((wchar_t)stream->peek()=='='){
 			stream->get();
 			return GREATEREQ;
 		}
@@ -2480,7 +2480,7 @@ expressionParser_yylex_000:
 		wchar_t temp[]={c,0};
 		handleErrors(NONS_UNRECOGNIZED_OPERATOR,0,"yylex",1,temp);
 	}
-	return stream->get();
+	return (wchar_t)stream->get();
 }
 
 void expressionParser_yyerror(std::wstringstream *,NONS_VariableStore *,NONS_Expression::Expression *&,PreParserData *,char const *s){

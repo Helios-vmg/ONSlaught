@@ -182,30 +182,30 @@ int INIParser_yylex(YYSTYPE *yylval,std::wstringstream &stream){
 		stream.get();
 	if (stream.eof())
 		return INI_EOF;
-	c=stream.peek();
+	c=(wchar_t)stream.peek();
 	if (c==';'){
 		std::wstring *temp=new std::wstring;
-		temp->push_back(stream.get());
-		while (stream.peek()!=10 && stream.peek()!=13)
-			temp->push_back(stream.get());
+		temp->push_back((wchar_t)stream.get());
+		while ((wchar_t)stream.peek()!=10 && (wchar_t)stream.peek()!=13)
+			temp->push_back((wchar_t)stream.get());
 		yylval->string=temp;
 		return STRING;
 	}
 	if (multicomparison(c,L"=[]"))
-		return stream.get();
+		return (wchar_t)stream.get();
 	if (c==10){
 		stream.get();
 		return NEWLINE;
 	}
 	if (c==13){
 		stream.get();
-		if (stream.peek()==10)
+		if ((wchar_t)stream.peek()==10)
 			stream.get();
 		return NEWLINE;
 	}
 	std::wstring *temp=new std::wstring;
 	while (!multicomparison((wchar_t)stream.peek(),L"\x0A\x0D=]"))
-		temp->push_back(stream.get());
+		temp->push_back((wchar_t)stream.get());
 	trim_string(*temp);
 	yylval->string=temp;
 	return STRING;
