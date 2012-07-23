@@ -33,6 +33,7 @@
 
 #if NONS_SYS_WINDOWS
 #include <windows.h>
+#include <Aclapi.h>
 #elif NONS_SYS_UNIX
 #include <unistd.h>
 #include <cerrno>
@@ -111,9 +112,12 @@ void NONS_Thread::call(NONS_ThreadedFunctionPointer function,void *data,bool giv
 	ts->f=function;
 	ts->d=data;
 #if NONS_SYS_WINDOWS
-	this->thread=CreateThread(0,0,(LPTHREAD_START_ROUTINE)runningThread,ts,0,0);
-	if (give_highest_priority)
-		SetThreadPriority(this->thread,THREAD_PRIORITY_HIGHEST);
+	if (!give_highest_priority)
+		this->thread=CreateThread(0,0,(LPTHREAD_START_ROUTINE)runningThread,ts,0,0);
+	else{
+		this->thread=CreateThread(0,0,(LPTHREAD_START_ROUTINE)runningThread,ts,REALTIME_PRIORITY_CLASS,0);
+		SetThreadPriority(this->thread,THREAD_PRIORITY_TIME_CRITICAL);
+	}
 #elif NONS_SYS_UNIX
 	pthread_attr_t attr,
 		*pattr=0;
