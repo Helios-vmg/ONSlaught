@@ -40,7 +40,7 @@
 
 class audio_sink{
 	ALuint source;
-	static const size_t n=16;
+	static const size_t n=64;
 public:
 	double time_offset;
 	audio_sink();
