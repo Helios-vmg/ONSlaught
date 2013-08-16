@@ -239,7 +239,7 @@ sarArchive::sarArchive(const std::wstring &filename,bool nsa){
 	this->good=0;
 	this->constructed_for_extracting=1;
 	this->file_source=boost::filesystem::complete(filename);
-	this->file.open(this->file_source.string(),1);
+	this->file.open(this->file_source.wstring(),1);
 	if (!this->file)
 		return;
 	size_t l=6;
@@ -478,7 +478,12 @@ namespace compression{
 		File *file;
 		Uint64 offset;
 		std::vector<uchar> in;
-		decompress_from_file():base_in_decompression(),offset(0){
+		decompress_from_file(File &f):base_in_decompression(),offset(0){
+			this->file=&f;
+			this->processed=0;
+			if (f.filesize()>>32)
+				std::cerr <<"WARNING: At least one file is 4 GiB or larger. These files will be incorrectly preserved by the archive format.\n";
+			this->remaining=(size_t)f.filesize();
 			this->f=in_f;
 		}
 		virtual bool eof(){
@@ -512,7 +517,8 @@ namespace compression{
 	};
 	struct decompress_to_file:public base_out_decompression{
 		File *file;
-		decompress_to_file():base_out_decompression(){
+		decompress_to_file(File &f):base_out_decompression(){
+			this->file=&f;
 			this->f=out_f;
 		}
 		static int out_f(void *p,unsigned char *buffer,unsigned size){
@@ -687,10 +693,8 @@ void sarArchiveWrite(const std::wstring &ex_path,const std::wstring &in_path,boo
 			size_t raw_l=(size_t)file.filesize();
 			ulong compression=figure_out_compression(UniToUTF8(ex_path),file.filesize(),params.compression_used);
 			
-			compression::decompress_from_file dff;
-			compression::decompress_to_file dtf;
-			dff.file=&file;
-			dtf.file=params.file;
+			compression::decompress_from_file dff(file);
+			compression::decompress_to_file dtf(*params.file);
 			compression::compression_f f;
 
 			size_t size_before_compression=(size_t)params.file->filesize();
@@ -971,16 +975,14 @@ void extractSARfunction(const std::wstring &ex_path,const std::wstring &in_path,
 			if (extraData.compression==COMPRESSION_SPB)
 				std::cout <<"\tSPB\n";
 			buffer=decompress(buffer,extraData.compressed_length,extraData.uncompressed_length,extraData.compression);
-			File::write(working_dir.string(),buffer,extraData.uncompressed_length);
+			File::write(working_dir.wstring(),buffer,extraData.uncompressed_length);
 			delete[] buffer;
 		}else{
-			File file(working_dir.string(),0);
-			compression::decompress_from_file dff;
-			compression::decompress_to_file dtf;
-			dff.file=params.file;
+			File file(working_dir.wstring(),0);
+			compression::decompress_from_file dff(*params.file);
+			compression::decompress_to_file dtf(file);
 			dff.offset=extraData.offset;
 			dff.remaining=extraData.compressed_length;
-			dtf.file=&file;
 			compression::compression_f f;
 			switch (extraData.compression){
 				case COMPRESSION_NONE:
@@ -1007,7 +1009,7 @@ void sarArchive::extract(const std::wstring &outputFilename){
 		&this->file
 	};
 	if (!outputFilename.size()){
-		std::wstring temp=this->file_source.leaf();
+		std::wstring temp=this->file_source.leaf().wstring();
 		for (ulong a=0;a<temp.size();a++)
 			if (temp[a]=='.')
 				temp[a]='_';
@@ -1041,7 +1043,7 @@ void usage(){
 		"    -c <compression>\n"
 		"        Set compression.\n"
 		"    -r <directory>\n"
-		"        Add subdirectories instead of the directory passed as argument.\n"
+		"        Add contents instead of the directory passed as argument.\n"
 		"\n"
 		"See the documentation for details.\n";
 }

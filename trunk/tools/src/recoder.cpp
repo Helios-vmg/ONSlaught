@@ -116,33 +116,34 @@ int main(int argc,char **argv){
 	std::string middleBuffer(buffer,l);
 	delete[] buffer;
 	std::wstring WmiddleBuffer;
-	if (isValidUTF8(&middleBuffer[0],middleBuffer.size())){
-		std::cout <<"The script seems to be a valid UTF-8 stream. Using it as such.\n";
-		inputEncoding=ENCODINGS::UTF8_ENCODING;
-	}else if (isValidSJIS(&middleBuffer[0],middleBuffer.size())){
-		std::cout <<"The script seems to be a valid Shift JIS stream. Using it as such.\n";
-		inputEncoding=ENCODINGS::SJIS_ENCODING;
+	if (inputEncoding==ENCODINGS::AUTO_ENCODING){
+		if (isValidUTF8(&middleBuffer[0],middleBuffer.size())){
+			std::cout <<"The script seems to be a valid UTF-8 stream. Using it as such.\n";
+			inputEncoding=ENCODINGS::UTF8_ENCODING;
+		}else if (isValidSJIS(&middleBuffer[0],middleBuffer.size())){
+			std::cout <<"The script seems to be a valid Shift JIS stream. Using it as such.\n";
+			inputEncoding=ENCODINGS::SJIS_ENCODING;
+		}else{
+			std::cout <<"The script seems to be a valid ISO-8859-1 stream. Using it as such.\n";
+			inputEncoding=ENCODINGS::ISO_8859_1_ENCODING;
+		}
 	}else{
-		std::cout <<"The script seems to be a valid ISO-8859-1 stream. Using it as such.\n";
-		inputEncoding=ENCODINGS::ISO_8859_1_ENCODING;
-	}
-	if (inputEncoding!=ENCODINGS::AUTO_ENCODING){
 		if (middleBuffer.size()>=3 &&
 				(uchar)middleBuffer[0]==BOM8A &&
 				(uchar)middleBuffer[1]==BOM8B &&
 				(uchar)middleBuffer[2]==BOM8C &&
 				inputEncoding!=ENCODINGS::UTF8_ENCODING)
-			std::cout <<"WARNING: The file appears to be a UTF-8."<<std::endl;
+			std::cout <<"WARNING: The file might be a UTF-8."<<std::endl;
 		else if (middleBuffer.size()>=2 &&
 				(uchar)middleBuffer[0]==BOM16BA &&
 				(uchar)middleBuffer[1]==BOM16BB &&
 				inputEncoding==ENCODINGS::UCS2L_ENCODING)
-			std::cout <<"WARNING: The file appears to be a big endian UCS-2."<<std::endl;
+			std::cout <<"WARNING: The file might be a big endian UCS-2."<<std::endl;
 		else if (middleBuffer.size()>=2 &&
 				(uchar)middleBuffer[0]==BOM16LA &&
 				(uchar)middleBuffer[1]==BOM16LB &&
 				inputEncoding==ENCODINGS::UCS2B_ENCODING)
-			std::cout <<"WARNING: The file appears to be a little endian UCS-2."<<std::endl;
+			std::cout <<"WARNING: The file might be a little endian UCS-2."<<std::endl;
 	}
 	switch (inputEncoding){
 		case ENCODINGS::UCS2_ENCODING:

@@ -183,7 +183,7 @@ void TreeNode<T>::write(Archive<T> *archive,const Path &_src,const Path &_dst){
 	src/=this->name;
 	if (!this->skip){
 		dst/=this->name;
-		std::wstring dst_str=dst.string();
+		std::wstring dst_str=dst.wstring();
 		if (this->is_dir && dst_str.size() && dst_str[dst_str.size()-1]!='/')
 			dst_str.push_back('/');
 		archive->write(src,dst_str,this->is_dir);
@@ -202,7 +202,7 @@ void TreeNode<T>::foreach(const Path &external_path,const std::wstring &internal
 		ex_path/=this->name;
 		if (this->is_dir && in_path.size() && in_path[in_path.size()-1]!='/')
 			in_path.push_back('/');
-		ForeachFunction(ex_path.string(),in_path,this->is_dir,this->extraData,userData);
+		ForeachFunction(ex_path.wstring(),in_path,this->is_dir,this->extraData,userData);
 	}
 	for (container_iterator i=this->branches.begin();i!=this->branches.end();i++)
 		i->second.foreach<UserData_t,ForeachFunction>(ex_path,in_path,userData);
@@ -219,16 +219,17 @@ ulong TreeNode<T>::count(bool include_directories){
 template <typename T>
 void findfiles(const std::wstring &dir_path,TreeNode<T> &node){
 	node.clear();
-	boost::filesystem::wdirectory_iterator end_itr;
+	boost::filesystem::directory_iterator end_itr;
 	try{
-		for (boost::filesystem::wdirectory_iterator itr(dir_path);itr!=end_itr;itr++){
-			std::wstring filename=itr->leaf();
+		for (boost::filesystem::directory_iterator itr(dir_path);itr!=end_itr;itr++){
+			Path path=itr->path();
+			std::wstring filename=path.filename().wstring();
 			if (!boost::filesystem::is_directory(*itr))
 				node.get_branch(filename,1);
 			else{
 				TreeNode<T> *new_node=node.get_branch(filename,1);
 				new_node->is_dir=1;
-				findfiles(itr->string(),*new_node);
+				findfiles(path.wstring(),*new_node);
 			}
 		}
 	}catch (...){}
@@ -241,7 +242,7 @@ void Archive<T>::add(const std::wstring &path,bool skip){
 		absolute.remove_leaf();
 	if (!boost::filesystem::exists(absolute))
 		return;
-	TreeNode<T> new_node(absolute.leaf());
+	TreeNode<T> new_node(absolute.leaf().wstring());
 	if (boost::filesystem::is_directory(absolute))
 		new_node.is_dir=1;
 	absolute.remove_leaf();

@@ -744,7 +744,7 @@ void write_central_header(
 }
 
 void ZipArchive::write(const Path &src,const std::wstring &dst,bool dir){
-	if (!File::file_exists(src.string()))
+	if (!File::file_exists(src.wstring()))
 		return;
 	(std::cout <<'(').width(2);
 	std::cout <<(this->progress++*100)/this->total<<"%) "<<UniToUTF8(dst)<<"..."<<std::endl;
@@ -767,9 +767,9 @@ void ZipArchive::write(const Path &src,const std::wstring &dst,bool dir){
 		overwrite_header_offset=this->write_header(buffer);
 		overwrite_header_file=this->current_file;
 	}else{
-		File file(src.string(),1);
+		File file(src.wstring(),1);
 		uncompressed_l=file.filesize();
-		compression=figure_out_compression(UniToUTF8(src.string()),file.filesize(),this->compression);
+		compression=figure_out_compression(UniToUTF8(src.wstring()),file.filesize(),this->compression);
 		write_local_header(buffer,compression,0,0,uncompressed_l,dst);
 		local_header_start_file=this->current_file;
 		local_header_start_offset=this->output_file->filesize();
