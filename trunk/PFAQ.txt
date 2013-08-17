@@ -54,7 +54,6 @@ These are the most prominent new features:
      outline support.
    * Portable video playback supporting the most popular formats and codecs.
      Powered by FFmpeg.
-   * Turing complete macros.
    * Debug mode allows script writers to view the values of variables and to run
      a few commands from the console. The verbosity of the engine can be changed
      through the command line, or through a file that simulates the command
