@@ -106,7 +106,8 @@ bool NONS_Layer::load(const std::wstring *string){
 		NONS_LongRect lr=this->data.clip_rect();
 		this->unload();
 		this->data.assign(lr.w,lr.h);
-		this->clip_rect=NONS_Rect(lr);
+		if (!this->clip_rect.x || !this->clip_rect.y)
+			this->clip_rect=NONS_Rect(lr);
 		return 1;
 	}
 	this->unload();
