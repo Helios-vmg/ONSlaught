@@ -1,49 +1,49 @@
 La siguiente licencia se aplica a todos los archivos bajo src/, a menos que se
 indique lo contrario:
 
-* Copyright (c) 2008-2011, Helios (helios.vmg@gmail.com)
+* Copyright (c) 2008-2021, Helios (helios.vmg@gmail.com)
 * Todos los derechos reservados.
 *
-* La siguiente es una traducciÛn de la licencia original en inglÈs, provista
-* con el ˙nico propÛsito de que los que no saben inglÈs puedan tener una vaga
+* La siguiente es una traducci√≥n de la licencia original en ingl√©s, provista
+* con el √∫nico prop√≥sito de que los que no saben ingl√©s puedan tener una vaga
 * idea de su contenido. Dado que el autor no es un abogado ni mucho menos, la
-* misma carece de toda validez legal en ning˙n lado. En cambio, siempre se
-* aplicar· la licencia original, aunque el licenciado no pueda leerla.
-* La redistribuciÛn y el uso en formato de cÛdigo fuente y binario, con y sin
-* modificaciones, est·n permitidos siempre y cuando se cumplan las siguientes
+* misma carece de toda validez legal en ning√∫n lado. En cambio, siempre se
+* aplicar√° la licencia original, aunque el licenciado no pueda leerla.
+* La redistribuci√≥n y el uso en formato de c√≥digo fuente y binario, con y sin
+* modificaciones, est√°n permitidos siempre y cuando se cumplan las siguientes
 * condiciones:
-*     * Toda redistribuciÛn, ya sea de cÛdigo fuente y/o binario, debe incluÌr
-*       la licencia original en inglÈs y atenerse a sus condiciones.
-*     * Las redistribuciones de cÛdigo fuente deben mantener el aviso de
-*       copyright anterior, esta lista de condiciones, y la exenciÛn posterior.
+*     * Toda redistribuci√≥n, ya sea de c√≥digo fuente y/o binario, debe inclu√≠r
+*       la licencia original en ingl√©s y atenerse a sus condiciones.
+*     * Las redistribuciones de c√≥digo fuente deben mantener el aviso de
+*       copyright anterior, esta lista de condiciones, y la exenci√≥n posterior.
 *     * Las redistribuciones en formato binario deben reproducir el aviso de
-*       copyright anterior, esta lista de condiciones, y la exenciÛn posterior
-*       en la documentaciÛn y/u otros materiales provistos en la distribuciÛn.
-*     * El nombre del autor no podr· usarse para apoyar o promover productos
-*       derivados de este software sin previo permiso escrito especÌfico.
-*     * Productos derivados de este software no podr·n llamarse "ONSlaught" ni
-*       podr· "ONSlaught" aparecer en sus nombres sin previo permiso escrito
-*       especÌfico del autor.
+*       copyright anterior, esta lista de condiciones, y la exenci√≥n posterior
+*       en la documentaci√≥n y/u otros materiales provistos en la distribuci√≥n.
+*     * El nombre del autor no podr√° usarse para apoyar o promover productos
+*       derivados de este software sin previo permiso escrito espec√≠fico.
+*     * Productos derivados de este software no podr√°n llamarse "ONSlaught" ni
+*       podr√° "ONSlaught" aparecer en sus nombres sin previo permiso escrito
+*       espec√≠fico del autor.
 *
-* ESTE SOFTWARE ES PROVISTO POR HELIOS "TAL CUAL", Y CUALQUIER GARANTÕA EXPRESA
-* O IMPLÕCITA, INCLUYENDO, PERO NO LIMITADO A, LAS GARANTÕAS IMPLÕCITAS DE
-* COMERCIALIZACI”N Y UTILIDAD PARA UN PROP”SITO EN PARTICULAR, QUEDAN
-* RENUNCIADAS. EN NING⁄N CASO SER¡ HELIOS RESPONSABLE POR DA—OS DIRECTOS,
+* ESTE SOFTWARE ES PROVISTO POR HELIOS "TAL CUAL", Y CUALQUIER GARANT√çA EXPRESA
+* O IMPL√çCITA, INCLUYENDO, PERO NO LIMITADO A, LAS GARANT√çAS IMPL√çCITAS DE
+* COMERCIALIZACI√ìN Y UTILIDAD PARA UN PROP√ìSITO EN PARTICULAR, QUEDAN
+* RENUNCIADAS. EN NING√öN CASO SER√Å HELIOS RESPONSABLE POR DA√ëOS DIRECTOS,
 * INDIRECTOS, INCIDENTALES, ESPECIALES, EJEMPLARES, O CONSECUENTES (INCLUYENDO,
-* PERO NO LIMITADO A, PROCURACI”N DE BIENES O SERVICIOS SUBSTITUTOS; P…RDIDA DE
-* FUNCIONALIDAD, DATOS, O BENEFICIOS; O INTERRUPCI”N DE ACTIVIDADES) SIN
-* IMPORTAR COMO HAYA SIDO CAUSADO Y EN CUALQUIER TEORÕA DE RESPONSABILIDAD, YA
+* PERO NO LIMITADO A, PROCURACI√ìN DE BIENES O SERVICIOS SUBSTITUTOS; P√âRDIDA DE
+* FUNCIONALIDAD, DATOS, O BENEFICIOS; O INTERRUPCI√ìN DE ACTIVIDADES) SIN
+* IMPORTAR COMO HAYA SIDO CAUSADO Y EN CUALQUIER TEOR√çA DE RESPONSABILIDAD, YA
 * SEA EN CONTRATO, RESPONSABILIDAD OBJETIVA, O AGRAVIO INDEMNIZABLE (INCLUYENDO
 * NEGLIGENCIA O CUALQUIER OTRO) QUE HAYA DEVENIDO DE CUALQUIER MODO DE USO DE
-* ESTE SOFTWARE, AUNQUE HAYA SIDO AVISADO DE LA POSIBILIDAD DE TALES DA—OS.
+* ESTE SOFTWARE, AUNQUE HAYA SIDO AVISADO DE LA POSIBILIDAD DE TALES DA√ëOS.
 
 --------------------------------------------------------------------------------
 
-A continuaciÛn, las excepciones a la licencia anterior:
+A continuaci√≥n, las excepciones a la licencia anterior:
 
 --------------------------------------------------------------------------------
 
-                                DomÌnio P˙blico
+                                Dom√≠nio P√∫blico
 
 Igor Pavlov:
 src/LZMA.c
@@ -65,8 +65,8 @@ src/sha1.h
 
 --------------------------------------------------------------------------------
 
-                         Licencia P˙blica General (GPL)
-                            (con excepciÛn especial)
+                         Licencia P√∫blica General (GPL)
+                            (con excepci√≥n especial)
 
 Bison:
 src/INIParser.tab.cpp
@@ -78,7 +78,7 @@ src/ExpressionParser.tab.hpp
 
 --------------------------------------------------------------------------------
 
-                   Licencia P˙blica General Inferior (LGPL)
+                   Licencia P√∫blica General Menor (LGPL)
 
 Konstantin Korikov (lostclus@ua.fm) et al:
 src/libtimidity/common.c
