@@ -34,6 +34,7 @@
 #include "VirtualScreen.h"
 #include "Audio.h"
 #include "Archive.h"
+#include "Optional.h"
 #include <SDL/SDL.h>
 #include <string>
 #include <set>
@@ -402,7 +403,9 @@ struct NONS_Menu{
 	NONS_Layer *shade;
 	NONS_FontCache *font_cache,
 		*default_font_cache;
-	long fontsize,spacing,lineskip;
+	Optional<long> fontsize,
+		spacing,
+		lineskip;
 	NONS_Color shadeColor;
 	std::wstring stringSave;
 	std::wstring stringLoad;

@@ -1071,8 +1071,8 @@ void NONS_Menu::reset(){
 	delete this->buttons;
 	delete this->font_cache;
 	this->font_cache=new NONS_FontCache(*this->default_font_cache FONTCACHE_DEBUG_PARAMETERS);
-	this->font_cache->spacing=this->spacing;
-	this->font_cache->line_skip=this->lineskip;
+	this->spacing.get(this->font_cache->spacing);
+	this->lineskip.get(this->font_cache->line_skip);
 	this->shade->setShade(this->shadeColor);
 	NONS_ScreenSpace *scr=this->interpreter->screen;
 	this->buttons=new NONS_ButtonLayer(*this->font_cache,scr,1,0);
