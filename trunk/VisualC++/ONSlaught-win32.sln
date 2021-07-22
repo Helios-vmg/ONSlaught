@@ -1,17 +1,9 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual Studio 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ONSlaught-win32", "ONSlaught-win32\ONSlaught-win32.vcproj", "{0C607BA4-EED5-4A5F-8D97-95825F0BB074}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Plugin", "Plugin\Plugin.vcproj", "{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}"
-	ProjectSection(ProjectDependencies) = postProject
-		{0C607BA4-EED5-4A5F-8D97-95825F0BB074} = {0C607BA4-EED5-4A5F-8D97-95825F0BB074}
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ffmpeg_player", "ffmpeg_player\ffmpeg_player.vcproj", "{805D88FB-6A6D-4A46-9A99-645CE1CA9C28}"
-	ProjectSection(ProjectDependencies) = postProject
-		{0C607BA4-EED5-4A5F-8D97-95825F0BB074} = {0C607BA4-EED5-4A5F-8D97-95825F0BB074}
-	EndProjectSection
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31019.35
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ONSlaught-win32", "ONSlaught-win32\ONSlaught-win32.vcxproj", "{0C607BA4-EED5-4A5F-8D97-95825F0BB074}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,16 +15,11 @@ Global
 		{0C607BA4-EED5-4A5F-8D97-95825F0BB074}.Debug|Win32.Build.0 = Debug|Win32
 		{0C607BA4-EED5-4A5F-8D97-95825F0BB074}.SVN|Win32.ActiveCfg = SVN|Win32
 		{0C607BA4-EED5-4A5F-8D97-95825F0BB074}.SVN|Win32.Build.0 = SVN|Win32
-		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.Debug|Win32.ActiveCfg = Debug|Win32
-		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.Debug|Win32.Build.0 = Debug|Win32
-		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.SVN|Win32.ActiveCfg = SVN|Win32
-		{E865D35E-6A63-4E30-A649-C9CA95A1D5D7}.SVN|Win32.Build.0 = SVN|Win32
-		{805D88FB-6A6D-4A46-9A99-645CE1CA9C28}.Debug|Win32.ActiveCfg = Debug|Win32
-		{805D88FB-6A6D-4A46-9A99-645CE1CA9C28}.Debug|Win32.Build.0 = Debug|Win32
-		{805D88FB-6A6D-4A46-9A99-645CE1CA9C28}.SVN|Win32.ActiveCfg = SVN|Win32
-		{805D88FB-6A6D-4A46-9A99-645CE1CA9C28}.SVN|Win32.Build.0 = SVN|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A529C897-7E99-4CC8-A610-9D23A84C381C}
 	EndGlobalSection
 EndGlobal

@@ -667,9 +667,9 @@ void NONS_RedirectedOutput::redirect(){
 		delete this->file;
 	const char *str;
 	ulong color=7;
-	if (this->cout==std::cout)
+	if (&this->cout==&std::cout)
 		str=STDOUT_FILENAME;
-	else if (this->cout==std::cerr){
+	else if (&this->cout==&std::cerr){
 		str=STDERR_FILENAME;
 		color=12;
 	}else

@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="SVN|Win32">
+      <Configuration>SVN</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0C607BA4-EED5-4A5F-8D97-95825F0BB074}</ProjectGuid>
+    <RootNamespace>ONSlaughtwin32</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='SVN|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='SVN|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>16.0.30804.86</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>../../bin-win32\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>ONSlaught_d</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='SVN|Win32'">
+    <OutDir>../../bin-win32\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+    <GenerateManifest>false</GenerateManifest>
+    <TargetName>ONSlaught</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>../../include;../../include/mpg123;../../include/mpg123/msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;DEBUG_SCREEN_MUTEX;BUILD_ONSLAUGHT;FLAC__NO_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <ExceptionHandling />
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <DisableSpecificWarnings>4065;4530;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>freetype.lib;jpeg.lib;libbz2.lib;libogg.lib;libpng.lib;libtiff.lib;libvorbis.lib;libvorbisfile.lib;SDL.lib;SDL_image.lib;zlib.lib;OpenAL32.lib;libFLAC_static.lib;libmpg123.lib;libmikmod.lib;legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>../../lib-win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreSpecificDefaultLibraries>libcmt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+      <OutputFile>$(TargetPath)</OutputFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='SVN|Win32'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
+      <AdditionalIncludeDirectories>../../include;../../include/mpg123;../../include/mpg123/msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;NONS_SVN;BUILD_ONSLAUGHT;FLAC__NO_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <StringPooling>true</StringPooling>
+      <ExceptionHandling />
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat />
+      <DisableSpecificWarnings>4065;4530;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_UNICODE;UNICODE;NONS_SVN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>freetype.lib;jpeg.lib;libbz2.lib;libogg.lib;libpng.lib;libtiff.lib;libvorbis.lib;libvorbisfile.lib;SDL.lib;SDL_image.lib;zlib.lib;OpenAL32.lib;libFLAC_static.lib;libmpg123.lib;libmikmod.lib;legacy_stdio_definitions.lib;SDLmain.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(TargetPath)</OutputFile>
+      <AdditionalLibraryDirectories>../../lib-win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <DataExecutionPrevention>false</DataExecutionPrevention>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\Archive.cpp" />
+    <ClCompile Include="..\..\src\Audio.cpp" />
+    <ClCompile Include="..\..\src\AudioFormats.cpp" />
+    <ClCompile Include="..\..\src\ErrorCodes.cpp" />
+    <ClCompile Include="..\..\src\ExpressionParser.tab.cpp" />
+    <ClCompile Include="..\..\src\FileLog.cpp" />
+    <ClCompile Include="..\..\src\Functions.cpp" />
+    <ClCompile Include="..\..\src\GFX.cpp" />
+    <ClCompile Include="..\..\src\GUI.cpp" />
+    <ClCompile Include="..\..\src\Image.cpp" />
+    <ClCompile Include="..\..\src\INIfile.cpp" />
+    <ClCompile Include="..\..\src\INIParser.tab.cpp" />
+    <ClCompile Include="..\..\src\IOFunctions.cpp" />
+    <ClCompile Include="..\..\src\legacy.cpp" />
+    <ClCompile Include="..\..\src\libFLAC++\metadata.cpp" />
+    <ClCompile Include="..\..\src\libFLAC++\stream_decoder.cpp" />
+    <ClCompile Include="..\..\src\libFLAC++\stream_encoder.cpp" />
+    <ClCompile Include="..\..\src\libtimidity\common.c" />
+    <ClCompile Include="..\..\src\libtimidity\instrum.c" />
+    <ClCompile Include="..\..\src\libtimidity\instrum_dls.c" />
+    <ClCompile Include="..\..\src\libtimidity\mix.c" />
+    <ClCompile Include="..\..\src\libtimidity\output.c" />
+    <ClCompile Include="..\..\src\libtimidity\playmidi.c" />
+    <ClCompile Include="..\..\src\libtimidity\readmidi.c" />
+    <ClCompile Include="..\..\src\libtimidity\resample.c" />
+    <ClCompile Include="..\..\src\libtimidity\stream.c" />
+    <ClCompile Include="..\..\src\libtimidity\tables.c" />
+    <ClCompile Include="..\..\src\libtimidity\timidity.c" />
+    <ClCompile Include="..\..\src\LZMA.c" />
+    <ClCompile Include="..\..\src\ONSlaught.cpp" />
+    <ClCompile Include="..\..\src\OpenAL.cpp" />
+    <ClCompile Include="..\..\src\Options.cpp" />
+    <ClCompile Include="..\..\src\Plugin\LibraryLoader.cpp" />
+    <ClCompile Include="..\..\src\ScreenSpace.cpp" />
+    <ClCompile Include="..\..\src\Script.cpp" />
+    <ClCompile Include="..\..\src\ScriptInterpreter.cpp" />
+    <ClCompile Include="..\..\src\sha1.cpp" />
+    <ClCompile Include="..\..\src\SJIS.table.cpp" />
+    <ClCompile Include="..\..\src\Thread.cpp" />
+    <ClCompile Include="..\..\src\ThreadManager.cpp" />
+    <ClCompile Include="..\..\src\tinyxml\tinyxml.cpp" />
+    <ClCompile Include="..\..\src\tinyxml\tinyxmlerror.cpp" />
+    <ClCompile Include="..\..\src\tinyxml\tinyxmlparser.cpp" />
+    <ClCompile Include="..\..\src\VariableStore.cpp" />
+    <ClCompile Include="..\..\src\VirtualScreen.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\Archive.h" />
+    <ClInclude Include="..\..\src\Audio.h" />
+    <ClInclude Include="..\..\src\AudioFormats.h" />
+    <ClInclude Include="..\..\src\Binder.h" />
+    <ClInclude Include="..\..\src\Common.h" />
+    <ClInclude Include="..\..\src\enums.h" />
+    <ClInclude Include="..\..\src\ErrorCodes.h" />
+    <ClInclude Include="..\..\src\ExpressionParser.tab.hpp" />
+    <ClInclude Include="..\..\src\FileLog.h" />
+    <ClInclude Include="..\..\src\Functions.h" />
+    <ClInclude Include="..\..\src\GFX.h" />
+    <ClInclude Include="..\..\src\GUI.h" />
+    <ClInclude Include="..\..\src\Image.h" />
+    <ClInclude Include="..\..\src\INIfile.h" />
+    <ClInclude Include="..\..\src\INIParser.tab.hpp" />
+    <ClInclude Include="..\..\src\IOFunctions.h" />
+    <ClInclude Include="..\..\src\libFLAC++\share\alloc.h" />
+    <ClInclude Include="..\..\src\libFLAC++\share\getopt.h" />
+    <ClInclude Include="..\..\src\libFLAC++\share\grabbag.h" />
+    <ClInclude Include="..\..\src\libFLAC++\share\replaygain_analysis.h" />
+    <ClInclude Include="..\..\src\libFLAC++\share\replaygain_synthesis.h" />
+    <ClInclude Include="..\..\src\libFLAC++\share\utf8.h" />
+    <ClInclude Include="..\..\src\libtimidity\common.h" />
+    <ClInclude Include="..\..\src\libtimidity\dls1.h" />
+    <ClInclude Include="..\..\src\libtimidity\dls2.h" />
+    <ClInclude Include="..\..\src\libtimidity\instrum.h" />
+    <ClInclude Include="..\..\src\libtimidity\instrum_dls.h" />
+    <ClInclude Include="..\..\src\libtimidity\mix.h" />
+    <ClInclude Include="..\..\src\libtimidity\options.h" />
+    <ClInclude Include="..\..\src\libtimidity\output.h" />
+    <ClInclude Include="..\..\src\libtimidity\playmidi.h" />
+    <ClInclude Include="..\..\src\libtimidity\readmidi.h" />
+    <ClInclude Include="..\..\src\libtimidity\resample.h" />
+    <ClInclude Include="..\..\src\libtimidity\tables.h" />
+    <ClInclude Include="..\..\src\libtimidity\timidity.h" />
+    <ClInclude Include="..\..\src\libtimidity\timidity_internal.h" />
+    <ClInclude Include="..\..\src\LZMA.h" />
+    <ClInclude Include="..\..\src\OpenAL.h" />
+    <ClInclude Include="..\..\src\Optional.h" />
+    <ClInclude Include="..\..\src\Options.h" />
+    <ClInclude Include="..\..\src\Plugin\LibraryLoader.h" />
+    <ClInclude Include="..\..\src\ScreenSpace.h" />
+    <ClInclude Include="..\..\src\Script.h" />
+    <ClInclude Include="..\..\src\ScriptInterpreter.h" />
+    <ClInclude Include="..\..\src\sha1.h" />
+    <ClInclude Include="..\..\src\Thread.h" />
+    <ClInclude Include="..\..\src\ThreadManager.h" />
+    <ClInclude Include="..\..\src\tinyxml\tinyxml.h" />
+    <ClInclude Include="..\..\src\VariableStore.h" />
+    <ClInclude Include="..\..\src\version.h" />
+    <ClInclude Include="..\..\src\VirtualScreen.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\onslaught.rc">
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_UNICODE;UNICODE;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

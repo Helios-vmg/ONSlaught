@@ -1,0 +1,14 @@
+.vs/
+*.lib
+*.a
+*.obj
+*.vcxproj.user
+*.tlog
+*.log
+*.exe
+*.exp
+*.ilk
+*.pdb
+*.res
+*.recipe
+*.idb

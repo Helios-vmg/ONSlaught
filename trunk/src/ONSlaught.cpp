@@ -280,12 +280,12 @@ std::string get_version_string(){
 #if ONSLAUGHT_BUILD_VERSION<99999999
 	stream <<"Build "<<ONSLAUGHT_BUILD_VERSION<<", ";
 #endif
-	stream <<ONSLAUGHT_BUILD_VERSION_STR"\n"
+	stream <<ONSLAUGHT_BUILD_VERSION_STR "\n"
 #ifdef NONS_LOW_MEMORY_ENVIRONMENT
 		"Low memory usage build.\n"
 #endif
 		"\n"
-		"Copyright (c) "ONSLAUGHT_COPYRIGHT_YEAR_STR", Helios (helios.vmg@gmail.com)\n"
+		"Copyright (c) " ONSLAUGHT_COPYRIGHT_YEAR_STR ", Helios (helios.vmg@gmail.com)\n"
 		"All rights reserved.\n\n\n";
 	return stream.str();
 }
@@ -335,9 +335,9 @@ void initialize(int argc,char **argv){
 
 	settings.init(config_directory+settings_filename);
 	
-	SDL_WM_SetCaption("ONSlaught ("ONSLAUGHT_BUILD_VERSION_STR")",0);
+	SDL_WM_SetCaption("ONSlaught (" ONSLAUGHT_BUILD_VERSION_STR ")",0);
 #if NONS_SYS_WINDOWS
-	findMainWindow(L"ONSlaught ("ONSLAUGHT_BUILD_VERSION_WSTR L")");
+	findMainWindow(L"ONSlaught (" ONSLAUGHT_BUILD_VERSION_WSTR L")");
 #endif
 }
 
