@@ -1,0 +1,159 @@
+La licence suivante s'applique à tous les fichiers se trouvant dans les dossiers 
+src/ et tools/src/, sauf mention contraire sauf indication contraire, et au
+projet dans son ensemble:
+ 
+* Copyright (c) 2008-2021, Helios (helios.vmg@gmail.com)
+* Tous droits réservés.
+*
+* Ce qui suit est une traduction de la licence originale en anglais, fournie
+* dans le seul but de donner à ceux qui ne comprennent pas l'anglais une vague
+* idée de son contenu. L'auteur n'étant pas un juriste, il n'a aucune validité
+* juridique. Notez donc que c'est la licence originale, celle en anglais, qui
+* s'appliquera dans tous les cas, même si le titulaire de la licence ne peut pas
+* la lire.
+*
+* La redistribution et l'utilisation sous forme de code source et binaire,
+* avec ou sans modification, sont autorisées sous réserve que les
+* conditions suivantes soient remplies :
+*     * Les redistributions de code source doivent conserver la déclaration de
+*       droits d'auteur ci-dessus, la présente liste de conditions et la clause
+*       de non-responsabilité suivante.
+*     * Les redistributions sous forme binaire doivent inclure la déclaration
+*       de droits d'auteur ci-dessus, la présente liste de conditions et la
+*       clause de non-responsabilité suivante dans la documentation ou les
+*       autres documents fournis avec le binaire.
+*     * Le nom de l'auteur ne peut être utilisé pour soutenir ou promouvoir des
+*       produits utilisant ce logiciel sans autorisation écrite préalable.
+*     * Les produits utilisant ce logiciel ne peuvent être appelés «ONSlaught»
+*       ni contenir dans leur nom «ONSlaught» sans l'autorisation écrite
+*       préalable de l'auteur.
+*
+* CE LOGICIEL EST FOURNI PAR HELIOS «TEL QUEL» ET TOUTE GARANTIE EXPRESSE OU
+* IMPLICITE, Y COMPRIS, MAIS SANS S'Y LIMITER, LES GARANTIES IMPLICITES DE
+* QUALITÉ MARCHANDE ET D'ADÉQUATION À UN USAGE PARTICULIER EST REJETÉE.
+* EN AUCUN CAS, HELIOS NE POURRA ÊTRE TENU RESPONSABLE DE TOUTE INDEMNITÉ
+* DIRECTE, INDIRECTE, ACCIDENTELLE, SPÉCIALE, EXEMPLAIRE OU CONSÉCUTIVE (Y
+* COMPRIS, MAIS SANS S'Y LIMITER, L'ACQUISITION DE BIENS OU DE SERVICES DE
+* SUBSTITUTION, LA PERTE D'UTILISATION, DE DONNÉES OU DE RECETTES, OU
+* L'INTERRUPTION D'ACTIVITÉ), QUELLE QU'EN SOIT LA CAUSE ET QUELLE QUE SOIT LA
+* THÉORIE DE RESPONSABILITÉ, QU'IL S'AGISSE D'UN CONTRAT, D'UNE RESPONSABILITÉ
+* STRICTE OU D'UN DÉLIT (Y COMPRIS LA NÉGLIGENCE OU AUTRE) DÉCOULANT DE QUELQUE
+* MANIÈRE QUE CE SOIT DE L'UTILISATION DE CE LOGICIEL, MÊME S'IL A ÉTÉ INFORMÉ
+* DE LA POSSIBILITÉ DE TELLES INDEMNITÉS.
+ 
+--------------------------------------------------------------------------------
+ 
+Voici les exceptions à la licence ci-dessus :
+ 
+--------------------------------------------------------------------------------
+ 
+                                 Domaine public
+ 
+Igor Pavlov :
+src/LZMA.c
+src/LZMA.h
+tools/src/LZMA.c
+tools/src/LZMA.h
+ 
+--------------------------------------------------------------------------------
+ 
+                                  Licence permissive
+ 
+Paul E. Jones (paulej@arid.us) :
+src/sha1.cpp
+src/sha1.h
+ 
+Josh Coalson :
+src/libFLAC++/metadata.cpp
+src/libFLAC++/stream_decoder.cpp
+src/libFLAC++/stream_encoder.cpp
+src/libFLAC++/share/alloc.h
+src/libFLAC++/share/getopt.h
+src/libFLAC++/share/grabbag.h
+src/libFLAC++/share/replaygain_analysis.h
+src/libFLAC++/share/replaygain_synthesis.h
+src/libFLAC++/share/utf8.h
+ 
+* libFLAC++ - Free Lossless Audio Codec library
+* Copyright (C) 2002,2003,2004,2005,2006,2007  Josh Coalson
+*
+* La redistribution et l'utilisation sous forme de code source et binaire,
+* avec ou sans modification, sont autorisées sous réserve que les
+* conditions suivantes soient remplies :
+*
+* - Les redistributions du code source doivent conserver la déclaration
+* de droits d'auteur ci-dessus, la présente liste de conditions et la
+* clause de non-responsabilité suivante.
+*
+* - Les redistributions au format binaire doivent conserver la déclaration
+* de droits d'auteur ci-dessus, la présente liste de conditions et la
+* clause de non-responsabilité suivante.
+*
+* - Ni le nom de la Fondation Xiph.org ni les noms de ses contributeurs
+* ne peuvent être utilisés pour approuver ou promouvoir des produits
+* utilisant ce logiciel sans autorisation écrite préalable spécifique.
+*
+* CE LOGICIEL EST FOURNI PAR LES DÉTENTEURS DES DROITS D'AUTEUR ET PAR SES
+* CONTRIBUTEURS « TEL QUEL » ET TOUTE GARANTIE EXPRESSE OU IMPLICITE, Y COMPRIS,
+* MAIS SANS S'Y LIMITER, LES GARANTIES IMPLICITES DE QUALITÉ MARCHANDE ET
+* D'ADÉQUATION À UN USAGE PARTICULIER, EST REJETÉE.  EN AUCUN CAS, LA FONDATION
+* OU LES CONTRIBUTEURS NE POURRONT ÊTRE TENUS RESPONSABLES DE TOUTE INDEMNITÉ
+* DIRECTE, INDIRECTE, ACCIDENTELLE, SPÉCIALE, EXEMPLAIRE OU CONSÉCUTIVE (Y
+* COMPRIS, MAIS SANS S'Y LIMITER, L'ACQUISITION DE BIENS OU DE SERVICES DE
+* SUBSTITUTION, LA PERTE D'UTILISATION, DE DONNÉES OU DE RECETTES, OU
+* L'INTERRUPTION D'ACTIVITÉ), QUELLE QU'EN SOIT LA CAUSE ET QUELLE QUE SOIT LA
+* THÉORIE DE RESPONSABILITÉ, QU'IL S'AGISSE D'UN CONTRAT, D'UNE RESPONSABILITÉ
+* STRICTE OU D'UN DÉLIT (Y COMPRIS LA NÉGLIGENCE OU AUTRE) DÉCOULANT DE QUELQUE
+* MANIÈRE QUE CE SOIT DE L'UTILISATION DE CE LOGICIEL, MÊME S'ILS ONT ÉTÉ
+* INFORMÉS DE LA POSSIBILITÉ DE TELLES INDEMNITÉS.
+ 
+Lee Thomason (www.grinninglizard.com), avec quelques modifications apportées par
+Helios:
+src/tinyxml/tinyxml.cpp
+src/tinyxml/tinyxmlerror.cpp
+src/tinyxml/tinyxmlparser.cpp
+src/tinyxml/tinyxml.h
+ 
+--------------------------------------------------------------------------------
+ 
+                         Licence publique générale (GPL)
+                            (avec exception spéciale)
+ 
+Bison :
+src/INIParser.tab.cpp
+src/INIParser.tab.hpp
+src/MacroParser.tab.cpp
+src/MacroParser.tab.hpp
+src/ExpressionParser.tab.cpp
+src/ExpressionParser.tab.hpp
+ 
+--------------------------------------------------------------------------------
+ 
+                         Licence publique générale limitée (LGPL)
+ 
+Konstantin Korikov (lostclus@ua.fm) et al :
+src/libtimidity/common.c
+src/libtimidity/instrum.c
+src/libtimidity/instrum_dls.c
+src/libtimidity/mix.c
+src/libtimidity/output.c
+src/libtimidity/playmidi.c
+src/libtimidity/readmidi.c
+src/libtimidity/resample.c
+src/libtimidity/stream.c
+src/libtimidity/tables.c
+src/libtimidity/timidity.c
+src/libtimidity/common.h
+src/libtimidity/dls1.h
+src/libtimidity/dls2.h
+src/libtimidity/instrum.h
+src/libtimidity/instrum_dls.h
+src/libtimidity/mix.h
+src/libtimidity/options.h
+src/libtimidity/output.h
+src/libtimidity/playmidi.h
+src/libtimidity/readmidi.h
+src/libtimidity/resample.h
+src/libtimidity/tables.h
+src/libtimidity/timidity.h
+src/libtimidity/timidity_internal.h
